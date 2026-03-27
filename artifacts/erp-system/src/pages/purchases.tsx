@@ -343,6 +343,12 @@ function ProductsPanel() {
   const [catFilter, setCatFilter] = useState("");
   const [formData, setFormData] = useState({ name: "", sku: "", category: "", quantity: 0, cost_price: 0, sale_price: 0, low_stock_threshold: 5 });
 
+  const generateBarcode = () => {
+    const ts = Date.now().toString().slice(-9);
+    const rand = Math.floor(Math.random() * 100).toString().padStart(2, "0");
+    return `HT${ts}${rand}`;
+  };
+
   const filtered = products.filter(p => {
     const matchS = p.name.includes(search) || (p.sku && p.sku.includes(search));
     const matchC = !catFilter || p.category === catFilter;
@@ -374,7 +380,7 @@ function ProductsPanel() {
             {CATEGORIES.map(c => <option key={c} value={c} className="bg-gray-900">{c}</option>)}
           </select>
         </div>
-        <button onClick={() => setShowAdd(true)} className="btn-primary flex items-center gap-2 text-sm"><Plus className="w-4 h-4" /> منتج جديد</button>
+        <button onClick={() => { setFormData({ name: "", sku: generateBarcode(), category: "", quantity: 0, cost_price: 0, sale_price: 0, low_stock_threshold: 5 }); setShowAdd(true); }} className="btn-primary flex items-center gap-2 text-sm"><Plus className="w-4 h-4" /> منتج جديد</button>
       </div>
 
       {showAdd && (
@@ -383,14 +389,20 @@ function ProductsPanel() {
             <h3 className="text-xl font-bold text-white mb-5">إضافة منتج جديد</h3>
             <div className="space-y-3">
               <div><label className="text-white/60 text-xs mb-1 block">اسم المنتج *</label><input required type="text" className="glass-input" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} /></div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-white/60 text-xs mb-1 block">الرمز (SKU)</label><input type="text" className="glass-input" value={formData.sku} onChange={e => setFormData({ ...formData, sku: e.target.value })} /></div>
-                <div><label className="text-white/60 text-xs mb-1 block">التصنيف *</label>
-                  <select required className="glass-input appearance-none" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}>
-                    <option value="" disabled>اختر</option>
-                    {CATEGORIES.map(c => <option key={c} value={c} className="bg-gray-900">{c}</option>)}
-                  </select>
+              <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-3 mb-1">
+                <label className="text-amber-400 text-xs font-bold mb-2 block flex items-center gap-1.5">🔲 الباركود (تلقائي)</label>
+                <div className="flex gap-2 items-center">
+                  <input type="text" className="glass-input flex-1 font-mono text-sm tracking-wider text-amber-300" value={formData.sku} onChange={e => setFormData({ ...formData, sku: e.target.value })} placeholder="سيتم توليده تلقائياً" />
+                  <button type="button" onClick={() => setFormData(f => ({ ...f, sku: generateBarcode() }))} className="px-3 py-2 rounded-xl bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 text-xs font-bold transition-colors shrink-0">تجديد</button>
                 </div>
+                <p className="text-white/30 text-xs mt-1">يمكنك تعديل الباركود أو تجديده</p>
+              </div>
+              <div>
+                <label className="text-white/60 text-xs mb-1 block">التصنيف *</label>
+                <select required className="glass-input appearance-none w-full" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}>
+                  <option value="" disabled>اختر التصنيف</option>
+                  {CATEGORIES.map(c => <option key={c} value={c} className="bg-gray-900">{c}</option>)}
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="text-white/60 text-xs mb-1 block">سعر التكلفة</label><input required type="number" step="0.01" min="0" className="glass-input" value={formData.cost_price || ''} onChange={e => setFormData({ ...formData, cost_price: parseFloat(e.target.value) || 0 })} /></div>

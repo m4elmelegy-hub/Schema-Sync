@@ -1,0 +1,14 @@
+import { pgTable, serial, text, boolean, timestamp } from "drizzle-orm/pg-core";
+
+export const erpUsersTable = pgTable("erp_users", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  username: text("username").notNull(),
+  pin: text("pin").default("0000"),
+  role: text("role").notNull().default("cashier"),
+  permissions: text("permissions").default("{}"),
+  active: boolean("active").default(true),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type ErpUser = typeof erpUsersTable.$inferSelect;

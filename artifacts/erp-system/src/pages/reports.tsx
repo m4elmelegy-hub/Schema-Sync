@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { useGetProducts, useGetCustomers, useGetSales, useGetTransactions, useGetDashboardStats } from "@workspace/api-client-react";
+import { useGetProducts, useGetCustomers, useGetSales, useGetTransactions, useGetDashboardStats, useGetCustomerStatement } from "@workspace/api-client-react";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { AlertTriangle, TrendingUp, TrendingDown, Package, Users, FileText, DollarSign, X } from "lucide-react";
+import { AlertTriangle, TrendingUp, TrendingDown, Package, Users, FileText, DollarSign, X, ChevronDown, ChevronUp, ShoppingBag, ShoppingCart } from "lucide-react";
 
 function InventoryReport() {
   const { data: products = [], isLoading } = useGetProducts();
@@ -155,20 +155,189 @@ function InventoryReport() {
   );
 }
 
+function CustomerStatementModal({ customerId, onClose }: { customerId: number; onClose: () => void }) {
+  const { data, isLoading } = useGetCustomerStatement(customerId);
+  const [expandedSaleId, setExpandedSaleId] = useState<number | null>(null);
+  const [expandedPurchaseId, setExpandedPurchaseId] = useState<number | null>(null);
+
+  if (isLoading) return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+      <div className="glass-panel rounded-3xl p-8 text-white/60">جاري تحميل كشف الحساب...</div>
+    </div>
+  );
+  if (!data) return null;
+
+  const { customer, sales, linked_purchases } = data;
+  const totalSold = sales.reduce((s, v) => s + Number(v.total_amount), 0);
+  const totalPaid = sales.reduce((s, v) => s + Number(v.paid_amount), 0);
+  const totalFromPurchases = linked_purchases.reduce((s, v) => s + Number(v.total_amount), 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div className="glass-panel rounded-3xl p-0 w-full max-w-4xl border border-white/10 shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="flex justify-between items-center p-6 border-b border-white/10 bg-white/5">
+          <div>
+            <h3 className="text-2xl font-bold text-white">كشف حساب تفصيلي</h3>
+            <p className="text-amber-400 font-semibold mt-1">{customer.name}</p>
+            {customer.phone && <p className="text-white/40 text-sm">{customer.phone}</p>}
+          </div>
+          <button onClick={onClose} className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"><X className="w-5 h-5 text-white/70" /></button>
+        </div>
+
+        <div className="overflow-y-auto p-6 space-y-6">
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-4 text-center">
+              <p className="text-blue-400 text-xs mb-1">إجمالي المبيعات له</p>
+              <p className="text-white font-black">{formatCurrency(totalSold)}</p>
+              <p className="text-white/30 text-xs mt-0.5">{sales.length} فاتورة</p>
+            </div>
+            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 text-center">
+              <p className="text-emerald-400 text-xs mb-1">المدفوع</p>
+              <p className="text-white font-black">{formatCurrency(totalPaid)}</p>
+            </div>
+            <div className={`border rounded-2xl p-4 text-center ${Number(customer.balance) > 0 ? 'bg-red-500/10 border-red-500/20' : 'bg-white/5 border-white/10'}`}>
+              <p className={`text-xs mb-1 ${Number(customer.balance) > 0 ? 'text-red-400' : 'text-white/50'}`}>الرصيد المستحق</p>
+              <p className={`font-black ${Number(customer.balance) > 0 ? 'text-red-400' : 'text-white/40'}`}>{formatCurrency(Number(customer.balance))}</p>
+            </div>
+          </div>
+
+          {/* Sales with items */}
+          {sales.length > 0 && (
+            <div>
+              <h4 className="text-white font-bold mb-3 flex items-center gap-2"><ShoppingBag className="w-4 h-4 text-amber-400" /> فواتير المبيعات ({sales.length})</h4>
+              <div className="space-y-2">
+                {sales.map(s => (
+                  <div key={s.id} className="border border-white/10 rounded-2xl overflow-hidden">
+                    <button
+                      onClick={() => setExpandedSaleId(expandedSaleId === s.id ? null : s.id)}
+                      className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors"
+                    >
+                      <div className="flex items-center gap-4 text-sm">
+                        <span className="text-amber-400 font-bold">{s.invoice_no}</span>
+                        <span className={`px-2 py-0.5 rounded-lg text-xs font-bold border ${
+                          s.payment_type === 'cash' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+                          s.payment_type === 'credit' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
+                          'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+                        }`}>{s.payment_type === 'cash' ? 'نقدي' : s.payment_type === 'credit' ? 'آجل' : 'جزئي'}</span>
+                        <span className="text-white/50">{formatDate(s.created_at)}</span>
+                        <span className="text-xs text-white/40">{s.items.length} صنف</span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="text-white font-bold text-sm">{formatCurrency(Number(s.total_amount))}</span>
+                        {Number(s.remaining_amount) > 0 && <span className="text-red-400 text-xs font-bold">متبقي: {formatCurrency(Number(s.remaining_amount))}</span>}
+                        {expandedSaleId === s.id ? <ChevronUp className="w-4 h-4 text-white/40" /> : <ChevronDown className="w-4 h-4 text-white/40" />}
+                      </div>
+                    </button>
+                    {expandedSaleId === s.id && s.items.length > 0 && (
+                      <div className="border-t border-white/10 bg-white/3">
+                        <table className="w-full text-right text-xs">
+                          <thead className="bg-white/5">
+                            <tr>
+                              <th className="p-2 text-white/50">الصنف</th>
+                              <th className="p-2 text-white/50">الكمية</th>
+                              <th className="p-2 text-white/50">سعر الوحدة</th>
+                              <th className="p-2 text-white/50">الإجمالي</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {s.items.map(item => (
+                              <tr key={item.id} className="border-t border-white/5">
+                                <td className="p-2 text-white font-medium">{item.product_name}</td>
+                                <td className="p-2 text-white/70">{Number(item.quantity)}</td>
+                                <td className="p-2 text-white/70">{formatCurrency(Number(item.unit_price))}</td>
+                                <td className="p-2 text-amber-400 font-bold">{formatCurrency(Number(item.total_price))}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Linked purchases from supplier, charged to customer */}
+          {linked_purchases.length > 0 && (
+            <div>
+              <h4 className="text-white font-bold mb-3 flex items-center gap-2"><ShoppingCart className="w-4 h-4 text-blue-400" /> مشتريات مُحمَّلة على العميل ({linked_purchases.length})</h4>
+              <div className="space-y-2">
+                {linked_purchases.map(p => (
+                  <div key={p.id} className="border border-white/10 rounded-2xl overflow-hidden">
+                    <button
+                      onClick={() => setExpandedPurchaseId(expandedPurchaseId === p.id ? null : p.id)}
+                      className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors"
+                    >
+                      <div className="flex items-center gap-4 text-sm">
+                        <span className="text-blue-400 font-bold">{p.invoice_no}</span>
+                        {p.supplier_name && <span className="text-white/40 text-xs">من: {p.supplier_name}</span>}
+                        {p.customer_payment_type && (
+                          <span className={`px-2 py-0.5 rounded-lg text-xs font-bold border ${
+                            p.customer_payment_type === 'cash' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+                            p.customer_payment_type === 'credit' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
+                            'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+                          }`}>{p.customer_payment_type === 'cash' ? 'دفع نقداً' : p.customer_payment_type === 'credit' ? 'آجل (دين)' : 'جزئي'}</span>
+                        )}
+                        <span className="text-white/50">{formatDate(p.created_at)}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-white font-bold text-sm">{formatCurrency(Number(p.total_amount))}</span>
+                        {expandedPurchaseId === p.id ? <ChevronUp className="w-4 h-4 text-white/40" /> : <ChevronDown className="w-4 h-4 text-white/40" />}
+                      </div>
+                    </button>
+                    {expandedPurchaseId === p.id && p.items.length > 0 && (
+                      <div className="border-t border-white/10 bg-white/3">
+                        <table className="w-full text-right text-xs">
+                          <thead className="bg-white/5">
+                            <tr>
+                              <th className="p-2 text-white/50">الصنف</th>
+                              <th className="p-2 text-white/50">الكمية</th>
+                              <th className="p-2 text-white/50">سعر الوحدة</th>
+                              <th className="p-2 text-white/50">الإجمالي</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {p.items.map(item => (
+                              <tr key={item.id} className="border-t border-white/5">
+                                <td className="p-2 text-white font-medium">{item.product_name}</td>
+                                <td className="p-2 text-white/70">{Number(item.quantity)}</td>
+                                <td className="p-2 text-white/70">{formatCurrency(Number(item.unit_price))}</td>
+                                <td className="p-2 text-blue-400 font-bold">{formatCurrency(Number(item.total_price))}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {sales.length === 0 && linked_purchases.length === 0 && (
+            <div className="text-center py-8 text-white/40">لا توجد حركات لهذا العميل</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CustomerAccountsReport() {
   const { data: customers = [], isLoading: custLoading } = useGetCustomers();
   const { data: allSales = [] } = useGetSales();
-  const { data: transactions = [] } = useGetTransactions();
-  const [selectedCustomer, setSelectedCustomer] = useState<{ id: number; name: string } | null>(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
 
   const customerData = customers.map(c => {
     const sales = allSales.filter(s => s.customer_id === c.id || s.customer_name === c.name);
     const totalSold = sales.reduce((s, v) => s + v.total_amount, 0);
     const totalPaid = sales.reduce((s, v) => s + v.paid_amount, 0);
     const totalRemaining = sales.reduce((s, v) => s + v.remaining_amount, 0);
-    const receipts = transactions.filter(t => t.type === "receipt" && t.related_id === c.id);
-    const totalReceipts = receipts.reduce((s, t) => s + t.amount, 0);
-    return { ...c, totalSold, totalPaid, totalRemaining, totalReceipts, salesCount: sales.length };
+    return { ...c, totalSold, totalPaid, totalRemaining, salesCount: sales.length };
   });
 
   const totalOwed = customerData.reduce((s, c) => s + c.balance, 0);
@@ -196,99 +365,8 @@ function CustomerAccountsReport() {
         </div>
       </div>
 
-      {/* Customer detail modal */}
-      {selectedCustomer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="glass-panel rounded-3xl p-0 w-full max-w-3xl border border-white/10 shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="flex justify-between items-center p-6 border-b border-white/10 bg-white/5">
-              <div>
-                <h3 className="text-2xl font-bold text-white">كشف حساب تفصيلي</h3>
-                <p className="text-amber-400 font-semibold mt-1">{selectedCustomer.name}</p>
-              </div>
-              <button onClick={() => setSelectedCustomer(null)} className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"><X className="w-5 h-5 text-white/70" /></button>
-            </div>
-            <div className="overflow-y-auto p-6 space-y-5">
-              {(() => {
-                const cData = customerData.find(c => c.id === selectedCustomer.id);
-                if (!cData) return null;
-                const sales = allSales.filter(s => s.customer_id === cData.id || s.customer_name === cData.name);
-                const receipts = transactions.filter(t => t.type === "receipt" && t.related_id === cData.id);
-                return (
-                  <>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-4 text-center">
-                        <p className="text-blue-400 text-xs mb-1">إجمالي المبيعات</p>
-                        <p className="text-white font-black">{formatCurrency(cData.totalSold)}</p>
-                      </div>
-                      <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 text-center">
-                        <p className="text-emerald-400 text-xs mb-1">المدفوع</p>
-                        <p className="text-white font-black">{formatCurrency(cData.totalPaid)}</p>
-                      </div>
-                      <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 text-center">
-                        <p className="text-red-400 text-xs mb-1">الرصيد المستحق</p>
-                        <p className="text-white font-black">{formatCurrency(cData.balance)}</p>
-                      </div>
-                    </div>
-
-                    <div>
-                      <h4 className="text-white font-bold mb-2 text-sm">الفواتير ({sales.length})</h4>
-                      <div className="rounded-2xl overflow-hidden border border-white/10">
-                        <table className="w-full text-right text-xs">
-                          <thead className="bg-white/5 border-b border-white/10">
-                            <tr>
-                              <th className="p-2 text-white/60">الفاتورة</th>
-                              <th className="p-2 text-white/60">الإجمالي</th>
-                              <th className="p-2 text-white/60">المدفوع</th>
-                              <th className="p-2 text-white/60">المتبقي</th>
-                              <th className="p-2 text-white/60">التاريخ</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {sales.map(s => (
-                              <tr key={s.id} className="border-b border-white/5">
-                                <td className="p-2 text-amber-400 font-bold">{s.invoice_no}</td>
-                                <td className="p-2 text-white">{formatCurrency(s.total_amount)}</td>
-                                <td className="p-2 text-emerald-400">{formatCurrency(s.paid_amount)}</td>
-                                <td className="p-2 text-red-400">{formatCurrency(s.remaining_amount)}</td>
-                                <td className="p-2 text-white/50">{formatDate(s.created_at)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-
-                    {receipts.length > 0 && (
-                      <div>
-                        <h4 className="text-white font-bold mb-2 text-sm">سندات القبض ({receipts.length})</h4>
-                        <div className="rounded-2xl overflow-hidden border border-white/10">
-                          <table className="w-full text-right text-xs">
-                            <thead className="bg-white/5 border-b border-white/10">
-                              <tr>
-                                <th className="p-2 text-white/60">المبلغ</th>
-                                <th className="p-2 text-white/60">البيان</th>
-                                <th className="p-2 text-white/60">التاريخ</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {receipts.map(t => (
-                                <tr key={t.id} className="border-b border-white/5">
-                                  <td className="p-2 font-bold text-emerald-400">{formatCurrency(t.amount)}</td>
-                                  <td className="p-2 text-white/70">{t.description || '-'}</td>
-                                  <td className="p-2 text-white/50">{formatDate(t.created_at)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                );
-              })()}
-            </div>
-          </div>
-        </div>
+      {selectedCustomerId && (
+        <CustomerStatementModal customerId={selectedCustomerId} onClose={() => setSelectedCustomerId(null)} />
       )}
 
       {/* Customers Table */}
@@ -331,7 +409,7 @@ function CustomerAccountsReport() {
                       )}
                     </td>
                     <td className="p-4">
-                      <button onClick={() => setSelectedCustomer({ id: c.id, name: c.name })}
+                      <button onClick={() => setSelectedCustomerId(c.id)}
                         className="flex items-center gap-1.5 bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border border-blue-500/30">
                         <FileText className="w-3 h-3" /> عرض
                       </button>

@@ -331,3 +331,78 @@ export interface DashboardStats {
   low_stock_products: Product[];
   recent_transactions: Transaction[];
 }
+
+export interface ErpUser {
+  id: number;
+  name: string;
+  username: string;
+  pin?: string | null;
+  role: string;
+  permissions?: string | null;
+  active?: boolean | null;
+  created_at: string;
+}
+
+export interface Safe {
+  id: number;
+  name: string;
+  balance: number;
+  created_at: string;
+}
+
+export interface SafeTransfer {
+  id: number;
+  from_safe_id?: number | null;
+  from_safe_name?: string | null;
+  to_safe_id?: number | null;
+  to_safe_name?: string | null;
+  amount: number;
+  notes?: string | null;
+  created_at: string;
+}
+
+export interface Warehouse {
+  id: number;
+  name: string;
+  address?: string | null;
+  created_at: string;
+}
+
+export interface CustomerStatementItem {
+  id: number;
+  product_name: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+}
+
+export interface CustomerStatementSale {
+  id: number;
+  invoice_no: string;
+  payment_type: string;
+  total_amount: number;
+  paid_amount: number;
+  remaining_amount: number;
+  status: string;
+  notes?: string | null;
+  created_at: string;
+  items: CustomerStatementItem[];
+}
+
+export interface CustomerStatementPurchase {
+  id: number;
+  invoice_no: string;
+  supplier_name?: string | null;
+  customer_payment_type?: string | null;
+  total_amount: number;
+  paid_amount: number;
+  remaining_amount: number;
+  created_at: string;
+  items: CustomerStatementItem[];
+}
+
+export interface CustomerStatement {
+  customer: Customer;
+  sales: CustomerStatementSale[];
+  linked_purchases: CustomerStatementPurchase[];
+}

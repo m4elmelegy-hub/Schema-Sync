@@ -2409,3 +2409,204 @@ export function useGetDashboardStats<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+import type {
+  ErpUser,
+  Safe,
+  SafeTransfer,
+  Warehouse,
+  CustomerStatement,
+} from "./api.schemas";
+
+// ─── SETTINGS: USERS ──────────────────────────────────────────────────────────
+
+export const getSettingsUsersUrl = () => `/api/settings/users`;
+
+export const getSettingsUsers = async (options?: RequestInit): Promise<ErpUser[]> => {
+  return customFetch<ErpUser[]>(getSettingsUsersUrl(), { ...options, method: "GET" });
+};
+
+export const getGetSettingsUsersQueryKey = () => [getSettingsUsersUrl()] as const;
+
+export const getGetSettingsUsersQueryOptions = <TData = Awaited<ReturnType<typeof getSettingsUsers>>, TError = ErrorType<unknown>>(options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof getSettingsUsers>>, TError, TData>; request?: SecondParameter<typeof customFetch> }) => {
+  const { query: queryOptions } = options ?? {};
+  const queryKey = queryOptions?.queryKey ?? getGetSettingsUsersQueryKey();
+  return { queryKey, queryFn: () => getSettingsUsers(), ...queryOptions } satisfies UseQueryOptions<Awaited<ReturnType<typeof getSettingsUsers>>, TError, TData>;
+};
+
+export function useGetSettingsUsers<TData = Awaited<ReturnType<typeof getSettingsUsers>>, TError = ErrorType<unknown>>(options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof getSettingsUsers>>, TError, TData>; request?: SecondParameter<typeof customFetch> }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSettingsUsersQueryOptions(options);
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const createSettingsUser = async (body: Partial<ErpUser>, options?: RequestInit): Promise<ErpUser> => {
+  return customFetch<ErpUser>(getSettingsUsersUrl(), { ...options, method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+};
+
+export const useCreateSettingsUser = <TError = ErrorType<unknown>, TContext = unknown>(options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof createSettingsUser>>, TError, Partial<ErpUser>, TContext> }): UseMutationResult<Awaited<ReturnType<typeof createSettingsUser>>, TError, Partial<ErpUser>, TContext> => {
+  const { mutation: mutationOptions } = options ?? {};
+  return useMutation({ mutationFn: (body) => createSettingsUser(body), ...mutationOptions });
+};
+
+export const updateSettingsUser = async (id: number, body: Partial<ErpUser>, options?: RequestInit): Promise<ErpUser> => {
+  return customFetch<ErpUser>(`/api/settings/users/${id}`, { ...options, method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+};
+
+export const useUpdateSettingsUser = <TError = ErrorType<unknown>, TContext = unknown>(options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof updateSettingsUser>>, TError, { id: number; body: Partial<ErpUser> }, TContext> }): UseMutationResult<Awaited<ReturnType<typeof updateSettingsUser>>, TError, { id: number; body: Partial<ErpUser> }, TContext> => {
+  const { mutation: mutationOptions } = options ?? {};
+  return useMutation({ mutationFn: ({ id, body }) => updateSettingsUser(id, body), ...mutationOptions });
+};
+
+export const deleteSettingsUser = async (id: number, options?: RequestInit): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(`/api/settings/users/${id}`, { ...options, method: "DELETE" });
+};
+
+export const useDeleteSettingsUser = <TError = ErrorType<unknown>, TContext = unknown>(options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof deleteSettingsUser>>, TError, number, TContext> }): UseMutationResult<Awaited<ReturnType<typeof deleteSettingsUser>>, TError, number, TContext> => {
+  const { mutation: mutationOptions } = options ?? {};
+  return useMutation({ mutationFn: (id) => deleteSettingsUser(id), ...mutationOptions });
+};
+
+// ─── SETTINGS: SAFES ──────────────────────────────────────────────────────────
+
+export const getSettingsSafesUrl = () => `/api/settings/safes`;
+
+export const getSettingsSafes = async (options?: RequestInit): Promise<Safe[]> => {
+  return customFetch<Safe[]>(getSettingsSafesUrl(), { ...options, method: "GET" });
+};
+
+export const getGetSettingsSafesQueryKey = () => [getSettingsSafesUrl()] as const;
+
+export const getGetSettingsSafesQueryOptions = <TData = Awaited<ReturnType<typeof getSettingsSafes>>, TError = ErrorType<unknown>>(options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof getSettingsSafes>>, TError, TData>; request?: SecondParameter<typeof customFetch> }) => {
+  const { query: queryOptions } = options ?? {};
+  const queryKey = queryOptions?.queryKey ?? getGetSettingsSafesQueryKey();
+  return { queryKey, queryFn: () => getSettingsSafes(), ...queryOptions } satisfies UseQueryOptions<Awaited<ReturnType<typeof getSettingsSafes>>, TError, TData>;
+};
+
+export function useGetSettingsSafes<TData = Awaited<ReturnType<typeof getSettingsSafes>>, TError = ErrorType<unknown>>(options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof getSettingsSafes>>, TError, TData>; request?: SecondParameter<typeof customFetch> }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSettingsSafesQueryOptions(options);
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const createSettingsSafe = async (body: { name: string; balance?: number }, options?: RequestInit): Promise<Safe> => {
+  return customFetch<Safe>(getSettingsSafesUrl(), { ...options, method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+};
+
+export const useCreateSettingsSafe = <TError = ErrorType<unknown>, TContext = unknown>(options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof createSettingsSafe>>, TError, { name: string; balance?: number }, TContext> }): UseMutationResult<Awaited<ReturnType<typeof createSettingsSafe>>, TError, { name: string; balance?: number }, TContext> => {
+  const { mutation: mutationOptions } = options ?? {};
+  return useMutation({ mutationFn: (body) => createSettingsSafe(body), ...mutationOptions });
+};
+
+export const deleteSettingsSafe = async (id: number, options?: RequestInit): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(`/api/settings/safes/${id}`, { ...options, method: "DELETE" });
+};
+
+export const useDeleteSettingsSafe = <TError = ErrorType<unknown>, TContext = unknown>(options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof deleteSettingsSafe>>, TError, number, TContext> }): UseMutationResult<Awaited<ReturnType<typeof deleteSettingsSafe>>, TError, number, TContext> => {
+  const { mutation: mutationOptions } = options ?? {};
+  return useMutation({ mutationFn: (id) => deleteSettingsSafe(id), ...mutationOptions });
+};
+
+// ─── SETTINGS: SAFE TRANSFERS ─────────────────────────────────────────────────
+
+export const getSettingsSafeTransfersUrl = () => `/api/settings/safe-transfers`;
+
+export const getSettingsSafeTransfers = async (options?: RequestInit): Promise<SafeTransfer[]> => {
+  return customFetch<SafeTransfer[]>(getSettingsSafeTransfersUrl(), { ...options, method: "GET" });
+};
+
+export const getGetSettingsSafeTransfersQueryKey = () => [getSettingsSafeTransfersUrl()] as const;
+
+export const getGetSettingsSafeTransfersQueryOptions = <TData = Awaited<ReturnType<typeof getSettingsSafeTransfers>>, TError = ErrorType<unknown>>(options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof getSettingsSafeTransfers>>, TError, TData>; request?: SecondParameter<typeof customFetch> }) => {
+  const { query: queryOptions } = options ?? {};
+  const queryKey = queryOptions?.queryKey ?? getGetSettingsSafeTransfersQueryKey();
+  return { queryKey, queryFn: () => getSettingsSafeTransfers(), ...queryOptions } satisfies UseQueryOptions<Awaited<ReturnType<typeof getSettingsSafeTransfers>>, TError, TData>;
+};
+
+export function useGetSettingsSafeTransfers<TData = Awaited<ReturnType<typeof getSettingsSafeTransfers>>, TError = ErrorType<unknown>>(options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof getSettingsSafeTransfers>>, TError, TData>; request?: SecondParameter<typeof customFetch> }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSettingsSafeTransfersQueryOptions(options);
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const createSettingsSafeTransfer = async (body: { from_safe_id: number; to_safe_id: number; amount: number; notes?: string }, options?: RequestInit): Promise<SafeTransfer> => {
+  return customFetch<SafeTransfer>(getSettingsSafeTransfersUrl(), { ...options, method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+};
+
+export const useCreateSettingsSafeTransfer = <TError = ErrorType<unknown>, TContext = unknown>(options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof createSettingsSafeTransfer>>, TError, { from_safe_id: number; to_safe_id: number; amount: number; notes?: string }, TContext> }): UseMutationResult<Awaited<ReturnType<typeof createSettingsSafeTransfer>>, TError, { from_safe_id: number; to_safe_id: number; amount: number; notes?: string }, TContext> => {
+  const { mutation: mutationOptions } = options ?? {};
+  return useMutation({ mutationFn: (body) => createSettingsSafeTransfer(body), ...mutationOptions });
+};
+
+// ─── SETTINGS: WAREHOUSES ─────────────────────────────────────────────────────
+
+export const getSettingsWarehousesUrl = () => `/api/settings/warehouses`;
+
+export const getSettingsWarehouses = async (options?: RequestInit): Promise<Warehouse[]> => {
+  return customFetch<Warehouse[]>(getSettingsWarehousesUrl(), { ...options, method: "GET" });
+};
+
+export const getGetSettingsWarehousesQueryKey = () => [getSettingsWarehousesUrl()] as const;
+
+export const getGetSettingsWarehousesQueryOptions = <TData = Awaited<ReturnType<typeof getSettingsWarehouses>>, TError = ErrorType<unknown>>(options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof getSettingsWarehouses>>, TError, TData>; request?: SecondParameter<typeof customFetch> }) => {
+  const { query: queryOptions } = options ?? {};
+  const queryKey = queryOptions?.queryKey ?? getGetSettingsWarehousesQueryKey();
+  return { queryKey, queryFn: () => getSettingsWarehouses(), ...queryOptions } satisfies UseQueryOptions<Awaited<ReturnType<typeof getSettingsWarehouses>>, TError, TData>;
+};
+
+export function useGetSettingsWarehouses<TData = Awaited<ReturnType<typeof getSettingsWarehouses>>, TError = ErrorType<unknown>>(options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof getSettingsWarehouses>>, TError, TData>; request?: SecondParameter<typeof customFetch> }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSettingsWarehousesQueryOptions(options);
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const createSettingsWarehouse = async (body: { name: string; address?: string }, options?: RequestInit): Promise<Warehouse> => {
+  return customFetch<Warehouse>(getSettingsWarehousesUrl(), { ...options, method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+};
+
+export const useCreateSettingsWarehouse = <TError = ErrorType<unknown>, TContext = unknown>(options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof createSettingsWarehouse>>, TError, { name: string; address?: string }, TContext> }): UseMutationResult<Awaited<ReturnType<typeof createSettingsWarehouse>>, TError, { name: string; address?: string }, TContext> => {
+  const { mutation: mutationOptions } = options ?? {};
+  return useMutation({ mutationFn: (body) => createSettingsWarehouse(body), ...mutationOptions });
+};
+
+export const deleteSettingsWarehouse = async (id: number, options?: RequestInit): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(`/api/settings/warehouses/${id}`, { ...options, method: "DELETE" });
+};
+
+export const useDeleteSettingsWarehouse = <TError = ErrorType<unknown>, TContext = unknown>(options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof deleteSettingsWarehouse>>, TError, number, TContext> }): UseMutationResult<Awaited<ReturnType<typeof deleteSettingsWarehouse>>, TError, number, TContext> => {
+  const { mutation: mutationOptions } = options ?? {};
+  return useMutation({ mutationFn: (id) => deleteSettingsWarehouse(id), ...mutationOptions });
+};
+
+// ─── SETTINGS: RESET ──────────────────────────────────────────────────────────
+
+export const resetDatabase = async (body: { confirm: string }, options?: RequestInit): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(`/api/settings/reset`, { ...options, method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+};
+
+export const useResetDatabase = <TError = ErrorType<unknown>, TContext = unknown>(options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof resetDatabase>>, TError, { confirm: string }, TContext> }): UseMutationResult<Awaited<ReturnType<typeof resetDatabase>>, TError, { confirm: string }, TContext> => {
+  const { mutation: mutationOptions } = options ?? {};
+  return useMutation({ mutationFn: (body) => resetDatabase(body), ...mutationOptions });
+};
+
+// ─── CUSTOMER STATEMENT ───────────────────────────────────────────────────────
+
+export const getCustomerStatementUrl = (id: number) => `/api/customers/${id}/statement`;
+
+export const getCustomerStatement = async (id: number, options?: RequestInit): Promise<CustomerStatement> => {
+  return customFetch<CustomerStatement>(getCustomerStatementUrl(id), { ...options, method: "GET" });
+};
+
+export const getGetCustomerStatementQueryKey = (id: number) => [getCustomerStatementUrl(id)] as const;
+
+export const getGetCustomerStatementQueryOptions = <TData = Awaited<ReturnType<typeof getCustomerStatement>>, TError = ErrorType<unknown>>(id: number, options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof getCustomerStatement>>, TError, TData>; request?: SecondParameter<typeof customFetch> }) => {
+  const { query: queryOptions } = options ?? {};
+  const queryKey = queryOptions?.queryKey ?? getGetCustomerStatementQueryKey(id);
+  return { queryKey, queryFn: () => getCustomerStatement(id), enabled: !!id, ...queryOptions } satisfies UseQueryOptions<Awaited<ReturnType<typeof getCustomerStatement>>, TError, TData>;
+};
+
+export function useGetCustomerStatement<TData = Awaited<ReturnType<typeof getCustomerStatement>>, TError = ErrorType<unknown>>(id: number, options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof getCustomerStatement>>, TError, TData>; request?: SecondParameter<typeof customFetch> }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCustomerStatementQueryOptions(id, options);
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+  return { ...query, queryKey: queryOptions.queryKey };
+}

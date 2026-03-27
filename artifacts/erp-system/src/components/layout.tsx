@@ -8,7 +8,8 @@ import {
   Wallet, 
   FileText,
   CreditCard,
-  TrendingUp
+  TrendingUp,
+  Settings
 } from "lucide-react";
 
 interface LayoutProps {
@@ -23,6 +24,7 @@ const navItems = [
   { name: "المصروفات", href: "/expenses", icon: Wallet },
   { name: "الإيرادات", href: "/income", icon: TrendingUp },
   { name: "التقارير", href: "/reports", icon: FileText },
+  { name: "الإعدادات", href: "/settings", icon: Settings },
 ];
 
 export function AppLayout({ children }: LayoutProps) {
