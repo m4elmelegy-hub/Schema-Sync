@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useGetPurchases, useCreatePurchase, useGetProducts, useGetSuppliers, useGetCustomers, useGetPurchaseById, useCreateProduct, useDeleteProduct } from "@workspace/api-client-react";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { Search, Plus, Minus, Trash2, X, ShoppingBag, Printer, AlertTriangle, User } from "lucide-react";
+import { Search, Plus, Minus, Trash2, X, ShoppingBag, Printer, AlertTriangle, User, Package } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
@@ -108,13 +108,11 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
 
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
-  // كيف تدفع الشركة للمورد
   const [paymentType, setPaymentType] = useState<"cash" | "credit" | "partial">("cash");
   const [paidAmount, setPaidAmount] = useState<string>("");
   const [supplierId, setSupplierId] = useState<string>("");
   const [supplierName, setSupplierName] = useState<string>("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
-  // ربط العميل
   const [customerId, setCustomerId] = useState<string>("");
   const [customerPaymentType, setCustomerPaymentType] = useState<"cash" | "credit" | "partial">("credit");
   const [customerPaidAmount, setCustomerPaidAmount] = useState<string>("");
@@ -127,10 +125,8 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
   });
 
   const cartTotal = useMemo(() => cart.reduce((s, i) => s + i.total_price, 0), [cart]);
-
   const selectedCustomer = customerId ? customers.find(c => c.id === parseInt(customerId)) : null;
 
-  // حساب أثر الفاتورة على رصيد العميل
   const customerBalanceImpact = useMemo(() => {
     if (!customerId) return 0;
     if (customerPaymentType === "cash") return 0;
@@ -176,11 +172,8 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
       onSuccess: () => {
         let msg = "✅ تم تسجيل فاتورة الشراء — تم تحديث المخزن";
         if (selectedCustomer) {
-          if (customerBalanceImpact > 0) {
-            msg += ` — رصيد ${selectedCustomer.name} زاد بـ ${customerBalanceImpact.toFixed(2)} ج.م`;
-          } else {
-            msg += ` — تم تسجيل دفع العميل`;
-          }
+          if (customerBalanceImpact > 0) msg += ` — رصيد ${selectedCustomer.name} زاد بـ ${customerBalanceImpact.toFixed(2)} ج.م`;
+          else msg += ` — تم تسجيل دفع العميل`;
         }
         toast({ title: msg });
         queryClient.invalidateQueries({ queryKey: ["/api/purchases"] });
@@ -196,6 +189,7 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
 
   return (
     <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-220px)]">
+      {/* شبكة المنتجات */}
       <div className="flex-1 flex flex-col min-h-0">
         <div className="glass-panel rounded-2xl p-3 mb-3 shrink-0 flex flex-wrap gap-2 items-center">
           <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -212,119 +206,122 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
             {filteredProducts.map(product => (
               <button key={product.id} onClick={() => addToCart(product)}
                 className="glass-panel rounded-2xl p-3 text-right transition-all hover:-translate-y-0.5 hover:border-amber-500/40">
+                <div className="h-14 bg-white/5 rounded-xl mb-3 flex items-center justify-center border border-white/5">
+                  <Package className="w-6 h-6 text-white/30" />
+                </div>
                 <p className="font-bold text-white text-sm truncate">{product.name}</p>
                 {product.category && <p className="text-xs text-amber-400/70 mt-0.5">{product.category}</p>}
                 <div className="flex justify-between items-center mt-2">
                   <span className="text-blue-400 font-bold text-sm">{formatCurrency(product.cost_price)}</span>
-                  <span className="text-xs text-white/40">مخزون: {product.quantity}</span>
+                  <span className="text-xs text-white/40">{product.quantity}</span>
                 </div>
               </button>
             ))}
           </div>
         </div>
       </div>
+
+      {/* سلة الشراء */}
       <div className="w-full lg:w-[360px] flex flex-col glass-panel rounded-2xl overflow-hidden shrink-0">
         <div className="p-4 border-b border-white/10 bg-white/5 flex justify-between items-center">
-          <h3 className="font-bold text-white flex items-center gap-2"><ShoppingBag className="w-5 h-5 text-amber-400" /> الأصناف</h3>
+          <h3 className="font-bold text-white flex items-center gap-2">
+            <ShoppingBag className="w-5 h-5 text-amber-400" /> سلة الشراء
+          </h3>
           <span className="bg-amber-500/20 text-amber-400 px-3 py-1 rounded-full text-sm font-bold">{cart.length} صنف</span>
         </div>
+
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
           {cart.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-white/20 text-sm py-12">اختر منتجات من القائمة</div>
+            <div className="h-full flex flex-col items-center justify-center text-white/20 gap-3 py-12">
+              <ShoppingBag className="w-12 h-12 opacity-30" />
+              <p className="text-sm">السلة فارغة</p>
+            </div>
           ) : cart.map(item => (
             <div key={item.product_id} className="bg-white/5 border border-white/10 rounded-xl p-3">
               <div className="flex justify-between items-start mb-2">
                 <p className="font-bold text-white text-sm flex-1 ml-2 truncate">{item.product_name}</p>
                 <button onClick={() => setCart(prev => prev.filter(i => i.product_id !== item.product_id))} className="text-red-400 p-1"><Trash2 className="w-3 h-3" /></button>
               </div>
-              <div className="flex items-center gap-2 mb-1">
-                <button onClick={() => updateQty(item.product_id, -1)} className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center"><Minus className="w-3 h-3 text-white" /></button>
-                <span className="text-white font-bold text-sm w-5 text-center">{item.quantity}</span>
-                <button onClick={() => updateQty(item.product_id, 1)} className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center"><Plus className="w-3 h-3 text-white" /></button>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <button onClick={() => updateQty(item.product_id, -1)} className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center"><Minus className="w-3 h-3 text-white" /></button>
+                  <span className="text-white font-bold text-sm w-5 text-center">{item.quantity}</span>
+                  <button onClick={() => updateQty(item.product_id, 1)} className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center"><Plus className="w-3 h-3 text-white" /></button>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <input type="number" step="0.01" value={item.unit_price} onChange={e => updatePrice(item.product_id, parseFloat(e.target.value) || 0)} className="w-20 bg-white/10 text-white text-xs rounded-lg px-2 py-1 text-right outline-none border border-white/10" />
+                  <span className="font-bold text-blue-400 text-sm">{formatCurrency(item.total_price)}</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-white/40 text-xs">السعر:</span>
-                <input type="number" step="0.01" value={item.unit_price} onChange={e => updatePrice(item.product_id, parseFloat(e.target.value) || 0)} className="flex-1 bg-white/10 text-white text-xs rounded-lg px-2 py-1 text-right outline-none" />
-              </div>
-              <p className="text-emerald-400 font-bold text-sm mt-1">{formatCurrency(item.total_price)}</p>
             </div>
           ))}
         </div>
-        <div className="p-4 border-t border-white/10 bg-black/30 space-y-3 overflow-y-auto">
+
+        <div className="p-4 border-t border-white/10 bg-black/30 space-y-3">
           {/* المورد */}
-          <div className="space-y-1.5">
-            <p className="text-white/40 text-xs font-semibold">المورد (اختياري)</p>
-            <select className="glass-input text-sm appearance-none" value={supplierId} onChange={e => { setSupplierId(e.target.value); setSupplierName(""); }}>
-              <option value="" className="bg-gray-900">بدون مورد</option>
-              {suppliers.map(s => <option key={s.id} value={s.id} className="bg-gray-900">{s.name}</option>)}
+          <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
+            <Package className="w-4 h-4 text-white/40" />
+            <select className="bg-transparent text-white outline-none w-full text-sm appearance-none" value={supplierId} onChange={e => { setSupplierId(e.target.value); setSupplierName(""); }}>
+              <option value="" className="bg-slate-900">بدون مورد</option>
+              {suppliers.map(s => <option key={s.id} value={s.id} className="bg-slate-900">{s.name}</option>)}
             </select>
-            {!supplierId && <input type="text" placeholder="أو اكتب اسم المورد..." className="glass-input text-sm" value={supplierName} onChange={e => setSupplierName(e.target.value)} />}
+          </div>
+          {!supplierId && (
+            <input type="text" placeholder="أو اكتب اسم المورد..." className="glass-input text-sm" value={supplierName} onChange={e => setSupplierName(e.target.value)} />
+          )}
+
+          {/* دفع الشركة */}
+          <div className="grid grid-cols-3 gap-1">
+            {[{ v: "cash", l: "نقدي" }, { v: "credit", l: "آجل" }, { v: "partial", l: "جزئي" }].map(opt => (
+              <button key={opt.v} onClick={() => setPaymentType(opt.v as "cash" | "credit" | "partial")}
+                className={`py-2 rounded-xl text-xs font-bold border transition-all ${paymentType === opt.v ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10'}`}>
+                {opt.l}
+              </button>
+            ))}
+          </div>
+          {paymentType === "partial" && (
+            <input type="number" step="0.01" placeholder="دفعت الشركة..." className="glass-input text-sm" value={paidAmount} onChange={e => setPaidAmount(e.target.value)} />
+          )}
+
+          {/* تحميل على عميل */}
+          <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
+            <User className="w-4 h-4 text-white/40" />
+            <select className="bg-transparent text-white outline-none w-full text-sm appearance-none" value={customerId} onChange={e => setCustomerId(e.target.value)}>
+              <option value="" className="bg-slate-900">بدون عميل (تكلفة داخلية)</option>
+              {customers.map(c => <option key={c.id} value={c.id} className="bg-slate-900">{c.name}{c.balance > 0 ? ` • دين: ${Number(c.balance).toFixed(0)} ج.م` : ''}</option>)}
+            </select>
           </div>
 
-          {/* دفع الشركة للمورد */}
-          <div className="space-y-1.5">
-            <p className="text-white/40 text-xs font-semibold">دفع الشركة للمورد</p>
-            <div className="grid grid-cols-3 gap-1">
-              {[{ v: "cash", l: "نقدي" }, { v: "credit", l: "آجل" }, { v: "partial", l: "جزئي" }].map(opt => (
-                <button key={opt.v} onClick={() => setPaymentType(opt.v as "cash" | "credit" | "partial")}
-                  className={`py-1.5 rounded-xl text-xs font-bold border transition-all ${paymentType === opt.v ? 'bg-blue-500/20 text-blue-400 border-blue-500/40' : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10'}`}>
-                  {opt.l}
-                </button>
-              ))}
-            </div>
-            {paymentType === "partial" && <input type="number" step="0.01" placeholder="دفعت الشركة..." className="glass-input text-sm" value={paidAmount} onChange={e => setPaidAmount(e.target.value)} />}
-          </div>
-
-          {/* ربط بعميل */}
-          <div className="space-y-1.5 border-t border-white/10 pt-3">
-            <p className="text-amber-400 text-xs font-bold flex items-center gap-1">
-              <User className="w-3 h-3" /> تحميل على عميل (اختياري)
-            </p>
-            <select className="glass-input text-sm appearance-none" value={customerId} onChange={e => setCustomerId(e.target.value)}>
-              <option value="" className="bg-gray-900">بدون عميل</option>
-              {customers.map(c => (
-                <option key={c.id} value={c.id} className="bg-gray-900">
-                  {c.name} {c.balance > 0 ? `• دين: ${Number(c.balance).toFixed(0)} ج.م` : ''}
-                </option>
-              ))}
-            </select>
-
-            {customerId && (
-              <div className="space-y-1.5 animate-in slide-in-from-top-2">
-                <p className="text-white/40 text-xs font-semibold">كيف يدفع العميل؟</p>
-                <div className="grid grid-cols-3 gap-1">
-                  {[{ v: "credit", l: "آجل" }, { v: "partial", l: "جزئي" }, { v: "cash", l: "نقدي" }].map(opt => (
-                    <button key={opt.v} onClick={() => setCustomerPaymentType(opt.v as "cash" | "credit" | "partial")}
-                      className={`py-1.5 rounded-xl text-xs font-bold border transition-all ${customerPaymentType === opt.v ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10'}`}>
-                      {opt.l}
-                    </button>
-                  ))}
-                </div>
-                {customerPaymentType === "partial" && (
-                  <input type="number" step="0.01" placeholder="دفع العميل مقدماً..." className="glass-input text-sm" value={customerPaidAmount} onChange={e => setCustomerPaidAmount(e.target.value)} />
-                )}
-                {/* أثر على الرصيد */}
-                <div className={`p-2.5 rounded-xl border text-xs font-bold ${customerBalanceImpact > 0 ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'}`}>
-                  {customerBalanceImpact > 0
-                    ? `⬆ سيُضاف على رصيد ${selectedCustomer?.name}: +${formatCurrency(customerBalanceImpact)} (دين عليه)`
-                    : `✅ العميل دفع بالكامل — لا يوجد دين`}
-                </div>
-                {selectedCustomer && selectedCustomer.balance > 0 && (
-                  <p className="text-xs text-white/40">رصيده الحالي: {formatCurrency(selectedCustomer.balance)} → سيصبح: {formatCurrency(Number(selectedCustomer.balance) + customerBalanceImpact)}</p>
-                )}
+          {customerId && (
+            <div className="space-y-2 animate-in slide-in-from-top-2">
+              <div className="grid grid-cols-3 gap-1">
+                {[{ v: "credit", l: "آجل" }, { v: "partial", l: "جزئي" }, { v: "cash", l: "نقدي" }].map(opt => (
+                  <button key={opt.v} onClick={() => setCustomerPaymentType(opt.v as "cash" | "credit" | "partial")}
+                    className={`py-2 rounded-xl text-xs font-bold border transition-all ${customerPaymentType === opt.v ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10'}`}>
+                    {opt.l}
+                  </button>
+                ))}
               </div>
-            )}
-          </div>
+              {customerPaymentType === "partial" && (
+                <input type="number" step="0.01" placeholder="دفع العميل مقدماً..." className="glass-input text-sm" value={customerPaidAmount} onChange={e => setCustomerPaidAmount(e.target.value)} />
+              )}
+              <div className={`p-2 rounded-xl border text-xs font-bold ${customerBalanceImpact > 0 ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'}`}>
+                {customerBalanceImpact > 0
+                  ? `⬆ دين على ${selectedCustomer?.name}: +${formatCurrency(customerBalanceImpact)}`
+                  : `✅ دفع العميل بالكامل`}
+              </div>
+            </div>
+          )}
 
-          {/* الملخص */}
-          <div className="bg-white/5 rounded-xl p-3 border border-white/5 space-y-1">
-            <div className="flex justify-between text-sm"><span className="text-white/60">إجمالي الفاتورة</span><span className="font-bold text-white">{formatCurrency(cartTotal)}</span></div>
+          {/* الإجمالي */}
+          <div className="bg-white/5 rounded-xl p-3 border border-white/5 space-y-1.5">
+            <div className="flex justify-between text-sm"><span className="text-white/60">الإجمالي</span><span className="font-bold text-white">{formatCurrency(cartTotal)}</span></div>
             {paymentType === "partial" && <div className="flex justify-between text-sm"><span className="text-white/60">متبقي للمورد</span><span className="font-bold text-red-400">{formatCurrency(cartTotal - (parseFloat(paidAmount) || 0))}</span></div>}
-            {customerId && customerBalanceImpact > 0 && <div className="flex justify-between text-sm border-t border-white/10 pt-1"><span className="text-yellow-400/70">دين العميل</span><span className="font-bold text-yellow-400">{formatCurrency(customerBalanceImpact)}</span></div>}
+            {customerId && customerBalanceImpact > 0 && <div className="flex justify-between text-sm border-t border-white/10 pt-1.5"><span className="text-yellow-400/70">دين العميل</span><span className="font-bold text-yellow-400">{formatCurrency(customerBalanceImpact)}</span></div>}
           </div>
 
           <button onClick={handleSubmit} disabled={createMutation.isPending || cart.length === 0} className="w-full btn-primary py-3 disabled:opacity-50">
-            {createMutation.isPending ? 'جاري الحفظ...' : 'تسجيل فاتورة الشراء'}
+            {createMutation.isPending ? "جاري التسجيل..." : "تسجيل فاتورة الشراء"}
           </button>
         </div>
       </div>
