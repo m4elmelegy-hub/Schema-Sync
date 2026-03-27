@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useGetPurchases, useCreatePurchase, useGetProducts, useGetSuppliers, useGetCustomers, useGetPurchaseById, useCreateProduct, useDeleteProduct } from "@workspace/api-client-react";
+import { useGetPurchases, useCreatePurchase, useGetProducts, useGetCustomers, useGetPurchaseById, useCreateProduct, useDeleteProduct, useGetSettingsSafes } from "@workspace/api-client-react";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { Search, Plus, Minus, Trash2, X, ShoppingBag, Printer, AlertTriangle, User, Package } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -100,8 +100,8 @@ function PurchaseDetailModal({ purchaseId, onClose }: { purchaseId: number; onCl
 
 function NewPurchasePanel({ onDone }: { onDone: () => void }) {
   const { data: products = [] } = useGetProducts();
-  const { data: suppliers = [] } = useGetSuppliers();
   const { data: customers = [] } = useGetCustomers();
+  const { data: safes = [] } = useGetSettingsSafes();
   const createMutation = useCreatePurchase();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -110,12 +110,11 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [paymentType, setPaymentType] = useState<"cash" | "credit" | "partial">("cash");
   const [paidAmount, setPaidAmount] = useState<string>("");
-  const [supplierId, setSupplierId] = useState<string>("");
-  const [supplierName, setSupplierName] = useState<string>("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
   const [customerId, setCustomerId] = useState<string>("");
   const [customerPaymentType, setCustomerPaymentType] = useState<"cash" | "credit" | "partial">("credit");
   const [customerPaidAmount, setCustomerPaidAmount] = useState<string>("");
+  const [safeId, setSafeId] = useState<string>("");
 
   const categories = Array.from(new Set(products.map(p => p.category).filter(Boolean)));
   const filteredProducts = products.filter(p => {
@@ -153,12 +152,11 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
   const handleSubmit = () => {
     if (cart.length === 0) { toast({ title: "أضف منتجات أولاً", variant: "destructive" }); return; }
     const actualPaid = paymentType === "cash" ? cartTotal : paymentType === "credit" ? 0 : parseFloat(paidAmount) || 0;
-    const selectedSupplier = supplierId ? suppliers.find(s => s.id === parseInt(supplierId)) : null;
 
     createMutation.mutate({
       data: {
-        supplier_id: selectedSupplier?.id ?? null,
-        supplier_name: selectedSupplier?.name ?? (supplierName || null),
+        supplier_id: null,
+        supplier_name: null,
         customer_id: selectedCustomer?.id ?? null,
         customer_name: selectedCustomer?.name ?? null,
         customer_payment_type: customerId ? customerPaymentType : null,
@@ -172,13 +170,13 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
       onSuccess: () => {
         let msg = "✅ تم تسجيل فاتورة الشراء — تم تحديث المخزن";
         if (selectedCustomer) {
-          if (customerBalanceImpact > 0) msg += ` — رصيد ${selectedCustomer.name} زاد بـ ${customerBalanceImpact.toFixed(2)} ج.م`;
-          else msg += ` — تم تسجيل دفع العميل`;
+          const selectedSafe = safes.find(s => s.id === parseInt(safeId));
+          if (customerBalanceImpact > 0) msg += ` — دين على ${selectedCustomer.name}: +${customerBalanceImpact.toFixed(2)} ج.م`;
+          else msg += ` — تم تسجيل دفع العميل${selectedSafe ? ` إلى خزينة ${selectedSafe.name}` : ''}`;
         }
         toast({ title: msg });
         queryClient.invalidateQueries({ queryKey: ["/api/purchases"] });
         queryClient.invalidateQueries({ queryKey: ["/api/products"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
         queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
         queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
         onDone();
@@ -258,19 +256,7 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
         </div>
 
         <div className="p-4 border-t border-white/10 bg-black/30 space-y-3">
-          {/* المورد */}
-          <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
-            <Package className="w-4 h-4 text-white/40" />
-            <select className="bg-transparent text-white outline-none w-full text-sm appearance-none" value={supplierId} onChange={e => { setSupplierId(e.target.value); setSupplierName(""); }}>
-              <option value="" className="bg-slate-900">بدون مورد</option>
-              {suppliers.map(s => <option key={s.id} value={s.id} className="bg-slate-900">{s.name}</option>)}
-            </select>
-          </div>
-          {!supplierId && (
-            <input type="text" placeholder="أو اكتب اسم المورد..." className="glass-input text-sm" value={supplierName} onChange={e => setSupplierName(e.target.value)} />
-          )}
-
-          {/* دفع الشركة */}
+          {/* طريقة دفع الشركة */}
           <div className="grid grid-cols-3 gap-1">
             {[{ v: "cash", l: "نقدي" }, { v: "credit", l: "آجل" }, { v: "partial", l: "جزئي" }].map(opt => (
               <button key={opt.v} onClick={() => setPaymentType(opt.v as "cash" | "credit" | "partial")}
@@ -280,13 +266,13 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
             ))}
           </div>
           {paymentType === "partial" && (
-            <input type="number" step="0.01" placeholder="دفعت الشركة..." className="glass-input text-sm" value={paidAmount} onChange={e => setPaidAmount(e.target.value)} />
+            <input type="number" step="0.01" placeholder="المبلغ المدفوع..." className="glass-input text-sm" value={paidAmount} onChange={e => setPaidAmount(e.target.value)} />
           )}
 
           {/* تحميل على عميل */}
           <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
             <User className="w-4 h-4 text-white/40" />
-            <select className="bg-transparent text-white outline-none w-full text-sm appearance-none" value={customerId} onChange={e => setCustomerId(e.target.value)}>
+            <select className="bg-transparent text-white outline-none w-full text-sm appearance-none" value={customerId} onChange={e => { setCustomerId(e.target.value); setSafeId(""); }}>
               <option value="" className="bg-slate-900">بدون عميل (تكلفة داخلية)</option>
               {customers.map(c => <option key={c.id} value={c.id} className="bg-slate-900">{c.name}{c.balance > 0 ? ` • دين: ${Number(c.balance).toFixed(0)} ج.م` : ''}</option>)}
             </select>
@@ -294,6 +280,7 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
 
           {customerId && (
             <div className="space-y-2 animate-in slide-in-from-top-2">
+              {/* طريقة دفع العميل */}
               <div className="grid grid-cols-3 gap-1">
                 {[{ v: "credit", l: "آجل" }, { v: "partial", l: "جزئي" }, { v: "cash", l: "نقدي" }].map(opt => (
                   <button key={opt.v} onClick={() => setCustomerPaymentType(opt.v as "cash" | "credit" | "partial")}
@@ -305,6 +292,23 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
               {customerPaymentType === "partial" && (
                 <input type="number" step="0.01" placeholder="دفع العميل مقدماً..." className="glass-input text-sm" value={customerPaidAmount} onChange={e => setCustomerPaidAmount(e.target.value)} />
               )}
+
+              {/* الخزانة المستقبِلة (عند وجود دفع فعلي) */}
+              {(customerPaymentType === "cash" || customerPaymentType === "partial") && (
+                <div className="flex items-center gap-2 bg-amber-500/5 border border-amber-500/20 rounded-xl px-3 py-2">
+                  <span className="text-amber-400 text-xs shrink-0">🏦</span>
+                  <select className="bg-transparent text-white outline-none w-full text-sm appearance-none" value={safeId} onChange={e => setSafeId(e.target.value)}>
+                    <option value="" className="bg-slate-900">اختر الخزانة</option>
+                    {safes.map(s => (
+                      <option key={s.id} value={s.id} className="bg-slate-900">
+                        {s.name} — رصيد: {Number(s.balance).toFixed(0)} ج.م
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* أثر على رصيد العميل */}
               <div className={`p-2 rounded-xl border text-xs font-bold ${customerBalanceImpact > 0 ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'}`}>
                 {customerBalanceImpact > 0
                   ? `⬆ دين على ${selectedCustomer?.name}: +${formatCurrency(customerBalanceImpact)}`
@@ -316,7 +320,7 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
           {/* الإجمالي */}
           <div className="bg-white/5 rounded-xl p-3 border border-white/5 space-y-1.5">
             <div className="flex justify-between text-sm"><span className="text-white/60">الإجمالي</span><span className="font-bold text-white">{formatCurrency(cartTotal)}</span></div>
-            {paymentType === "partial" && <div className="flex justify-between text-sm"><span className="text-white/60">متبقي للمورد</span><span className="font-bold text-red-400">{formatCurrency(cartTotal - (parseFloat(paidAmount) || 0))}</span></div>}
+            {paymentType === "partial" && <div className="flex justify-between text-sm"><span className="text-white/60">المتبقي</span><span className="font-bold text-red-400">{formatCurrency(cartTotal - (parseFloat(paidAmount) || 0))}</span></div>}
             {customerId && customerBalanceImpact > 0 && <div className="flex justify-between text-sm border-t border-white/10 pt-1.5"><span className="text-yellow-400/70">دين العميل</span><span className="font-bold text-yellow-400">{formatCurrency(customerBalanceImpact)}</span></div>}
           </div>
 
