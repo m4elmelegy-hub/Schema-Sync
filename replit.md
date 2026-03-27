@@ -2,7 +2,7 @@
 
 ## Overview
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+Full-stack Arabic ERP System (نظام ERP) with POS, Accounting, and Inventory management. Arabic RTL interface with dark glass-morphism UI.
 
 ## Stack
 
@@ -15,33 +15,80 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
+- **Frontend**: React + Vite, Tailwind CSS, Framer Motion, Recharts, Lucide icons
 
 ## Structure
 
 ```text
 artifacts-monorepo/
-├── artifacts/              # Deployable applications
-│   └── api-server/         # Express API server
-├── lib/                    # Shared libraries
+├── artifacts/
+│   ├── api-server/         # Express API server (all ERP routes)
+│   └── erp-system/         # React Arabic RTL frontend
+├── lib/
 │   ├── api-spec/           # OpenAPI spec + Orval codegen config
 │   ├── api-client-react/   # Generated React Query hooks
 │   ├── api-zod/            # Generated Zod schemas from OpenAPI
 │   └── db/                 # Drizzle ORM schema + DB connection
-├── scripts/                # Utility scripts (single workspace package)
-│   └── src/                # Individual .ts scripts, run via `pnpm --filter @workspace/scripts run <script>`
-├── pnpm-workspace.yaml     # pnpm workspace (artifacts/*, lib/*, lib/integrations/*, scripts)
-├── tsconfig.base.json      # Shared TS options (composite, bundler resolution, es2022)
-├── tsconfig.json           # Root TS project references
-└── package.json            # Root package with hoisted devDeps
+│       └── src/schema/
+│           ├── products.ts
+│           ├── customers.ts
+│           ├── suppliers.ts
+│           ├── sales.ts        (salesTable + saleItemsTable)
+│           ├── purchases.ts    (purchasesTable + purchaseItemsTable)
+│           ├── expenses.ts
+│           ├── income.ts
+│           └── transactions.ts
+├── scripts/                # Utility scripts
+├── pnpm-workspace.yaml
+├── tsconfig.base.json
+├── tsconfig.json
+└── package.json
 ```
+
+## ERP System Features
+
+### Database Tables
+- **products**: name, sku, category, quantity, cost_price, sale_price, low_stock_threshold
+- **customers**: name, phone, balance (auto-calculated debt)
+- **suppliers**: name, phone, balance (auto-calculated debt)
+- **sales**: invoice_no, customer_name, customer_id, payment_type (cash/credit/partial), total_amount, paid_amount, remaining_amount, status (paid/partial/unpaid), notes
+- **sale_items**: sale_id, product_id, product_name, quantity, unit_price, total_price
+- **purchases**: same as sales but for suppliers
+- **purchase_items**: same as sale_items but for purchases
+- **expenses**: category, amount, description
+- **income**: source, amount, description
+- **transactions**: type (sale/purchase/expense/income/receipt/payment), amount, description, related_id
+
+### API Routes
+- `GET/POST /api/products`, `PUT/DELETE /api/products/:id`
+- `GET/POST /api/customers`, `PUT/DELETE /api/customers/:id`, `POST /api/customers/:id/receipt`
+- `GET/POST /api/suppliers`, `PUT/DELETE /api/suppliers/:id`, `POST /api/suppliers/:id/payment`
+- `GET/POST /api/sales`, `GET /api/sales/:id`
+- `GET/POST /api/purchases`, `GET /api/purchases/:id`
+- `GET/POST /api/expenses`, `DELETE /api/expenses/:id`
+- `GET/POST /api/income`, `DELETE /api/income/:id`
+- `GET /api/transactions`
+- `GET /api/dashboard/stats`
+
+### Frontend Pages
+- Dashboard (لوحة القيادة) - stats, charts, low stock alerts
+- POS (نقطة البيع) - cart system with cash/credit/partial payment
+- Products (المنتجات) - CRUD with low stock threshold
+- Sales (المبيعات) - invoice list with status badges
+- Purchases (المشتريات) - purchase orders
+- Customers (العملاء) - with debt tracking + receipt vouchers
+- Suppliers (الموردون) - with debt tracking + payment vouchers
+- Expenses (المصروفات)
+- Income (الإيرادات)
+- Reports (التقارير) - profit calculations
 
 ## TypeScript & Composite Projects
 
 Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references. This means:
 
-- **Always typecheck from the root** — run `pnpm run typecheck` (which runs `tsc --build --emitDeclarationOnly`). This builds the full dependency graph so that cross-package imports resolve correctly. Running `tsc` inside a single package will fail if its dependencies haven't been built yet.
-- **`emitDeclarationOnly`** — we only emit `.d.ts` files during typecheck; actual JS bundling is handled by esbuild/tsx/vite...etc, not `tsc`.
-- **Project references** — when package A depends on package B, A's `tsconfig.json` must list B in its `references` array. `tsc --build` uses this to determine build order and skip up-to-date packages.
+- **Always typecheck from the root** — run `pnpm run typecheck`
+- **`emitDeclarationOnly`** — we only emit `.d.ts` files during typecheck
+- **Project references** — when package A depends on package B, A's `tsconfig.json` must list B in its `references` array
 
 ## Root Scripts
 
@@ -52,45 +99,16 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 
 ### `artifacts/api-server` (`@workspace/api-server`)
 
-Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation and `@workspace/db` for persistence.
+Express 5 API server. Routes in `src/routes/` use `@workspace/api-zod` for validation and `@workspace/db` for persistence.
 
-- Entry: `src/index.ts` — reads `PORT`, starts Express
-- App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
-- Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
-- Depends on: `@workspace/db`, `@workspace/api-zod`
-- `pnpm --filter @workspace/api-server run dev` — run the dev server
-- `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.cjs`)
-- Build bundles an allowlist of deps (express, cors, pg, drizzle-orm, zod, etc.) and externalizes the rest
+### `artifacts/erp-system` (`@workspace/erp-system`)
+
+React + Vite Arabic RTL frontend. Uses `@workspace/api-client-react` for React Query hooks.
 
 ### `lib/db` (`@workspace/db`)
 
-Database layer using Drizzle ORM with PostgreSQL. Exports a Drizzle client instance and schema models.
-
-- `src/index.ts` — creates a `Pool` + Drizzle instance, exports schema
-- `src/schema/index.ts` — barrel re-export of all models
-- `src/schema/<modelname>.ts` — table definitions with `drizzle-zod` insert schemas (no models definitions exist right now)
-- `drizzle.config.ts` — Drizzle Kit config (requires `DATABASE_URL`, automatically provided by Replit)
-- Exports: `.` (pool, db, schema), `./schema` (schema only)
-
-Production migrations are handled by Replit when publishing. In development, we just use `pnpm --filter @workspace/db run push`, and we fallback to `pnpm --filter @workspace/db run push-force`.
+Database layer using Drizzle ORM. Push schema: `pnpm --filter @workspace/db run push`
 
 ### `lib/api-spec` (`@workspace/api-spec`)
 
-Owns the OpenAPI 3.1 spec (`openapi.yaml`) and the Orval config (`orval.config.ts`). Running codegen produces output into two sibling packages:
-
-1. `lib/api-client-react/src/generated/` — React Query hooks + fetch client
-2. `lib/api-zod/src/generated/` — Zod schemas
-
-Run codegen: `pnpm --filter @workspace/api-spec run codegen`
-
-### `lib/api-zod` (`@workspace/api-zod`)
-
-Generated Zod schemas from the OpenAPI spec (e.g. `HealthCheckResponse`). Used by `api-server` for response validation.
-
-### `lib/api-client-react` (`@workspace/api-client-react`)
-
-Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHealthCheck`, `healthCheck`).
-
-### `scripts` (`@workspace/scripts`)
-
-Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
+OpenAPI spec + Orval codegen. Run: `pnpm --filter @workspace/api-spec run codegen`

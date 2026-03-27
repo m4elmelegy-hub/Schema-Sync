@@ -1,0 +1,15 @@
+packages:
+  "framer-motion": "For smooth page transitions and glass panel animations"
+  "recharts": "For dashboard and reports data visualization"
+  "date-fns": "For formatting dates in Arabic localization"
+  "lucide-react": "For beautiful vector icons"
+
+images:
+  - path: "artifacts/erp-system/public/images/bg-mesh.png"
+    description: "A very dark, abstract sci-fi gradient mesh background with subtle glowing teal, emerald, and deep blue light leaks on pitch black. Extremely minimal, professional, and elegant, perfect for a dark-mode enterprise dashboard background."
+    aspect_ratio: "16:9"
+
+notes:
+  - Using hooks directly from @workspace/api-client-react
+  - RTL direction enabled for Arabic UI
+  - Dark glass-morphism aesthetic applied globally

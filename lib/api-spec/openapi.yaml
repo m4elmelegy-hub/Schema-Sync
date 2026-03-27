@@ -1,22 +1,38 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Arabic ERP System API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: products
+    description: Product management
+  - name: customers
+    description: Customer management
+  - name: suppliers
+    description: Supplier management
+  - name: sales
+    description: Sales management
+  - name: purchases
+    description: Purchase management
+  - name: expenses
+    description: Expense management
+  - name: income
+    description: Income management
+  - name: transactions
+    description: Transaction management
+  - name: dashboard
+    description: Dashboard statistics
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +40,511 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /products:
+    get:
+      operationId: getProducts
+      tags: [products]
+      summary: List all products
+      responses:
+        "200":
+          description: List of products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+    post:
+      operationId: createProduct
+      tags: [products]
+      summary: Create a product
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProductInput"
+      responses:
+        "201":
+          description: Created product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+
+  /products/{id}:
+    put:
+      operationId: updateProduct
+      tags: [products]
+      summary: Update a product
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProductInput"
+      responses:
+        "200":
+          description: Updated product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+    delete:
+      operationId: deleteProduct
+      tags: [products]
+      summary: Delete a product
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /customers:
+    get:
+      operationId: getCustomers
+      tags: [customers]
+      summary: List all customers
+      responses:
+        "200":
+          description: List of customers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Customer"
+    post:
+      operationId: createCustomer
+      tags: [customers]
+      summary: Create a customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCustomerInput"
+      responses:
+        "201":
+          description: Created customer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+
+  /customers/{id}:
+    put:
+      operationId: updateCustomer
+      tags: [customers]
+      summary: Update a customer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCustomerInput"
+      responses:
+        "200":
+          description: Updated customer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+    delete:
+      operationId: deleteCustomer
+      tags: [customers]
+      summary: Delete a customer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /customers/{id}/receipt:
+    post:
+      operationId: createCustomerReceipt
+      tags: [customers]
+      summary: Record payment from customer (receipt voucher)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VoucherInput"
+      responses:
+        "200":
+          description: Updated customer balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+
+  /suppliers:
+    get:
+      operationId: getSuppliers
+      tags: [suppliers]
+      summary: List all suppliers
+      responses:
+        "200":
+          description: List of suppliers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Supplier"
+    post:
+      operationId: createSupplier
+      tags: [suppliers]
+      summary: Create a supplier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSupplierInput"
+      responses:
+        "201":
+          description: Created supplier
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Supplier"
+
+  /suppliers/{id}:
+    put:
+      operationId: updateSupplier
+      tags: [suppliers]
+      summary: Update a supplier
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSupplierInput"
+      responses:
+        "200":
+          description: Updated supplier
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Supplier"
+    delete:
+      operationId: deleteSupplier
+      tags: [suppliers]
+      summary: Delete a supplier
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /suppliers/{id}/payment:
+    post:
+      operationId: createSupplierPayment
+      tags: [suppliers]
+      summary: Record payment to supplier (payment voucher)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VoucherInput"
+      responses:
+        "200":
+          description: Updated supplier balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Supplier"
+
+  /sales:
+    get:
+      operationId: getSales
+      tags: [sales]
+      summary: List all sales
+      responses:
+        "200":
+          description: List of sales
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Sale"
+    post:
+      operationId: createSale
+      tags: [sales]
+      summary: Create a sale
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSaleInput"
+      responses:
+        "201":
+          description: Created sale
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sale"
+
+  /sales/{id}:
+    get:
+      operationId: getSaleById
+      tags: [sales]
+      summary: Get sale with items
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Sale details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SaleWithItems"
+
+  /purchases:
+    get:
+      operationId: getPurchases
+      tags: [purchases]
+      summary: List all purchases
+      responses:
+        "200":
+          description: List of purchases
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Purchase"
+    post:
+      operationId: createPurchase
+      tags: [purchases]
+      summary: Create a purchase
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePurchaseInput"
+      responses:
+        "201":
+          description: Created purchase
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Purchase"
+
+  /purchases/{id}:
+    get:
+      operationId: getPurchaseById
+      tags: [purchases]
+      summary: Get purchase with items
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Purchase details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PurchaseWithItems"
+
+  /expenses:
+    get:
+      operationId: getExpenses
+      tags: [expenses]
+      summary: List all expenses
+      responses:
+        "200":
+          description: List of expenses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Expense"
+    post:
+      operationId: createExpense
+      tags: [expenses]
+      summary: Create an expense
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateExpenseInput"
+      responses:
+        "201":
+          description: Created expense
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Expense"
+
+  /expenses/{id}:
+    delete:
+      operationId: deleteExpense
+      tags: [expenses]
+      summary: Delete an expense
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /income:
+    get:
+      operationId: getIncome
+      tags: [income]
+      summary: List all income entries
+      responses:
+        "200":
+          description: List of income
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Income"
+    post:
+      operationId: createIncome
+      tags: [income]
+      summary: Create an income entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateIncomeInput"
+      responses:
+        "201":
+          description: Created income
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Income"
+
+  /income/{id}:
+    delete:
+      operationId: deleteIncome
+      tags: [income]
+      summary: Delete an income entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /transactions:
+    get:
+      operationId: getTransactions
+      tags: [transactions]
+      summary: List all transactions
+      responses:
+        "200":
+          description: List of transactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Transaction"
+
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [dashboard]
+      summary: Get dashboard statistics
+      responses:
+        "200":
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +552,482 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required: [success]
+
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        sku:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+        quantity:
+          type: number
+        cost_price:
+          type: number
+        sale_price:
+          type: number
+        low_stock_threshold:
+          type: integer
+          nullable: true
+        created_at:
+          type: string
+      required: [id, name, quantity, cost_price, sale_price, created_at]
+
+    CreateProductInput:
+      type: object
+      properties:
+        name:
+          type: string
+        sku:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+        quantity:
+          type: number
+        cost_price:
+          type: number
+        sale_price:
+          type: number
+        low_stock_threshold:
+          type: integer
+          nullable: true
+      required: [name, quantity, cost_price, sale_price]
+
+    Customer:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        balance:
+          type: number
+        created_at:
+          type: string
+      required: [id, name, balance, created_at]
+
+    CreateCustomerInput:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        balance:
+          type: number
+      required: [name]
+
+    Supplier:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        balance:
+          type: number
+        created_at:
+          type: string
+      required: [id, name, balance, created_at]
+
+    CreateSupplierInput:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        balance:
+          type: number
+      required: [name]
+
+    VoucherInput:
+      type: object
+      properties:
+        amount:
+          type: number
+        description:
+          type: string
+          nullable: true
+      required: [amount]
+
+    Sale:
+      type: object
+      properties:
+        id:
+          type: integer
+        invoice_no:
+          type: string
+        customer_name:
+          type: string
+          nullable: true
+        customer_id:
+          type: integer
+          nullable: true
+        payment_type:
+          type: string
+          enum: [cash, credit, partial]
+        total_amount:
+          type: number
+        paid_amount:
+          type: number
+        remaining_amount:
+          type: number
+        status:
+          type: string
+          enum: [paid, partial, unpaid]
+        notes:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+      required: [id, invoice_no, payment_type, total_amount, paid_amount, remaining_amount, status, created_at]
+
+    SaleItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        sale_id:
+          type: integer
+        product_id:
+          type: integer
+        product_name:
+          type: string
+        quantity:
+          type: number
+        unit_price:
+          type: number
+        total_price:
+          type: number
+      required: [id, sale_id, product_id, product_name, quantity, unit_price, total_price]
+
+    SaleWithItems:
+      type: object
+      properties:
+        id:
+          type: integer
+        invoice_no:
+          type: string
+        customer_name:
+          type: string
+          nullable: true
+        customer_id:
+          type: integer
+          nullable: true
+        payment_type:
+          type: string
+          enum: [cash, credit, partial]
+        total_amount:
+          type: number
+        paid_amount:
+          type: number
+        remaining_amount:
+          type: number
+        status:
+          type: string
+          enum: [paid, partial, unpaid]
+        notes:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SaleItem"
+      required: [id, invoice_no, payment_type, total_amount, paid_amount, remaining_amount, status, created_at, items]
+
+    CreateSaleInput:
+      type: object
+      properties:
+        customer_name:
+          type: string
+          nullable: true
+        customer_id:
+          type: integer
+          nullable: true
+        payment_type:
+          type: string
+          enum: [cash, credit, partial]
+        total_amount:
+          type: number
+        paid_amount:
+          type: number
+        notes:
+          type: string
+          nullable: true
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CreateSaleItemInput"
+      required: [payment_type, total_amount, paid_amount, items]
+
+    CreateSaleItemInput:
+      type: object
+      properties:
+        product_id:
+          type: integer
+        product_name:
+          type: string
+        quantity:
+          type: number
+        unit_price:
+          type: number
+        total_price:
+          type: number
+      required: [product_id, product_name, quantity, unit_price, total_price]
+
+    Purchase:
+      type: object
+      properties:
+        id:
+          type: integer
+        invoice_no:
+          type: string
+        supplier_name:
+          type: string
+          nullable: true
+        supplier_id:
+          type: integer
+          nullable: true
+        payment_type:
+          type: string
+          enum: [cash, credit, partial]
+        total_amount:
+          type: number
+        paid_amount:
+          type: number
+        remaining_amount:
+          type: number
+        status:
+          type: string
+          enum: [paid, partial, unpaid]
+        notes:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+      required: [id, invoice_no, payment_type, total_amount, paid_amount, remaining_amount, status, created_at]
+
+    PurchaseItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        purchase_id:
+          type: integer
+        product_id:
+          type: integer
+        product_name:
+          type: string
+        quantity:
+          type: number
+        unit_price:
+          type: number
+        total_price:
+          type: number
+      required: [id, purchase_id, product_id, product_name, quantity, unit_price, total_price]
+
+    PurchaseWithItems:
+      type: object
+      properties:
+        id:
+          type: integer
+        invoice_no:
+          type: string
+        supplier_name:
+          type: string
+          nullable: true
+        supplier_id:
+          type: integer
+          nullable: true
+        payment_type:
+          type: string
+          enum: [cash, credit, partial]
+        total_amount:
+          type: number
+        paid_amount:
+          type: number
+        remaining_amount:
+          type: number
+        status:
+          type: string
+          enum: [paid, partial, unpaid]
+        notes:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PurchaseItem"
+      required: [id, invoice_no, payment_type, total_amount, paid_amount, remaining_amount, status, created_at, items]
+
+    CreatePurchaseInput:
+      type: object
+      properties:
+        supplier_name:
+          type: string
+          nullable: true
+        supplier_id:
+          type: integer
+          nullable: true
+        payment_type:
+          type: string
+          enum: [cash, credit, partial]
+        total_amount:
+          type: number
+        paid_amount:
+          type: number
+        notes:
+          type: string
+          nullable: true
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CreatePurchaseItemInput"
+      required: [payment_type, total_amount, paid_amount, items]
+
+    CreatePurchaseItemInput:
+      type: object
+      properties:
+        product_id:
+          type: integer
+        product_name:
+          type: string
+        quantity:
+          type: number
+        unit_price:
+          type: number
+        total_price:
+          type: number
+      required: [product_id, product_name, quantity, unit_price, total_price]
+
+    Expense:
+      type: object
+      properties:
+        id:
+          type: integer
+        category:
+          type: string
+        amount:
+          type: number
+        description:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+      required: [id, category, amount, created_at]
+
+    CreateExpenseInput:
+      type: object
+      properties:
+        category:
+          type: string
+        amount:
+          type: number
+        description:
+          type: string
+          nullable: true
+      required: [category, amount]
+
+    Income:
+      type: object
+      properties:
+        id:
+          type: integer
+        source:
+          type: string
+        amount:
+          type: number
+        description:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+      required: [id, source, amount, created_at]
+
+    CreateIncomeInput:
+      type: object
+      properties:
+        source:
+          type: string
+        amount:
+          type: number
+        description:
+          type: string
+          nullable: true
+      required: [source, amount]
+
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [sale, purchase, expense, income, receipt, payment]
+        amount:
+          type: number
+        description:
+          type: string
+          nullable: true
+        related_id:
+          type: integer
+          nullable: true
+        created_at:
+          type: string
+      required: [id, type, amount, created_at]
+
+    DashboardStats:
+      type: object
+      properties:
+        total_sales_today:
+          type: number
+        total_expenses_today:
+          type: number
+        total_income_today:
+          type: number
+        net_profit:
+          type: number
+        total_customer_debts:
+          type: number
+        total_supplier_debts:
+          type: number
+        low_stock_products:
+          type: array
+          items:
+            $ref: "#/components/schemas/Product"
+        recent_transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transaction"
+      required: [total_sales_today, total_expenses_today, total_income_today, net_profit, total_customer_debts, total_supplier_debts, low_stock_products, recent_transactions]

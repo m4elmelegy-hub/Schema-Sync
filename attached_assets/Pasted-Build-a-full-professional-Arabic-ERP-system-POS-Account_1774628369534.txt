@@ -1,0 +1,274 @@
+Build a full professional Arabic ERP system (POS + Accounting + Inventory) using:
+
+Frontend:
+
+* HTML, CSS (modern dark glass UI, Arabic RTL)
+* Vanilla JavaScript
+
+Backend:
+
+* Supabase (PostgreSQL)
+
+---
+
+## CORE SYSTEM REQUIREMENTS
+
+1. Authentication:
+
+* Login / Signup
+* Roles: admin / employee
+
+---
+
+2. CUSTOMERS & SUPPLIERS (NO NEED TO PRE-REGISTER)
+
+---
+
+* System must allow:
+
+  * Cash transactions (no name)
+  * Credit transactions (enter name manually OR select existing)
+
+Tables:
+
+* customers (optional)
+* suppliers (optional)
+
+Fields:
+
+* name
+* phone
+* balance (auto calculated)
+
+---
+
+3. SALES SYSTEM (VERY IMPORTANT)
+
+---
+
+Support 3 types:
+
+1. Cash sale
+2. Credit sale (آجل)
+3. Partial payment
+
+Fields:
+
+* invoice_no
+* customer_name
+* payment_type (cash / credit)
+* total_amount
+* paid_amount
+* remaining_amount
+* status (paid / partial / unpaid)
+
+Rules:
+
+* If paid_amount < total → remaining goes to customer balance
+* If credit → full amount added to customer balance
+
+---
+
+4. PURCHASE SYSTEM
+
+---
+
+Same logic as sales:
+
+* Cash purchase
+* Credit purchase from supplier
+* Partial payment
+
+Fields:
+
+* supplier_name
+* payment_type
+* total_amount
+* paid_amount
+* remaining_amount
+
+Rules:
+
+* Remaining goes as debt to supplier
+
+---
+
+5. PRODUCTS
+
+---
+
+Fields:
+
+* name
+* sku
+* category
+* quantity
+* cost_price
+* sale_price
+* low_stock_threshold
+
+---
+
+6. DAILY ACCOUNTING (IMPORTANT)
+
+---
+
+Create unified "transactions" table:
+
+Types:
+
+* sale
+* purchase
+* expense
+* income
+* receipt (سند توريد)
+* payment (سند صرف)
+
+Fields:
+
+* type
+* amount
+* description
+* related_id (sale_id / purchase_id)
+* created_at
+
+---
+
+7. RECEIPTS (سندات)
+
+---
+
+1. Receipt Voucher (سند توريد):
+
+* When customer pays debt
+* Reduce customer balance
+
+2. Payment Voucher (سند صرف):
+
+* When paying supplier
+* Reduce supplier balance
+
+---
+
+8. EXPENSES & INCOME
+
+---
+
+Tables:
+
+* expenses
+* income
+
+Expenses:
+
+* rent
+* salaries
+* electricity
+
+Income:
+
+* extra revenue
+
+---
+
+9. PROFIT SYSTEM
+
+---
+
+Auto calculate:
+
+Profit =
+(total sales - cost of goods)
+
+* expenses
+
+- extra income
+
+---
+
+10. DASHBOARD
+
+---
+
+Show:
+
+* Total sales today
+* Total expenses
+* Total income
+* Net profit
+* Customer debts
+* Supplier debts
+
+---
+
+11. POS SYSTEM
+
+---
+
+* Add products
+* Cart system
+* Choose:
+
+  * Cash
+  * Credit
+  * Partial payment
+* Input:
+
+  * customer name (optional)
+
+---
+
+12. DATABASE TABLES (REQUIRED)
+
+Create:
+
+* products
+* sales
+* sale_items
+* purchases
+* purchase_items
+* customers
+* suppliers
+* transactions
+* expenses
+* income
+
+---
+
+13. UI REQUIREMENTS
+
+---
+
+* Arabic RTL
+* Sidebar navigation
+* Sections:
+
+  * Dashboard
+  * Products
+  * Sales
+  * Purchases
+  * Customers
+  * Suppliers
+  * Expenses
+  * Reports
+
+---
+
+14. IMPORTANT RULES
+
+---
+
+* No missing columns errors
+* Schema must match frontend exactly
+* Clean code
+* Ready to run directly
+
+---
+
+15. BONUS
+
+---
+
+* Low stock alert
+* Invoice print
+* Toast notifications
