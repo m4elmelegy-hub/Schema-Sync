@@ -10,7 +10,8 @@ import {
   Receipt, 
   Wallet, 
   FileText,
-  CreditCard
+  CreditCard,
+  TrendingUp
 } from "lucide-react";
 
 interface LayoutProps {
@@ -26,7 +27,7 @@ const navItems = [
   { name: "العملاء", href: "/customers", icon: Users },
   { name: "الموردون", href: "/suppliers", icon: Truck },
   { name: "المصروفات", href: "/expenses", icon: Wallet },
-  { name: "الإيرادات", href: "/income", icon: Wallet },
+  { name: "الإيرادات", href: "/income", icon: TrendingUp },
   { name: "التقارير", href: "/reports", icon: FileText },
 ];
 
@@ -35,7 +36,7 @@ export function AppLayout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen bg-background relative flex" dir="rtl">
-      {/* Background Image */}
+      {/* Background */}
       <div 
         className="fixed inset-0 z-0 opacity-40 pointer-events-none bg-cover bg-center bg-no-repeat"
         style={{ backgroundImage: `url(${import.meta.env.BASE_URL}images/bg-mesh.png)` }}
@@ -43,17 +44,21 @@ export function AppLayout({ children }: LayoutProps) {
       <div className="fixed inset-0 z-0 bg-gradient-to-br from-black/80 via-background/90 to-black/90 pointer-events-none" />
 
       {/* Sidebar */}
-      <aside className="relative z-10 w-72 glass-panel border-r-0 border-l m-4 rounded-3xl overflow-hidden flex flex-col hidden lg:flex">
-        <div className="p-8 flex items-center gap-4 border-b border-white/5">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-emerald-600 flex items-center justify-center shadow-lg shadow-primary/20">
-            <span className="text-xl font-black text-black">E</span>
+      <aside className="relative z-10 w-72 glass-panel border-r-0 border-l m-4 rounded-3xl overflow-hidden flex-col hidden lg:flex">
+        {/* Logo */}
+        <div className="p-5 flex flex-col items-center gap-3 border-b border-white/10 bg-black/30">
+          <img 
+            src={`${import.meta.env.BASE_URL}logo.png`} 
+            alt="Halal Tech" 
+            className="w-24 h-24 object-contain rounded-2xl"
+          />
+          <div className="text-center">
+            <h1 className="text-lg font-black text-amber-400 tracking-widest">Halal Tech</h1>
+            <p className="text-xs text-white/40 mt-0.5">الحلال = البركة</p>
           </div>
-          <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-l from-white to-white/60">
-            النظام الإداري
-          </h1>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
             const isActive = location === item.href;
             return (
@@ -65,46 +70,53 @@ export function AppLayout({ children }: LayoutProps) {
                   {isActive && (
                     <motion.div 
                       layoutId="active-nav" 
-                      className="absolute inset-0 bg-primary/20 border border-primary/30 rounded-2xl -z-10"
+                      className="absolute inset-0 bg-amber-500/15 border border-amber-500/30 rounded-2xl -z-10"
                       initial={false}
                       transition={{ type: "spring", stiffness: 300, damping: 30 }}
                     />
                   )}
-                  <item.icon className={`w-5 h-5 ${isActive ? 'text-primary' : 'group-hover:text-white transition-colors'}`} />
-                  <span className="font-medium text-lg">{item.name}</span>
+                  <item.icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-amber-400' : 'group-hover:text-white transition-colors'}`} />
+                  <span className="font-medium text-base">{item.name}</span>
                 </div>
               </Link>
             );
           })}
         </nav>
+
+        <div className="p-4 border-t border-white/5 text-center">
+          <p className="text-xs text-white/20">نظام ERP الإداري v1.0</p>
+        </div>
       </aside>
 
-      {/* Mobile Nav (simplified for brevity) */}
+      {/* Mobile Nav */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 glass-panel border-t border-white/10 rounded-t-3xl p-2 flex justify-around">
-         {navItems.slice(0, 5).map((item) => (
-           <Link key={item.href} href={item.href} className={`p-3 rounded-xl ${location === item.href ? 'bg-primary/20 text-primary' : 'text-white/50'}`}>
-             <item.icon className="w-6 h-6" />
-           </Link>
-         ))}
+        {navItems.slice(0, 5).map((item) => (
+          <Link key={item.href} href={item.href} className={`p-3 rounded-xl ${location === item.href ? 'bg-amber-500/20 text-amber-400' : 'text-white/50'}`}>
+            <item.icon className="w-6 h-6" />
+          </Link>
+        ))}
       </nav>
 
       {/* Main Content */}
-      <main className="relative z-10 flex-1 flex flex-col p-4 lg:p-8 overflow-hidden mb-20 lg:mb-0 max-h-screen">
-        <header className="glass-panel rounded-3xl p-4 lg:p-6 flex justify-between items-center mb-8 shrink-0">
-          <h2 className="text-xl lg:text-2xl font-bold text-white tracking-wide">
-            {navItems.find(i => i.href === location)?.name || "مرحباً بك"}
-          </h2>
+      <main className="relative z-10 flex-1 flex flex-col p-4 lg:p-6 overflow-hidden mb-20 lg:mb-0 max-h-screen">
+        <header className="glass-panel rounded-3xl p-4 lg:p-5 flex justify-between items-center mb-6 shrink-0 border border-white/5">
+          <div className="flex items-center gap-3">
+            <div className="w-1 h-8 bg-gradient-to-b from-amber-400 to-amber-600 rounded-full" />
+            <h2 className="text-xl lg:text-2xl font-bold text-white tracking-wide">
+              {navItems.find(i => i.href === location)?.name || "مرحباً بك"}
+            </h2>
+          </div>
           <div className="flex items-center gap-4">
             <div className="text-sm text-white/50 hidden sm:block">
-              {new Date().toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+              {new Date().toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             </div>
-            <div className="w-10 h-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center">
-              <Users className="w-5 h-5 text-white/70" />
+            <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-amber-500/30">
+              <img src={`${import.meta.env.BASE_URL}logo.png`} alt="logo" className="w-full h-full object-cover" />
             </div>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto pr-2 pb-2">
+        <div className="flex-1 overflow-y-auto pb-2">
           {children}
         </div>
       </main>

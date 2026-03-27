@@ -90,3 +90,11 @@
 .glass-input {
   @apply bg-black/20 border border-white/10 text-white placeholder:text-white/40 focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all rounded-xl px-4 py-2 w-full outline-none;
 }
+
+.btn-primary {
+  @apply bg-amber-500 hover:bg-amber-400 text-black font-bold px-6 py-2.5 rounded-xl transition-all shadow-lg shadow-amber-500/20;
+}
+
+.btn-secondary {
+  @apply bg-white/10 hover:bg-white/15 text-white font-bold px-6 py-2.5 rounded-xl transition-all border border-white/10;
+}
