@@ -3,10 +3,7 @@ import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { 
   LayoutDashboard, 
-  ShoppingCart, 
-  Package, 
   Users, 
-  Truck, 
   Receipt, 
   Wallet, 
   FileText,
@@ -20,12 +17,9 @@ interface LayoutProps {
 
 const navItems = [
   { name: "لوحة القيادة", href: "/", icon: LayoutDashboard },
-  { name: "نقطة البيع", href: "/pos", icon: ShoppingCart },
-  { name: "المنتجات", href: "/products", icon: Package },
   { name: "المبيعات", href: "/sales", icon: Receipt },
   { name: "المشتريات", href: "/purchases", icon: CreditCard },
   { name: "العملاء", href: "/customers", icon: Users },
-  { name: "الموردون", href: "/suppliers", icon: Truck },
   { name: "المصروفات", href: "/expenses", icon: Wallet },
   { name: "الإيرادات", href: "/income", icon: TrendingUp },
   { name: "التقارير", href: "/reports", icon: FileText },
@@ -36,7 +30,6 @@ export function AppLayout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen bg-background relative flex" dir="rtl">
-      {/* Background */}
       <div 
         className="fixed inset-0 z-0 opacity-40 pointer-events-none bg-cover bg-center bg-no-repeat"
         style={{ backgroundImage: `url(${import.meta.env.BASE_URL}images/bg-mesh.png)` }}
@@ -45,7 +38,6 @@ export function AppLayout({ children }: LayoutProps) {
 
       {/* Sidebar */}
       <aside className="relative z-10 w-72 glass-panel border-r-0 border-l m-4 rounded-3xl overflow-hidden flex-col hidden lg:flex">
-        {/* Logo */}
         <div className="p-5 flex flex-col items-center gap-3 border-b border-white/10 bg-black/30">
           <img 
             src={`${import.meta.env.BASE_URL}logo.png`} 
