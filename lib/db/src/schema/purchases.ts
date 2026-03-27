@@ -7,7 +7,10 @@ export const purchasesTable = pgTable("purchases", {
   invoice_no: text("invoice_no").notNull(),
   supplier_name: text("supplier_name"),
   supplier_id: integer("supplier_id"),
-  payment_type: text("payment_type").notNull(), // cash, credit, partial
+  customer_id: integer("customer_id"),
+  customer_name: text("customer_name"),
+  customer_payment_type: text("customer_payment_type"), // cash, credit, partial - how customer pays us for these items
+  payment_type: text("payment_type").notNull(), // cash, credit, partial - how company pays supplier
   total_amount: numeric("total_amount", { precision: 12, scale: 2 }).notNull().default("0"),
   paid_amount: numeric("paid_amount", { precision: 12, scale: 2 }).notNull().default("0"),
   remaining_amount: numeric("remaining_amount", { precision: 12, scale: 2 }).notNull().default("0"),

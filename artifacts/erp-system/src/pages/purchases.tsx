@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
-import { useGetPurchases, useCreatePurchase, useGetProducts, useGetSuppliers, useGetPurchaseById, useCreateProduct, useDeleteProduct } from "@workspace/api-client-react";
+import { useGetPurchases, useCreatePurchase, useGetProducts, useGetSuppliers, useGetCustomers, useGetPurchaseById, useCreateProduct, useDeleteProduct } from "@workspace/api-client-react";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { Search, Plus, Minus, Trash2, X, ShoppingBag, Printer, AlertTriangle } from "lucide-react";
+import { Search, Plus, Minus, Trash2, X, ShoppingBag, Printer, AlertTriangle, User } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
@@ -45,7 +45,26 @@ function PurchaseDetailModal({ purchaseId, onClose }: { purchaseId: number; onCl
               <div><p className="text-white/50 text-sm">رقم الفاتورة</p><p className="text-amber-400 font-bold text-lg">{purchase.invoice_no}</p></div>
               <div><p className="text-white/50 text-sm">التاريخ</p><p className="text-white">{formatDate(purchase.created_at)}</p></div>
               <div><p className="text-white/50 text-sm">المورد</p><p className="text-white font-semibold">{purchase.supplier_name || 'بدون مورد'}</p></div>
-              <div><p className="text-white/50 text-sm">طريقة الدفع</p><PaymentBadge type={purchase.payment_type} /></div>
+              <div><p className="text-white/50 text-sm">دفع الشركة</p><PaymentBadge type={purchase.payment_type} /></div>
+              {purchase.customer_name && (
+                <>
+                  <div className="col-span-2 border-t border-white/10 pt-3">
+                    <p className="text-amber-400 text-xs font-bold mb-2">مُحمَّل على عميل</p>
+                    <div className="flex justify-between items-center">
+                      <span className="text-white font-semibold">{purchase.customer_name}</span>
+                      {purchase.customer_payment_type && (
+                        <span className={`px-2 py-0.5 rounded-lg text-xs font-bold border ${
+                          purchase.customer_payment_type === 'cash' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+                          purchase.customer_payment_type === 'credit' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
+                          'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+                        }`}>
+                          {purchase.customer_payment_type === 'cash' ? 'دفع نقداً' : purchase.customer_payment_type === 'credit' ? 'آجل (دين عليه)' : 'جزئي'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
             <div className="rounded-2xl overflow-hidden border border-white/10">
               <table className="w-full text-right text-sm">
@@ -82,17 +101,23 @@ function PurchaseDetailModal({ purchaseId, onClose }: { purchaseId: number; onCl
 function NewPurchasePanel({ onDone }: { onDone: () => void }) {
   const { data: products = [] } = useGetProducts();
   const { data: suppliers = [] } = useGetSuppliers();
+  const { data: customers = [] } = useGetCustomers();
   const createMutation = useCreatePurchase();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
+  // كيف تدفع الشركة للمورد
   const [paymentType, setPaymentType] = useState<"cash" | "credit" | "partial">("cash");
   const [paidAmount, setPaidAmount] = useState<string>("");
   const [supplierId, setSupplierId] = useState<string>("");
   const [supplierName, setSupplierName] = useState<string>("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
+  // ربط العميل
+  const [customerId, setCustomerId] = useState<string>("");
+  const [customerPaymentType, setCustomerPaymentType] = useState<"cash" | "credit" | "partial">("credit");
+  const [customerPaidAmount, setCustomerPaidAmount] = useState<string>("");
 
   const categories = Array.from(new Set(products.map(p => p.category).filter(Boolean)));
   const filteredProducts = products.filter(p => {
@@ -102,6 +127,16 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
   });
 
   const cartTotal = useMemo(() => cart.reduce((s, i) => s + i.total_price, 0), [cart]);
+
+  const selectedCustomer = customerId ? customers.find(c => c.id === parseInt(customerId)) : null;
+
+  // حساب أثر الفاتورة على رصيد العميل
+  const customerBalanceImpact = useMemo(() => {
+    if (!customerId) return 0;
+    if (customerPaymentType === "cash") return 0;
+    if (customerPaymentType === "credit") return cartTotal;
+    return cartTotal - (parseFloat(customerPaidAmount) || 0);
+  }, [customerId, customerPaymentType, customerPaidAmount, cartTotal]);
 
   const addToCart = (product: typeof products[0]) => {
     setCart(prev => {
@@ -128,6 +163,10 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
       data: {
         supplier_id: selectedSupplier?.id ?? null,
         supplier_name: selectedSupplier?.name ?? (supplierName || null),
+        customer_id: selectedCustomer?.id ?? null,
+        customer_name: selectedCustomer?.name ?? null,
+        customer_payment_type: customerId ? customerPaymentType : null,
+        customer_paid_amount: customerPaymentType === "partial" ? (parseFloat(customerPaidAmount) || 0) : null,
         payment_type: paymentType,
         total_amount: cartTotal,
         paid_amount: actualPaid,
@@ -135,10 +174,19 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
       }
     }, {
       onSuccess: () => {
-        toast({ title: "✅ تم تسجيل فاتورة الشراء — تم تحديث المخزن" });
+        let msg = "✅ تم تسجيل فاتورة الشراء — تم تحديث المخزن";
+        if (selectedCustomer) {
+          if (customerBalanceImpact > 0) {
+            msg += ` — رصيد ${selectedCustomer.name} زاد بـ ${customerBalanceImpact.toFixed(2)} ج.م`;
+          } else {
+            msg += ` — تم تسجيل دفع العميل`;
+          }
+        }
+        toast({ title: msg });
         queryClient.invalidateQueries({ queryKey: ["/api/purchases"] });
         queryClient.invalidateQueries({ queryKey: ["/api/products"] });
         queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
         queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
         onDone();
       },
@@ -202,27 +250,79 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
             </div>
           ))}
         </div>
-        <div className="p-4 border-t border-white/10 bg-black/30 space-y-3">
-          <div>
-            <select className="glass-input text-sm appearance-none mb-2" value={supplierId} onChange={e => { setSupplierId(e.target.value); setSupplierName(""); }}>
-              <option value="" className="bg-gray-900">بدون مورد محدد</option>
+        <div className="p-4 border-t border-white/10 bg-black/30 space-y-3 overflow-y-auto">
+          {/* المورد */}
+          <div className="space-y-1.5">
+            <p className="text-white/40 text-xs font-semibold">المورد (اختياري)</p>
+            <select className="glass-input text-sm appearance-none" value={supplierId} onChange={e => { setSupplierId(e.target.value); setSupplierName(""); }}>
+              <option value="" className="bg-gray-900">بدون مورد</option>
               {suppliers.map(s => <option key={s.id} value={s.id} className="bg-gray-900">{s.name}</option>)}
             </select>
             {!supplierId && <input type="text" placeholder="أو اكتب اسم المورد..." className="glass-input text-sm" value={supplierName} onChange={e => setSupplierName(e.target.value)} />}
           </div>
-          <div className="grid grid-cols-3 gap-1">
-            {[{ v: "cash", l: "نقدي" }, { v: "credit", l: "آجل" }, { v: "partial", l: "جزئي" }].map(opt => (
-              <button key={opt.v} onClick={() => setPaymentType(opt.v as "cash" | "credit" | "partial")}
-                className={`py-2 rounded-xl text-xs font-bold border transition-all ${paymentType === opt.v ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10'}`}>
-                {opt.l}
-              </button>
-            ))}
+
+          {/* دفع الشركة للمورد */}
+          <div className="space-y-1.5">
+            <p className="text-white/40 text-xs font-semibold">دفع الشركة للمورد</p>
+            <div className="grid grid-cols-3 gap-1">
+              {[{ v: "cash", l: "نقدي" }, { v: "credit", l: "آجل" }, { v: "partial", l: "جزئي" }].map(opt => (
+                <button key={opt.v} onClick={() => setPaymentType(opt.v as "cash" | "credit" | "partial")}
+                  className={`py-1.5 rounded-xl text-xs font-bold border transition-all ${paymentType === opt.v ? 'bg-blue-500/20 text-blue-400 border-blue-500/40' : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10'}`}>
+                  {opt.l}
+                </button>
+              ))}
+            </div>
+            {paymentType === "partial" && <input type="number" step="0.01" placeholder="دفعت الشركة..." className="glass-input text-sm" value={paidAmount} onChange={e => setPaidAmount(e.target.value)} />}
           </div>
-          {paymentType === "partial" && <input type="number" step="0.01" placeholder="المبلغ المدفوع" className="glass-input text-sm" value={paidAmount} onChange={e => setPaidAmount(e.target.value)} />}
+
+          {/* ربط بعميل */}
+          <div className="space-y-1.5 border-t border-white/10 pt-3">
+            <p className="text-amber-400 text-xs font-bold flex items-center gap-1">
+              <User className="w-3 h-3" /> تحميل على عميل (اختياري)
+            </p>
+            <select className="glass-input text-sm appearance-none" value={customerId} onChange={e => setCustomerId(e.target.value)}>
+              <option value="" className="bg-gray-900">بدون عميل</option>
+              {customers.map(c => (
+                <option key={c.id} value={c.id} className="bg-gray-900">
+                  {c.name} {c.balance > 0 ? `• دين: ${Number(c.balance).toFixed(0)} ج.م` : ''}
+                </option>
+              ))}
+            </select>
+
+            {customerId && (
+              <div className="space-y-1.5 animate-in slide-in-from-top-2">
+                <p className="text-white/40 text-xs font-semibold">كيف يدفع العميل؟</p>
+                <div className="grid grid-cols-3 gap-1">
+                  {[{ v: "credit", l: "آجل" }, { v: "partial", l: "جزئي" }, { v: "cash", l: "نقدي" }].map(opt => (
+                    <button key={opt.v} onClick={() => setCustomerPaymentType(opt.v as "cash" | "credit" | "partial")}
+                      className={`py-1.5 rounded-xl text-xs font-bold border transition-all ${customerPaymentType === opt.v ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10'}`}>
+                      {opt.l}
+                    </button>
+                  ))}
+                </div>
+                {customerPaymentType === "partial" && (
+                  <input type="number" step="0.01" placeholder="دفع العميل مقدماً..." className="glass-input text-sm" value={customerPaidAmount} onChange={e => setCustomerPaidAmount(e.target.value)} />
+                )}
+                {/* أثر على الرصيد */}
+                <div className={`p-2.5 rounded-xl border text-xs font-bold ${customerBalanceImpact > 0 ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'}`}>
+                  {customerBalanceImpact > 0
+                    ? `⬆ سيُضاف على رصيد ${selectedCustomer?.name}: +${formatCurrency(customerBalanceImpact)} (دين عليه)`
+                    : `✅ العميل دفع بالكامل — لا يوجد دين`}
+                </div>
+                {selectedCustomer && selectedCustomer.balance > 0 && (
+                  <p className="text-xs text-white/40">رصيده الحالي: {formatCurrency(selectedCustomer.balance)} → سيصبح: {formatCurrency(Number(selectedCustomer.balance) + customerBalanceImpact)}</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* الملخص */}
           <div className="bg-white/5 rounded-xl p-3 border border-white/5 space-y-1">
-            <div className="flex justify-between text-sm"><span className="text-white/60">الإجمالي</span><span className="font-bold text-white">{formatCurrency(cartTotal)}</span></div>
-            {paymentType === "partial" && <div className="flex justify-between text-sm"><span className="text-white/60">المتبقي</span><span className="font-bold text-red-400">{formatCurrency(cartTotal - (parseFloat(paidAmount) || 0))}</span></div>}
+            <div className="flex justify-between text-sm"><span className="text-white/60">إجمالي الفاتورة</span><span className="font-bold text-white">{formatCurrency(cartTotal)}</span></div>
+            {paymentType === "partial" && <div className="flex justify-between text-sm"><span className="text-white/60">متبقي للمورد</span><span className="font-bold text-red-400">{formatCurrency(cartTotal - (parseFloat(paidAmount) || 0))}</span></div>}
+            {customerId && customerBalanceImpact > 0 && <div className="flex justify-between text-sm border-t border-white/10 pt-1"><span className="text-yellow-400/70">دين العميل</span><span className="font-bold text-yellow-400">{formatCurrency(customerBalanceImpact)}</span></div>}
           </div>
+
           <button onClick={handleSubmit} disabled={createMutation.isPending || cart.length === 0} className="w-full btn-primary py-3 disabled:opacity-50">
             {createMutation.isPending ? 'جاري الحفظ...' : 'تسجيل فاتورة الشراء'}
           </button>
