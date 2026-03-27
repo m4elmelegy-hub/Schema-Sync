@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
-import { db, treasuryVouchersTable, safesTable } from "@workspace/db";
+import { db, treasuryVouchersTable, safesTable, transactionsTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -36,20 +36,34 @@ router.post("/treasury-vouchers", async (req, res): Promise<void> => {
   }
 
   const newBalance = type === "receipt" ? currentBal + amt : currentBal - amt;
-  await db.update(safesTable).set({ balance: String(newBalance) }).where(eq(safesTable.id, safe.id));
-
   const voucher_no = `${type === "receipt" ? "RV" : "PV"}-${Date.now()}`;
-  const [voucher] = await db.insert(treasuryVouchersTable).values({
-    voucher_no, type,
-    safe_id: safe.id,
-    safe_name: safe.name,
-    amount: String(amt),
-    party_name: party_name ?? null,
-    description,
-    category: category ?? null,
-  }).returning();
 
-  res.status(201).json(fmt(voucher));
+  try {
+    const voucher = await db.transaction(async (tx) => {
+      await tx.update(safesTable).set({ balance: String(newBalance) }).where(eq(safesTable.id, safe.id));
+      const [v] = await tx.insert(treasuryVouchersTable).values({
+        voucher_no, type,
+        safe_id: safe.id, safe_name: safe.name,
+        amount: String(amt), party_name: party_name ?? null,
+        description, category: category ?? null,
+      }).returning();
+      await tx.insert(transactionsTable).values({
+        type: `voucher_${type}`,
+        reference_type: "treasury_voucher",
+        reference_id: v.id,
+        safe_id: safe.id, safe_name: safe.name,
+        amount: String(amt),
+        direction: type === "receipt" ? "in" : "out",
+        description: `${type === "receipt" ? "سند قبض" : "سند صرف"}: ${description}`,
+        date: new Date().toISOString().split("T")[0],
+        related_id: v.id,
+      });
+      return v;
+    });
+    res.status(201).json(fmt(voucher));
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "خطأ في حفظ السند" });
+  }
 });
 
 router.delete("/treasury-vouchers/:id", async (req, res): Promise<void> => {

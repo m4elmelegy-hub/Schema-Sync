@@ -13,6 +13,10 @@ import settingsRouter from "./settings";
 import accountsRouter from "./accounts";
 import returnsRouter from "./returns";
 import treasuryVouchersRouter from "./treasury-vouchers";
+import receiptVouchersRouter from "./receipt-vouchers";
+import depositVouchersRouter from "./deposit-vouchers";
+import safeTransfersRouter from "./safe-transfers";
+import financialTransactionsRouter from "./financial-transactions";
 
 const router: IRouter = Router();
 
@@ -30,5 +34,9 @@ router.use(settingsRouter);
 router.use(accountsRouter);
 router.use(returnsRouter);
 router.use(treasuryVouchersRouter);
+router.use(receiptVouchersRouter);
+router.use(depositVouchersRouter);
+router.use(safeTransfersRouter);
+router.use(financialTransactionsRouter);
 
 export default router;

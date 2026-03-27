@@ -2,7 +2,18 @@
 
 ## Overview
 
-Full-stack Arabic ERP System (نظام ERP) for Halal Tech (Egyptian mobile repair shop). Arabic RTL interface with dark glass-morphism UI, EGP currency, amber theme. Navigation: Dashboard, Sales (POS + Returns tab), Purchases (product management + Returns tab), Customers, Suppliers, Expenses, Income, Chart of Accounts (دليل الحسابات), Journal Entries (القيود اليومية), Reports, Settings.
+Full-stack Arabic ERP System (نظام ERP) for Halal Tech (Egyptian mobile repair shop). Arabic RTL interface with dark glass-morphism UI, EGP currency, amber theme.
+
+### Navigation Pages
+Dashboard, Sales (POS + Returns), Purchases (+ Returns), Customers, Suppliers, Expenses, Income, سندات القبض (Receipt Vouchers), سندات التوريد (Deposit Vouchers), تحويل الخزائن (Safe Transfers), الحركات المالية (Financial Transactions Ledger), Chart of Accounts, Journal Entries, Reports, Settings.
+
+### Financial Transaction Engine
+Every money movement uses `db.transaction()` atomically:
+1. Atomic safe balance updates (never partial updates)
+2. Central `transactions` ledger recording every operation (type, safe_id, direction, reference_type, reference_id, date)
+3. Supported transaction types: sale_cash/credit/partial, expense, income, receipt_voucher, deposit_voucher, transfer_in/out, voucher_receipt/payment
+4. New tables: `receipt_vouchers` (سند قبض), `deposit_vouchers` (سند توريد)
+5. Safe transfers recorded in transactions table with reference_type="safe_transfer"
 
 ## Stack
 

@@ -16,6 +16,10 @@ import Reports from "@/pages/reports";
 import Settings from "@/pages/settings";
 import Accounts from "@/pages/accounts";
 import JournalEntries from "@/pages/journal-entries";
+import ReceiptVouchers from "@/pages/receipt-vouchers";
+import DepositVouchers from "@/pages/deposit-vouchers";
+import SafeTransfers from "@/pages/safe-transfers";
+import FinancialTransactions from "@/pages/financial-transactions";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -41,6 +45,10 @@ function Router() {
         <Route path="/settings" component={Settings} />
         <Route path="/accounts" component={Accounts} />
         <Route path="/journal-entries" component={JournalEntries} />
+        <Route path="/receipt-vouchers" component={ReceiptVouchers} />
+        <Route path="/deposit-vouchers" component={DepositVouchers} />
+        <Route path="/safe-transfers" component={SafeTransfers} />
+        <Route path="/financial-transactions" component={FinancialTransactions} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

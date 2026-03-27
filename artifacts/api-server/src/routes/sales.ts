@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, salesTable, saleItemsTable, productsTable, customersTable, transactionsTable } from "@workspace/db";
+import { db, salesTable, saleItemsTable, productsTable, customersTable, transactionsTable, safesTable } from "@workspace/db";
 import {
   GetSalesResponse,
   CreateSaleBody,
@@ -42,7 +42,14 @@ router.post("/sales", async (req, res): Promise<void> => {
   }
 
   const { payment_type, total_amount, paid_amount, items, customer_name, customer_id, notes } = parsed.data;
+  const safe_id: number | undefined = req.body.safe_id ? parseInt(req.body.safe_id) : undefined;
   const remaining = total_amount - paid_amount;
+
+  // التحقق من وجود خزينة للبيع النقدي
+  if ((payment_type === "cash" || payment_type === "partial") && paid_amount > 0 && !safe_id) {
+    res.status(400).json({ error: "يجب اختيار الخزينة للمبيعات النقدية" });
+    return;
+  }
 
   let status = "paid";
   if (payment_type === "credit") status = "unpaid";
@@ -50,52 +57,92 @@ router.post("/sales", async (req, res): Promise<void> => {
 
   const invoiceNo = `INV-${Date.now()}`;
 
-  const [sale] = await db.insert(salesTable).values({
-    invoice_no: invoiceNo,
-    customer_name: customer_name ?? null,
-    customer_id: customer_id ?? null,
-    payment_type,
-    total_amount: String(total_amount),
-    paid_amount: String(paid_amount),
-    remaining_amount: String(payment_type === "credit" ? total_amount : remaining),
-    status,
-    notes: notes ?? null,
-  }).returning();
+  try {
+    const sale = await db.transaction(async (tx) => {
+      // 1. جلب بيانات الخزينة إن وجدت
+      let safe: typeof safesTable.$inferSelect | null = null;
+      if (safe_id && paid_amount > 0) {
+        const [s] = await tx.select().from(safesTable).where(eq(safesTable.id, safe_id));
+        if (!s) throw new Error("الخزينة غير موجودة");
+        safe = s;
+      }
 
-  for (const item of items) {
-    await db.insert(saleItemsTable).values({
-      sale_id: sale.id,
-      product_id: item.product_id,
-      product_name: item.product_name,
-      quantity: String(item.quantity),
-      unit_price: String(item.unit_price),
-      total_price: String(item.total_price),
+      // 2. إنشاء الفاتورة
+      const [newSale] = await tx.insert(salesTable).values({
+        invoice_no: invoiceNo,
+        customer_name: customer_name ?? null,
+        customer_id: customer_id ?? null,
+        payment_type,
+        total_amount: String(total_amount),
+        paid_amount: String(paid_amount),
+        remaining_amount: String(payment_type === "credit" ? total_amount : remaining),
+        status,
+        safe_id: safe?.id ?? null,
+        safe_name: safe?.name ?? null,
+        notes: notes ?? null,
+      }).returning();
+
+      // 3. إضافة البنود وخصم المخزون
+      for (const item of items) {
+        await tx.insert(saleItemsTable).values({
+          sale_id: newSale.id,
+          product_id: item.product_id,
+          product_name: item.product_name,
+          quantity: String(item.quantity),
+          unit_price: String(item.unit_price),
+          total_price: String(item.total_price),
+        });
+        const [prod] = await tx.select().from(productsTable).where(eq(productsTable.id, item.product_id));
+        if (prod) {
+          const newQty = Math.max(0, Number(prod.quantity) - item.quantity);
+          await tx.update(productsTable).set({ quantity: String(newQty) }).where(eq(productsTable.id, item.product_id));
+        }
+      }
+
+      // 4. تحديث رصيد العميل (للآجل أو الجزئي)
+      const debtAmount = payment_type === "credit" ? total_amount : (remaining > 0 ? remaining : 0);
+      if (debtAmount > 0 && customer_id) {
+        const [cust] = await tx.select().from(customersTable).where(eq(customersTable.id, customer_id));
+        if (cust) {
+          await tx.update(customersTable)
+            .set({ balance: String(Number(cust.balance) + debtAmount) })
+            .where(eq(customersTable.id, customer_id));
+        }
+      }
+
+      // 5. تحديث رصيد الخزينة (للنقدي فقط)
+      if (safe && paid_amount > 0) {
+        const newBalance = Number(safe.balance) + paid_amount;
+        await tx.update(safesTable)
+          .set({ balance: String(newBalance) })
+          .where(eq(safesTable.id, safe.id));
+      }
+
+      // 6. تسجيل الحركة المالية المركزية
+      const txType = payment_type === "credit" ? "sale_credit" : payment_type === "partial" ? "sale_partial" : "sale_cash";
+      await tx.insert(transactionsTable).values({
+        type: txType,
+        reference_type: "sale",
+        reference_id: newSale.id,
+        safe_id: safe?.id ?? null,
+        safe_name: safe?.name ?? null,
+        customer_id: customer_id ?? null,
+        customer_name: customer_name ?? null,
+        amount: String(paid_amount > 0 ? paid_amount : total_amount),
+        direction: paid_amount > 0 ? "in" : "none",
+        description: `فاتورة مبيعات ${invoiceNo}`,
+        date: new Date().toISOString().split("T")[0],
+        related_id: newSale.id,
+      });
+
+      return newSale;
     });
-    const [prod] = await db.select().from(productsTable).where(eq(productsTable.id, item.product_id));
-    if (prod) {
-      const newQty = Math.max(0, Number(prod.quantity) - item.quantity);
-      await db.update(productsTable).set({ quantity: String(newQty) }).where(eq(productsTable.id, item.product_id));
-    }
+
+    res.status(201).json(formatSale(sale));
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "خطأ في حفظ الفاتورة";
+    res.status(500).json({ error: msg });
   }
-
-  // Update customer balance if credit or partial
-  const debtAmount = payment_type === "credit" ? total_amount : (remaining > 0 ? remaining : 0);
-  if (debtAmount > 0 && customer_id) {
-    const [cust] = await db.select().from(customersTable).where(eq(customersTable.id, customer_id));
-    if (cust) {
-      await db.update(customersTable).set({ balance: String(Number(cust.balance) + debtAmount) }).where(eq(customersTable.id, customer_id));
-    }
-  }
-
-  // Record transaction
-  await db.insert(transactionsTable).values({
-    type: "sale",
-    amount: String(total_amount),
-    description: `فاتورة مبيعات ${invoiceNo}`,
-    related_id: sale.id,
-  });
-
-  res.status(201).json(formatSale(sale));
 });
 
 router.get("/sales/:id", async (req, res): Promise<void> => {

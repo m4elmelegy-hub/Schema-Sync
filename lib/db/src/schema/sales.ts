@@ -12,6 +12,9 @@ export const salesTable = pgTable("sales", {
   paid_amount: numeric("paid_amount", { precision: 12, scale: 2 }).notNull().default("0"),
   remaining_amount: numeric("remaining_amount", { precision: 12, scale: 2 }).notNull().default("0"),
   status: text("status").notNull().default("paid"), // paid, partial, unpaid
+  // الخزينة التي استُلم فيها النقد (مطلوبة للبيع النقدي والجزئي)
+  safe_id: integer("safe_id"),
+  safe_name: text("safe_name"),
   notes: text("notes"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

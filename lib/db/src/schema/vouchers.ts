@@ -1,0 +1,37 @@
+import { pgTable, serial, text, numeric, integer, timestamp } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod/v4";
+
+// ── سندات القبض (Receipt Vouchers) ─────────────────────────────────────────
+// العميل يدفع دَيْنه → رصيد العميل ينزل، الخزينة ترتفع
+export const receiptVouchersTable = pgTable("receipt_vouchers", {
+  id: serial("id").primaryKey(),
+  voucher_no: text("voucher_no").notNull(),
+  date: text("date").notNull(),
+  customer_id: integer("customer_id"),
+  customer_name: text("customer_name").notNull(),
+  safe_id: integer("safe_id").notNull(),
+  safe_name: text("safe_name").notNull(),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  notes: text("notes"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ── سندات التوريد / الإيداع (Deposit Vouchers) ─────────────────────────────
+// إيداع نقود في الخزينة من مصدر خارجي → الخزينة ترتفع
+export const depositVouchersTable = pgTable("deposit_vouchers", {
+  id: serial("id").primaryKey(),
+  voucher_no: text("voucher_no").notNull(),
+  date: text("date").notNull(),
+  safe_id: integer("safe_id").notNull(),
+  safe_name: text("safe_name").notNull(),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  source: text("source"), // مصدر المبلغ
+  notes: text("notes"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertReceiptVoucherSchema = createInsertSchema(receiptVouchersTable).omit({ id: true, created_at: true });
+export const insertDepositVoucherSchema = createInsertSchema(depositVouchersTable).omit({ id: true, created_at: true });
+export type ReceiptVoucher = typeof receiptVouchersTable.$inferSelect;
+export type DepositVoucher = typeof depositVouchersTable.$inferSelect;

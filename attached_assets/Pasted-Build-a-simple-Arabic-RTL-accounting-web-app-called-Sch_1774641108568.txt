@@ -1,0 +1,220 @@
+Build a simple Arabic RTL accounting web app called "Schema Sync Cash".
+
+Goal:
+A clean and practical accounting system where every money movement is recorded in the exact correct place.
+Sales should go into the selected treasury (cashbox), with support for one main treasury or multiple treasuries.
+Also support receipt vouchers, payment vouchers, and treasury transfers.
+
+Tech stack:
+- Next.js
+- TypeScript
+- Tailwind CSS
+- shadcn/ui
+- Prisma
+- PostgreSQL
+
+Language/UI:
+- Arabic first
+- RTL layout
+- Simple, modern, clean dashboard
+- Mobile responsive
+- Sidebar navigation
+- Easy forms and searchable tables
+
+Core modules:
+
+1) Dashboard
+- Total treasury balances
+- Total sales
+- Total receipts
+- Total payments
+- Recent financial movements
+
+2) Treasuries
+- Create multiple treasuries
+- Each treasury has:
+  - name
+  - opening balance
+  - current balance
+  - responsible person optional
+- Treasury details page showing all movements
+- Prevent negative balance unless a setting allows it
+
+3) Customers
+- name
+- phone
+- opening balance
+- current balance
+- customer statement page
+
+4) Sales
+- Create simple sales invoice
+- Fields:
+  - invoice number
+  - date
+  - customer optional
+  - amount
+  - payment type: cash or credit
+  - treasury (required if cash)
+  - notes
+- Rules:
+  - if cash sale: increase selected treasury balance
+  - if credit sale: increase customer balance only
+  - save a financial transaction record for every sale
+
+5) Receipt Voucher (سند قبض)
+- Fields:
+  - voucher number
+  - date
+  - customer
+  - amount
+  - treasury
+  - notes
+- Rules:
+  - decrease customer balance
+  - increase selected treasury balance
+  - save transaction record
+
+6) Payment Voucher (سند صرف)
+- Fields:
+  - voucher number
+  - date
+  - amount
+  - treasury
+  - category (expense / supplier / other)
+  - beneficiary name optional
+  - notes
+- Rules:
+  - decrease selected treasury balance
+  - save transaction record
+
+7) Treasury Deposit / Supply Voucher (سند توريد)
+- Fields:
+  - voucher number
+  - date
+  - amount
+  - treasury
+  - source
+  - notes
+- Rules:
+  - increase selected treasury balance
+  - save transaction record
+
+8) Treasury Transfer
+- Fields:
+  - transfer number
+  - date
+  - from treasury
+  - to treasury
+  - amount
+  - notes
+- Rules:
+  - subtract from source treasury
+  - add to destination treasury
+  - create two linked transaction records
+  - prevent same treasury as source and destination
+
+9) Central Financial Transactions Table
+Create a single central table for all money movements with:
+- id
+- type (sale_cash, sale_credit, receipt, payment, deposit, transfer_out, transfer_in)
+- reference type
+- reference id
+- treasury id optional
+- customer id optional
+- amount
+- direction (in / out / none)
+- date
+- notes
+This table is very important and should power reports and treasury history.
+
+10) Reports
+- Treasury balances report
+- Treasury movement report
+- Customer balances report
+- All financial transactions report
+- Filter by date / treasury / type
+
+11) Settings
+- Company name
+- main currency
+- allow negative treasury balance yes/no
+- default main treasury
+
+Important business rules:
+- No financial operation should be saved without creating its matching financial transaction record
+- Cash sale must require selecting a treasury
+- Credit sale must not affect treasury balance
+- Receipt voucher increases treasury and reduces customer balance
+- Payment voucher reduces treasury
+- Deposit voucher increases treasury
+- Treasury transfer moves balance between two treasuries accurately
+- Keep logic simple and robust
+- Use database transactions for all balance updates
+- Add audit fields: createdAt, updatedAt
+
+Database models needed:
+- User
+- Treasury
+- Customer
+- SaleInvoice
+- ReceiptVoucher
+- PaymentVoucher
+- DepositVoucher
+- TreasuryTransfer
+- FinancialTransaction
+- Setting
+
+UI pages:
+- /login
+- /dashboard
+- /treasuries
+- /treasuries/[id]
+- /customers
+- /customers/[id]
+- /sales
+- /receipts
+- /payments
+- /deposits
+- /transfers
+- /transactions
+- /reports
+- /settings
+
+Sidebar labels in Arabic:
+- لوحة التحكم
+- الخزائن
+- العملاء
+- المبيعات
+- سند قبض
+- سند صرف
+- سند توريد
+- تحويل خزائن
+- الحركات المالية
+- التقارير
+- الإعدادات
+
+Seed demo data:
+- one admin user
+- main treasury
+- second treasury
+- 3 customers
+- sample sales
+- sample receipts
+- sample payments
+
+Deliverables:
+- full working app
+- Prisma schema
+- seed script
+- clean Arabic RTL UI
+- real working logic, not mock UI
+- README with run steps
+- .env.example
+
+Build it in this order:
+1. Prisma schema and seed
+2. Treasury balance logic and financial transaction engine
+3. Sales / receipts / payments / deposits / transfers
+4. Dashboard and reports
+5. Final Arabic UI polishing

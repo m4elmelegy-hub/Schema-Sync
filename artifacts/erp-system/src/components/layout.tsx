@@ -13,6 +13,10 @@ import {
   Truck,
   BookOpen,
   BookMarked,
+  HandCoins,
+  ArrowDownToLine,
+  ArrowLeftRight,
+  Activity,
 } from "lucide-react";
 
 interface LayoutProps {
@@ -27,6 +31,10 @@ const navItems = [
   { name: "الموردون", href: "/suppliers", icon: Truck },
   { name: "المصروفات", href: "/expenses", icon: Wallet },
   { name: "الإيرادات", href: "/income", icon: TrendingUp },
+  { name: "سندات القبض", href: "/receipt-vouchers", icon: HandCoins },
+  { name: "سندات التوريد", href: "/deposit-vouchers", icon: ArrowDownToLine },
+  { name: "تحويل الخزائن", href: "/safe-transfers", icon: ArrowLeftRight },
+  { name: "الحركات المالية", href: "/financial-transactions", icon: Activity },
   { name: "دليل الحسابات", href: "/accounts", icon: BookOpen },
   { name: "القيود اليومية", href: "/journal-entries", icon: BookMarked },
   { name: "التقارير", href: "/reports", icon: FileText },

@@ -1,31 +1,55 @@
 import { useState } from "react";
-import { useGetExpenses, useCreateExpense, useDeleteExpense } from "@workspace/api-client-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useDeleteExpense, useGetSettingsSafes } from "@workspace/api-client-react";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { Plus, Trash2 } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const api = (p: string) => `${BASE}${p}`;
+
+interface Expense {
+  id: number; category: string; amount: number;
+  description: string | null; safe_id: number | null; safe_name: string | null;
+  created_at: string;
+}
+
 export default function Expenses() {
-  const { data: expenses = [], isLoading } = useGetExpenses();
-  const createMutation = useCreateExpense();
+  const { data: expenses = [], isLoading } = useQuery<Expense[]>({
+    queryKey: ["/api/expenses"],
+    queryFn: () => fetch(api("/api/expenses")).then(r => r.json()),
+  });
+  const { data: safes = [] } = useGetSettingsSafes();
   const deleteMutation = useDeleteExpense();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const [showAdd, setShowAdd] = useState(false);
-  const [formData, setFormData] = useState({ category: "", amount: 0, description: "" });
+  const [formData, setFormData] = useState({ category: "", amount: "", description: "", safe_id: "" });
+
+  const createMutation = useMutation({
+    mutationFn: async (body: Record<string, unknown>) => {
+      const res = await fetch(api("/api/expenses"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error || "خطأ"); }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "تم إضافة المصروف بنجاح" });
+      queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/safes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/financial-transactions"] });
+      setShowAdd(false);
+      setFormData({ category: "", amount: "", description: "", safe_id: "" });
+    },
+    onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
+  });
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
-    createMutation.mutate({ data: formData }, {
-      onSuccess: () => {
-        toast({ title: "تم إضافة المصروف بنجاح" });
-        queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
-        setShowAdd(false);
-        setFormData({ category: "", amount: 0, description: "" });
-      }
-    });
+    const body: Record<string, unknown> = { category: formData.category, amount: parseFloat(formData.amount), description: formData.description || undefined };
+    if (formData.safe_id) body.safe_id = parseInt(formData.safe_id);
+    createMutation.mutate(body);
   };
 
   const handleDelete = (id: number) => {
@@ -35,6 +59,7 @@ export default function Expenses() {
           toast({ title: "تم الحذف بنجاح" });
           queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
           queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/settings/safes"] });
         }
       });
     }
@@ -44,35 +69,37 @@ export default function Expenses() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-bold text-white">إدارة المصروفات</h2>
-        <button 
-          onClick={() => setShowAdd(true)}
-          className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg shadow-primary/20"
-        >
+        <button onClick={() => setShowAdd(true)} className="btn-primary flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold">
           <Plus className="w-5 h-5" /> إضافة مصروف
         </button>
       </div>
 
       {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <form onSubmit={handleAdd} className="glass-panel rounded-3xl p-8 w-full max-w-md animate-in zoom-in-95">
-            <h3 className="text-2xl font-bold text-white mb-6">مصروف جديد</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-white/70 text-sm mb-1">التصنيف (مثال: رواتب، إيجار، كهرباء)</label>
-                <input required type="text" className="glass-input" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} />
-              </div>
-              <div>
-                <label className="block text-white/70 text-sm mb-1">المبلغ</label>
-                <input required type="number" step="0.01" className="glass-input" value={formData.amount || ''} onChange={e => setFormData({...formData, amount: parseFloat(e.target.value)})} />
-              </div>
-              <div>
-                <label className="block text-white/70 text-sm mb-1">التفاصيل (اختياري)</label>
-                <input type="text" className="glass-input" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
-              </div>
+          <form onSubmit={handleAdd} className="glass-panel rounded-3xl p-8 w-full max-w-md animate-in zoom-in-95 space-y-4">
+            <h3 className="text-2xl font-bold text-white">مصروف جديد</h3>
+            <div>
+              <label className="block text-white/70 text-sm mb-1">التصنيف (مثال: رواتب، إيجار، كهرباء) *</label>
+              <input required type="text" className="glass-input w-full" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} />
             </div>
-            <div className="flex gap-4 mt-8">
-              <button type="submit" disabled={createMutation.isPending} className="flex-1 bg-primary text-white py-3 rounded-xl font-bold hover:bg-primary/90 transition-colors">حفظ</button>
-              <button type="button" onClick={() => setShowAdd(false)} className="flex-1 bg-white/10 text-white py-3 rounded-xl font-bold hover:bg-white/20 transition-colors">إلغاء</button>
+            <div>
+              <label className="block text-white/70 text-sm mb-1">المبلغ (ج.م) *</label>
+              <input required type="number" step="0.01" min="0.01" className="glass-input w-full" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} />
+            </div>
+            <div>
+              <label className="block text-white/70 text-sm mb-1">الخزينة المدفوع منها</label>
+              <select className="glass-input w-full" value={formData.safe_id} onChange={e => setFormData({...formData, safe_id: e.target.value})}>
+                <option value="">-- بدون خزينة --</option>
+                {safes.map(s => <option key={s.id} value={s.id}>{s.name} ({formatCurrency(Number(s.balance))})</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-white/70 text-sm mb-1">التفاصيل (اختياري)</label>
+              <input type="text" className="glass-input w-full" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
+            </div>
+            <div className="flex gap-4 pt-2">
+              <button type="submit" disabled={createMutation.isPending} className="flex-1 btn-primary py-3 rounded-xl font-bold">{createMutation.isPending ? "جاري الحفظ..." : "حفظ"}</button>
+              <button type="button" onClick={() => setShowAdd(false)} className="flex-1 bg-white/10 text-white py-3 rounded-xl font-bold hover:bg-white/20">إلغاء</button>
             </div>
           </form>
         </div>
@@ -85,6 +112,7 @@ export default function Expenses() {
               <tr>
                 <th className="p-4 font-medium">التصنيف</th>
                 <th className="p-4 font-medium">المبلغ</th>
+                <th className="p-4 font-medium">الخزينة</th>
                 <th className="p-4 font-medium">التفاصيل</th>
                 <th className="p-4 font-medium">التاريخ</th>
                 <th className="p-4 font-medium w-16"></th>
@@ -92,15 +120,16 @@ export default function Expenses() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={5} className="p-8 text-center text-white/50">جاري التحميل...</td></tr>
+                <tr><td colSpan={6} className="p-8 text-center text-white/50">جاري التحميل...</td></tr>
               ) : expenses.length === 0 ? (
-                <tr><td colSpan={5} className="p-8 text-center text-white/50">لا توجد مصروفات</td></tr>
+                <tr><td colSpan={6} className="p-8 text-center text-white/50">لا توجد مصروفات</td></tr>
               ) : (
                 expenses.map(exp => (
                   <tr key={exp.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                     <td className="p-4 font-bold text-white">{exp.category}</td>
                     <td className="p-4 font-bold text-red-400">{formatCurrency(exp.amount)}</td>
-                    <td className="p-4">{exp.description || '-'}</td>
+                    <td className="p-4 text-blue-300 text-sm">{exp.safe_name || '—'}</td>
+                    <td className="p-4 text-white/70">{exp.description || '-'}</td>
                     <td className="p-4 text-sm text-white/60">{formatDate(exp.created_at)}</td>
                     <td className="p-4">
                       <button onClick={() => handleDelete(exp.id)} className="text-red-400 hover:text-red-300 transition-colors p-2 hover:bg-red-400/10 rounded-lg">
