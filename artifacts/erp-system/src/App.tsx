@@ -9,10 +9,13 @@ import Dashboard from "@/pages/dashboard";
 import Sales from "@/pages/sales";
 import Purchases from "@/pages/purchases";
 import Customers from "@/pages/customers";
+import Suppliers from "@/pages/suppliers";
 import Expenses from "@/pages/expenses";
 import Income from "@/pages/income";
 import Reports from "@/pages/reports";
 import Settings from "@/pages/settings";
+import Accounts from "@/pages/accounts";
+import JournalEntries from "@/pages/journal-entries";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -31,10 +34,13 @@ function Router() {
         <Route path="/sales" component={Sales} />
         <Route path="/purchases" component={Purchases} />
         <Route path="/customers" component={Customers} />
+        <Route path="/suppliers" component={Suppliers} />
         <Route path="/expenses" component={Expenses} />
         <Route path="/income" component={Income} />
         <Route path="/reports" component={Reports} />
         <Route path="/settings" component={Settings} />
+        <Route path="/accounts" component={Accounts} />
+        <Route path="/journal-entries" component={JournalEntries} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

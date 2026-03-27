@@ -1,9 +1,131 @@
 import { useState, useMemo } from "react";
 import { useGetSales, useGetSaleById, useCreateSale, useGetProducts, useGetCustomers } from "@workspace/api-client-react";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { Search, Plus, Minus, Trash2, X, Printer, ShoppingCart, User, Package, Receipt } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { Search, Plus, Minus, Trash2, X, Printer, ShoppingCart, User, Package, Receipt, RotateCcw } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const api = (p: string) => `${BASE}${p}`;
+
+interface SalesReturn {
+  id: number; return_no: string; customer_name: string | null;
+  total_amount: number; reason: string | null; created_at: string;
+}
+
+function SalesReturnsPanel() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ customer_name: "", reason: "", item_name: "", quantity: "1", unit_price: "" });
+
+  const { data: returns_ = [], isLoading } = useQuery<SalesReturn[]>({
+    queryKey: ["/api/sales-returns"],
+    queryFn: () => fetch(api("/api/sales-returns")).then(r => r.json()),
+  });
+  const { data: products = [] } = useGetProducts();
+
+  const createMutation = useMutation({
+    mutationFn: (data: object) => fetch(api("/api/sales-returns"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error); return j; }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/sales-returns"] }); setShowForm(false); setForm({ customer_name: "", reason: "", item_name: "", quantity: "1", unit_price: "" }); toast({ title: "✅ تم تسجيل المرتجع" }); },
+    onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => fetch(api(`/api/sales-returns/${id}`), { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/sales-returns"] }); toast({ title: "🗑 تم الحذف" }); },
+  });
+
+  const total = returns_.reduce((s, r) => s + r.total_amount, 0);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const qty = parseInt(form.quantity) || 1;
+    const price = parseFloat(form.unit_price) || 0;
+    const prod = products.find(p => p.name === form.item_name) || products[0];
+    if (!form.item_name || !form.unit_price) { toast({ title: "أدخل اسم الصنف والسعر", variant: "destructive" }); return; }
+    createMutation.mutate({
+      customer_name: form.customer_name || null,
+      reason: form.reason || null,
+      items: [{ product_id: prod?.id || 0, product_name: form.item_name, quantity: qty, unit_price: price, total_price: qty * price }],
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-3 items-center justify-between">
+        {total > 0 && <div className="glass-panel rounded-2xl px-5 py-2 border border-orange-500/20 bg-orange-500/5 text-sm">
+          إجمالي المرتجعات: <span className="text-orange-400 font-black">{formatCurrency(total)}</span>
+        </div>}
+        <button onClick={() => setShowForm(true)} className="btn-primary px-5 py-2 text-sm flex items-center gap-2 mr-auto">
+          <Plus className="w-4 h-4" /> مرتجع جديد
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <form onSubmit={handleSubmit} className="glass-panel rounded-3xl p-8 w-full max-w-md border border-white/10 shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-white">مرتجع مبيعات جديد</h3>
+              <button type="button" onClick={() => setShowForm(false)} className="p-2 rounded-xl bg-white/10 hover:bg-white/20"><X className="w-4 h-4 text-white/70" /></button>
+            </div>
+            <div className="space-y-3">
+              <div><label className="text-white/60 text-xs mb-1 block">اسم العميل</label><input type="text" className="glass-input" value={form.customer_name} onChange={e => setForm(f => ({ ...f, customer_name: e.target.value }))} /></div>
+              <div><label className="text-white/60 text-xs mb-1 block">سبب الإرجاع</label><input type="text" className="glass-input" value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} placeholder="عيب مصنعي / غير مطابق..." /></div>
+              <div><label className="text-white/60 text-xs mb-1 block">الصنف *</label>
+                <select className="glass-input appearance-none" value={form.item_name} onChange={e => setForm(f => ({ ...f, item_name: e.target.value }))}>
+                  <option value="" className="bg-gray-900">اختر صنف</option>
+                  {products.map(p => <option key={p.id} value={p.name} className="bg-gray-900">{p.name}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="text-white/60 text-xs mb-1 block">الكمية</label><input type="number" min="1" className="glass-input" value={form.quantity} onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))} /></div>
+                <div><label className="text-white/60 text-xs mb-1 block">السعر *</label><input type="number" step="0.01" min="0" className="glass-input" value={form.unit_price} onChange={e => setForm(f => ({ ...f, unit_price: e.target.value }))} /></div>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button type="submit" disabled={createMutation.isPending} className="flex-1 btn-primary py-3">حفظ</button>
+              <button type="button" onClick={() => setShowForm(false)} className="flex-1 btn-secondary py-3">إلغاء</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
+        <div className="overflow-x-auto">
+          <table className="w-full text-right text-sm whitespace-nowrap">
+            <thead className="bg-white/5 border-b border-white/10">
+              <tr>
+                <th className="p-4 text-white/60">رقم المرتجع</th>
+                <th className="p-4 text-white/60">العميل</th>
+                <th className="p-4 text-white/60">الإجمالي</th>
+                <th className="p-4 text-white/60">السبب</th>
+                <th className="p-4 text-white/60">التاريخ</th>
+                <th className="p-4 w-12"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr><td colSpan={6} className="p-12 text-center text-white/40">جاري التحميل...</td></tr>
+              ) : returns_.length === 0 ? (
+                <tr><td colSpan={6} className="p-12 text-center text-white/40">لا توجد مرتجعات</td></tr>
+              ) : returns_.map(r => (
+                <tr key={r.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                  <td className="p-4 font-bold text-amber-400 font-mono">{r.return_no}</td>
+                  <td className="p-4 text-white">{r.customer_name || "غير محدد"}</td>
+                  <td className="p-4 font-bold text-orange-400">{formatCurrency(r.total_amount)}</td>
+                  <td className="p-4 text-white/50">{r.reason || "—"}</td>
+                  <td className="p-4 text-white/40 text-xs">{formatDate(r.created_at)}</td>
+                  <td className="p-4"><button onClick={() => { if (confirm("حذف المرتجع؟")) deleteMutation.mutate(r.id); }} className="p-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400"><Trash2 className="w-3.5 h-3.5" /></button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface CartItem {
   product_id: number;
@@ -279,7 +401,7 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
 
 export default function Sales() {
   const { data: sales = [], isLoading } = useGetSales();
-  const [tab, setTab] = useState<"list" | "new">("list");
+  const [tab, setTab] = useState<"list" | "new" | "returns">("list");
   const [search, setSearch] = useState("");
   const [selectedSaleId, setSelectedSaleId] = useState<number | null>(null);
 
@@ -298,6 +420,9 @@ export default function Sales() {
           <button onClick={() => setTab("new")} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${tab === "new" ? "bg-amber-500 text-black shadow" : "text-white/50 hover:text-white"}`}>
             ➕ فاتورة بيع جديدة
           </button>
+          <button onClick={() => setTab("returns")} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${tab === "returns" ? "bg-orange-500 text-white shadow" : "text-white/50 hover:text-white"}`}>
+            ↩ المرتجعات
+          </button>
         </div>
         {tab === "list" && (
           <div className="relative flex-1 max-w-md">
@@ -309,7 +434,9 @@ export default function Sales() {
 
       {selectedSaleId && <SaleDetailModal saleId={selectedSaleId} onClose={() => setSelectedSaleId(null)} />}
 
-      {tab === "new" ? (
+      {tab === "returns" ? (
+        <SalesReturnsPanel />
+      ) : tab === "new" ? (
         <NewSalePanel onDone={() => setTab("list")} />
       ) : (
         <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">

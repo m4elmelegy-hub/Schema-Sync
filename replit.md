@@ -2,7 +2,7 @@
 
 ## Overview
 
-Full-stack Arabic ERP System (نظام ERP) for Halal Tech (Egyptian mobile repair shop). Arabic RTL interface with dark glass-morphism UI, EGP currency, amber theme. Navigation: Dashboard, Sales (POS), Purchases (product management + customer linking), Customers, Expenses, Income, Reports, Settings.
+Full-stack Arabic ERP System (نظام ERP) for Halal Tech (Egyptian mobile repair shop). Arabic RTL interface with dark glass-morphism UI, EGP currency, amber theme. Navigation: Dashboard, Sales (POS + Returns tab), Purchases (product management + Returns tab), Customers, Suppliers, Expenses, Income, Chart of Accounts (دليل الحسابات), Journal Entries (القيود اليومية), Reports, Settings.
 
 ## Stack
 

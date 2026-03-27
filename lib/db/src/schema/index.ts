@@ -9,3 +9,5 @@ export * from "./transactions";
 export * from "./users";
 export * from "./safes";
 export * from "./warehouses";
+export * from "./accounts";
+export * from "./returns";

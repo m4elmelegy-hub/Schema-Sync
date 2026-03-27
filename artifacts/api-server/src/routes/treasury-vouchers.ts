@@ -1,0 +1,69 @@
+import { Router, type IRouter } from "express";
+import { eq, desc } from "drizzle-orm";
+import { db, treasuryVouchersTable, safesTable } from "@workspace/db";
+
+const router: IRouter = Router();
+
+function fmt(v: typeof treasuryVouchersTable.$inferSelect) {
+  return { ...v, amount: Number(v.amount), created_at: v.created_at.toISOString() };
+}
+
+router.get("/treasury-vouchers", async (_req, res): Promise<void> => {
+  const vouchers = await db.select().from(treasuryVouchersTable).orderBy(desc(treasuryVouchersTable.created_at));
+  res.json(vouchers.map(fmt));
+});
+
+router.get("/treasury-vouchers/safe/:safeId", async (req, res): Promise<void> => {
+  const safeId = parseInt(req.params.safeId);
+  const vouchers = await db.select().from(treasuryVouchersTable)
+    .where(eq(treasuryVouchersTable.safe_id, safeId))
+    .orderBy(desc(treasuryVouchersTable.created_at));
+  res.json(vouchers.map(fmt));
+});
+
+router.post("/treasury-vouchers", async (req, res): Promise<void> => {
+  const { type, safe_id, amount, party_name, description, category } = req.body;
+  if (!type || !safe_id || !amount || !description) {
+    res.status(400).json({ error: "البيانات غير مكتملة" }); return;
+  }
+  const [safe] = await db.select().from(safesTable).where(eq(safesTable.id, parseInt(safe_id)));
+  if (!safe) { res.status(404).json({ error: "الخزانة غير موجودة" }); return; }
+
+  const amt = Number(amount);
+  const currentBal = Number(safe.balance);
+  if (type === "payment" && currentBal < amt) {
+    res.status(400).json({ error: `رصيد الخزانة غير كافٍ (${currentBal.toFixed(2)} ج.م)` }); return;
+  }
+
+  const newBalance = type === "receipt" ? currentBal + amt : currentBal - amt;
+  await db.update(safesTable).set({ balance: String(newBalance) }).where(eq(safesTable.id, safe.id));
+
+  const voucher_no = `${type === "receipt" ? "RV" : "PV"}-${Date.now()}`;
+  const [voucher] = await db.insert(treasuryVouchersTable).values({
+    voucher_no, type,
+    safe_id: safe.id,
+    safe_name: safe.name,
+    amount: String(amt),
+    party_name: party_name ?? null,
+    description,
+    category: category ?? null,
+  }).returning();
+
+  res.status(201).json(fmt(voucher));
+});
+
+router.delete("/treasury-vouchers/:id", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id);
+  const [v] = await db.select().from(treasuryVouchersTable).where(eq(treasuryVouchersTable.id, id));
+  if (!v) { res.status(404).json({ error: "غير موجود" }); return; }
+  // عكس التأثير على الرصيد
+  const [safe] = await db.select().from(safesTable).where(eq(safesTable.id, v.safe_id));
+  if (safe) {
+    const reversal = v.type === "receipt" ? -Number(v.amount) : Number(v.amount);
+    await db.update(safesTable).set({ balance: String(Number(safe.balance) + reversal) }).where(eq(safesTable.id, safe.id));
+  }
+  await db.delete(treasuryVouchersTable).where(eq(treasuryVouchersTable.id, id));
+  res.json({ success: true });
+});
+
+export default router;

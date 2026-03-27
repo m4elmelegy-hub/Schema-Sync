@@ -10,6 +10,9 @@ import incomeRouter from "./income";
 import transactionsRouter from "./transactions";
 import dashboardRouter from "./dashboard";
 import settingsRouter from "./settings";
+import accountsRouter from "./accounts";
+import returnsRouter from "./returns";
+import treasuryVouchersRouter from "./treasury-vouchers";
 
 const router: IRouter = Router();
 
@@ -24,5 +27,8 @@ router.use(incomeRouter);
 router.use(transactionsRouter);
 router.use(dashboardRouter);
 router.use(settingsRouter);
+router.use(accountsRouter);
+router.use(returnsRouter);
+router.use(treasuryVouchersRouter);
 
 export default router;
