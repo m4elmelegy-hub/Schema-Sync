@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useGetProducts, useCreateSale, useGetCustomers } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
-import { Search, Plus, Minus, Trash2, ShoppingCart, User } from "lucide-react";
+import { Search, Plus, Minus, Trash2, ShoppingCart, User, Package } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
