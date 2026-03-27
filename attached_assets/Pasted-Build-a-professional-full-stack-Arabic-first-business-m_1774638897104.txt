@@ -1,0 +1,515 @@
+Build a professional full-stack Arabic-first business management system called "Schema Sync ERP" with advanced accounting, treasury, inventory, sales, purchases, and reporting.
+
+Main goal:
+Create a production-ready ERP web app for small and medium businesses with a clean modern dashboard, role-based permissions, strong accounting engine, treasury management, inventory tracking, and professional reports.
+
+Core requirements:
+1) Language and UX
+- Arabic-first UI with RTL support
+- Clean professional responsive dashboard
+- Mobile-friendly
+- Modern sidebar navigation
+- Light/Dark mode
+- Arabic currency and date formatting
+- Searchable tables, filters, export to PDF/Excel, print-ready reports
+
+2) Tech stack
+- Frontend: React + TypeScript + Tailwind CSS + shadcn/ui
+- Backend: Node.js + Express or Next.js full-stack
+- Database: PostgreSQL with Prisma ORM
+- Authentication: email/password with secure session or JWT
+- Charts: Recharts
+- Validation: Zod
+- Forms: React Hook Form
+- Tables: TanStack Table
+- Seed demo data included
+- Clean modular architecture with reusable components
+- Environment variables for secrets
+- Error handling and audit logging
+
+3) User roles and permissions
+Implement role-based access control:
+- Super Admin
+- Accountant
+- Cashier
+- Inventory Manager
+- Sales
+- Purchases
+- Viewer
+
+Permissions should control:
+- view/create/edit/delete on products
+- warehouses
+- treasuries
+- journal entries
+- invoices
+- purchase bills
+- customers
+- suppliers
+- reports
+- settings
+- users and roles
+
+4) Main modules
+A) Dashboard
+- KPI cards:
+  - total sales
+  - total purchases
+  - cash on hand
+  - bank balances
+  - inventory value
+  - receivables
+  - payables
+  - net profit
+- recent transactions
+- low stock alerts
+- treasury balances
+- sales and purchase charts
+- top products
+- overdue customer balances
+
+B) Chart of Accounts
+Create a full hierarchical chart of accounts with account types:
+- Assets
+- Liabilities
+- Equity
+- Revenue
+- Expenses
+Allow:
+- parent/child accounts
+- account code
+- account name Arabic/English
+- account level
+- posting/non-posting
+- opening balance
+- active/inactive
+Include default accounts for:
+- Cash on hand
+- Treasury accounts
+- Banks
+- Customers
+- Suppliers
+- Inventory
+- Cost of Goods Sold
+- Sales Revenue
+- Purchase Returns
+- Sales Returns
+- Discounts earned/given
+- VAT input/output
+- Expenses
+- Equity
+
+C) Double-entry accounting engine
+This is critical:
+- Every financial transaction must generate balanced journal entries automatically
+- Support manual journal entries too
+- Journal entry fields:
+  - date
+  - reference number
+  - description
+  - lines [account, debit, credit, cost center optional, branch optional]
+  - posted/draft
+  - created by
+- Prevent posting unbalanced entries
+- Provide posting, unposting (with permissions), and audit trail
+- General ledger
+- Trial balance
+- Income statement
+- Balance sheet
+- Cash flow summary
+- Journal report
+- Account statement by date range
+
+D) Treasury management
+Build advanced treasury/cashbox module:
+- Multiple treasuries
+- Main treasury and sub treasuries
+- Treasury transfer between cashboxes
+- Opening balance per treasury
+- Cash in / cash out vouchers
+- Treasury settlement
+- Treasury daily movement log
+- Treasury balance report
+- Link each treasury movement to accounting entries automatically
+Fields for treasury:
+- code
+- name
+- responsible user
+- current balance
+- opening balance
+- currency
+- status
+Treasury transactions:
+- receipt voucher
+- payment voucher
+- transfer voucher
+- expense disbursement
+- sales collection
+- supplier payment
+- customer refund
+- miscellaneous receipt/payment
+
+E) Bank accounts
+- Multiple bank accounts
+- Deposit and withdrawal
+- Transfer between bank and treasury
+- Bank reconciliation basics
+- Bank statement report
+- Automatic journal entries
+
+F) Inventory and warehouses
+Build advanced inventory module:
+- Multiple warehouses
+- Product categories
+- Units of measure
+- product SKU/barcode
+- simple products
+- low stock alert
+- minimum stock
+- reorder level
+- stock movements
+- transfer between warehouses
+- stock adjustment
+- opening inventory
+- inventory valuation
+Fields for products:
+- SKU
+- barcode
+- Arabic name
+- English name
+- category
+- purchase price
+- selling price
+- average cost
+- tax rate
+- unit
+- current quantity
+- minimum quantity
+- active/inactive
+Inventory transactions:
+- purchase receipt
+- sales issue
+- transfer between warehouses
+- stock count adjustment
+- damaged items
+- returns
+Support costing:
+- weighted average cost at minimum
+Design code so FIFO can be added later
+Automatic accounting:
+- purchase adds inventory
+- sale reduces inventory and books COGS
+- inventory adjustment creates journal impact when needed
+
+G) Customers and suppliers
+Customers:
+- code
+- name
+- phone
+- email
+- address
+- tax number
+- opening balance
+- credit limit
+- statement of account
+Suppliers:
+- code
+- name
+- phone
+- email
+- address
+- tax number
+- opening balance
+- payable statement
+Support aging reports:
+- receivables aging
+- payables aging
+
+H) Sales
+- Quotations
+- Sales invoices
+- Sales returns
+- customer payments
+- discounts
+- taxes
+- invoice status
+- print invoice
+Sales invoice should:
+- choose customer
+- choose warehouse
+- add products
+- quantity, price, discount, tax
+- subtotal, tax total, grand total
+- payment method: cash / treasury / bank / credit
+- auto journal entry
+- auto inventory deduction
+- auto COGS entry
+If credit sale:
+- create receivable balance
+If cash sale:
+- post receipt to treasury or bank
+
+I) Purchases
+- Purchase requests optional
+- Purchase invoices / bills
+- Purchase returns
+- supplier payments
+- expenses allocation optional
+Purchase invoice should:
+- choose supplier
+- choose warehouse
+- items, quantities, costs, discount, tax
+- payment method: cash / treasury / bank / credit
+- auto inventory addition
+- auto journal entry
+If credit purchase:
+- create payable balance
+If cash purchase:
+- decrease treasury/bank
+
+J) Expenses and revenues
+- Expense vouchers
+- Revenue vouchers
+- Link to treasury or bank
+- Auto journal entries
+- Categorize expenses
+Examples:
+- rent
+- salaries
+- utilities
+- transportation
+- maintenance
+
+K) Reports
+Create professional reports with filters, export, and print:
+Accounting reports:
+- Journal entries
+- General ledger
+- Trial balance
+- Balance sheet
+- Income statement
+- Account statement
+- Receivables aging
+- Payables aging
+Treasury reports:
+- Treasury movement report
+- Treasury balance report
+- Cash in/out summary
+Inventory reports:
+- Stock balance report
+- Inventory movement card
+- Low stock report
+- Inventory valuation report
+- Warehouse stock report
+Sales reports:
+- Sales by period
+- Sales by customer
+- Sales by product
+- Sales returns
+Purchase reports:
+- Purchases by supplier
+- Purchases by product
+- Purchase returns
+Management reports:
+- daily summary
+- monthly performance
+- top customers
+- top products
+- profit margin report
+
+5) Database design
+Create proper normalized schema with relations for:
+- users
+- roles
+- permissions
+- accounts
+- journal_entries
+- journal_entry_lines
+- treasuries
+- treasury_transactions
+- bank_accounts
+- bank_transactions
+- warehouses
+- product_categories
+- units
+- products
+- stock_movements
+- inventory_adjustments
+- customers
+- suppliers
+- sales_invoices
+- sales_invoice_items
+- sales_returns
+- purchase_invoices
+- purchase_invoice_items
+- purchase_returns
+- payments
+- receipts
+- expenses
+- settings
+- audit_logs
+- branches optional
+- cost_centers optional
+
+6) Business rules
+- Every posted transaction should generate accounting entries automatically
+- Inventory quantities cannot go below zero unless setting allows negative stock
+- Journal entries must always balance
+- Deleting posted financial records is not allowed; instead use cancel/reverse
+- Use transaction-safe database operations
+- Add sequential numbering for invoices, vouchers, and journal entries
+- Support draft and posted statuses
+- Maintain audit log for create/edit/post/cancel actions
+
+7) UI pages
+Build the following pages:
+- Login
+- Dashboard
+- Users & Roles
+- Chart of Accounts
+- Journal Entries
+- Treasuries
+- Treasury Transactions
+- Banks
+- Warehouses
+- Products
+- Categories
+- Customers
+- Suppliers
+- Sales Invoices
+- Sales Returns
+- Purchase Invoices
+- Purchase Returns
+- Expenses
+- Reports
+- Settings
+Each page should support:
+- list view
+- create/edit drawer or modal
+- filters
+- search
+- pagination
+- validation messages
+- loading/empty states
+
+8) Settings
+- Company profile
+- logo
+- default currency
+- tax rate
+- invoice numbering
+- allow negative stock
+- accounting lock date
+- default accounts mapping
+- theme preferences
+
+9) Demo and seed
+Seed realistic demo data:
+- one company
+- admin user
+- sample customers and suppliers
+- sample products
+- two warehouses
+- two treasuries
+- one bank account
+- sample sales and purchases
+- sample journal entries
+
+10) Code quality
+- Use clean folder structure
+- Reusable services for posting accounting entries
+- Separate business logic from UI
+- Prisma migrations
+- comments only where needed
+- robust validation
+- toast notifications
+- confirm dialogs for dangerous actions
+- professional empty states and error boundaries
+
+11) Important accounting automation rules
+Implement these mappings:
+- Cash sale:
+  Debit treasury/bank
+  Credit sales revenue
+  Credit VAT output if tax exists
+  Debit COGS
+  Credit inventory
+- Credit sale:
+  Debit customer receivable
+  Credit sales revenue
+  Credit VAT output if tax exists
+  Debit COGS
+  Credit inventory
+- Cash purchase:
+  Debit inventory
+  Debit VAT input if applicable
+  Credit treasury/bank
+- Credit purchase:
+  Debit inventory
+  Debit VAT input if applicable
+  Credit supplier payable
+- Customer payment:
+  Debit treasury/bank
+  Credit customer receivable
+- Supplier payment:
+  Debit supplier payable
+  Credit treasury/bank
+- Expense payment:
+  Debit expense account
+  Credit treasury/bank
+- Treasury transfer:
+  Debit destination treasury
+  Credit source treasury
+- Inventory increase adjustment:
+  Debit inventory
+  Credit inventory adjustment gain or suspense account
+- Inventory decrease adjustment:
+  Debit inventory adjustment loss
+  Credit inventory
+
+12) Nice-to-have advanced features if possible
+- barcode printing
+- POS mode
+- branch support
+- cost centers
+- attachments upload
+- notification center
+- overdue alerts
+- backup/restore basics
+- API endpoints for future mobile app
+- Arabic printable invoice templates
+
+13) Deliverables
+I want:
+- full working app
+- database schema
+- seeded demo data
+- authentication
+- dashboard
+- all core CRUD pages
+- accounting posting engine
+- treasury module
+- inventory module
+- sales and purchases module
+- reports pages
+- clean UI
+- run instructions
+- .env.example
+- README explaining features and architecture
+
+14) Project structure expectation
+Use a scalable structure with:
+- components/
+- pages or app/
+- lib/
+- services/
+- prisma/
+- hooks/
+- types/
+- validations/
+- utils/
+
+15) Final requirement
+Do not build only a UI mockup.
+Build actual working logic with database models, API routes/server actions, posting workflows, and seeded realistic examples.
+Start with the database schema and accounting engine first, then build the UI around it.
