@@ -17,7 +17,6 @@ type Operation = "hub" | "receipt-voucher" | "deposit-voucher" | "expense" | "in
 
 interface Safe { id: number; name: string; balance: number | string; }
 interface Customer { id: number; name: string; balance: number | string; }
-interface Supplier { id: number; name: string; balance: number | string; }
 interface Transaction { id: number; type: string; amount: number; direction: string; safe_id: number; description: string; date: string; }
 
 const EXPENSE_CATS = ["إيجار", "رواتب", "كهرباء", "مياه", "إنترنت", "صيانة", "مواصلات", "تسويق", "مشتريات مكتب", "أخرى"];
@@ -35,10 +34,6 @@ export default function Tasks() {
   const { data: customers = [] } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],
     queryFn: () => fetch(api("/api/customers")).then(r => r.json()),
-  });
-  const { data: suppliers = [] } = useQuery<Supplier[]>({
-    queryKey: ["/api/suppliers"],
-    queryFn: () => fetch(api("/api/suppliers")).then(r => r.json()),
   });
   const { data: stats } = useQuery<Record<string, number>>({
     queryKey: ["/api/dashboard/stats"],
@@ -62,7 +57,7 @@ export default function Tasks() {
           العودة للمهام
         </button>
         {op === "receipt-voucher" && <ReceiptVoucherForm safes={safes} customers={customers} onSuccess={goHub} />}
-        {op === "deposit-voucher" && <DepositVoucherForm safes={safes} suppliers={suppliers} onSuccess={goHub} />}
+        {op === "deposit-voucher" && <DepositVoucherForm safes={safes} customers={customers} onSuccess={goHub} />}
         {op === "expense" && <ExpenseForm safes={safes} onSuccess={goHub} />}
         {op === "income" && <IncomeForm safes={safes} onSuccess={goHub} />}
         {op === "safe-transfer" && <SafeTransferForm safes={safes} onSuccess={goHub} />}
@@ -86,13 +81,13 @@ export default function Tasks() {
     {
       op: "deposit-voucher" as Operation,
       title: "سند توريد",
-      sub: "دفع لمورد",
+      sub: "توريد من عميل",
       icon: ArrowDownToLine,
       color: "text-indigo-400",
       ring: "ring-indigo-500/30",
       bg: "bg-indigo-500/8",
-      stat: stats ? formatCurrency(Number(stats.total_supplier_debts)) : "—",
-      statLabel: "ديون الموردين",
+      stat: stats ? formatCurrency(Number(stats.total_customer_debts)) : "—",
+      statLabel: "ديون العملاء",
     },
     {
       op: "expense" as Operation,
@@ -327,28 +322,29 @@ function ReceiptVoucherForm({ safes, customers, onSuccess }: { safes: Safe[]; cu
 }
 
 /* ─── Deposit Voucher ─── */
-function DepositVoucherForm({ safes, suppliers, onSuccess }: { safes: Safe[]; suppliers: Supplier[]; onSuccess: (m: string) => void }) {
-  const [supplierId, setSupplierId] = useState("");
-  const [source, setSource] = useState("");
+function DepositVoucherForm({ safes, customers, onSuccess }: { safes: Safe[]; customers: Customer[]; onSuccess: (m: string) => void }) {
+  const [customerId, setCustomerId] = useState("");
+  const [customerName, setCustomerName] = useState("");
   const [safeId, setSafeId] = useFirstSafeId(safes);
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSupplier = (id: string) => {
-    setSupplierId(id);
-    const s = suppliers.find(x => String(x.id) === id);
-    setSource(s ? s.name : "");
+  const handleCustomer = (id: string) => {
+    setCustomerId(id);
+    const c = customers.find(x => String(x.id) === id);
+    setCustomerName(c ? c.name : "");
   };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!customerName) { setError("اختر العميل أو أدخل الاسم"); return; }
     if (!safeId) { setError("اختر الخزينة"); return; }
     if (!amount || Number(amount) <= 0) { setError("أدخل مبلغاً صحيحاً"); return; }
     setError(""); setLoading(true);
     try {
-      await post("/api/deposit-vouchers", { safe_id: safeId, amount: Number(amount), source: source || undefined, notes });
+      await post("/api/deposit-vouchers", { customer_id: customerId || undefined, customer_name: customerName, safe_id: safeId, amount: Number(amount), notes });
       onSuccess(`تم حفظ سند التوريد — ${formatCurrency(Number(amount))} ✓`);
     } catch (e: unknown) { setError(e instanceof Error ? e.message : "خطأ"); }
     finally { setLoading(false); }
@@ -358,15 +354,17 @@ function DepositVoucherForm({ safes, suppliers, onSuccess }: { safes: Safe[]; su
     <FormShell title="سند توريد" icon={ArrowDownToLine} color="text-indigo-400">
       <form onSubmit={submit} className="space-y-4">
         <div>
-          <FL>المورد (اختياري)</FL>
-          <select className="glass-input w-full text-white text-sm" value={supplierId} onChange={e => handleSupplier(e.target.value)}>
-            <option value="" className="bg-gray-900">-- اختر المورد --</option>
-            {suppliers.map(s => (
-              <option key={s.id} value={s.id} className="bg-gray-900">{s.name} — مديونية: {formatCurrency(Number(s.balance))}</option>
+          <FL>العميل</FL>
+          <select className="glass-input w-full text-white text-sm" value={customerId} onChange={e => handleCustomer(e.target.value)}>
+            <option value="" className="bg-gray-900">-- اختر العميل --</option>
+            {customers.map(c => (
+              <option key={c.id} value={c.id} className="bg-gray-900">{c.name} — متأخر: {formatCurrency(Number(c.balance))}</option>
             ))}
           </select>
-          <input className="glass-input w-full text-white text-sm mt-2" placeholder="أو أدخل المصدر يدوياً..."
-            value={source} onChange={e => setSource(e.target.value)} />
+          {!customerId && (
+            <input className="glass-input w-full text-white text-sm mt-2" placeholder="أو أدخل الاسم يدوياً..."
+              value={customerName} onChange={e => setCustomerName(e.target.value)} />
+          )}
         </div>
         <SafeSelect safes={safes} value={safeId} onChange={setSafeId} />
         <div>

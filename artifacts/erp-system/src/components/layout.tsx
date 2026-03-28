@@ -41,7 +41,6 @@ export function AppLayout({ children }: LayoutProps) {
       : location === "/receipt-vouchers" ? "سندات القبض"
       : location === "/deposit-vouchers" ? "سندات التوريد"
       : location === "/safe-transfers" ? "تحويل الخزائن"
-      : location === "/suppliers" ? "الموردون"
       : "مرحباً بك");
 
   return (

@@ -34,7 +34,7 @@ const DEFAULT_ACCOUNTS = [
   { code: "1140", name: "المخزون", type: "asset", level: 3, is_posting: true },
   { code: "2000", name: "الخصوم", type: "liability", level: 1, is_posting: false },
   { code: "2100", name: "الالتزامات المتداولة", type: "liability", level: 2, is_posting: false },
-  { code: "2110", name: "ذمم دائنة (موردون)", type: "liability", level: 3, is_posting: true },
+  { code: "2110", name: "ذمم دائنة", type: "liability", level: 3, is_posting: true },
   { code: "3000", name: "حقوق الملكية", type: "equity", level: 1, is_posting: false },
   { code: "3100", name: "رأس المال", type: "equity", level: 2, is_posting: true },
   { code: "4000", name: "الإيرادات", type: "revenue", level: 1, is_posting: false },

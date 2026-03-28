@@ -9,7 +9,7 @@ const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
 
 interface PurchaseReturn {
-  id: number; return_no: string; supplier_name: string | null;
+  id: number; return_no: string;
   total_amount: number; reason: string | null; created_at: string;
 }
 
@@ -17,7 +17,7 @@ function PurchaseReturnsPanel() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ supplier_name: "", reason: "", item_name: "", quantity: "1", unit_price: "" });
+  const [form, setForm] = useState({ reason: "", item_name: "", quantity: "1", unit_price: "" });
 
   const { data: returns_ = [], isLoading } = useQuery<PurchaseReturn[]>({
     queryKey: ["/api/purchase-returns"],
@@ -27,7 +27,7 @@ function PurchaseReturnsPanel() {
 
   const createMutation = useMutation({
     mutationFn: (data: object) => fetch(api("/api/purchase-returns"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error); return j; }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/purchase-returns"] }); setShowForm(false); setForm({ supplier_name: "", reason: "", item_name: "", quantity: "1", unit_price: "" }); toast({ title: "✅ تم تسجيل مرتجع الشراء" }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/purchase-returns"] }); setShowForm(false); setForm({ reason: "", item_name: "", quantity: "1", unit_price: "" }); toast({ title: "✅ تم تسجيل مرتجع الشراء" }); },
     onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
   });
 
@@ -45,7 +45,6 @@ function PurchaseReturnsPanel() {
     const prod = products.find(p => p.name === form.item_name) || products[0];
     if (!form.item_name || !form.unit_price) { toast({ title: "أدخل اسم الصنف والسعر", variant: "destructive" }); return; }
     createMutation.mutate({
-      supplier_name: form.supplier_name || null,
       reason: form.reason || null,
       items: [{ product_id: prod?.id || 0, product_name: form.item_name, quantity: qty, unit_price: price, total_price: qty * price }],
     });
@@ -70,7 +69,6 @@ function PurchaseReturnsPanel() {
               <button type="button" onClick={() => setShowForm(false)} className="p-2 rounded-xl bg-white/10 hover:bg-white/20"><X className="w-4 h-4 text-white/70" /></button>
             </div>
             <div className="space-y-3">
-              <div><label className="text-white/60 text-xs mb-1 block">اسم المورد</label><input type="text" className="glass-input" value={form.supplier_name} onChange={e => setForm(f => ({ ...f, supplier_name: e.target.value }))} /></div>
               <div><label className="text-white/60 text-xs mb-1 block">سبب الإرجاع</label><input type="text" className="glass-input" value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} placeholder="تالف / غير مطابق للمواصفات..." /></div>
               <div><label className="text-white/60 text-xs mb-1 block">الصنف *</label>
                 <select className="glass-input appearance-none" value={form.item_name} onChange={e => setForm(f => ({ ...f, item_name: e.target.value }))}>
@@ -97,7 +95,6 @@ function PurchaseReturnsPanel() {
             <thead className="bg-white/5 border-b border-white/10">
               <tr>
                 <th className="p-4 text-white/60">رقم المرتجع</th>
-                <th className="p-4 text-white/60">المورد</th>
                 <th className="p-4 text-white/60">الإجمالي</th>
                 <th className="p-4 text-white/60">السبب</th>
                 <th className="p-4 text-white/60">التاريخ</th>
@@ -112,7 +109,6 @@ function PurchaseReturnsPanel() {
               ) : returns_.map(r => (
                 <tr key={r.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                   <td className="p-4 font-bold text-amber-400 font-mono">{r.return_no}</td>
-                  <td className="p-4 text-white">{r.supplier_name || "غير محدد"}</td>
                   <td className="p-4 font-bold text-orange-400">{formatCurrency(r.total_amount)}</td>
                   <td className="p-4 text-white/50">{r.reason || "—"}</td>
                   <td className="p-4 text-white/40 text-xs">{formatDate(r.created_at)}</td>
@@ -166,7 +162,6 @@ function PurchaseDetailModal({ purchaseId, onClose }: { purchaseId: number; onCl
             <div className="grid grid-cols-2 gap-4 p-4 bg-white/5 rounded-2xl border border-white/5">
               <div><p className="text-white/50 text-sm">رقم الفاتورة</p><p className="text-amber-400 font-bold text-lg">{purchase.invoice_no}</p></div>
               <div><p className="text-white/50 text-sm">التاريخ</p><p className="text-white">{formatDate(purchase.created_at)}</p></div>
-              <div><p className="text-white/50 text-sm">المورد</p><p className="text-white font-semibold">{purchase.supplier_name || 'بدون مورد'}</p></div>
               <div><p className="text-white/50 text-sm">دفع الشركة</p><PaymentBadge type={purchase.payment_type} /></div>
               {purchase.customer_name && (
                 <>

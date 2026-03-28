@@ -81,11 +81,6 @@ export default function Dashboard() {
               <h3 className="text-white/60 font-medium mb-2">ديون العملاء (لنا)</h3>
               <p className="text-3xl font-bold text-yellow-500">{formatCurrency(stats.total_customer_debts)}</p>
             </div>
-            <div className="glass-panel rounded-3xl p-6 relative overflow-hidden group">
-              <div className="absolute top-0 left-0 w-32 h-32 bg-red-500/10 rounded-full blur-3xl -ml-10 -mt-10 transition-transform group-hover:scale-150"></div>
-              <h3 className="text-white/60 font-medium mb-2">ديون الموردين (علينا)</h3>
-              <p className="text-3xl font-bold text-red-400">{formatCurrency(stats.total_supplier_debts)}</p>
-            </div>
           </div>
 
           <div className="glass-panel rounded-3xl p-6 h-[400px]">

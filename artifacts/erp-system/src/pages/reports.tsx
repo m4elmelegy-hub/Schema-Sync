@@ -135,7 +135,7 @@ function PurchasesInvoicesReport() {
   const [payFilter, setPayFilter] = useState("");
 
   const filtered = purchases.filter(p => {
-    const matchS = !search || p.invoice_no.includes(search) || (p.customer_name && p.customer_name.includes(search)) || (p.supplier_name && p.supplier_name.includes(search));
+    const matchS = !search || p.invoice_no.includes(search) || (p.customer_name && p.customer_name.includes(search));
     const matchP = !payFilter || p.payment_type === payFilter;
     return matchS && matchP;
   });
@@ -198,7 +198,7 @@ function PurchasesInvoicesReport() {
                 : filtered.map(p => (
                   <tr key={p.id} className="border-b border-white/5 hover:bg-white/3">
                     <td className="p-3 font-bold text-amber-400">{p.invoice_no}</td>
-                    <td className="p-3 text-white">{p.customer_name || p.supplier_name || "—"}</td>
+                    <td className="p-3 text-white">{p.customer_name || "—"}</td>
                     <td className="p-3 font-bold text-white">{formatCurrency(p.total_amount)}</td>
                     <td className="p-3 text-emerald-400 font-bold">{formatCurrency(p.paid_amount)}</td>
                     <td className="p-3 text-red-400 font-bold">{p.remaining_amount > 0 ? formatCurrency(p.remaining_amount) : "—"}</td>

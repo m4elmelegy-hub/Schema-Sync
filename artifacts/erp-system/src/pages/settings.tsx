@@ -788,15 +788,14 @@ function ProductsTab() {
 /* ─── Data Management Tab ─── */
 const DATA_GROUPS = [
   { key: "sales", label: "المبيعات", sub: "فواتير البيع والمدفوعات", color: "emerald" },
-  { key: "purchases", label: "المشتريات", sub: "فواتير الشراء من الموردين", color: "amber" },
+  { key: "purchases", label: "المشتريات", sub: "فواتير الشراء وتكاليفها", color: "amber" },
   { key: "expenses", label: "المصروفات", sub: "جميع سجلات المصروفات", color: "red" },
   { key: "income", label: "الإيرادات", sub: "جميع سجلات الإيرادات", color: "teal" },
   { key: "receipt_vouchers", label: "سندات القبض", sub: "مدفوعات العملاء", color: "violet" },
-  { key: "deposit_vouchers", label: "سندات التوريد", sub: "مدفوعات الموردين", color: "indigo" },
+  { key: "deposit_vouchers", label: "سندات التوريد", sub: "توريدات العملاء النقدية", color: "indigo" },
   { key: "transactions", label: "الحركات المالية", sub: "السجل المركزي للمعاملات", color: "cyan" },
   { key: "products", label: "الأصناف", sub: "بيانات المنتجات والمخزون", color: "orange" },
   { key: "customers", label: "العملاء", sub: "بيانات العملاء وأرصدتهم", color: "blue" },
-  { key: "suppliers", label: "الموردون", sub: "بيانات الموردين وأرصدتهم", color: "yellow" },
 ];
 
 function DataTab() {
@@ -899,7 +898,7 @@ function FullResetSection() {
   return (
     <div className="glass-panel rounded-2xl p-5 border border-red-500/30 space-y-4">
       <h4 className="font-bold text-red-400 text-sm">تصفير قاعدة البيانات الكاملة</h4>
-      <p className="text-white/40 text-xs">يمسح جميع الفواتير والحركات المالية مع الاحتفاظ بالمنتجات والعملاء والموردين</p>
+      <p className="text-white/40 text-xs">يمسح جميع الفواتير والحركات المالية مع الاحتفاظ بالمنتجات والعملاء</p>
       {done && <p className="text-emerald-400 text-sm">✅ تم التصفير بنجاح</p>}
       <input className="glass-input w-full text-white text-sm" placeholder='اكتب "تأكيد الحذف"'
         value={confirmText} onChange={e => setConfirmText(e.target.value)} />
