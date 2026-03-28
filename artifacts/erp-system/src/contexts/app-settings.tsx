@@ -4,6 +4,7 @@ export type CurrencyCode = "EGP" | "SAR" | "AED" | "USD" | "KWD" | "BHD";
 export type FontFamily = "Tajawal" | "Cairo" | "Almarai" | "Changa";
 export type AccentColor = "amber" | "emerald" | "violet" | "sky" | "rose" | "orange";
 export type FontSize = "sm" | "md" | "lg" | "xl";
+export type Theme = "dark" | "light";
 
 export interface AppSettings {
   currency: CurrencyCode;
@@ -20,6 +21,7 @@ export interface AppSettings {
   borderWidth: number;       // 0.5 — 4 بكسل
   fontWeightNormal: number;  // 400 | 500 | 600 | 700
   iconSize: number;          // 16 — 36 بكسل
+  theme: Theme;              // "dark" | "light"
 }
 
 export const FONT_SIZES: Record<FontSize, { label: string; base: string; cssVal: string }> = {
@@ -43,6 +45,7 @@ const DEFAULTS: AppSettings = {
   borderWidth: 1,
   fontWeightNormal: 400,
   iconSize: 24,
+  theme: "dark",
 };
 
 /* ─── تحويل Hex إلى HSL ─── */
@@ -166,6 +169,17 @@ function applySettings(s: AppSettings) {
 
   // Icon size — حجم الأيقونات
   root.style.setProperty("--erp-icon-size", `${s.iconSize ?? 24}px`);
+
+  // Theme — dark / light
+  if ((s.theme ?? "dark") === "light") {
+    root.classList.add("light");
+    root.classList.remove("dark");
+    root.setAttribute("data-theme", "light");
+  } else {
+    root.classList.add("dark");
+    root.classList.remove("light");
+    root.setAttribute("data-theme", "dark");
+  }
 }
 
 function loadSettings(): AppSettings {

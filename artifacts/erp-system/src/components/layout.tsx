@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/auth";
 import { useAppSettings } from "@/contexts/app-settings";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { 
   LayoutDashboard, Users, Receipt, FileText,
   CreditCard, Settings, BookOpen, BookMarked,
@@ -34,6 +35,7 @@ export function AppLayout({ children }: LayoutProps) {
   const [location] = useLocation();
   const { user, logout } = useAuth();
   const { settings } = useAppSettings();
+  const isDark = (settings.theme ?? "dark") === "dark";
 
   const logoSrc = settings.customLogo || `${import.meta.env.BASE_URL}logo.png`;
 
@@ -49,10 +51,20 @@ export function AppLayout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen bg-background relative flex" dir="rtl">
       <div 
-        className="fixed inset-0 z-0 opacity-40 pointer-events-none bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: `url(${import.meta.env.BASE_URL}images/bg-mesh.png)` }}
+        className="fixed inset-0 z-0 pointer-events-none bg-cover bg-center bg-no-repeat transition-opacity duration-500"
+        style={{
+          backgroundImage: `url(${import.meta.env.BASE_URL}images/bg-mesh.png)`,
+          opacity: isDark ? 0.4 : 0.08,
+        }}
       />
-      <div className="fixed inset-0 z-0 bg-gradient-to-br from-black/80 via-background/90 to-black/90 pointer-events-none" />
+      <div
+        className="fixed inset-0 z-0 pointer-events-none transition-all duration-500"
+        style={{
+          background: isDark
+            ? "linear-gradient(135deg, rgba(0,0,0,0.80) 0%, rgba(10,12,20,0.90) 50%, rgba(0,0,0,0.90) 100%)"
+            : "linear-gradient(135deg, rgba(255,255,255,0.60) 0%, rgba(240,244,248,0.70) 50%, rgba(255,255,255,0.60) 100%)",
+        }}
+      />
 
       {/* Sidebar */}
       <aside className="relative z-10 w-60 glass-panel border-r-0 border-l m-4 rounded-3xl overflow-hidden flex-col hidden lg:flex">
@@ -126,10 +138,14 @@ export function AppLayout({ children }: LayoutProps) {
             <div className="w-1 h-7 bg-gradient-to-b from-amber-400 to-amber-600 rounded-full" />
             <h2 className="text-lg lg:text-xl font-bold text-white tracking-wide">{pageTitle}</h2>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <div className="text-xs text-white/50 hidden sm:block">
               {new Date().toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             </div>
+
+            {/* ─── Theme Toggle ─── */}
+            <ThemeToggle />
+
             {user && (
               <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-2xl px-3 py-1.5">
                 <UserCircle className="w-4 h-4 text-amber-400" />
