@@ -1,233 +1,221 @@
-import { useState, useMemo } from "react";
+import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency } from "@/lib/format";
 import {
-  Activity, ShoppingCart, TruckIcon, Wallet, TrendingUp,
-  HandCoins, ArrowDownToLine, ArrowLeftRight, Search,
-  TrendingDown, Filter, Calendar
+  ShoppingCart, TruckIcon, Wallet, TrendingUp,
+  HandCoins, ArrowDownToLine, ArrowLeftRight,
+  RotateCcw, Users, Package, ArrowLeft,
+  Layers, BarChart3
 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
 
-interface Transaction {
-  id: number; type: string;
-  reference_type: string | null; reference_id: number | null;
-  safe_id: number | null; safe_name: string | null;
-  customer_id: number | null; customer_name: string | null;
-  supplier_id: number | null; supplier_name: string | null;
-  amount: number; direction: string;
-  description: string | null; date: string | null; created_at: string;
+interface QuickStats {
+  total_sales_today: number;
+  total_expenses_today: number;
+  total_income_today: number;
+  net_profit: number;
+  total_customer_debts: number;
+  total_supplier_debts: number;
 }
 
-const TYPE_META: Record<string, { label: string; icon: React.FC<{ className?: string }>; color: string; bg: string }> = {
-  sale_cash:        { label: "بيع نقدي",        icon: ShoppingCart,    color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" },
-  sale_credit:      { label: "بيع آجل",          icon: ShoppingCart,    color: "text-yellow-400",  bg: "bg-yellow-500/10 border-yellow-500/20" },
-  sale_partial:     { label: "بيع جزئي",         icon: ShoppingCart,    color: "text-blue-400",    bg: "bg-blue-500/10 border-blue-500/20" },
-  expense:          { label: "مصروف",            icon: Wallet,          color: "text-red-400",     bg: "bg-red-500/10 border-red-500/20" },
-  income:           { label: "إيراد",             icon: TrendingUp,      color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" },
-  receipt_voucher:  { label: "سند قبض",          icon: HandCoins,       color: "text-teal-400",    bg: "bg-teal-500/10 border-teal-500/20" },
-  deposit_voucher:  { label: "سند توريد",         icon: ArrowDownToLine, color: "text-indigo-400",  bg: "bg-indigo-500/10 border-indigo-500/20" },
-  transfer_in:      { label: "تحويل وارد",        icon: ArrowLeftRight,  color: "text-cyan-400",    bg: "bg-cyan-500/10 border-cyan-500/20" },
-  transfer_out:     { label: "تحويل صادر",        icon: ArrowLeftRight,  color: "text-orange-400",  bg: "bg-orange-500/10 border-orange-500/20" },
-  voucher_receipt:  { label: "قبض خزينة",         icon: HandCoins,       color: "text-violet-400",  bg: "bg-violet-500/10 border-violet-500/20" },
-  voucher_payment:  { label: "صرف خزينة",         icon: Wallet,          color: "text-pink-400",    bg: "bg-pink-500/10 border-pink-500/20" },
-  purchase:         { label: "مشتريات",           icon: TruckIcon,       color: "text-amber-400",   bg: "bg-amber-500/10 border-amber-500/20" },
-};
-
-const DEFAULT_META = { label: "حركة", icon: Activity, color: "text-white/60", bg: "bg-white/5 border-white/10" };
-
-const TYPE_GROUPS: Record<string, string[]> = {
-  "all":       [],
-  "sales":     ["sale_cash", "sale_credit", "sale_partial"],
-  "expenses":  ["expense", "voucher_payment"],
-  "income":    ["income", "voucher_receipt"],
-  "vouchers":  ["receipt_voucher", "deposit_voucher"],
-  "transfers": ["transfer_in", "transfer_out"],
-};
-
-const GROUP_LABELS: Record<string, string> = {
-  all: "الكل",
-  sales: "مبيعات",
-  expenses: "مصروفات",
-  income: "إيرادات",
-  vouchers: "سندات",
-  transfers: "تحويلات",
-};
+interface ActionCard {
+  title: string;
+  subtitle: string;
+  icon: React.FC<{ className?: string }>;
+  color: string;
+  bg: string;
+  border: string;
+  href: string;
+  stat?: { label: string; value: string; color: string };
+}
 
 export default function Tasks() {
-  const [search, setSearch] = useState("");
-  const [group, setGroup] = useState("all");
-  const [dateFilter, setDateFilter] = useState("");
+  const [, setLocation] = useLocation();
 
-  const { data: transactions = [], isLoading } = useQuery<Transaction[]>({
-    queryKey: ["/api/financial-transactions"],
-    queryFn: () => fetch(api("/api/financial-transactions")).then(r => r.json()),
-    refetchInterval: 30000,
+  const { data: stats } = useQuery<QuickStats>({
+    queryKey: ["/api/dashboard/stats"],
+    queryFn: () => fetch(api("/api/dashboard/stats")).then(r => r.json()),
   });
 
-  const filtered = useMemo(() => {
-    let res = [...transactions].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const { data: safes = [] } = useQuery<{ id: number; name: string; balance: number }[]>({
+    queryKey: ["/api/settings/safes"],
+    queryFn: () => fetch(api("/api/settings/safes")).then(r => r.json()),
+  });
 
-    if (group !== "all" && TYPE_GROUPS[group].length > 0) {
-      res = res.filter(t => TYPE_GROUPS[group].includes(t.type));
-    }
-    if (dateFilter) {
-      res = res.filter(t => (t.date || t.created_at?.split("T")[0]) === dateFilter);
-    }
-    if (search) {
-      const q = search.toLowerCase();
-      res = res.filter(t =>
-        t.description?.toLowerCase().includes(q) ||
-        t.customer_name?.toLowerCase().includes(q) ||
-        t.supplier_name?.toLowerCase().includes(q) ||
-        t.safe_name?.toLowerCase().includes(q) ||
-        String(t.amount).includes(q)
-      );
-    }
-    return res;
-  }, [transactions, group, dateFilter, search]);
+  const totalSafeBalance = safes.reduce((s, safe) => s + Number(safe.balance), 0);
 
-  const totalIn = filtered.filter(t => t.direction === "in").reduce((s, t) => s + t.amount, 0);
-  const totalOut = filtered.filter(t => t.direction === "out").reduce((s, t) => s + t.amount, 0);
+  const mainActions: ActionCard[] = [
+    {
+      title: "فاتورة مبيعات",
+      subtitle: "تسجيل عملية بيع جديدة",
+      icon: ShoppingCart,
+      color: "text-emerald-400",
+      bg: "bg-emerald-500/10 hover:bg-emerald-500/15",
+      border: "border-emerald-500/20 hover:border-emerald-500/40",
+      href: "/sales",
+      stat: stats ? { label: "مبيعات اليوم", value: formatCurrency(stats.total_sales_today), color: "text-emerald-400" } : undefined,
+    },
+    {
+      title: "فاتورة مشتريات",
+      subtitle: "تسجيل عملية شراء من مورد",
+      icon: TruckIcon,
+      color: "text-amber-400",
+      bg: "bg-amber-500/10 hover:bg-amber-500/15",
+      border: "border-amber-500/20 hover:border-amber-500/40",
+      href: "/purchases",
+      stat: stats ? { label: "رصيد الموردين", value: formatCurrency(stats.total_supplier_debts), color: "text-amber-400" } : undefined,
+    },
+    {
+      title: "مصروف",
+      subtitle: "تسجيل مصروف من الخزينة",
+      icon: Wallet,
+      color: "text-red-400",
+      bg: "bg-red-500/10 hover:bg-red-500/15",
+      border: "border-red-500/20 hover:border-red-500/40",
+      href: "/expenses",
+      stat: stats ? { label: "مصروفات اليوم", value: formatCurrency(stats.total_expenses_today), color: "text-red-400" } : undefined,
+    },
+    {
+      title: "إيراد",
+      subtitle: "تسجيل إيراد للخزينة",
+      icon: TrendingUp,
+      color: "text-teal-400",
+      bg: "bg-teal-500/10 hover:bg-teal-500/15",
+      border: "border-teal-500/20 hover:border-teal-500/40",
+      href: "/income",
+      stat: stats ? { label: "إيرادات اليوم", value: formatCurrency(stats.total_income_today), color: "text-teal-400" } : undefined,
+    },
+    {
+      title: "سند قبض",
+      subtitle: "استلام دفعة من عميل",
+      icon: HandCoins,
+      color: "text-violet-400",
+      bg: "bg-violet-500/10 hover:bg-violet-500/15",
+      border: "border-violet-500/20 hover:border-violet-500/40",
+      href: "/receipt-vouchers",
+      stat: stats ? { label: "ديون العملاء", value: formatCurrency(stats.total_customer_debts), color: "text-violet-400" } : undefined,
+    },
+    {
+      title: "سند توريد",
+      subtitle: "دفع دفعة لمورد",
+      icon: ArrowDownToLine,
+      color: "text-indigo-400",
+      bg: "bg-indigo-500/10 hover:bg-indigo-500/15",
+      border: "border-indigo-500/20 hover:border-indigo-500/40",
+      href: "/deposit-vouchers",
+    },
+    {
+      title: "تحويل خزائن",
+      subtitle: "نقل رصيد بين الخزائن",
+      icon: ArrowLeftRight,
+      color: "text-cyan-400",
+      bg: "bg-cyan-500/10 hover:bg-cyan-500/15",
+      border: "border-cyan-500/20 hover:border-cyan-500/40",
+      href: "/safe-transfers",
+      stat: { label: "رصيد الخزائن", value: formatCurrency(totalSafeBalance), color: "text-cyan-400" },
+    },
+    {
+      title: "مرتجعات",
+      subtitle: "تسجيل مرتجع بيع أو شراء",
+      icon: RotateCcw,
+      color: "text-orange-400",
+      bg: "bg-orange-500/10 hover:bg-orange-500/15",
+      border: "border-orange-500/20 hover:border-orange-500/40",
+      href: "/sales",
+    },
+  ];
+
+  const quickLinks = [
+    { title: "العملاء", icon: Users, href: "/customers", color: "text-blue-400" },
+    { title: "الموردون", icon: TruckIcon, href: "/suppliers", color: "text-amber-400" },
+    { title: "المنتجات", icon: Package, href: "/settings", color: "text-emerald-400" },
+    { title: "الحركات المالية", icon: Layers, href: "/financial-transactions", color: "text-violet-400" },
+    { title: "التقارير", icon: BarChart3, href: "/reports", color: "text-teal-400" },
+  ];
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-black text-white flex items-center gap-2">
-            <Activity className="w-6 h-6 text-amber-400" /> سجل المهام والعمليات
-          </h1>
-          <p className="text-white/40 text-sm mt-1">جميع الحركات المالية والعمليات بالنظام</p>
-        </div>
-        <div className="text-xs text-white/30">{filtered.length} عملية</div>
+      <div>
+        <h1 className="text-2xl font-black text-white">المهام السريعة</h1>
+        <p className="text-white/40 text-sm mt-1">تنفيذ العمليات المالية من مكان واحد</p>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="glass-panel rounded-2xl p-4 border border-emerald-500/20 bg-emerald-500/5">
-          <p className="text-white/50 text-xs mb-1 flex items-center gap-1"><TrendingUp className="w-3 h-3" /> إجمالي الوارد</p>
-          <p className="text-emerald-400 font-black text-lg">{formatCurrency(totalIn)}</p>
+      {/* Today summary */}
+      {stats && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="glass-panel rounded-2xl p-4 border border-emerald-500/20 bg-emerald-500/5">
+            <p className="text-white/40 text-xs mb-1">مبيعات اليوم</p>
+            <p className="text-emerald-400 font-black text-lg">{formatCurrency(stats.total_sales_today)}</p>
+          </div>
+          <div className="glass-panel rounded-2xl p-4 border border-red-500/20 bg-red-500/5">
+            <p className="text-white/40 text-xs mb-1">مصروفات اليوم</p>
+            <p className="text-red-400 font-black text-lg">{formatCurrency(stats.total_expenses_today)}</p>
+          </div>
+          <div className="glass-panel rounded-2xl p-4 border border-teal-500/20 bg-teal-500/5">
+            <p className="text-white/40 text-xs mb-1">إيرادات اليوم</p>
+            <p className="text-teal-400 font-black text-lg">{formatCurrency(stats.total_income_today)}</p>
+          </div>
+          <div className="glass-panel rounded-2xl p-4 border border-amber-500/20 bg-amber-500/5">
+            <p className="text-white/40 text-xs mb-1">صافي الربح</p>
+            <p className={`font-black text-lg ${stats.net_profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              {formatCurrency(stats.net_profit)}
+            </p>
+          </div>
         </div>
-        <div className="glass-panel rounded-2xl p-4 border border-red-500/20 bg-red-500/5">
-          <p className="text-white/50 text-xs mb-1 flex items-center gap-1"><TrendingDown className="w-3 h-3" /> إجمالي الصادر</p>
-          <p className="text-red-400 font-black text-lg">{formatCurrency(totalOut)}</p>
-        </div>
-        <div className="glass-panel rounded-2xl p-4 border border-amber-500/20 bg-amber-500/5">
-          <p className="text-white/50 text-xs mb-1 flex items-center gap-1"><Activity className="w-3 h-3" /> الصافي</p>
-          <p className={`font-black text-lg ${totalIn - totalOut >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-            {formatCurrency(totalIn - totalOut)}
-          </p>
-        </div>
-      </div>
+      )}
 
-      {/* Filters */}
-      <div className="glass-panel rounded-2xl p-3 flex flex-wrap gap-2 items-center">
-        {/* Search */}
-        <div className="flex items-center gap-2 flex-1 min-w-48 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
-          <Search className="w-4 h-4 text-white/30 shrink-0" />
-          <input
-            type="text"
-            placeholder="بحث في العمليات..."
-            className="bg-transparent text-white outline-none text-sm w-full placeholder:text-white/20"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-        </div>
-
-        {/* Date filter */}
-        <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
-          <Calendar className="w-4 h-4 text-white/30" />
-          <input
-            type="date"
-            className="bg-transparent text-white/70 outline-none text-sm"
-            value={dateFilter}
-            onChange={e => setDateFilter(e.target.value)}
-          />
-          {dateFilter && <button onClick={() => setDateFilter("")} className="text-white/30 hover:text-white text-xs">✕</button>}
-        </div>
-
-        {/* Group tabs */}
-        <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-xl p-1">
-          <Filter className="w-3.5 h-3.5 text-white/30 mx-1" />
-          {Object.entries(GROUP_LABELS).map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setGroup(key)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                group === key ? 'bg-amber-500 text-black' : 'text-white/50 hover:text-white'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+      {/* Main actions grid */}
+      <div>
+        <h2 className="text-sm font-bold text-white/50 mb-3 uppercase tracking-widest">العمليات الرئيسية</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
+          {mainActions.map((action) => {
+            const Icon = action.icon;
+            return (
+              <button
+                key={action.href + action.title}
+                onClick={() => setLocation(action.href)}
+                className={`glass-panel rounded-2xl p-4 text-right border transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg group ${action.bg} ${action.border}`}
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className={`w-11 h-11 rounded-2xl flex items-center justify-center ${action.bg} border ${action.border}`}>
+                    <Icon className={`w-5 h-5 ${action.color}`} />
+                  </div>
+                  <ArrowLeft className="w-4 h-4 text-white/20 group-hover:text-white/50 transition-colors mt-1 rotate-180" />
+                </div>
+                <p className={`font-black text-base ${action.color}`}>{action.title}</p>
+                <p className="text-white/40 text-xs mt-0.5 leading-relaxed">{action.subtitle}</p>
+                {action.stat && (
+                  <div className="mt-3 pt-3 border-t border-white/5">
+                    <p className="text-white/30 text-xs">{action.stat.label}</p>
+                    <p className={`font-bold text-sm mt-0.5 ${action.stat.color}`}>{action.stat.value}</p>
+                  </div>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Transactions list */}
-      <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
-        <div className="overflow-x-auto">
-          <table className="w-full text-right text-sm">
-            <thead className="bg-white/5 border-b border-white/10">
-              <tr>
-                <th className="p-4 text-white/50 font-medium">النوع</th>
-                <th className="p-4 text-white/50 font-medium">الوصف</th>
-                <th className="p-4 text-white/50 font-medium">الطرف</th>
-                <th className="p-4 text-white/50 font-medium">الخزينة</th>
-                <th className="p-4 text-white/50 font-medium">المبلغ</th>
-                <th className="p-4 text-white/50 font-medium">الاتجاه</th>
-                <th className="p-4 text-white/50 font-medium">التاريخ</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr><td colSpan={7} className="p-16 text-center text-white/30">
-                  <Activity className="w-8 h-8 mx-auto mb-3 opacity-30 animate-pulse" />
-                  جاري التحميل...
-                </td></tr>
-              ) : filtered.length === 0 ? (
-                <tr><td colSpan={7} className="p-16 text-center text-white/30">
-                  <Activity className="w-8 h-8 mx-auto mb-3 opacity-20" />
-                  لا توجد عمليات مطابقة
-                </td></tr>
-              ) : filtered.map(tx => {
-                const meta = TYPE_META[tx.type] || DEFAULT_META;
-                const Icon = meta.icon;
-                const party = tx.customer_name || tx.supplier_name || null;
-                return (
-                  <tr key={tx.id} className="border-b border-white/5 hover:bg-white/3 transition-colors">
-                    <td className="p-4">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border ${meta.bg} ${meta.color}`}>
-                        <Icon className="w-3 h-3" />
-                        {meta.label}
-                      </span>
-                    </td>
-                    <td className="p-4 text-white/80 max-w-48 truncate">{tx.description || "—"}</td>
-                    <td className="p-4 text-white/60">{party || "—"}</td>
-                    <td className="p-4 text-white/60 text-xs">{tx.safe_name || "—"}</td>
-                    <td className="p-4">
-                      <span className={`font-black text-base ${tx.direction === 'in' ? 'text-emerald-400' : tx.direction === 'out' ? 'text-red-400' : 'text-white/50'}`}>
-                        {tx.direction === 'in' ? '+' : tx.direction === 'out' ? '-' : ''}{formatCurrency(tx.amount)}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      {tx.direction === 'in' ? (
-                        <span className="flex items-center gap-1 text-xs text-emerald-400">
-                          <TrendingUp className="w-3 h-3" /> وارد
-                        </span>
-                      ) : tx.direction === 'out' ? (
-                        <span className="flex items-center gap-1 text-xs text-red-400">
-                          <TrendingDown className="w-3 h-3" /> صادر
-                        </span>
-                      ) : <span className="text-white/30 text-xs">—</span>}
-                    </td>
-                    <td className="p-4 text-white/40 text-xs whitespace-nowrap">{formatDate(tx.created_at)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {/* Quick links */}
+      <div>
+        <h2 className="text-sm font-bold text-white/50 mb-3 uppercase tracking-widest">روابط سريعة</h2>
+        <div className="flex flex-wrap gap-2">
+          {quickLinks.map(link => {
+            const Icon = link.icon;
+            return (
+              <button
+                key={link.href}
+                onClick={() => setLocation(link.href)}
+                className="flex items-center gap-2 px-4 py-2.5 glass-panel rounded-2xl border border-white/10 hover:border-white/20 transition-all text-sm font-medium text-white/70 hover:text-white"
+              >
+                <Icon className={`w-4 h-4 ${link.color}`} />
+                {link.title}
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
