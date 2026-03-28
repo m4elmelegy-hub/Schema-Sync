@@ -77,7 +77,15 @@ router.post("/purchases", async (req, res): Promise<void> => {
     notes: notes ?? null,
   } as any).returning();
 
-  // ─── تحديث المخزن لكل صنف ───
+  // ─── تحديث المخزن + متوسط التكلفة المرجّح لكل صنف ───
+  //
+  // الصيغة: متوسط_جديد = (كمية_قديمة × تكلفة_قديمة + كمية_جديدة × سعر_شراء_جديد)
+  //                      ÷ (كمية_قديمة + كمية_جديدة)
+  //
+  // مثال: كان عنده 10 قطع بتكلفة 50 ج.م → متوسط التكلفة = 50
+  //        اشترى 5 قطع بـ 80 ج.م
+  //        متوسط_جديد = (10×50 + 5×80) / (10+5) = (500+400)/15 = 60 ج.م
+  //
   for (const item of items) {
     await db.insert(purchaseItemsTable).values({
       purchase_id: purchase.id,
@@ -89,8 +97,23 @@ router.post("/purchases", async (req, res): Promise<void> => {
     });
     const [prod] = await db.select().from(productsTable).where(eq(productsTable.id, item.product_id));
     if (prod) {
-      const newQty = Number(prod.quantity) + item.quantity;
-      await db.update(productsTable).set({ quantity: String(newQty) }).where(eq(productsTable.id, item.product_id));
+      const oldQty = Number(prod.quantity);
+      const oldCost = Number(prod.cost_price);  // متوسط التكلفة الحالي
+      const newItemQty = Number(item.quantity);
+      const newItemCost = Number(item.unit_price);
+      const newTotalQty = oldQty + newItemQty;
+
+      // حساب المتوسط المرجّح الجديد
+      const newAvgCost = newTotalQty > 0
+        ? (oldQty * oldCost + newItemQty * newItemCost) / newTotalQty
+        : newItemCost;
+
+      await db.update(productsTable)
+        .set({
+          quantity: String(newTotalQty),
+          cost_price: String(newAvgCost.toFixed(4)),  // 4 خانات عشرية للدقة
+        })
+        .where(eq(productsTable.id, item.product_id));
     }
   }
 

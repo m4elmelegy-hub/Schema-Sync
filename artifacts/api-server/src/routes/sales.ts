@@ -104,8 +104,13 @@ router.post("/sales", async (req, res): Promise<void> => {
         notes: notes ?? null,
       }).returning();
 
-      // 3. إضافة البنود وخصم المخزون
+      // 3. إضافة البنود وخصم المخزون + تسجيل التكلفة وقت البيع (متوسط مرجّح)
       for (const item of items) {
+        const [prod] = await tx.select().from(productsTable).where(eq(productsTable.id, item.product_id));
+        // التكلفة وقت البيع = متوسط تكلفة الشراء المرجّح المسجل في المنتج
+        const costAtSale = prod ? Number(prod.cost_price) : 0;
+        const costTotal = costAtSale * item.quantity;
+
         await tx.insert(saleItemsTable).values({
           sale_id: newSale.id,
           product_id: item.product_id,
@@ -113,8 +118,9 @@ router.post("/sales", async (req, res): Promise<void> => {
           quantity: String(item.quantity),
           unit_price: String(item.unit_price),
           total_price: String(item.total_price),
+          cost_price: String(costAtSale),
+          cost_total: String(costTotal),
         });
-        const [prod] = await tx.select().from(productsTable).where(eq(productsTable.id, item.product_id));
         if (prod) {
           const newQty = Math.max(0, Number(prod.quantity) - item.quantity);
           await tx.update(productsTable).set({ quantity: String(newQty) }).where(eq(productsTable.id, item.product_id));

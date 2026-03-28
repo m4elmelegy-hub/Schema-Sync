@@ -6,7 +6,7 @@ import { useAppSettings } from "@/contexts/app-settings";
 import { 
   LayoutDashboard, Users, Receipt, FileText,
   CreditCard, Settings, BookOpen, BookMarked,
-  Activity, ClipboardList, LogOut, UserCircle,
+  Activity, ClipboardList, LogOut, UserCircle, TrendingUp,
 } from "lucide-react";
 
 interface LayoutProps { children: ReactNode; }
@@ -17,6 +17,7 @@ const navItems = [
   { name: "المبيعات",        href: "/sales",                icon: Receipt },
   { name: "المشتريات",       href: "/purchases",            icon: CreditCard },
   { name: "العملاء",         href: "/customers",            icon: Users },
+  { name: "الأرباح",         href: "/profits",              icon: TrendingUp },
   { name: "الحركات المالية", href: "/financial-transactions", icon: Activity },
   { name: "دليل الحسابات",   href: "/accounts",             icon: BookOpen },
   { name: "القيود اليومية",  href: "/journal-entries",      icon: BookMarked },

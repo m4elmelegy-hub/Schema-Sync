@@ -19,6 +19,7 @@ import paymentVouchersRouter from "./payment-vouchers";
 import safeTransfersRouter from "./safe-transfers";
 import financialTransactionsRouter from "./financial-transactions";
 import adminRouter from "./admin";
+import profitsRouter from "./profits";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use(paymentVouchersRouter);
 router.use(safeTransfersRouter);
 router.use(financialTransactionsRouter);
 router.use(adminRouter);
+router.use(profitsRouter);
 
 export default router;

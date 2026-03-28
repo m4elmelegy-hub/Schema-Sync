@@ -5,7 +5,18 @@
 Full-stack Arabic ERP System (نظام ERP) for Halal Tech (Egyptian mobile repair shop). Arabic RTL interface with dark glass-morphism UI. Dynamic currency, font, accent color, and company branding — all configurable from Settings without code changes.
 
 ### Navigation Pages
-Dashboard, Sales (POS + Returns), Purchases (+ Returns), Customers, Suppliers, Expenses, Income, سندات القبض (Receipt Vouchers), سندات التوريد (Deposit Vouchers), تحويل الخزائن (Safe Transfers), المهام والعمليات (Unified Activity Log), الحركات المالية (Financial Transactions Ledger), Chart of Accounts, Journal Entries, Reports, Settings.
+Dashboard, Sales (POS + Returns), Purchases (+ Returns), Customers, **الأرباح (Profits)**, Expenses, Income, سندات القبض (Receipt Vouchers), سندات التوريد (Deposit Vouchers), تحويل الخزائن (Safe Transfers), المهام والعمليات (Unified Activity Log), الحركات المالية (Financial Transactions Ledger), Chart of Accounts, Journal Entries, Reports, Settings.
+
+### Profit Calculation Engine (Weighted Average Cost)
+- **متوسط التكلفة المرجّح**: Every purchase updates `products.cost_price` using:  
+  `new_avg = (old_qty × old_cost + new_qty × new_price) / (old_qty + new_qty)`  
+- **تكلفة وقت البيع**: `sale_items.cost_price` and `sale_items.cost_total` store the weighted average cost at the moment of sale — enabling accurate historical profit reports  
+- **صفحة الأرباح** (`/profits`): Date-range filtered profit report showing:  
+  - إجمالي الإيرادات، التكلفة، الربح الإجمالي، هامش الربح، المصاريف، صافي الربح  
+  - جدول الأصناف: ربح كل صنف + هامشه + متوسط تكلفته + متوسط سعر بيعه  
+  - رسم بياني شهري بشريطين (إيرادات / أرباح)  
+  - اختصارات سريعة: هذا الشهر / آخر 7 أيام / آخر 30 يوم / هذا العام / الكل  
+- **API**: `GET /api/profits?date_from=YYYY-MM-DD&date_to=YYYY-MM-DD`
 
 ### App-Wide Settings Context (`src/contexts/app-settings.tsx`)
 - `AppSettingsProvider` wraps entire app; reads/writes `halal_erp_settings` from localStorage

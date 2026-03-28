@@ -24,6 +24,7 @@ import PaymentVouchers from "@/pages/payment-vouchers";
 import SafeTransfers from "@/pages/safe-transfers";
 import FinancialTransactions from "@/pages/financial-transactions";
 import Tasks from "@/pages/tasks";
+import Profits from "@/pages/profits";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -57,6 +58,7 @@ function Router() {
         <Route path="/expenses" component={Expenses} />
         <Route path="/income" component={Income} />
         <Route path="/tasks" component={Tasks} />
+        <Route path="/profits" component={Profits} />
         <Route path="/reports" component={Reports} />
         <Route path="/settings" component={Settings} />
         <Route path="/accounts" component={Accounts} />
