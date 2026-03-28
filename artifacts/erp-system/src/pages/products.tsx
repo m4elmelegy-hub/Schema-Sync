@@ -280,13 +280,14 @@ export default function Products() {
                         </span>
                       </td>
                       <td className="p-4">
-                        <div className="flex items-center justify-center gap-1">
+                        <div className="flex items-center justify-center gap-2">
                           <button
                             onClick={() => openEdit(product)}
                             title="تعديل المنتج"
-                            className="p-2 rounded-lg text-blue-400 hover:text-blue-300 hover:bg-blue-400/10 transition-colors"
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/30 transition-colors text-xs font-bold"
                           >
-                            <Pencil className="w-4 h-4" />
+                            <Pencil className="w-3.5 h-3.5" />
+                            تعديل
                           </button>
                           <button
                             onClick={() => handleDelete(product.id)}
