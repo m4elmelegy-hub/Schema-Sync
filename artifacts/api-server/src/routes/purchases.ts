@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, purchasesTable, purchaseItemsTable, productsTable, suppliersTable, customersTable, transactionsTable } from "@workspace/db";
+import { db, purchasesTable, purchaseItemsTable, productsTable, customersTable, safesTable, transactionsTable } from "@workspace/db";
 import {
   GetPurchasesResponse,
   CreatePurchaseBody,
@@ -50,8 +50,7 @@ router.post("/purchases", async (req, res): Promise<void> => {
     supplier_id,
     customer_id,
     customer_name,
-    customer_payment_type,
-    customer_paid_amount,
+    safe_id,
     notes,
   } = parsed.data;
 
@@ -69,7 +68,7 @@ router.post("/purchases", async (req, res): Promise<void> => {
     supplier_id: supplier_id ?? null,
     customer_id: customer_id ?? null,
     customer_name: customer_name ?? null,
-    customer_payment_type: customer_payment_type ?? null,
+    customer_payment_type: payment_type,
     payment_type,
     total_amount: String(total_amount),
     paid_amount: String(paid_amount),
@@ -78,7 +77,7 @@ router.post("/purchases", async (req, res): Promise<void> => {
     notes: notes ?? null,
   } as any).returning();
 
-  // Update inventory for each item
+  // ─── تحديث المخزن لكل صنف ───
   for (const item of items) {
     await db.insert(purchaseItemsTable).values({
       purchase_id: purchase.id,
@@ -95,65 +94,69 @@ router.post("/purchases", async (req, res): Promise<void> => {
     }
   }
 
-  // Update supplier balance if company pays on credit
-  const supplierDebt = payment_type === "credit" ? total_amount : (remaining > 0 ? remaining : 0);
-  if (supplierDebt > 0 && supplier_id) {
-    const [supp] = await db.select().from(suppliersTable).where(eq(suppliersTable.id, supplier_id));
-    if (supp) {
-      await db.update(suppliersTable)
-        .set({ balance: String(Number(supp.balance) + supplierDebt) })
-        .where(eq(suppliersTable.id, supplier_id));
+  // ─── المنطق المحاسبي للمشتريات ───
+  //
+  // نقدي  → نخصم المبلغ من الخزينة
+  // آجل   → نرحّل الفاتورة على حساب العميل بالسالب (علينا له)
+  // جزئي  → نخصم المدفوع من الخزينة + المتبقي يُرحَّل سالب على العميل
+
+  const cashOut = payment_type === "cash" ? total_amount
+    : payment_type === "partial" ? paid_amount
+    : 0;
+
+  const customerDebt = payment_type === "credit" ? total_amount
+    : payment_type === "partial" ? remaining
+    : 0;
+
+  // خصم من الخزينة (نقدي أو الجزء المدفوع في الجزئي)
+  if (cashOut > 0 && safe_id) {
+    const [safe] = await db.select().from(safesTable).where(eq(safesTable.id, safe_id));
+    if (safe) {
+      const newBalance = Number(safe.balance) - cashOut;
+      await db.update(safesTable)
+        .set({ balance: String(newBalance) })
+        .where(eq(safesTable.id, safe_id));
+
+      await db.insert(transactionsTable).values({
+        type: "purchase_cash",
+        amount: String(cashOut),
+        direction: "out",
+        safe_id: safe_id,
+        description: `دفع نقدي — فاتورة مشتريات ${invoiceNo}${customer_name ? ` (${customer_name})` : ''}`,
+        related_id: purchase.id,
+      } as any);
     }
   }
 
-  // Update customer balance based on how customer pays us for these items
-  if (customer_id) {
+  // ترحيل على حساب العميل (سالب = علينا دين له)
+  if (customerDebt > 0 && customer_id) {
     const [cust] = await db.select().from(customersTable).where(eq(customersTable.id, customer_id));
     if (cust) {
-      let customerDebt = 0;
+      // نقلل رصيد العميل (إذا كان صفر يصبح سالب = علينا له)
+      const newBalance = Number(cust.balance) - customerDebt;
+      await db.update(customersTable)
+        .set({ balance: String(newBalance) })
+        .where(eq(customersTable.id, customer_id));
 
-      if (!customer_payment_type || customer_payment_type === "credit") {
-        // Customer owes us the full amount
-        customerDebt = total_amount;
-      } else if (customer_payment_type === "partial") {
-        // Customer paid part upfront, owes the rest
-        const custPaid = customer_paid_amount ?? 0;
-        customerDebt = total_amount - custPaid;
-      }
-      // customer_payment_type === "cash" → customer paid fully, no balance change
-
-      if (customerDebt > 0) {
-        await db.update(customersTable)
-          .set({ balance: String(Number(cust.balance) + customerDebt) })
-          .where(eq(customersTable.id, customer_id));
-      }
-
-      // Record customer receipt if they paid something upfront
-      if (customer_payment_type === "partial" && (customer_paid_amount ?? 0) > 0) {
-        await db.insert(transactionsTable).values({
-          type: "receipt",
-          amount: String(customer_paid_amount),
-          description: `دفعة عميل على فاتورة مشتريات ${invoiceNo}`,
-          related_id: customer_id,
-        });
-      } else if (customer_payment_type === "cash") {
-        await db.insert(transactionsTable).values({
-          type: "receipt",
-          amount: String(total_amount),
-          description: `تسديد عميل نقدي لفاتورة مشتريات ${invoiceNo}`,
-          related_id: customer_id,
-        });
-      }
+      await db.insert(transactionsTable).values({
+        type: "purchase_credit",
+        amount: String(customerDebt),
+        direction: "out",
+        description: `مشتريات آجل من ${customer_name || 'عميل'} — فاتورة ${invoiceNo} (علينا سداده)`,
+        related_id: purchase.id,
+      } as any);
     }
   }
 
-  // Record purchase transaction
+  // سجل عملية الشراء العام
   await db.insert(transactionsTable).values({
     type: "purchase",
     amount: String(total_amount),
-    description: `فاتورة مشتريات ${invoiceNo}${customer_name ? ` — العميل: ${customer_name}` : ''}`,
+    direction: "out",
+    safe_id: safe_id ?? null,
+    description: `فاتورة مشتريات ${invoiceNo}${customer_name ? ` — ${customer_name}` : ''}`,
     related_id: purchase.id,
-  });
+  } as any);
 
   res.status(201).json(formatPurchase(purchase));
 });

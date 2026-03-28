@@ -1,10 +1,9 @@
 import { useState, useMemo, useEffect } from "react";
 import { useCreatePurchase, useGetProducts, useGetCustomers, useCreateProduct, useDeleteProduct, useGetSettingsSafes, useGetSettingsWarehouses } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
-import { Search, Plus, Minus, Trash2, ShoppingBag, Package, User, Vault, Percent, AlertTriangle } from "lucide-react";
+import { Search, Plus, Minus, Trash2, ShoppingBag, Package, User, Vault, AlertTriangle } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/contexts/auth";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -27,7 +26,6 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
   const createMutation = useCreatePurchase();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { currentUser } = useAuth();
 
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -36,14 +34,11 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
   const [customerId, setCustomerId] = useState<string>("");
   const [safeId, setSafeId] = useState<string>("");
   const [warehouseId, setWarehouseId] = useState<string>("");
-  const [discountPct, setDiscountPct] = useState<string>("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
 
   useEffect(() => {
     if (warehouses.length > 0 && !warehouseId) setWarehouseId(String(warehouses[0].id));
   }, [warehouses]);
-
-  const buyerName = currentUser?.name ?? "—";
 
   const categories = Array.from(new Set(products.map(p => p.category).filter(Boolean)));
   const filteredProducts = products.filter(p => {
@@ -52,11 +47,16 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
     return matchS && matchC;
   });
 
-  const cartSubtotal = useMemo(() => cart.reduce((s, i) => s + i.total_price, 0), [cart]);
-  const discountAmount = useMemo(() => cartSubtotal * (parseFloat(discountPct) || 0) / 100, [cartSubtotal, discountPct]);
-  const cartTotal = useMemo(() => cartSubtotal - discountAmount, [cartSubtotal, discountAmount]);
-
+  const cartTotal = useMemo(() => cart.reduce((s, i) => s + i.total_price, 0), [cart]);
   const selectedCustomer = customers.find(c => c.id === parseInt(customerId));
+
+  // أثر على حساب العميل: نقدي=صفر، آجل=كامل المبلغ علينا، جزئي=المتبقي علينا
+  const customerImpact = useMemo(() => {
+    if (!customerId) return 0;
+    if (paymentType === "cash") return 0;
+    if (paymentType === "credit") return -cartTotal;
+    return -(cartTotal - (parseFloat(paidAmount) || 0));
+  }, [customerId, paymentType, paidAmount, cartTotal]);
 
   const addToCart = (product: typeof products[0]) => {
     setCart(prev => {
@@ -72,10 +72,17 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
     return { ...i, quantity: newQ, total_price: newQ * i.unit_price };
   }));
 
+  const updatePrice = (pid: number, price: number) => setCart(prev => prev.map(i =>
+    i.product_id !== pid ? i : { ...i, unit_price: price, total_price: i.quantity * price }
+  ));
+
   const handleCheckout = () => {
     if (cart.length === 0) { toast({ title: "السلة فارغة", variant: "destructive" }); return; }
     if ((paymentType === "credit" || paymentType === "partial") && !customerId) {
       toast({ title: "يجب اختيار عميل للآجل أو الجزئي", variant: "destructive" }); return;
+    }
+    if ((paymentType === "cash" || paymentType === "partial") && !safeId) {
+      toast({ title: "يجب اختيار الخزينة للدفع النقدي", variant: "destructive" }); return;
     }
     const actualPaid = paymentType === "cash" ? cartTotal : paymentType === "credit" ? 0 : parseFloat(paidAmount) || 0;
 
@@ -85,8 +92,7 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
         supplier_name: null,
         customer_id: selectedCustomer?.id ?? null,
         customer_name: selectedCustomer?.name ?? null,
-        customer_payment_type: paymentType,
-        customer_paid_amount: paymentType === "partial" ? actualPaid : null,
+        safe_id: safeId ? parseInt(safeId) : null,
         payment_type: paymentType,
         total_amount: cartTotal,
         paid_amount: actualPaid,
@@ -94,14 +100,13 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
       }
     }, {
       onSuccess: () => {
-        toast({ title: "✅ تم تسجيل فاتورة الشراء — تم تحديث المخزن" });
+        toast({ title: "✅ تم تسجيل فاتورة الشراء — تم تحديث المخزن والخزينة" });
         queryClient.invalidateQueries({ queryKey: ["/api/purchases"] });
         queryClient.invalidateQueries({ queryKey: ["/api/products"] });
         queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
         queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
         queryClient.invalidateQueries({ queryKey: ["/api/settings/safes"] });
-        setCart([]); setPaidAmount(""); setCustomerId(""); setSafeId("");
-        setDiscountPct(""); setPaymentType("cash");
+        setCart([]); setPaidAmount(""); setCustomerId(""); setSafeId(""); setPaymentType("cash");
         onDone();
       },
       onError: (e: Error) => toast({ title: e.message, variant: "destructive" })
@@ -150,7 +155,7 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
         </div>
       </div>
 
-      {/* سلة الشراء — نفس شكل سلة المبيعات */}
+      {/* سلة الشراء */}
       <div className="w-full lg:w-[400px] flex flex-col glass-panel rounded-2xl overflow-hidden shrink-0">
         {/* Header */}
         <div className="px-4 py-3 border-b border-white/10 bg-white/5">
@@ -160,22 +165,17 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
             </h3>
             <span className="bg-amber-500/20 text-amber-400 px-3 py-1 rounded-full text-xs font-bold">{cart.length} صنف</span>
           </div>
-          <div className="grid grid-cols-2 gap-1.5 text-xs">
+          <div className="grid grid-cols-1 gap-1.5 text-xs">
             {selectRow("المخزن", <Vault className="w-3.5 h-3.5" />,
               <select className="bg-transparent text-white outline-none w-full appearance-none text-xs" value={warehouseId} onChange={e => setWarehouseId(e.target.value)}>
                 <option value="" className="bg-slate-900">-- مخزن --</option>
                 {warehouses.map(w => <option key={w.id} value={w.id} className="bg-slate-900">{w.name}</option>)}
               </select>
             )}
-            <div className="flex items-center gap-2 bg-white/5 border border-amber-500/20 rounded-xl px-3 py-2">
-              <span className="text-amber-400/60 shrink-0"><ShoppingBag className="w-3.5 h-3.5" /></span>
-              <span className="text-white/40 text-xs w-14 shrink-0">المشتري</span>
-              <span className="text-amber-300 text-xs font-bold truncate">{buyerName}</span>
-            </div>
           </div>
         </div>
 
-        {/* عناصر السلة */}
+        {/* عناصر السلة — السعر قابل للتعديل */}
         <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
           {cart.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-white/20 gap-3 py-10">
@@ -188,76 +188,103 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
                 <p className="font-bold text-white text-sm flex-1 ml-2 truncate">{item.product_name}</p>
                 <button onClick={() => setCart(prev => prev.filter(i => i.product_id !== item.product_id))} className="text-red-400/70 hover:text-red-400 p-0.5"><Trash2 className="w-3.5 h-3.5" /></button>
               </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 shrink-0">
                   <button onClick={() => updateQty(item.product_id, -1)} className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center hover:bg-white/20"><Minus className="w-3 h-3 text-white" /></button>
-                  <span className="text-white font-bold text-sm w-6 text-center">{item.quantity}</span>
+                  <span className="text-white font-bold text-sm w-5 text-center">{item.quantity}</span>
                   <button onClick={() => updateQty(item.product_id, 1)} className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center hover:bg-white/20"><Plus className="w-3 h-3 text-white" /></button>
-                  <span className="text-white/40 text-xs mr-1">× {formatCurrency(item.unit_price)}</span>
                 </div>
-                <span className="font-bold text-blue-400 text-sm">{formatCurrency(item.total_price)}</span>
+                {/* السعر قابل للتعديل — مشتريات يتفاوت */}
+                <div className="flex items-center gap-1 flex-1 min-w-0">
+                  <span className="text-white/30 text-xs shrink-0">×</span>
+                  <input
+                    type="number" step="0.01" min="0"
+                    value={item.unit_price}
+                    onChange={e => updatePrice(item.product_id, parseFloat(e.target.value) || 0)}
+                    className="bg-white/10 border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none w-full text-right"
+                  />
+                </div>
+                <span className="font-bold text-blue-400 text-sm shrink-0">{formatCurrency(item.total_price)}</span>
               </div>
             </div>
           ))}
         </div>
 
-        {/* Footer: بيانات الدفع — نفس سلة المبيعات */}
+        {/* Footer */}
         <div className="p-3 border-t border-white/10 bg-black/40 space-y-2">
           {/* العميل والخزينة */}
           <div className="grid grid-cols-1 gap-1.5">
             {selectRow("العميل", <User className="w-3.5 h-3.5" />,
               <select className="bg-transparent text-white outline-none w-full appearance-none text-xs" value={customerId} onChange={e => setCustomerId(e.target.value)}>
-                <option value="" className="bg-slate-900">عميل نقدي</option>
-                {customers.map(c => <option key={c.id} value={c.id} className="bg-slate-900">{c.name}{Number(c.balance) > 0 ? ` (دين: ${Number(c.balance).toFixed(0)} ج.م)` : ''}</option>)}
+                <option value="" className="bg-slate-900">-- بدون عميل --</option>
+                {customers.map(c => {
+                  const bal = Number(c.balance);
+                  const balText = bal > 0 ? ` (يدين لنا: ${bal.toFixed(0)})`
+                    : bal < 0 ? ` (نديّن له: ${Math.abs(bal).toFixed(0)})`
+                    : '';
+                  return <option key={c.id} value={c.id} className="bg-slate-900">{c.name}{balText}</option>;
+                })}
               </select>
             )}
-            {selectRow("الخزينة", <Vault className="w-3.5 h-3.5 text-amber-400/70" />,
-              <select className="bg-transparent text-white outline-none w-full appearance-none text-xs" value={safeId} onChange={e => setSafeId(e.target.value)}>
-                <option value="" className="bg-slate-900">-- اختر الخزينة --</option>
-                {safes.map(s => <option key={s.id} value={s.id} className="bg-slate-900">{s.name} ({formatCurrency(Number(s.balance))})</option>)}
-              </select>
+            {(paymentType === "cash" || paymentType === "partial") && (
+              selectRow("الخزينة", <Vault className="w-3.5 h-3.5 text-amber-400/70" />,
+                <select className="bg-transparent text-white outline-none w-full appearance-none text-xs" value={safeId} onChange={e => setSafeId(e.target.value)}>
+                  <option value="" className="bg-slate-900">-- اختر الخزينة --</option>
+                  {safes.map(s => <option key={s.id} value={s.id} className="bg-slate-900">{s.name} ({formatCurrency(Number(s.balance))})</option>)}
+                </select>
+              )
             )}
           </div>
 
-          {/* طريقة الدفع + خصم */}
-          <div className="flex gap-1.5 items-center">
-            <div className="flex gap-1 flex-1">
-              {[{ v: "cash", l: "نقدي" }, { v: "credit", l: "آجل" }, { v: "partial", l: "جزئي" }].map(opt => (
-                <button key={opt.v} onClick={() => setPaymentType(opt.v as "cash" | "credit" | "partial")}
-                  className={`flex-1 py-1.5 rounded-xl text-xs font-bold border transition-all ${paymentType === opt.v ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10'}`}>
-                  {opt.l}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-xl px-2 py-1.5 w-24">
-              <Percent className="w-3 h-3 text-white/30 shrink-0" />
-              <input type="number" min="0" max="100" step="1" placeholder="خصم" className="bg-transparent text-white outline-none w-full text-xs placeholder:text-white/20" value={discountPct} onChange={e => setDiscountPct(e.target.value)} />
-            </div>
+          {/* طريقة الدفع */}
+          <div className="flex gap-1">
+            {[{ v: "cash", l: "نقدي", hint: "يُخصم من الخزينة" }, { v: "credit", l: "آجل", hint: "على حساب العميل" }, { v: "partial", l: "جزئي", hint: "جزء نقدي + آجل" }].map(opt => (
+              <button key={opt.v} onClick={() => setPaymentType(opt.v as "cash" | "credit" | "partial")}
+                className={`flex-1 py-1.5 rounded-xl text-xs font-bold border transition-all ${paymentType === opt.v ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10'}`}>
+                {opt.l}
+              </button>
+            ))}
           </div>
 
           {paymentType === "partial" && (
-            <input type="number" step="0.01" placeholder="المبلغ المدفوع جزئياً..." className="glass-input text-xs py-2" value={paidAmount} onChange={e => setPaidAmount(e.target.value)} />
+            <input type="number" step="0.01" placeholder="المبلغ المدفوع نقداً الآن..." className="glass-input text-xs py-2" value={paidAmount} onChange={e => setPaidAmount(e.target.value)} />
           )}
 
-          {/* ملخص الإجماليات */}
-          <div className="bg-white/5 rounded-xl p-3 border border-white/10 space-y-1">
-            {discountAmount > 0 && (
-              <div className="flex justify-between text-xs">
-                <span className="text-white/50">قبل الخصم ({discountPct}%)</span>
-                <span className="text-white/60 line-through">{formatCurrency(cartSubtotal)}</span>
-              </div>
-            )}
+          {/* ملخص */}
+          <div className="bg-white/5 rounded-xl p-3 border border-white/10 space-y-1.5">
             <div className="flex justify-between">
-              <span className="text-white/70 text-sm font-semibold">الإجمالي</span>
+              <span className="text-white/70 text-sm font-semibold">إجمالي الفاتورة</span>
               <span className="font-black text-white text-lg">{formatCurrency(cartTotal)}</span>
             </div>
+            {paymentType === "cash" && (
+              <div className="flex justify-between text-xs border-t border-white/10 pt-1.5">
+                <span className="text-white/60">يُخصم من الخزينة</span>
+                <span className="text-red-400 font-bold">− {formatCurrency(cartTotal)}</span>
+              </div>
+            )}
             {paymentType === "partial" && paidAmount && (
               <>
-                <div className="flex justify-between text-xs border-t border-white/10 pt-1"><span className="text-white/60">المدفوع</span><span className="text-emerald-400 font-bold">{formatCurrency(parseFloat(paidAmount) || 0)}</span></div>
-                <div className="flex justify-between text-xs"><span className="text-white/60">المتبقي</span><span className="text-red-400 font-bold">{formatCurrency(cartTotal - (parseFloat(paidAmount) || 0))}</span></div>
+                <div className="flex justify-between text-xs border-t border-white/10 pt-1.5">
+                  <span className="text-white/60">نقدي من الخزينة</span>
+                  <span className="text-red-400 font-bold">− {formatCurrency(parseFloat(paidAmount) || 0)}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-white/60">على حساب العميل</span>
+                  <span className="text-orange-400 font-bold">− {formatCurrency(cartTotal - (parseFloat(paidAmount) || 0))}</span>
+                </div>
               </>
             )}
-            {paymentType === "credit" && customerId && <p className="text-xs text-yellow-400 pt-1">⚠ سيُضاف على دَين العميل</p>}
+            {customerId && customerImpact !== 0 && (
+              <div className="flex justify-between text-xs border-t border-white/10 pt-1.5">
+                <span className="text-white/60">رصيد {selectedCustomer?.name}</span>
+                <span className="text-orange-400 font-bold">{formatCurrency(customerImpact)} (علينا)</span>
+              </div>
+            )}
+            {paymentType === "credit" && customerId && (
+              <p className="text-xs text-orange-400/80 bg-orange-500/5 border border-orange-500/20 rounded-lg px-2 py-1.5">
+                ⚠ الفاتورة ستُرحَّل على حساب العميل — نحن المدينون
+              </p>
+            )}
           </div>
 
           <button onClick={handleCheckout} disabled={createMutation.isPending || cart.length === 0}
