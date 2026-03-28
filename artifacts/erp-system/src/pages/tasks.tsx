@@ -161,25 +161,26 @@ export default function Tasks() {
         </div>
       )}
 
-      {/* Operations grid */}
-      <div className="grid grid-cols-3 gap-2">
+      {/* Operations grid — 3 cols mobile / 6 cols desktop */}
+      <div className="grid grid-cols-3 lg:grid-cols-6 gap-2">
         {cards.map(c => {
           const Icon = c.icon;
           return (
             <button
               key={c.op}
               onClick={() => setOp(c.op)}
-              className={`glass-panel rounded-xl p-3 text-right ring-1 ${c.ring} ${c.bg} hover:brightness-110 transition-all duration-200 hover:-translate-y-0.5 group`}
+              className={`glass-panel rounded-xl text-right ring-1 ${c.ring} ${c.bg} hover:brightness-110 transition-all duration-200 hover:-translate-y-0.5 active:scale-95 group`}
+              style={{ padding: "10px 12px" }}
             >
-              <div className="flex items-center justify-between mb-1.5">
-                <Icon className={`w-4 h-4 ${c.color}`} />
+              <div className="flex items-center justify-between mb-1">
+                <Icon className={`w-4 h-4 shrink-0 ${c.color}`} />
                 <ChevronLeft className="w-3 h-3 text-white/20 group-hover:text-white/40 transition-colors" />
               </div>
-              <p className={`font-bold text-sm ${c.color}`}>{c.title}</p>
-              <p className="text-white/35 text-xs mt-0.5">{c.sub}</p>
-              <div className="mt-2 pt-1.5 border-t border-white/5">
-                <p className="text-white/20 text-xs">{c.statLabel}</p>
-                <p className={`font-bold text-xs mt-0.5 ${c.color}`}>{c.stat}</p>
+              <p className={`font-bold text-sm leading-tight ${c.color}`}>{c.title}</p>
+              <p className="text-white/40 text-xs mt-0.5 leading-tight">{c.sub}</p>
+              <div className="mt-1.5 pt-1.5 border-t border-white/5">
+                <p className="text-white/30 text-xs leading-none">{c.statLabel}</p>
+                <p className={`font-bold text-xs mt-0.5 leading-tight ${c.color}`}>{c.stat}</p>
               </div>
             </button>
           );
