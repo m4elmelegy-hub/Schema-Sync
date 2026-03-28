@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
-import { useGetPurchases, useCreatePurchase, useGetProducts, useGetCustomers, useGetPurchaseById, useCreateProduct, useDeleteProduct, useGetSettingsSafes, useGetSuppliers } from "@workspace/api-client-react";
+import { useCreatePurchase, useGetProducts, useGetCustomers, useGetPurchaseById, useCreateProduct, useDeleteProduct, useGetSettingsSafes } from "@workspace/api-client-react";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { Search, Plus, Minus, Trash2, X, ShoppingBag, Printer, AlertTriangle, User, Package } from "lucide-react";
+import { Plus, Minus, Trash2, X, ShoppingBag, Printer, AlertTriangle, User, Package } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
@@ -590,74 +590,21 @@ function ProductsPanel() {
 }
 
 export default function Purchases() {
-  const { data: purchases = [], isLoading } = useGetPurchases();
-  const [tab, setTab] = useState<"list" | "new" | "products" | "returns">("list");
-  const [search, setSearch] = useState("");
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-
-  const filtered = purchases.filter(p => p.invoice_no.includes(search) || (p.supplier_name && p.supplier_name.includes(search)));
+  const [tab, setTab] = useState<"new" | "products" | "returns">("new");
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-3 items-center flex-wrap">
+      <div className="flex gap-2 items-center">
         <div className="flex bg-white/5 rounded-2xl p-1 border border-white/10">
-          <button onClick={() => setTab("list")} className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${tab === "list" ? "bg-amber-500 text-black shadow" : "text-white/50 hover:text-white"}`}>📋 سجل الفواتير</button>
           <button onClick={() => setTab("new")} className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${tab === "new" ? "bg-amber-500 text-black shadow" : "text-white/50 hover:text-white"}`}>➕ فاتورة شراء</button>
           <button onClick={() => setTab("products")} className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${tab === "products" ? "bg-amber-500 text-black shadow" : "text-white/50 hover:text-white"}`}>📦 المنتجات</button>
           <button onClick={() => setTab("returns")} className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${tab === "returns" ? "bg-orange-500 text-white shadow" : "text-white/50 hover:text-white"}`}>↩ مرتجعات</button>
         </div>
-        {tab === "list" && (
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
-            <input type="text" placeholder="بحث برقم الفاتورة أو المورد..." className="glass-input pr-10 text-sm w-full" value={search} onChange={e => setSearch(e.target.value)} />
-          </div>
-        )}
       </div>
 
-      {selectedId && <PurchaseDetailModal purchaseId={selectedId} onClose={() => setSelectedId(null)} />}
-
-      {tab === "returns" ? (
-        <PurchaseReturnsPanel />
-      ) : tab === "new" ? (
-        <NewPurchasePanel onDone={() => setTab("list")} />
-      ) : tab === "products" ? (
-        <ProductsPanel />
-      ) : (
-        <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
-          <div className="overflow-x-auto">
-            <table className="w-full text-right text-white/80 whitespace-nowrap">
-              <thead className="bg-white/5 border-b border-white/10">
-                <tr>
-                  <th className="p-4 text-white/60 font-semibold">رقم الفاتورة</th>
-                  <th className="p-4 text-white/60 font-semibold">المورد</th>
-                  <th className="p-4 text-white/60 font-semibold">الإجمالي</th>
-                  <th className="p-4 text-white/60 font-semibold">المدفوع</th>
-                  <th className="p-4 text-white/60 font-semibold">المتبقي</th>
-                  <th className="p-4 text-white/60 font-semibold">الدفع</th>
-                  <th className="p-4 text-white/60 font-semibold">الحالة</th>
-                  <th className="p-4 text-white/60 font-semibold">التاريخ</th>
-                </tr>
-              </thead>
-              <tbody>
-                {isLoading ? <tr><td colSpan={8} className="p-12 text-center text-white/40">جاري التحميل...</td></tr>
-                  : filtered.length === 0 ? <tr><td colSpan={8} className="p-12 text-center text-white/40">لا توجد مشتريات</td></tr>
-                    : filtered.map(purchase => (
-                      <tr key={purchase.id} className="border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer" onClick={() => setSelectedId(purchase.id)}>
-                        <td className="p-4 font-bold text-amber-400">{purchase.invoice_no}</td>
-                        <td className="p-4">{purchase.supplier_name || 'بدون مورد'}</td>
-                        <td className="p-4 font-bold text-white">{formatCurrency(purchase.total_amount)}</td>
-                        <td className="p-4 text-emerald-400 font-bold">{formatCurrency(purchase.paid_amount)}</td>
-                        <td className="p-4 text-red-400 font-bold">{formatCurrency(purchase.remaining_amount)}</td>
-                        <td className="p-4"><PaymentBadge type={purchase.payment_type} /></td>
-                        <td className="p-4"><StatusBadge status={purchase.status} /></td>
-                        <td className="p-4 text-sm text-white/50">{formatDate(purchase.created_at)}</td>
-                      </tr>
-                    ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {tab === "returns" ? <PurchaseReturnsPanel />
+        : tab === "new" ? <NewPurchasePanel onDone={() => {}} />
+        : <ProductsPanel />}
     </div>
   );
 }

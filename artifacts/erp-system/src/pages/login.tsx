@@ -50,7 +50,9 @@ export default function Login() {
     setLocation("/");
   };
 
-  const bgStyle = getLoginBgStyle(settings.loginBg);
+  const bgStyle = settings.loginBgImage
+    ? `url("${settings.loginBgImage}") center/cover no-repeat`
+    : getLoginBgStyle(settings.loginBg);
   const logoSrc = settings.customLogo || `${import.meta.env.BASE_URL}logo.png`;
 
   return (

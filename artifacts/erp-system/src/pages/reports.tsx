@@ -1,8 +1,232 @@
 import { useState } from "react";
-import { useGetProducts, useGetCustomers, useGetSales, useGetTransactions, useGetDashboardStats, useGetCustomerStatement } from "@workspace/api-client-react";
+import { useGetProducts, useGetCustomers, useGetSales, useGetPurchases, useGetTransactions, useGetDashboardStats, useGetCustomerStatement } from "@workspace/api-client-react";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { AlertTriangle, TrendingUp, TrendingDown, Package, Users, FileText, DollarSign, X, ChevronDown, ChevronUp, ShoppingBag, ShoppingCart } from "lucide-react";
+import { AlertTriangle, TrendingUp, TrendingDown, Package, Users, FileText, DollarSign, X, ChevronDown, ChevronUp, ShoppingBag, ShoppingCart, Search } from "lucide-react";
 
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const api = (p: string) => `${BASE}${p}`;
+
+function PaymentBadge({ type }: { type: string }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    cash:    { label: "نقدي",  cls: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" },
+    credit:  { label: "آجل",   cls: "bg-red-500/20 text-red-400 border-red-500/30" },
+    partial: { label: "جزئي",  cls: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" },
+  };
+  const d = map[type] || { label: type, cls: "bg-white/10 text-white/50 border-white/10" };
+  return <span className={`px-2 py-0.5 rounded-lg text-xs font-bold border ${d.cls}`}>{d.label}</span>;
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    paid:    { label: "مدفوع",   cls: "text-emerald-400" },
+    partial: { label: "جزئي",   cls: "text-yellow-400" },
+    pending: { label: "معلق",   cls: "text-red-400" },
+    unpaid:  { label: "غير مدفوع", cls: "text-red-400" },
+  };
+  const d = map[status] || { label: status, cls: "text-white/50" };
+  return <span className={`text-xs font-bold ${d.cls}`}>{d.label}</span>;
+}
+
+/* ─── Sales Invoices ─── */
+function SalesInvoicesReport() {
+  const { data: sales = [], isLoading } = useGetSales();
+  const [search, setSearch] = useState("");
+  const [payFilter, setPayFilter] = useState("");
+
+  const filtered = sales.filter(s => {
+    const matchS = !search || s.invoice_no.includes(search) || (s.customer_name && s.customer_name.includes(search));
+    const matchP = !payFilter || s.payment_type === payFilter;
+    return matchS && matchP;
+  });
+
+  const totalSales = filtered.reduce((s, v) => s + v.total_amount, 0);
+  const totalPaid  = filtered.reduce((s, v) => s + v.paid_amount, 0);
+  const totalDebt  = filtered.reduce((s, v) => s + v.remaining_amount, 0);
+
+  return (
+    <div className="space-y-4">
+      {/* Summary */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="glass-panel rounded-2xl p-4 border border-emerald-500/10">
+          <p className="text-emerald-400 text-xs mb-1">إجمالي المبيعات</p>
+          <p className="text-2xl font-black text-white">{formatCurrency(totalSales)}</p>
+          <p className="text-white/30 text-xs">{filtered.length} فاتورة</p>
+        </div>
+        <div className="glass-panel rounded-2xl p-4 border border-blue-500/10">
+          <p className="text-blue-400 text-xs mb-1">المحصَّل</p>
+          <p className="text-2xl font-black text-white">{formatCurrency(totalPaid)}</p>
+        </div>
+        <div className="glass-panel rounded-2xl p-4 border border-red-500/10">
+          <p className="text-red-400 text-xs mb-1">الديون المتبقية</p>
+          <p className="text-2xl font-black text-white">{formatCurrency(totalDebt)}</p>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex gap-3 flex-wrap items-center">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+          <input className="glass-input w-full pr-9 text-sm" placeholder="بحث برقم الفاتورة أو العميل..." value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <div className="flex gap-1">
+          {[{ v: "", l: "الكل" }, { v: "cash", l: "نقدي" }, { v: "credit", l: "آجل" }, { v: "partial", l: "جزئي" }].map(opt => (
+            <button key={opt.v} onClick={() => setPayFilter(opt.v)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${payFilter === opt.v ? "bg-amber-500/20 border-amber-500/40 text-amber-400" : "glass-panel border-white/10 text-white/50 hover:text-white"}`}>
+              {opt.l}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
+        <div className="overflow-x-auto">
+          <table className="w-full text-right text-sm whitespace-nowrap">
+            <thead className="bg-white/5 border-b border-white/10">
+              <tr>
+                <th className="p-3 text-white/50">رقم الفاتورة</th>
+                <th className="p-3 text-white/50">العميل</th>
+                <th className="p-3 text-white/50">الإجمالي</th>
+                <th className="p-3 text-white/50">المدفوع</th>
+                <th className="p-3 text-white/50">المتبقي</th>
+                <th className="p-3 text-white/50">الدفع</th>
+                <th className="p-3 text-white/50">الحالة</th>
+                <th className="p-3 text-white/50">التاريخ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? <tr><td colSpan={8} className="p-12 text-center text-white/40">جاري التحميل...</td></tr>
+                : filtered.length === 0 ? <tr><td colSpan={8} className="p-12 text-center text-white/40">لا توجد فواتير</td></tr>
+                : filtered.map(s => (
+                  <tr key={s.id} className="border-b border-white/5 hover:bg-white/3">
+                    <td className="p-3 font-bold text-amber-400">{s.invoice_no}</td>
+                    <td className="p-3 text-white">{s.customer_name || "عميل نقدي"}</td>
+                    <td className="p-3 font-bold text-white">{formatCurrency(s.total_amount)}</td>
+                    <td className="p-3 text-emerald-400 font-bold">{formatCurrency(s.paid_amount)}</td>
+                    <td className="p-3 text-red-400 font-bold">{s.remaining_amount > 0 ? formatCurrency(s.remaining_amount) : "—"}</td>
+                    <td className="p-3"><PaymentBadge type={s.payment_type} /></td>
+                    <td className="p-3"><StatusBadge status={s.status} /></td>
+                    <td className="p-3 text-white/40 text-xs">{formatDate(s.created_at)}</td>
+                  </tr>
+                ))}
+            </tbody>
+            {filtered.length > 0 && (
+              <tfoot className="bg-white/5 border-t border-white/10">
+                <tr>
+                  <td colSpan={2} className="p-3 text-white/50 font-bold">الإجمالي ({filtered.length} فاتورة)</td>
+                  <td className="p-3 font-black text-white">{formatCurrency(totalSales)}</td>
+                  <td className="p-3 font-black text-emerald-400">{formatCurrency(totalPaid)}</td>
+                  <td className="p-3 font-black text-red-400">{formatCurrency(totalDebt)}</td>
+                  <td colSpan={3}></td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Purchases Invoices ─── */
+function PurchasesInvoicesReport() {
+  const { data: purchases = [], isLoading } = useGetPurchases();
+  const [search, setSearch] = useState("");
+  const [payFilter, setPayFilter] = useState("");
+
+  const filtered = purchases.filter(p => {
+    const matchS = !search || p.invoice_no.includes(search) || (p.customer_name && p.customer_name.includes(search)) || (p.supplier_name && p.supplier_name.includes(search));
+    const matchP = !payFilter || p.payment_type === payFilter;
+    return matchS && matchP;
+  });
+
+  const totalPurchases = filtered.reduce((s, v) => s + v.total_amount, 0);
+  const totalPaid      = filtered.reduce((s, v) => s + v.paid_amount, 0);
+  const totalRemaining = filtered.reduce((s, v) => s + v.remaining_amount, 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-4">
+        <div className="glass-panel rounded-2xl p-4 border border-red-500/10">
+          <p className="text-red-400 text-xs mb-1">إجمالي المشتريات</p>
+          <p className="text-2xl font-black text-white">{formatCurrency(totalPurchases)}</p>
+          <p className="text-white/30 text-xs">{filtered.length} فاتورة</p>
+        </div>
+        <div className="glass-panel rounded-2xl p-4 border border-emerald-500/10">
+          <p className="text-emerald-400 text-xs mb-1">المدفوع</p>
+          <p className="text-2xl font-black text-white">{formatCurrency(totalPaid)}</p>
+        </div>
+        <div className="glass-panel rounded-2xl p-4 border border-amber-500/10">
+          <p className="text-amber-400 text-xs mb-1">المتبقي</p>
+          <p className="text-2xl font-black text-white">{formatCurrency(totalRemaining)}</p>
+        </div>
+      </div>
+
+      <div className="flex gap-3 flex-wrap items-center">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+          <input className="glass-input w-full pr-9 text-sm" placeholder="بحث برقم الفاتورة أو العميل..." value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <div className="flex gap-1">
+          {[{ v: "", l: "الكل" }, { v: "cash", l: "نقدي" }, { v: "credit", l: "آجل" }, { v: "partial", l: "جزئي" }].map(opt => (
+            <button key={opt.v} onClick={() => setPayFilter(opt.v)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${payFilter === opt.v ? "bg-amber-500/20 border-amber-500/40 text-amber-400" : "glass-panel border-white/10 text-white/50 hover:text-white"}`}>
+              {opt.l}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
+        <div className="overflow-x-auto">
+          <table className="w-full text-right text-sm whitespace-nowrap">
+            <thead className="bg-white/5 border-b border-white/10">
+              <tr>
+                <th className="p-3 text-white/50">رقم الفاتورة</th>
+                <th className="p-3 text-white/50">العميل</th>
+                <th className="p-3 text-white/50">الإجمالي</th>
+                <th className="p-3 text-white/50">المدفوع</th>
+                <th className="p-3 text-white/50">المتبقي</th>
+                <th className="p-3 text-white/50">الدفع</th>
+                <th className="p-3 text-white/50">الحالة</th>
+                <th className="p-3 text-white/50">التاريخ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? <tr><td colSpan={8} className="p-12 text-center text-white/40">جاري التحميل...</td></tr>
+                : filtered.length === 0 ? <tr><td colSpan={8} className="p-12 text-center text-white/40">لا توجد مشتريات</td></tr>
+                : filtered.map(p => (
+                  <tr key={p.id} className="border-b border-white/5 hover:bg-white/3">
+                    <td className="p-3 font-bold text-amber-400">{p.invoice_no}</td>
+                    <td className="p-3 text-white">{p.customer_name || p.supplier_name || "—"}</td>
+                    <td className="p-3 font-bold text-white">{formatCurrency(p.total_amount)}</td>
+                    <td className="p-3 text-emerald-400 font-bold">{formatCurrency(p.paid_amount)}</td>
+                    <td className="p-3 text-red-400 font-bold">{p.remaining_amount > 0 ? formatCurrency(p.remaining_amount) : "—"}</td>
+                    <td className="p-3"><PaymentBadge type={p.payment_type} /></td>
+                    <td className="p-3"><StatusBadge status={p.status} /></td>
+                    <td className="p-3 text-white/40 text-xs">{formatDate(p.created_at)}</td>
+                  </tr>
+                ))}
+            </tbody>
+            {filtered.length > 0 && (
+              <tfoot className="bg-white/5 border-t border-white/10">
+                <tr>
+                  <td colSpan={2} className="p-3 text-white/50 font-bold">الإجمالي ({filtered.length} فاتورة)</td>
+                  <td className="p-3 font-black text-white">{formatCurrency(totalPurchases)}</td>
+                  <td className="p-3 font-black text-emerald-400">{formatCurrency(totalPaid)}</td>
+                  <td className="p-3 font-black text-red-400">{formatCurrency(totalRemaining)}</td>
+                  <td colSpan={3}></td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Inventory ─── */
 function InventoryReport() {
   const { data: products = [], isLoading } = useGetProducts();
   const [catFilter, setCatFilter] = useState("");
@@ -18,7 +242,6 @@ function InventoryReport() {
 
   return (
     <div className="space-y-6">
-      {/* Summary */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="glass-panel rounded-2xl p-5 border border-white/5">
           <p className="text-white/50 text-sm mb-1">إجمالي المنتجات</p>
@@ -28,21 +251,17 @@ function InventoryReport() {
         <div className="glass-panel rounded-2xl p-5 border border-blue-500/10">
           <p className="text-blue-400 text-sm mb-1">قيمة المخزون (التكلفة)</p>
           <p className="text-2xl font-black text-white">{formatCurrency(totalStockValue)}</p>
-          <p className="text-xs text-white/30 mt-1">بسعر الشراء</p>
         </div>
         <div className="glass-panel rounded-2xl p-5 border border-emerald-500/10">
           <p className="text-emerald-400 text-sm mb-1">قيمة المخزون (البيع)</p>
           <p className="text-2xl font-black text-white">{formatCurrency(totalSaleValue)}</p>
-          <p className="text-xs text-white/30 mt-1">بسعر البيع</p>
         </div>
         <div className="glass-panel rounded-2xl p-5 border border-amber-500/10">
           <p className="text-amber-400 text-sm mb-1">الربح المتوقع</p>
           <p className="text-2xl font-black text-white">{formatCurrency(potentialProfit)}</p>
-          <p className="text-xs text-white/30 mt-1">عند بيع كل المخزون</p>
         </div>
       </div>
 
-      {/* Alerts */}
       {(lowStockItems.length > 0 || outOfStock.length > 0) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {outOfStock.length > 0 && (
@@ -78,9 +297,8 @@ function InventoryReport() {
         </div>
       )}
 
-      {/* Filter */}
       <div className="flex items-center gap-3">
-        <span className="text-white/50 text-sm">تصفية حسب الصنف:</span>
+        <span className="text-white/50 text-sm">تصفية:</span>
         <div className="flex gap-2 flex-wrap">
           <button onClick={() => setCatFilter("")} className={`px-3 py-1 rounded-full text-xs font-bold border transition-all ${!catFilter ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10'}`}>الكل</button>
           {categories.map(cat => (
@@ -89,7 +307,6 @@ function InventoryReport() {
         </div>
       </div>
 
-      {/* Table */}
       <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
         <div className="overflow-x-auto">
           <table className="w-full text-right text-sm whitespace-nowrap">
@@ -113,28 +330,19 @@ function InventoryReport() {
               ) : (
                 filtered.map(product => {
                   const stockValue = product.quantity * product.cost_price;
-                  const profitPerUnit = product.sale_price - product.cost_price;
-                  const totalProfit = product.quantity * profitPerUnit;
+                  const totalProfit = product.quantity * (product.sale_price - product.cost_price);
                   const isLow = product.low_stock_threshold !== null && product.quantity <= (product.low_stock_threshold ?? 5);
                   const isOut = product.quantity === 0;
                   return (
                     <tr key={product.id} className={`border-b border-white/5 hover:bg-white/3 transition-colors ${isOut ? 'bg-red-500/5' : isLow ? 'bg-yellow-500/5' : ''}`}>
                       <td className="p-4 font-bold text-white">{product.name}</td>
                       <td className="p-4">{product.category ? <span className="px-2 py-0.5 rounded-lg text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/20">{product.category}</span> : '-'}</td>
-                      <td className="p-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold border ${isOut ? 'bg-red-500/20 text-red-400 border-red-500/30' : isLow ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'}`}>
-                          {isOut ? '⚠ نافذ' : product.quantity}
-                        </span>
-                      </td>
+                      <td className="p-4"><span className={`px-3 py-1 rounded-full text-xs font-bold border ${isOut ? 'bg-red-500/20 text-red-400 border-red-500/30' : isLow ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'}`}>{isOut ? '⚠ نافذ' : product.quantity}</span></td>
                       <td className="p-4 text-white/60">{formatCurrency(product.cost_price)}</td>
                       <td className="p-4 text-emerald-400">{formatCurrency(product.sale_price)}</td>
                       <td className="p-4 font-bold text-blue-400">{formatCurrency(stockValue)}</td>
                       <td className="p-4 font-bold text-amber-400">{formatCurrency(totalProfit)}</td>
-                      <td className="p-4">
-                        <span className={`text-xs font-bold ${isOut ? 'text-red-400' : isLow ? 'text-yellow-400' : 'text-emerald-400'}`}>
-                          {isOut ? 'نافذ' : isLow ? 'منخفض' : 'جيد'}
-                        </span>
-                      </td>
+                      <td className="p-4"><span className={`text-xs font-bold ${isOut ? 'text-red-400' : isLow ? 'text-yellow-400' : 'text-emerald-400'}`}>{isOut ? 'نافذ' : isLow ? 'منخفض' : 'جيد'}</span></td>
                     </tr>
                   );
                 })
@@ -155,6 +363,7 @@ function InventoryReport() {
   );
 }
 
+/* ─── Customer Statement Modal ─── */
 function CustomerStatementModal({ customerId, onClose }: { customerId: number; onClose: () => void }) {
   const { data, isLoading } = useGetCustomerStatement(customerId);
   const [expandedSaleId, setExpandedSaleId] = useState<number | null>(null);
@@ -170,12 +379,10 @@ function CustomerStatementModal({ customerId, onClose }: { customerId: number; o
   const { customer, sales, linked_purchases } = data;
   const totalSold = sales.reduce((s, v) => s + Number(v.total_amount), 0);
   const totalPaid = sales.reduce((s, v) => s + Number(v.paid_amount), 0);
-  const totalFromPurchases = linked_purchases.reduce((s, v) => s + Number(v.total_amount), 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
       <div className="glass-panel rounded-3xl p-0 w-full max-w-4xl border border-white/10 shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Header */}
         <div className="flex justify-between items-center p-6 border-b border-white/10 bg-white/5">
           <div>
             <h3 className="text-2xl font-bold text-white">كشف حساب تفصيلي</h3>
@@ -186,12 +393,11 @@ function CustomerStatementModal({ customerId, onClose }: { customerId: number; o
         </div>
 
         <div className="overflow-y-auto p-6 space-y-6">
-          {/* Stats */}
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-4 text-center">
-              <p className="text-blue-400 text-xs mb-1">إجمالي المبيعات له</p>
+              <p className="text-blue-400 text-xs mb-1">إجمالي المبيعات</p>
               <p className="text-white font-black">{formatCurrency(totalSold)}</p>
-              <p className="text-white/30 text-xs mt-0.5">{sales.length} فاتورة</p>
+              <p className="text-white/30 text-xs">{sales.length} فاتورة</p>
             </div>
             <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 text-center">
               <p className="text-emerald-400 text-xs mb-1">المدفوع</p>
@@ -203,26 +409,18 @@ function CustomerStatementModal({ customerId, onClose }: { customerId: number; o
             </div>
           </div>
 
-          {/* Sales with items */}
           {sales.length > 0 && (
             <div>
               <h4 className="text-white font-bold mb-3 flex items-center gap-2"><ShoppingBag className="w-4 h-4 text-amber-400" /> فواتير المبيعات ({sales.length})</h4>
               <div className="space-y-2">
                 {sales.map(s => (
                   <div key={s.id} className="border border-white/10 rounded-2xl overflow-hidden">
-                    <button
-                      onClick={() => setExpandedSaleId(expandedSaleId === s.id ? null : s.id)}
-                      className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors"
-                    >
+                    <button onClick={() => setExpandedSaleId(expandedSaleId === s.id ? null : s.id)}
+                      className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors">
                       <div className="flex items-center gap-4 text-sm">
                         <span className="text-amber-400 font-bold">{s.invoice_no}</span>
-                        <span className={`px-2 py-0.5 rounded-lg text-xs font-bold border ${
-                          s.payment_type === 'cash' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
-                          s.payment_type === 'credit' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
-                          'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
-                        }`}>{s.payment_type === 'cash' ? 'نقدي' : s.payment_type === 'credit' ? 'آجل' : 'جزئي'}</span>
+                        <PaymentBadge type={s.payment_type} />
                         <span className="text-white/50">{formatDate(s.created_at)}</span>
-                        <span className="text-xs text-white/40">{s.items.length} صنف</span>
                       </div>
                       <div className="flex items-center gap-4">
                         <span className="text-white font-bold text-sm">{formatCurrency(Number(s.total_amount))}</span>
@@ -233,18 +431,16 @@ function CustomerStatementModal({ customerId, onClose }: { customerId: number; o
                     {expandedSaleId === s.id && s.items.length > 0 && (
                       <div className="border-t border-white/10 bg-white/3">
                         <table className="w-full text-right text-xs">
-                          <thead className="bg-white/5">
-                            <tr>
-                              <th className="p-2 text-white/50">الصنف</th>
-                              <th className="p-2 text-white/50">الكمية</th>
-                              <th className="p-2 text-white/50">سعر الوحدة</th>
-                              <th className="p-2 text-white/50">الإجمالي</th>
-                            </tr>
-                          </thead>
+                          <thead className="bg-white/5"><tr>
+                            <th className="p-2 text-white/50">الصنف</th>
+                            <th className="p-2 text-white/50">الكمية</th>
+                            <th className="p-2 text-white/50">سعر الوحدة</th>
+                            <th className="p-2 text-white/50">الإجمالي</th>
+                          </tr></thead>
                           <tbody>
                             {s.items.map(item => (
                               <tr key={item.id} className="border-t border-white/5">
-                                <td className="p-2 text-white font-medium">{item.product_name}</td>
+                                <td className="p-2 text-white">{item.product_name}</td>
                                 <td className="p-2 text-white/70">{Number(item.quantity)}</td>
                                 <td className="p-2 text-white/70">{formatCurrency(Number(item.unit_price))}</td>
                                 <td className="p-2 text-amber-400 font-bold">{formatCurrency(Number(item.total_price))}</td>
@@ -260,27 +456,17 @@ function CustomerStatementModal({ customerId, onClose }: { customerId: number; o
             </div>
           )}
 
-          {/* Linked purchases from supplier, charged to customer */}
           {linked_purchases.length > 0 && (
             <div>
-              <h4 className="text-white font-bold mb-3 flex items-center gap-2"><ShoppingCart className="w-4 h-4 text-blue-400" /> مشتريات مُحمَّلة على العميل ({linked_purchases.length})</h4>
+              <h4 className="text-white font-bold mb-3 flex items-center gap-2"><ShoppingCart className="w-4 h-4 text-blue-400" /> مشتريات مُحمَّلة ({linked_purchases.length})</h4>
               <div className="space-y-2">
                 {linked_purchases.map(p => (
                   <div key={p.id} className="border border-white/10 rounded-2xl overflow-hidden">
-                    <button
-                      onClick={() => setExpandedPurchaseId(expandedPurchaseId === p.id ? null : p.id)}
-                      className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors"
-                    >
+                    <button onClick={() => setExpandedPurchaseId(expandedPurchaseId === p.id ? null : p.id)}
+                      className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors">
                       <div className="flex items-center gap-4 text-sm">
                         <span className="text-blue-400 font-bold">{p.invoice_no}</span>
-                        {p.supplier_name && <span className="text-white/40 text-xs">من: {p.supplier_name}</span>}
-                        {p.customer_payment_type && (
-                          <span className={`px-2 py-0.5 rounded-lg text-xs font-bold border ${
-                            p.customer_payment_type === 'cash' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
-                            p.customer_payment_type === 'credit' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
-                            'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
-                          }`}>{p.customer_payment_type === 'cash' ? 'دفع نقداً' : p.customer_payment_type === 'credit' ? 'آجل (دين)' : 'جزئي'}</span>
-                        )}
+                        {p.customer_payment_type && <PaymentBadge type={p.customer_payment_type} />}
                         <span className="text-white/50">{formatDate(p.created_at)}</span>
                       </div>
                       <div className="flex items-center gap-3">
@@ -291,18 +477,16 @@ function CustomerStatementModal({ customerId, onClose }: { customerId: number; o
                     {expandedPurchaseId === p.id && p.items.length > 0 && (
                       <div className="border-t border-white/10 bg-white/3">
                         <table className="w-full text-right text-xs">
-                          <thead className="bg-white/5">
-                            <tr>
-                              <th className="p-2 text-white/50">الصنف</th>
-                              <th className="p-2 text-white/50">الكمية</th>
-                              <th className="p-2 text-white/50">سعر الوحدة</th>
-                              <th className="p-2 text-white/50">الإجمالي</th>
-                            </tr>
-                          </thead>
+                          <thead className="bg-white/5"><tr>
+                            <th className="p-2 text-white/50">الصنف</th>
+                            <th className="p-2 text-white/50">الكمية</th>
+                            <th className="p-2 text-white/50">سعر الوحدة</th>
+                            <th className="p-2 text-white/50">الإجمالي</th>
+                          </tr></thead>
                           <tbody>
                             {p.items.map(item => (
                               <tr key={item.id} className="border-t border-white/5">
-                                <td className="p-2 text-white font-medium">{item.product_name}</td>
+                                <td className="p-2 text-white">{item.product_name}</td>
                                 <td className="p-2 text-white/70">{Number(item.quantity)}</td>
                                 <td className="p-2 text-white/70">{formatCurrency(Number(item.unit_price))}</td>
                                 <td className="p-2 text-blue-400 font-bold">{formatCurrency(Number(item.total_price))}</td>
@@ -317,7 +501,6 @@ function CustomerStatementModal({ customerId, onClose }: { customerId: number; o
               </div>
             </div>
           )}
-
           {sales.length === 0 && linked_purchases.length === 0 && (
             <div className="text-center py-8 text-white/40">لا توجد حركات لهذا العميل</div>
           )}
@@ -327,25 +510,26 @@ function CustomerStatementModal({ customerId, onClose }: { customerId: number; o
   );
 }
 
+/* ─── Customer Accounts ─── */
 function CustomerAccountsReport() {
   const { data: customers = [], isLoading: custLoading } = useGetCustomers();
   const { data: allSales = [] } = useGetSales();
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
+  const [search, setSearch] = useState("");
 
   const customerData = customers.map(c => {
     const sales = allSales.filter(s => s.customer_id === c.id || s.customer_name === c.name);
     const totalSold = sales.reduce((s, v) => s + v.total_amount, 0);
     const totalPaid = sales.reduce((s, v) => s + v.paid_amount, 0);
-    const totalRemaining = sales.reduce((s, v) => s + v.remaining_amount, 0);
-    return { ...c, totalSold, totalPaid, totalRemaining, salesCount: sales.length };
+    return { ...c, totalSold, totalPaid, salesCount: sales.length };
   });
 
+  const filtered = customerData.filter(c => !search || c.name.includes(search) || (c.phone && c.phone.includes(search)));
   const totalOwed = customerData.reduce((s, c) => s + c.balance, 0);
   const activeCust = customerData.filter(c => c.salesCount > 0);
 
   return (
     <div className="space-y-6">
-      {/* Summary */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="glass-panel rounded-2xl p-5 border border-white/5">
           <p className="text-white/50 text-sm mb-1">إجمالي العملاء</p>
@@ -365,16 +549,14 @@ function CustomerAccountsReport() {
         </div>
       </div>
 
-      {selectedCustomerId && (
-        <CustomerStatementModal customerId={selectedCustomerId} onClose={() => setSelectedCustomerId(null)} />
-      )}
+      {selectedCustomerId && <CustomerStatementModal customerId={selectedCustomerId} onClose={() => setSelectedCustomerId(null)} />}
 
-      {/* Customers Table */}
+      <div className="relative max-w-xs">
+        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+        <input className="glass-input w-full pr-9 text-sm" placeholder="بحث باسم العميل أو الهاتف..." value={search} onChange={e => setSearch(e.target.value)} />
+      </div>
+
       <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
-        <div className="p-4 border-b border-white/10 flex items-center gap-2">
-          <Users className="w-5 h-5 text-amber-400" />
-          <h3 className="font-bold text-white">حسابات جميع العملاء</h3>
-        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-right text-sm whitespace-nowrap">
             <thead className="bg-white/5 border-b border-white/10">
@@ -383,50 +565,33 @@ function CustomerAccountsReport() {
                 <th className="p-4 text-white/60 font-semibold">الهاتف</th>
                 <th className="p-4 text-white/60 font-semibold">عدد الفواتير</th>
                 <th className="p-4 text-white/60 font-semibold">إجمالي المبيعات</th>
-                <th className="p-4 text-white/60 font-semibold">إجمالي المدفوع</th>
+                <th className="p-4 text-white/60 font-semibold">المدفوع</th>
                 <th className="p-4 text-white/60 font-semibold">الرصيد المستحق</th>
                 <th className="p-4 text-white/60 font-semibold">الكشف</th>
               </tr>
             </thead>
             <tbody>
-              {custLoading ? (
-                <tr><td colSpan={7} className="p-12 text-center text-white/40">جاري التحميل...</td></tr>
-              ) : customerData.length === 0 ? (
-                <tr><td colSpan={7} className="p-12 text-center text-white/40">لا يوجد عملاء</td></tr>
-              ) : (
-                customerData.map(c => (
-                  <tr key={c.id} className={`border-b border-white/5 hover:bg-white/3 transition-colors ${c.balance > 0 ? '' : ''}`}>
+              {custLoading ? <tr><td colSpan={7} className="p-12 text-center text-white/40">جاري التحميل...</td></tr>
+                : filtered.length === 0 ? <tr><td colSpan={7} className="p-12 text-center text-white/40">لا يوجد عملاء</td></tr>
+                : filtered.map(c => (
+                  <tr key={c.id} className="border-b border-white/5 hover:bg-white/3 transition-colors">
                     <td className="p-4 font-bold text-white">{c.name}</td>
-                    <td className="p-4 text-white/60">{c.phone || '-'}</td>
+                    <td className="p-4 text-white/50">{c.phone || '—'}</td>
                     <td className="p-4 text-white/70">{c.salesCount}</td>
                     <td className="p-4 font-bold text-white">{formatCurrency(c.totalSold)}</td>
                     <td className="p-4 text-emerald-400 font-bold">{formatCurrency(c.totalPaid)}</td>
                     <td className="p-4">
-                      {c.balance > 0 ? (
-                        <span className="text-red-400 font-black text-base">{formatCurrency(c.balance)}</span>
-                      ) : (
-                        <span className="text-white/30 text-sm">لا يوجد دين</span>
-                      )}
+                      <span className={`font-bold ${c.balance > 0 ? 'text-red-400' : 'text-white/40'}`}>{c.balance > 0 ? formatCurrency(c.balance) : '—'}</span>
                     </td>
                     <td className="p-4">
                       <button onClick={() => setSelectedCustomerId(c.id)}
-                        className="flex items-center gap-1.5 bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border border-blue-500/30">
-                        <FileText className="w-3 h-3" /> عرض
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30 transition-colors">
+                        كشف الحساب
                       </button>
                     </td>
                   </tr>
-                ))
-              )}
+                ))}
             </tbody>
-            <tfoot className="bg-white/5 border-t border-white/10">
-              <tr>
-                <td colSpan={3} className="p-4 font-bold text-white/60">الإجمالي</td>
-                <td className="p-4 font-black text-white">{formatCurrency(customerData.reduce((s, c) => s + c.totalSold, 0))}</td>
-                <td className="p-4 font-black text-emerald-400">{formatCurrency(customerData.reduce((s, c) => s + c.totalPaid, 0))}</td>
-                <td className="p-4 font-black text-red-400">{formatCurrency(totalOwed)}</td>
-                <td></td>
-              </tr>
-            </tfoot>
           </table>
         </div>
       </div>
@@ -434,6 +599,7 @@ function CustomerAccountsReport() {
   );
 }
 
+/* ─── Financial Summary ─── */
 function FinancialSummary() {
   const { data: stats } = useGetDashboardStats();
   const { data: transactions = [] } = useGetTransactions();
@@ -454,12 +620,12 @@ function FinancialSummary() {
         <div className="glass-panel rounded-2xl p-5 border border-emerald-500/10">
           <div className="flex items-center gap-2 mb-2"><TrendingUp className="w-4 h-4 text-emerald-400" /><p className="text-emerald-400 text-sm">إجمالي المبيعات</p></div>
           <p className="text-2xl font-black text-white">{formatCurrency(totalSales)}</p>
-          <p className="text-xs text-white/30 mt-1">{salesTxns.length} فاتورة</p>
+          <p className="text-xs text-white/30 mt-1">{salesTxns.length} حركة</p>
         </div>
         <div className="glass-panel rounded-2xl p-5 border border-red-500/10">
           <div className="flex items-center gap-2 mb-2"><TrendingDown className="w-4 h-4 text-red-400" /><p className="text-red-400 text-sm">إجمالي المشتريات</p></div>
           <p className="text-2xl font-black text-white">{formatCurrency(totalPurchases)}</p>
-          <p className="text-xs text-white/30 mt-1">{purchaseTxns.length} فاتورة</p>
+          <p className="text-xs text-white/30 mt-1">{purchaseTxns.length} حركة</p>
         </div>
         <div className="glass-panel rounded-2xl p-5 border border-yellow-500/10">
           <div className="flex items-center gap-2 mb-2"><DollarSign className="w-4 h-4 text-yellow-400" /><p className="text-yellow-400 text-sm">إجمالي المصروفات</p></div>
@@ -473,7 +639,7 @@ function FinancialSummary() {
 
       <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
         <div className="p-4 border-b border-white/10">
-          <h3 className="font-bold text-white">سجل جميع الحركات المالية</h3>
+          <h3 className="font-bold text-white">سجل الحركات المالية</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-right text-sm whitespace-nowrap">
@@ -511,29 +677,34 @@ function FinancialSummary() {
   );
 }
 
+/* ─── Main Page ─── */
 export default function Reports() {
-  const [tab, setTab] = useState<"inventory" | "customers" | "financial">("inventory");
+  const [tab, setTab] = useState<"sales-invoices" | "purchases-invoices" | "inventory" | "customers" | "financial">("sales-invoices");
 
   const tabs = [
-    { id: "inventory", label: "📦 تقرير المخزن" },
-    { id: "customers", label: "👥 حسابات العملاء" },
-    { id: "financial", label: "💰 الملخص المالي" },
+    { id: "sales-invoices",     label: "🧾 فواتير المبيعات" },
+    { id: "purchases-invoices", label: "📦 فواتير المشتريات" },
+    { id: "inventory",          label: "🏪 تقرير المخزن" },
+    { id: "customers",          label: "👥 حسابات العملاء" },
+    { id: "financial",          label: "💰 الملخص المالي" },
   ];
 
   return (
     <div className="space-y-4">
-      <div className="flex bg-white/5 rounded-2xl p-1 border border-white/10 w-fit">
+      <div className="flex bg-white/5 rounded-2xl p-1 border border-white/10 flex-wrap gap-1">
         {tabs.map(t => (
           <button key={t.id} onClick={() => setTab(t.id as typeof tab)}
-            className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${tab === t.id ? "bg-amber-500 text-black shadow" : "text-white/50 hover:text-white"}`}>
+            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex-1 min-w-fit ${tab === t.id ? "bg-amber-500 text-black shadow" : "text-white/50 hover:text-white"}`}>
             {t.label}
           </button>
         ))}
       </div>
 
-      {tab === "inventory" && <InventoryReport />}
-      {tab === "customers" && <CustomerAccountsReport />}
-      {tab === "financial" && <FinancialSummary />}
+      {tab === "sales-invoices"     && <SalesInvoicesReport />}
+      {tab === "purchases-invoices" && <PurchasesInvoicesReport />}
+      {tab === "inventory"          && <InventoryReport />}
+      {tab === "customers"          && <CustomerAccountsReport />}
+      {tab === "financial"          && <FinancialSummary />}
     </div>
   );
 }

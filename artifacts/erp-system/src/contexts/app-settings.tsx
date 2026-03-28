@@ -3,25 +3,37 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 export type CurrencyCode = "EGP" | "SAR" | "AED" | "USD" | "KWD" | "BHD";
 export type FontFamily = "Tajawal" | "Cairo" | "Almarai" | "Changa";
 export type AccentColor = "amber" | "emerald" | "violet" | "sky" | "rose" | "orange";
+export type FontSize = "sm" | "md" | "lg" | "xl";
 
 export interface AppSettings {
   currency: CurrencyCode;
   fontFamily: FontFamily;
+  fontSize: FontSize;
   accentColor: AccentColor;
   companyName: string;
   companySlogan: string;
   customLogo: string;
   loginBg: string;
+  loginBgImage: string;
 }
+
+export const FONT_SIZES: Record<FontSize, { label: string; base: string; cssVal: string }> = {
+  sm: { label: "صغير",   base: "13px", cssVal: "0.8125rem" },
+  md: { label: "متوسط",  base: "15px", cssVal: "0.9375rem" },
+  lg: { label: "كبير",   base: "17px", cssVal: "1.0625rem" },
+  xl: { label: "كبير جداً", base: "19px", cssVal: "1.1875rem" },
+};
 
 const DEFAULTS: AppSettings = {
   currency: "EGP",
   fontFamily: "Tajawal",
+  fontSize: "md",
   accentColor: "amber",
   companyName: "Halal Tech",
   companySlogan: "الحلال = البركة",
   customLogo: "",
   loginBg: "default",
+  loginBgImage: "",
 };
 
 const STORAGE_KEY = "halal_erp_settings";
@@ -82,10 +94,15 @@ export const LOGIN_BG_OPTIONS = [
 function applySettings(s: AppSettings) {
   const root = document.documentElement;
 
-  // Font
+  // Font family
   const fontDef = FONTS[s.fontFamily];
   root.style.setProperty("--erp-font", `'${s.fontFamily}', sans-serif`);
   document.body.style.fontFamily = `'${s.fontFamily}', sans-serif`;
+
+  // Font size
+  const sizeVal = FONT_SIZES[s.fontSize ?? "md"].cssVal;
+  root.style.setProperty("--erp-font-size", sizeVal);
+  document.body.style.fontSize = sizeVal;
 
   // Load Google Font
   const existingLink = document.getElementById("erp-font-link");
