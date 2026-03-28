@@ -16,6 +16,17 @@ import {
   incomeTable,
   transactionsTable,
   productsTable,
+  receiptVouchersTable,
+  depositVouchersTable,
+  paymentVouchersTable,
+  salesReturnsTable,
+  saleReturnItemsTable,
+  purchaseReturnsTable,
+  purchaseReturnItemsTable,
+  treasuryVouchersTable,
+  journalEntriesTable,
+  journalEntryLinesTable,
+  accountsTable,
 } from "@workspace/db";
 
 const router = Router();
@@ -202,17 +213,32 @@ router.post("/settings/reset", async (req, res) => {
       return res.status(400).json({ error: "يجب كتابة عبارة التأكيد بشكل صحيح" });
     }
 
+    // حذف البنود أولاً (foreign keys)
+    await db.delete(journalEntryLinesTable);
+    await db.delete(journalEntriesTable);
+    await db.delete(saleReturnItemsTable);
+    await db.delete(salesReturnsTable);
+    await db.delete(purchaseReturnItemsTable);
+    await db.delete(purchaseReturnsTable);
     await db.delete(saleItemsTable);
     await db.delete(salesTable);
     await db.delete(purchaseItemsTable);
     await db.delete(purchasesTable);
     await db.delete(expensesTable);
     await db.delete(incomeTable);
+    await db.delete(receiptVouchersTable);
+    await db.delete(depositVouchersTable);
+    await db.delete(paymentVouchersTable);
+    await db.delete(treasuryVouchersTable);
+    await db.delete(safeTransfersTable);
     await db.delete(transactionsTable);
+    await db.delete(accountsTable);
 
+    // تصفير الأرصدة
     await db.update(customersTable).set({ balance: "0" });
     await db.update(suppliersTable).set({ balance: "0" });
     await db.update(productsTable).set({ quantity: "0" });
+    await db.update(safesTable).set({ balance: "0" });
 
     res.json({ success: true, message: "تم تصفير قاعدة البيانات بنجاح" });
   } catch (e: any) {
