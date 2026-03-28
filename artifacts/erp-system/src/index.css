@@ -143,6 +143,36 @@ html.light .glass-input::placeholder {
   color: rgba(0, 0, 0, 0.35) !important;
 }
 
+/* ── Colored accent text — darker in light mode ── */
+html.light .text-violet-400         { color: #5b21b6 !important; }
+html.light .text-orange-400         { color: #c2410c !important; }
+html.light .text-red-400            { color: #b91c1c !important; }
+html.light .text-emerald-400        { color: #065f46 !important; }
+html.light .text-cyan-400           { color: #0e7490 !important; }
+html.light .text-amber-400          { color: #92400e !important; }
+html.light .text-blue-400           { color: #1d4ed8 !important; }
+html.light .text-green-400          { color: #166534 !important; }
+html.light .text-pink-400           { color: #9d174d !important; }
+html.light .text-indigo-400         { color: #3730a3 !important; }
+html.light .text-rose-400           { color: #9f1239 !important; }
+html.light .text-sky-400            { color: #075985 !important; }
+html.light .text-teal-400           { color: #134e4a !important; }
+html.light .text-yellow-400         { color: #78350f !important; }
+
+/* ── Card accent rings/backgrounds — more visible in light mode ── */
+html.light .ring-violet-500\/30     { --tw-ring-color: rgba(109,40,217,0.35) !important; }
+html.light .ring-orange-500\/30     { --tw-ring-color: rgba(194,65,12,0.35) !important; }
+html.light .ring-red-500\/30        { --tw-ring-color: rgba(185,28,28,0.35) !important; }
+html.light .ring-emerald-500\/30    { --tw-ring-color: rgba(6,95,70,0.35) !important; }
+html.light .ring-cyan-500\/30       { --tw-ring-color: rgba(14,116,144,0.35) !important; }
+html.light .ring-amber-500\/30      { --tw-ring-color: rgba(146,64,14,0.35) !important; }
+html.light .bg-violet-500\/8        { background: rgba(109,40,217,0.10) !important; }
+html.light .bg-orange-500\/8        { background: rgba(194,65,12,0.10) !important; }
+html.light .bg-red-500\/8           { background: rgba(185,28,28,0.10) !important; }
+html.light .bg-emerald-500\/8       { background: rgba(6,95,70,0.10) !important; }
+html.light .bg-cyan-500\/8          { background: rgba(14,116,144,0.10) !important; }
+html.light .bg-amber-500\/8         { background: rgba(146,64,14,0.10) !important; }
+
 /* Override hardcoded white text throughout the app */
 html.light .text-white              { color: hsl(222, 47%, 10%) !important; }
 html.light .text-white\/90          { color: hsl(222, 47%, 14%) !important; }
