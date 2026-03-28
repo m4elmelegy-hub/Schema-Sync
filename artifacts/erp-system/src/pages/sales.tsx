@@ -287,6 +287,65 @@ function SaleDetailModal({ saleId, onClose }: { saleId: number; onClose: () => v
   );
 }
 
+interface SuccessInvoice {
+  invoice_no: string;
+  total_amount: number;
+  customer_name: string | null;
+  customer_phone: string | null;
+  payment_type: string;
+  items: CartItem[];
+}
+
+function WhatsAppSuccessModal({ invoice, onClose }: { invoice: SuccessInvoice; onClose: () => void }) {
+  const paymentLabel: Record<string, string> = { cash: "نقدي", credit: "آجل", partial: "جزئي" };
+
+  const buildWhatsAppMsg = () => {
+    const lines = [
+      `🧾 *فاتورة مبيعات - Halal Tech*`,
+      `رقم الفاتورة: ${invoice.invoice_no}`,
+      ``,
+      `*الأصناف:*`,
+      ...invoice.items.map(i => `• ${i.product_name} × ${i.quantity} = ${i.total_price.toFixed(2)} ج.م`),
+      ``,
+      `*الإجمالي: ${invoice.total_amount.toFixed(2)} ج.م*`,
+      `طريقة الدفع: ${paymentLabel[invoice.payment_type] || invoice.payment_type}`,
+      ``,
+      `شكراً لتعاملكم معنا 🙏`,
+    ];
+    return encodeURIComponent(lines.join("\n"));
+  };
+
+  const phoneRaw = invoice.customer_phone?.replace(/\D/g, "") ?? "";
+  const phone = phoneRaw.startsWith("0") ? "2" + phoneRaw : phoneRaw.startsWith("2") ? phoneRaw : "2" + phoneRaw;
+  const waUrl = `https://wa.me/${phone}?text=${buildWhatsAppMsg()}`;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      <div className="glass-panel rounded-3xl p-8 w-full max-w-sm border border-emerald-500/30 shadow-2xl text-center space-y-5">
+        <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto border border-emerald-500/40">
+          <Receipt className="w-8 h-8 text-emerald-400" />
+        </div>
+        <div>
+          <h3 className="text-xl font-black text-white">تم إصدار الفاتورة</h3>
+          <p className="text-amber-400 font-bold text-lg mt-1">{invoice.invoice_no}</p>
+          <p className="text-white/50 text-sm mt-1">الإجمالي: <span className="text-white font-bold">{formatCurrency(invoice.total_amount)}</span></p>
+          {invoice.customer_name && <p className="text-white/50 text-sm">العميل: <span className="text-white">{invoice.customer_name}</span></p>}
+        </div>
+        <div className="space-y-3">
+          {invoice.customer_phone && (
+            <a href={waUrl} target="_blank" rel="noopener noreferrer"
+              className="flex items-center justify-center gap-3 w-full py-3 rounded-2xl bg-[#25D366]/20 border border-[#25D366]/40 text-[#25D366] font-bold hover:bg-[#25D366]/30 transition-all">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+              إرسال الفاتورة عبر واتساب
+            </a>
+          )}
+          <button onClick={onClose} className="w-full btn-secondary py-3">إغلاق</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function NewSalePanel({ onDone }: { onDone: () => void }) {
   const { data: products = [] } = useGetProducts();
   const { data: customers = [] } = useGetCustomers();
@@ -294,28 +353,48 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  // جلب المخازن والمندوبين مباشرة
+  const { data: warehouses = [] } = useQuery<{ id: number; name: string }[]>({
+    queryKey: ["/api/settings/warehouses"],
+    queryFn: () => fetch(api("/api/settings/warehouses")).then(r => r.json()),
+  });
+  const { data: salespeople = [] } = useQuery<{ id: number; name: string; role: string; active: boolean }[]>({
+    queryKey: ["/api/settings/users"],
+    queryFn: () => fetch(api("/api/settings/users")).then(r => r.json()),
+  });
+
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [paymentType, setPaymentType] = useState<"cash" | "credit" | "partial">("cash");
   const [paidAmount, setPaidAmount] = useState<string>("");
   const [customerId, setCustomerId] = useState<string>("");
   const [safeId, setSafeId] = useState<string>("");
+  const [warehouseId, setWarehouseId] = useState<string>("");
+  const [salespersonId, setSalespersonId] = useState<string>("");
   const [discountPct, setDiscountPct] = useState<string>("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
+  const [successInvoice, setSuccessInvoice] = useState<SuccessInvoice | null>(null);
 
   const checkoutMutation = useMutation({
     mutationFn: (data: object) => fetch(api("/api/sales"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) })
       .then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error || "خطأ في التسجيل"); return j; }),
-    onSuccess: () => {
+    onSuccess: (data) => {
       const selectedCustomer = customers.find(c => c.id === parseInt(customerId));
-      toast({ title: "✅ تم إصدار الفاتورة" + (selectedCustomer && paymentType !== 'cash' ? ` — تم تحديث رصيد ${selectedCustomer.name}` : '') });
       queryClient.invalidateQueries({ queryKey: ["/api/sales"] });
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/settings/safes"] });
-      setCart([]); setPaidAmount(""); setCustomerId(""); setSafeId(""); setDiscountPct(""); setPaymentType("cash");
-      onDone();
+      setSuccessInvoice({
+        invoice_no: data.invoice_no,
+        total_amount: data.total_amount,
+        customer_name: selectedCustomer?.name ?? null,
+        customer_phone: selectedCustomer?.phone ?? null,
+        payment_type: paymentType,
+        items: [...cart],
+      });
+      setCart([]); setPaidAmount(""); setCustomerId(""); setSafeId("");
+      setWarehouseId(""); setSalespersonId(""); setDiscountPct(""); setPaymentType("cash");
     },
     onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
   });
@@ -346,13 +425,14 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
     return { ...i, quantity: newQ, total_price: newQ * i.unit_price };
   }));
 
+  const selectedCustomer = customers.find(c => c.id === parseInt(customerId));
+
   const handleCheckout = () => {
     if (cart.length === 0) { toast({ title: "السلة فارغة", variant: "destructive" }); return; }
     if ((paymentType === "credit" || paymentType === "partial") && !customerId) {
       toast({ title: "يجب اختيار عميل للآجل أو الجزئي", variant: "destructive" }); return;
     }
     const actualPaid = paymentType === "cash" ? cartTotal : paymentType === "credit" ? 0 : parseFloat(paidAmount) || 0;
-    const selectedCustomer = customers.find(c => c.id === parseInt(customerId));
 
     checkoutMutation.mutate({
       payment_type: paymentType,
@@ -361,146 +441,187 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
       customer_id: selectedCustomer?.id ?? null,
       customer_name: selectedCustomer?.name ?? null,
       safe_id: safeId ? parseInt(safeId) : null,
+      warehouse_id: warehouseId ? parseInt(warehouseId) : null,
+      salesperson_id: salespersonId ? parseInt(salespersonId) : null,
+      discount_percent: parseFloat(discountPct) || 0,
+      discount_amount: discountAmount,
       items: cart,
     });
   };
 
-  return (
-    <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-220px)]">
-      {/* Products grid */}
-      <div className="flex-1 flex flex-col min-h-0">
-        <div className="glass-panel rounded-2xl p-3 mb-3 shrink-0 flex flex-wrap gap-2 items-center">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <Search className="w-4 h-4 text-white/40 shrink-0" />
-            <input type="text" placeholder="ابحث عن منتج..." className="bg-transparent text-white outline-none text-sm w-full placeholder:text-white/30" value={search} onChange={e => setSearch(e.target.value)} />
-          </div>
-          <select className="bg-black/30 text-white/70 border border-white/10 rounded-xl px-3 py-1.5 text-sm outline-none appearance-none" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
-            <option value="">كل الأصناف</option>
-            {categories.map(cat => <option key={cat} value={cat!} className="bg-gray-900">{cat}</option>)}
-          </select>
-        </div>
-        <div className="flex-1 overflow-y-auto glass-panel rounded-2xl p-3">
-          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
-            {filteredProducts.map(product => (
-              <button key={product.id} onClick={() => addToCart(product)} disabled={product.quantity <= 0}
-                className={`glass-panel rounded-2xl p-3 text-right transition-all hover:-translate-y-0.5 ${product.quantity <= 0 ? 'opacity-40 cursor-not-allowed' : 'hover:border-amber-500/40'}`}>
-                <div className="h-14 bg-white/5 rounded-xl mb-3 flex items-center justify-center border border-white/5">
-                  <Package className="w-6 h-6 text-white/30" />
-                </div>
-                <p className="font-bold text-white text-sm truncate">{product.name}</p>
-                {product.category && <p className="text-xs text-amber-400/70 mt-0.5">{product.category}</p>}
-                <div className="flex justify-between items-center mt-2">
-                  <span className="text-emerald-400 font-bold text-sm">{formatCurrency(product.sale_price)}</span>
-                  <span className="text-xs text-white/40">{product.quantity}</span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Cart */}
-      <div className="w-full lg:w-[380px] flex flex-col glass-panel rounded-2xl overflow-hidden shrink-0">
-        <div className="p-4 border-b border-white/10 bg-white/5 flex justify-between items-center">
-          <h3 className="font-bold text-white flex items-center gap-2">
-            <ShoppingCart className="w-5 h-5 text-amber-400" /> السلة
-          </h3>
-          <span className="bg-amber-500/20 text-amber-400 px-3 py-1 rounded-full text-sm font-bold">{cart.length} صنف</span>
-        </div>
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
-          {cart.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-white/20 gap-3 py-12">
-              <ShoppingCart className="w-12 h-12 opacity-30" />
-              <p className="text-sm">السلة فارغة</p>
-            </div>
-          ) : cart.map(item => (
-            <div key={item.product_id} className="bg-white/5 border border-white/10 rounded-xl p-3">
-              <div className="flex justify-between items-start mb-2">
-                <p className="font-bold text-white text-sm flex-1 ml-2 truncate">{item.product_name}</p>
-                <button onClick={() => setCart(prev => prev.filter(i => i.product_id !== item.product_id))} className="text-red-400 p-1"><Trash2 className="w-3 h-3" /></button>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <button onClick={() => updateQty(item.product_id, -1)} className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center"><Minus className="w-3 h-3 text-white" /></button>
-                  <span className="text-white font-bold text-sm w-5 text-center">{item.quantity}</span>
-                  <button onClick={() => updateQty(item.product_id, 1)} className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center"><Plus className="w-3 h-3 text-white" /></button>
-                </div>
-                <span className="font-bold text-emerald-400 text-sm">{formatCurrency(item.total_price)}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="p-4 border-t border-white/10 bg-black/30 space-y-3">
-          {/* العميل */}
-          <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
-            <User className="w-4 h-4 text-white/40 shrink-0" />
-            <select className="bg-transparent text-white outline-none w-full text-sm appearance-none" value={customerId} onChange={e => setCustomerId(e.target.value)}>
-              <option value="" className="bg-slate-900">عميل نقدي (بدون حساب)</option>
-              {customers.map(c => <option key={c.id} value={c.id} className="bg-slate-900">{c.name}{c.balance > 0 ? ` (دين: ${Number(c.balance).toFixed(0)} ج.م)` : ''}</option>)}
-            </select>
-          </div>
-
-          {/* الخزينة */}
-          <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
-            <Vault className="w-4 h-4 text-amber-400/60 shrink-0" />
-            <select className="bg-transparent text-white outline-none w-full text-sm appearance-none" value={safeId} onChange={e => setSafeId(e.target.value)}>
-              <option value="" className="bg-slate-900">-- اختر الخزينة --</option>
-              {safes.map(s => <option key={s.id} value={s.id} className="bg-slate-900">{s.name} ({formatCurrency(Number(s.balance))})</option>)}
-            </select>
-          </div>
-
-          {/* نوع الدفع */}
-          <div className="grid grid-cols-3 gap-1">
-            {[{ v: "cash", l: "نقدي" }, { v: "credit", l: "آجل" }, { v: "partial", l: "جزئي" }].map(opt => (
-              <button key={opt.v} onClick={() => setPaymentType(opt.v as "cash" | "credit" | "partial")}
-                className={`py-2 rounded-xl text-xs font-bold border transition-all ${paymentType === opt.v ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10'}`}>
-                {opt.l}
-              </button>
-            ))}
-          </div>
-
-          {paymentType === "partial" && (
-            <input type="number" step="0.01" placeholder="المبلغ المدفوع" className="glass-input text-sm" value={paidAmount} onChange={e => setPaidAmount(e.target.value)} />
-          )}
-
-          {/* الخصم % */}
-          <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
-            <Percent className="w-4 h-4 text-white/40 shrink-0" />
-            <input
-              type="number" min="0" max="100" step="0.5"
-              placeholder="خصم % (اختياري)"
-              className="bg-transparent text-white outline-none w-full text-sm placeholder:text-white/30"
-              value={discountPct}
-              onChange={e => setDiscountPct(e.target.value)}
-            />
-          </div>
-
-          {/* ملخص المبالغ */}
-          <div className="bg-white/5 rounded-xl p-3 border border-white/5 space-y-1.5">
-            {discountAmount > 0 && (
-              <>
-                <div className="flex justify-between text-sm"><span className="text-white/50">الإجمالي قبل الخصم</span><span className="text-white/70">{formatCurrency(cartSubtotal)}</span></div>
-                <div className="flex justify-between text-sm"><span className="text-emerald-400">خصم {discountPct}%</span><span className="text-emerald-400">- {formatCurrency(discountAmount)}</span></div>
-              </>
-            )}
-            <div className="flex justify-between text-sm border-t border-white/10 pt-1.5">
-              <span className="text-white/60 font-bold">الإجمالي النهائي</span>
-              <span className="font-black text-white text-base">{formatCurrency(cartTotal)}</span>
-            </div>
-            {paymentType === "partial" && paidAmount && (
-              <div className="flex justify-between text-sm"><span className="text-white/60">المتبقي</span><span className="font-bold text-red-400">{formatCurrency(cartTotal - (parseFloat(paidAmount) || 0))}</span></div>
-            )}
-            {paymentType === "credit" && customerId && <p className="text-xs text-yellow-400">⚠ سيُضاف على رصيد العميل</p>}
-          </div>
-
-          <button onClick={handleCheckout} disabled={checkoutMutation.isPending || cart.length === 0}
-            className="w-full btn-primary py-3 disabled:opacity-50">
-            {checkoutMutation.isPending ? "جاري التسجيل..." : "إصدار الفاتورة"}
-          </button>
-        </div>
-      </div>
+  const selectRow = (label: string, icon: React.ReactNode, children: React.ReactNode) => (
+    <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
+      <span className="text-white/40 shrink-0">{icon}</span>
+      <span className="text-white/40 text-xs w-14 shrink-0">{label}</span>
+      {children}
     </div>
+  );
+
+  return (
+    <>
+      {successInvoice && (
+        <WhatsAppSuccessModal invoice={successInvoice} onClose={() => { setSuccessInvoice(null); onDone(); }} />
+      )}
+
+      <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-220px)]">
+        {/* Products grid */}
+        <div className="flex-1 flex flex-col min-h-0">
+          <div className="glass-panel rounded-2xl p-3 mb-3 shrink-0 flex flex-wrap gap-2 items-center">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <Search className="w-4 h-4 text-white/40 shrink-0" />
+              <input type="text" placeholder="ابحث عن منتج..." className="bg-transparent text-white outline-none text-sm w-full placeholder:text-white/30" value={search} onChange={e => setSearch(e.target.value)} />
+            </div>
+            <select className="bg-black/30 text-white/70 border border-white/10 rounded-xl px-3 py-1.5 text-sm outline-none appearance-none" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
+              <option value="">كل الأصناف</option>
+              {categories.map(cat => <option key={cat} value={cat!} className="bg-gray-900">{cat}</option>)}
+            </select>
+          </div>
+          <div className="flex-1 overflow-y-auto glass-panel rounded-2xl p-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
+              {filteredProducts.map(product => (
+                <button key={product.id} onClick={() => addToCart(product)} disabled={product.quantity <= 0}
+                  className={`glass-panel rounded-2xl p-3 text-right transition-all hover:-translate-y-0.5 ${product.quantity <= 0 ? 'opacity-40 cursor-not-allowed' : 'hover:border-amber-500/40'}`}>
+                  <div className="h-14 bg-white/5 rounded-xl mb-3 flex items-center justify-center border border-white/5">
+                    <Package className="w-6 h-6 text-white/30" />
+                  </div>
+                  <p className="font-bold text-white text-sm truncate">{product.name}</p>
+                  {product.category && <p className="text-xs text-amber-400/70 mt-0.5">{product.category}</p>}
+                  <div className="flex justify-between items-center mt-2">
+                    <span className="text-emerald-400 font-bold text-sm">{formatCurrency(product.sale_price)}</span>
+                    <span className="text-xs text-white/40">{product.quantity}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Cart panel */}
+        <div className="w-full lg:w-[400px] flex flex-col glass-panel rounded-2xl overflow-hidden shrink-0">
+          {/* Header */}
+          <div className="px-4 py-3 border-b border-white/10 bg-white/5">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="font-bold text-white flex items-center gap-2 text-base">
+                <ShoppingCart className="w-5 h-5 text-amber-400" /> فاتورة مبيعات
+              </h3>
+              <span className="bg-amber-500/20 text-amber-400 px-3 py-1 rounded-full text-xs font-bold">{cart.length} صنف</span>
+            </div>
+            {/* حقول الفاتورة الرئيسية - مستوحاة من النموذج القديم */}
+            <div className="grid grid-cols-2 gap-1.5 text-xs">
+              {selectRow("المخزن", <Vault className="w-3.5 h-3.5" />,
+                <select className="bg-transparent text-white outline-none w-full appearance-none text-xs" value={warehouseId} onChange={e => setWarehouseId(e.target.value)}>
+                  <option value="" className="bg-slate-900">-- اختر مخزن --</option>
+                  {warehouses.map(w => <option key={w.id} value={w.id} className="bg-slate-900">{w.name}</option>)}
+                </select>
+              )}
+              {selectRow("المندوب", <User className="w-3.5 h-3.5" />,
+                <select className="bg-transparent text-white outline-none w-full appearance-none text-xs" value={salespersonId} onChange={e => setSalespersonId(e.target.value)}>
+                  <option value="" className="bg-slate-900">-- اختر مندوب --</option>
+                  {salespeople.filter(u => u.active !== false).map(u => <option key={u.id} value={u.id} className="bg-slate-900">{u.name}</option>)}
+                </select>
+              )}
+            </div>
+          </div>
+
+          {/* Cart items */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
+            {cart.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-white/20 gap-3 py-10">
+                <ShoppingCart className="w-12 h-12 opacity-30" />
+                <p className="text-sm">اضغط على منتج لإضافته</p>
+              </div>
+            ) : cart.map(item => (
+              <div key={item.product_id} className="bg-white/5 border border-white/10 rounded-xl p-3">
+                <div className="flex justify-between items-start mb-2">
+                  <p className="font-bold text-white text-sm flex-1 ml-2 truncate">{item.product_name}</p>
+                  <button onClick={() => setCart(prev => prev.filter(i => i.product_id !== item.product_id))} className="text-red-400/70 hover:text-red-400 p-0.5"><Trash2 className="w-3.5 h-3.5" /></button>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <button onClick={() => updateQty(item.product_id, -1)} className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center hover:bg-white/20"><Minus className="w-3 h-3 text-white" /></button>
+                    <span className="text-white font-bold text-sm w-6 text-center">{item.quantity}</span>
+                    <button onClick={() => updateQty(item.product_id, 1)} className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center hover:bg-white/20"><Plus className="w-3 h-3 text-white" /></button>
+                    <span className="text-white/40 text-xs mr-1">× {formatCurrency(item.unit_price)}</span>
+                  </div>
+                  <span className="font-bold text-emerald-400 text-sm">{formatCurrency(item.total_price)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Footer: بيانات الدفع */}
+          <div className="p-3 border-t border-white/10 bg-black/40 space-y-2">
+            {/* العميل والخزينة */}
+            <div className="grid grid-cols-1 gap-1.5">
+              {selectRow("العميل", <User className="w-3.5 h-3.5" />,
+                <select className="bg-transparent text-white outline-none w-full appearance-none text-xs" value={customerId} onChange={e => setCustomerId(e.target.value)}>
+                  <option value="" className="bg-slate-900">عميل نقدي</option>
+                  {customers.map(c => <option key={c.id} value={c.id} className="bg-slate-900">{c.name}{Number(c.balance) > 0 ? ` (دين: ${Number(c.balance).toFixed(0)} ج.م)` : ''}</option>)}
+                </select>
+              )}
+              {selectedCustomer?.phone && (
+                <div className="text-xs text-[#25D366] flex items-center gap-1 px-2">
+                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                  {selectedCustomer.phone} — سيُرسل الفاتورة للواتساب بعد التسجيل
+                </div>
+              )}
+              {selectRow("الخزينة", <Vault className="w-3.5 h-3.5 text-amber-400/70" />,
+                <select className="bg-transparent text-white outline-none w-full appearance-none text-xs" value={safeId} onChange={e => setSafeId(e.target.value)}>
+                  <option value="" className="bg-slate-900">-- اختر الخزينة --</option>
+                  {safes.map(s => <option key={s.id} value={s.id} className="bg-slate-900">{s.name} ({formatCurrency(Number(s.balance))})</option>)}
+                </select>
+              )}
+            </div>
+
+            {/* طريقة الدفع والخصم */}
+            <div className="flex gap-1.5 items-center">
+              <div className="flex gap-1 flex-1">
+                {[{ v: "cash", l: "نقدي" }, { v: "credit", l: "آجل" }, { v: "partial", l: "جزئي" }].map(opt => (
+                  <button key={opt.v} onClick={() => setPaymentType(opt.v as "cash" | "credit" | "partial")}
+                    className={`flex-1 py-1.5 rounded-xl text-xs font-bold border transition-all ${paymentType === opt.v ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10'}`}>
+                    {opt.l}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-xl px-2 py-1.5 w-24">
+                <Percent className="w-3 h-3 text-white/30 shrink-0" />
+                <input type="number" min="0" max="100" step="1" placeholder="خصم" className="bg-transparent text-white outline-none w-full text-xs placeholder:text-white/20" value={discountPct} onChange={e => setDiscountPct(e.target.value)} />
+              </div>
+            </div>
+
+            {paymentType === "partial" && (
+              <input type="number" step="0.01" placeholder="المبلغ المدفوع جزئياً..." className="glass-input text-xs py-2" value={paidAmount} onChange={e => setPaidAmount(e.target.value)} />
+            )}
+
+            {/* ملخص الإجماليات */}
+            <div className="bg-white/5 rounded-xl p-3 border border-white/10 space-y-1">
+              {discountAmount > 0 && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-white/50">قبل الخصم ({discountPct}%)</span>
+                  <span className="text-white/60 line-through">{formatCurrency(cartSubtotal)}</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-white/70 text-sm font-semibold">الإجمالي</span>
+                <span className="font-black text-white text-lg">{formatCurrency(cartTotal)}</span>
+              </div>
+              {paymentType === "partial" && paidAmount && (
+                <>
+                  <div className="flex justify-between text-xs border-t border-white/10 pt-1"><span className="text-white/60">المدفوع</span><span className="text-emerald-400 font-bold">{formatCurrency(parseFloat(paidAmount) || 0)}</span></div>
+                  <div className="flex justify-between text-xs"><span className="text-white/60">المتبقي</span><span className="text-red-400 font-bold">{formatCurrency(cartTotal - (parseFloat(paidAmount) || 0))}</span></div>
+                </>
+              )}
+              {paymentType === "credit" && customerId && <p className="text-xs text-yellow-400 pt-1">⚠ سيُضاف على دَين العميل</p>}
+            </div>
+
+            <button onClick={handleCheckout} disabled={checkoutMutation.isPending || cart.length === 0}
+              className="w-full btn-primary py-3 text-sm disabled:opacity-50 font-bold">
+              {checkoutMutation.isPending ? "جاري التسجيل..." : "✦ إصدار الفاتورة"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
 

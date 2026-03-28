@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, salesTable, saleItemsTable, productsTable, customersTable, transactionsTable, safesTable } from "@workspace/db";
+import { db, salesTable, saleItemsTable, productsTable, customersTable, transactionsTable, safesTable, warehousesTable, erpUsersTable } from "@workspace/db";
 import {
   GetSalesResponse,
   CreateSaleBody,
@@ -43,6 +43,10 @@ router.post("/sales", async (req, res): Promise<void> => {
 
   const { payment_type, total_amount, paid_amount, items, customer_name, customer_id, notes } = parsed.data;
   const safe_id: number | undefined = req.body.safe_id ? parseInt(req.body.safe_id) : undefined;
+  const warehouse_id: number | undefined = req.body.warehouse_id ? parseInt(req.body.warehouse_id) : undefined;
+  const salesperson_id: number | undefined = req.body.salesperson_id ? parseInt(req.body.salesperson_id) : undefined;
+  const discount_percent: number = parseFloat(req.body.discount_percent) || 0;
+  const discount_amount: number = parseFloat(req.body.discount_amount) || 0;
   const remaining = total_amount - paid_amount;
 
   // التحقق من وجود خزينة للبيع النقدي
@@ -67,6 +71,18 @@ router.post("/sales", async (req, res): Promise<void> => {
         safe = s;
       }
 
+      // جلب المخزن والمندوب
+      let warehouseName: string | null = null;
+      if (warehouse_id) {
+        const [w] = await tx.select().from(warehousesTable).where(eq(warehousesTable.id, warehouse_id));
+        if (w) warehouseName = w.name;
+      }
+      let salespersonName: string | null = null;
+      if (salesperson_id) {
+        const [u] = await tx.select().from(erpUsersTable).where(eq(erpUsersTable.id, salesperson_id));
+        if (u) salespersonName = u.name;
+      }
+
       // 2. إنشاء الفاتورة
       const [newSale] = await tx.insert(salesTable).values({
         invoice_no: invoiceNo,
@@ -79,6 +95,12 @@ router.post("/sales", async (req, res): Promise<void> => {
         status,
         safe_id: safe?.id ?? null,
         safe_name: safe?.name ?? null,
+        warehouse_id: warehouse_id ?? null,
+        warehouse_name: warehouseName,
+        salesperson_id: salesperson_id ?? null,
+        salesperson_name: salespersonName,
+        discount_percent: String(discount_percent),
+        discount_amount: String(discount_amount),
         notes: notes ?? null,
       }).returning();
 
