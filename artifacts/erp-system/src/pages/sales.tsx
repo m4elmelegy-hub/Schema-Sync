@@ -12,13 +12,15 @@ const api = (p: string) => `${BASE}${p}`;
 interface SalesReturn {
   id: number; return_no: string; customer_name: string | null;
   total_amount: number; reason: string | null; created_at: string;
+  refund_type: string | null; safe_name: string | null; date: string | null;
 }
 
 function SalesReturnsPanel() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ customer_id: "", reason: "", item_id: "", quantity: "1", unit_price: "" });
+  const resetForm = () => setForm({ customer_id: "", reason: "", item_id: "", quantity: "1", unit_price: "", refund_type: "credit", safe_id: "", date: new Date().toISOString().split("T")[0] });
+  const [form, setForm] = useState({ customer_id: "", reason: "", item_id: "", quantity: "1", unit_price: "", refund_type: "credit", safe_id: "", date: new Date().toISOString().split("T")[0] });
 
   const { data: returns_ = [], isLoading } = useQuery<SalesReturn[]>({
     queryKey: ["/api/sales-returns"],
@@ -26,6 +28,7 @@ function SalesReturnsPanel() {
   });
   const { data: products = [] } = useGetProducts();
   const { data: customers = [] } = useGetCustomers();
+  const { data: safes = [] } = useGetSettingsSafes();
 
   const createMutation = useMutation({
     mutationFn: (data: object) => fetch(api("/api/sales-returns"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error); return j; }),
@@ -33,32 +36,44 @@ function SalesReturnsPanel() {
       qc.invalidateQueries({ queryKey: ["/api/sales-returns"] });
       qc.invalidateQueries({ queryKey: ["/api/customers"] });
       qc.invalidateQueries({ queryKey: ["/api/products"] });
+      qc.invalidateQueries({ queryKey: ["/api/settings/safes"] });
       qc.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       setShowForm(false);
-      setForm({ customer_id: "", reason: "", item_id: "", quantity: "1", unit_price: "" });
+      resetForm();
       toast({ title: "✅ تم تسجيل المرتجع — البضاعة عادت للمخزون" });
     },
     onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => fetch(api(`/api/sales-returns/${id}`), { method: "DELETE" }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/sales-returns"] }); toast({ title: "تم الحذف" }); },
+    mutationFn: (id: number) => fetch(api(`/api/sales-returns/${id}`), { method: "DELETE" }).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error); return j; }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/sales-returns"] });
+      qc.invalidateQueries({ queryKey: ["/api/customers"] });
+      qc.invalidateQueries({ queryKey: ["/api/products"] });
+      qc.invalidateQueries({ queryKey: ["/api/settings/safes"] });
+      toast({ title: "تم الحذف وعكس جميع الحركات" });
+    },
   });
 
-  const total = returns_.reduce((s, r) => s + r.total_amount, 0);
+  const totalReturns = returns_.reduce((s, r) => s + r.total_amount, 0);
   const selectedProduct = products.find(p => String(p.id) === form.item_id);
   const selectedCustomer = customers.find(c => String(c.id) === form.customer_id);
+  const itemTotal = (parseInt(form.quantity) || 1) * (parseFloat(form.unit_price) || 0);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const qty = parseInt(form.quantity) || 1;
-    const price = parseFloat(form.unit_price) || (selectedProduct ? selectedProduct.sale_price : 0);
+    const price = parseFloat(form.unit_price) || (selectedProduct ? Number(selectedProduct.sale_price) : 0);
     if (!form.item_id) { toast({ title: "اختر الصنف المرتجع", variant: "destructive" }); return; }
+    if (form.refund_type === "cash" && !form.safe_id) { toast({ title: "اختر الخزينة للاسترداد النقدي", variant: "destructive" }); return; }
     createMutation.mutate({
       customer_id: form.customer_id ? parseInt(form.customer_id) : null,
       customer_name: selectedCustomer?.name ?? null,
       reason: form.reason || null,
+      refund_type: form.refund_type,
+      safe_id: form.refund_type === "cash" ? parseInt(form.safe_id) : null,
+      date: form.date,
       items: [{
         product_id: parseInt(form.item_id),
         product_name: selectedProduct?.name ?? "",
@@ -72,40 +87,77 @@ function SalesReturnsPanel() {
   return (
     <div className="space-y-4">
       <div className="flex gap-3 items-center justify-between">
-        {total > 0 && <div className="glass-panel rounded-2xl px-5 py-2 border border-orange-500/20 bg-orange-500/5 text-sm">
-          إجمالي المرتجعات: <span className="text-orange-400 font-black">{formatCurrency(total)}</span>
-        </div>}
-        <button onClick={() => setShowForm(true)} className="btn-primary px-5 py-2 text-sm flex items-center gap-2 mr-auto">
+        {totalReturns > 0 && (
+          <div className="glass-panel rounded-2xl px-5 py-2 border border-orange-500/20 bg-orange-500/5 text-sm">
+            إجمالي المرتجعات: <span className="text-orange-400 font-black">{formatCurrency(totalReturns)}</span>
+          </div>
+        )}
+        <button onClick={() => { resetForm(); setShowForm(true); }} className="btn-primary px-5 py-2 text-sm flex items-center gap-2 mr-auto">
           <Plus className="w-4 h-4" /> مرتجع جديد
         </button>
       </div>
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <form onSubmit={handleSubmit} className="glass-panel rounded-3xl p-8 w-full max-w-md border border-white/10 shadow-2xl space-y-4">
+          <form onSubmit={handleSubmit} className="glass-panel rounded-3xl p-8 w-full max-w-md border border-white/10 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center">
               <h3 className="text-xl font-bold text-white">مرتجع مبيعات جديد</h3>
               <button type="button" onClick={() => setShowForm(false)} className="p-2 rounded-xl bg-white/10 hover:bg-white/20"><X className="w-4 h-4 text-white/70" /></button>
             </div>
-            <p className="text-xs text-emerald-400/80 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2">
-              ✓ البضاعة ستُعاد تلقائياً للمخزون · رصيد العميل سيُخصم إن اخترت عميلاً
-            </p>
 
-            {/* عميل من قاعدة البيانات */}
+            {/* نوع الاسترداد */}
             <div>
-              <label className="text-white/60 text-xs mb-1 block">العميل (من قاعدة البيانات)</label>
-              <select className="glass-input w-full appearance-none" value={form.customer_id} onChange={e => setForm(f => ({ ...f, customer_id: e.target.value }))}>
+              <label className="text-white/60 text-xs mb-2 block">نوع الاسترداد *</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button"
+                  onClick={() => setForm(f => ({ ...f, refund_type: "credit", safe_id: "" }))}
+                  className={`py-2.5 px-3 rounded-xl text-sm font-bold border transition-all ${form.refund_type === "credit" ? "bg-blue-500/30 border-blue-500/60 text-blue-300" : "bg-white/5 border-white/10 text-white/50"}`}>
+                  خصم من رصيد العميل
+                </button>
+                <button type="button"
+                  onClick={() => setForm(f => ({ ...f, refund_type: "cash" }))}
+                  className={`py-2.5 px-3 rounded-xl text-sm font-bold border transition-all ${form.refund_type === "cash" ? "bg-emerald-500/30 border-emerald-500/60 text-emerald-300" : "bg-white/5 border-white/10 text-white/50"}`}>
+                  استرداد نقدي
+                </button>
+              </div>
+              <p className="text-xs text-white/40 mt-1.5">
+                {form.refund_type === "credit"
+                  ? "يُخصم من رصيد العميل — مناسب لفواتير الآجل"
+                  : "تُصرف فلوس من الخزينة للعميل — مناسب لفواتير النقدي"}
+              </p>
+            </div>
+
+            {/* عميل */}
+            <div>
+              <label className="text-white/60 text-xs mb-1 block">العميل</label>
+              <select className="glass-input w-full appearance-none" value={form.customer_id}
+                onChange={e => setForm(f => ({ ...f, customer_id: e.target.value }))}>
                 <option value="" className="bg-gray-900">-- عميل غير مسجل / نقدي --</option>
                 {customers.map(c => (
                   <option key={c.id} value={c.id} className="bg-gray-900">
-                    {c.name}{c.balance > 0 ? ` — دين: ${Number(c.balance).toFixed(0)} ج.م` : ''}
+                    {c.name}{Number(c.balance) > 0 ? ` — دين: ${Number(c.balance).toFixed(0)} ج.م` : Number(c.balance) < 0 ? ` — له: ${Math.abs(Number(c.balance)).toFixed(0)} ج.م` : ''}
                   </option>
                 ))}
               </select>
-              {selectedCustomer && selectedCustomer.balance > 0 && (
-                <p className="text-xs text-amber-400 mt-1">سيُخصم من رصيد العميل (حالياً: {formatCurrency(selectedCustomer.balance)})</p>
+              {selectedCustomer && (
+                <p className={`text-xs mt-1 ${Number(selectedCustomer.balance) > 0 ? 'text-amber-400' : Number(selectedCustomer.balance) < 0 ? 'text-orange-400' : 'text-white/40'}`}>
+                  رصيده الحالي: {Number(selectedCustomer.balance) < 0 ? `علينا له ${formatCurrency(Math.abs(Number(selectedCustomer.balance)))}` : formatCurrency(Number(selectedCustomer.balance))}
+                  {form.refund_type === "credit" && ` ← بعد المرتجع: ${formatCurrency(Number(selectedCustomer.balance) - itemTotal)}`}
+                </p>
               )}
             </div>
+
+            {/* خزينة الاسترداد النقدي */}
+            {form.refund_type === "cash" && (
+              <div>
+                <label className="text-white/60 text-xs mb-1 block">الخزينة الصارفة *</label>
+                <select required className="glass-input w-full appearance-none" value={form.safe_id}
+                  onChange={e => setForm(f => ({ ...f, safe_id: e.target.value }))}>
+                  <option value="" className="bg-gray-900">-- اختر خزينة --</option>
+                  {safes.map(s => <option key={s.id} value={s.id} className="bg-gray-900">{s.name} ({formatCurrency(Number(s.balance))})</option>)}
+                </select>
+              </div>
+            )}
 
             {/* الصنف */}
             <div>
@@ -115,7 +167,7 @@ function SalesReturnsPanel() {
                 setForm(f => ({ ...f, item_id: e.target.value, unit_price: prod ? String(prod.sale_price) : "" }));
               }}>
                 <option value="" className="bg-gray-900">-- اختر صنف --</option>
-                {products.map(p => <option key={p.id} value={p.id} className="bg-gray-900">{p.name}</option>)}
+                {products.map(p => <option key={p.id} value={p.id} className="bg-gray-900">{p.name} (مخزون: {Number(p.quantity)})</option>)}
               </select>
             </div>
 
@@ -132,14 +184,20 @@ function SalesReturnsPanel() {
 
             {form.item_id && form.unit_price && (
               <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl px-4 py-2 flex justify-between">
-                <span className="text-white/60 text-sm">الإجمالي</span>
-                <span className="text-orange-400 font-bold">{formatCurrency((parseInt(form.quantity) || 1) * (parseFloat(form.unit_price) || 0))}</span>
+                <span className="text-white/60 text-sm">إجمالي المرتجع</span>
+                <span className="text-orange-400 font-bold">{formatCurrency(itemTotal)}</span>
               </div>
             )}
 
-            <div>
-              <label className="text-white/60 text-xs mb-1 block">سبب الإرجاع</label>
-              <input type="text" className="glass-input" value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} placeholder="عيب مصنعي / غير مطابق للمواصفات..." />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-white/60 text-xs mb-1 block">التاريخ</label>
+                <input type="date" className="glass-input" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-white/60 text-xs mb-1 block">سبب الإرجاع</label>
+                <input type="text" className="glass-input" value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} placeholder="عيب مصنعي..." />
+              </div>
             </div>
 
             <div className="flex gap-3">
@@ -158,6 +216,7 @@ function SalesReturnsPanel() {
                 <th className="p-4 text-white/60">رقم المرتجع</th>
                 <th className="p-4 text-white/60">العميل</th>
                 <th className="p-4 text-white/60">الإجمالي</th>
+                <th className="p-4 text-white/60">نوع الاسترداد</th>
                 <th className="p-4 text-white/60">السبب</th>
                 <th className="p-4 text-white/60">التاريخ</th>
                 <th className="p-4 w-12"></th>
@@ -165,17 +224,22 @@ function SalesReturnsPanel() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={6} className="p-12 text-center text-white/40">جاري التحميل...</td></tr>
+                <tr><td colSpan={7} className="p-12 text-center text-white/40">جاري التحميل...</td></tr>
               ) : returns_.length === 0 ? (
-                <tr><td colSpan={6} className="p-12 text-center text-white/40">لا توجد مرتجعات</td></tr>
+                <tr><td colSpan={7} className="p-12 text-center text-white/40">لا توجد مرتجعات</td></tr>
               ) : returns_.map(r => (
                 <tr key={r.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                   <td className="p-4 font-bold text-amber-400 font-mono">{r.return_no}</td>
                   <td className="p-4 text-white">{r.customer_name || "عميل نقدي"}</td>
                   <td className="p-4 font-bold text-orange-400">{formatCurrency(r.total_amount)}</td>
+                  <td className="p-4">
+                    <span className={`px-2 py-0.5 rounded-lg text-xs font-bold border ${r.refund_type === "cash" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "bg-blue-500/20 text-blue-400 border-blue-500/30"}`}>
+                      {r.refund_type === "cash" ? `نقدي — ${r.safe_name || ""}` : "خصم رصيد"}
+                    </span>
+                  </td>
                   <td className="p-4 text-white/50">{r.reason || "—"}</td>
-                  <td className="p-4 text-white/40 text-xs">{formatDate(r.created_at)}</td>
-                  <td className="p-4"><button onClick={() => { if (confirm("حذف المرتجع؟")) deleteMutation.mutate(r.id); }} className="p-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400"><Trash2 className="w-3.5 h-3.5" /></button></td>
+                  <td className="p-4 text-white/40 text-xs">{r.date || formatDate(r.created_at)}</td>
+                  <td className="p-4"><button onClick={() => { if (confirm("حذف المرتجع وعكس تأثيره على الرصيد والمخزون؟")) deleteMutation.mutate(r.id); }} className="p-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400"><Trash2 className="w-3.5 h-3.5" /></button></td>
                 </tr>
               ))}
             </tbody>
