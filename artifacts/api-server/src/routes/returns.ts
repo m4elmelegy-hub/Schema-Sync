@@ -27,37 +27,50 @@ router.post("/sales-returns", async (req, res): Promise<void> => {
   const { sale_id, customer_id, customer_name, items, reason, notes } = req.body;
   if (!items?.length) { res.status(400).json({ error: "أضف أصناف المرتجع" }); return; }
   const total = items.reduce((s: number, i: { total_price: number }) => s + i.total_price, 0);
-  const count = await db.select().from(salesReturnsTable);
   const return_no = `SR-${Date.now()}`;
-  const [ret] = await db.insert(salesReturnsTable).values({
-    return_no, sale_id: sale_id ?? null, customer_id: customer_id ?? null,
-    customer_name: customer_name ?? null, total_amount: String(total),
-    reason: reason ?? null, notes: notes ?? null,
-  }).returning();
-  for (const item of items) {
-    await db.insert(saleReturnItemsTable).values({
-      return_id: ret.id,
-      product_id: item.product_id,
-      product_name: item.product_name,
-      quantity: String(item.quantity),
-      unit_price: String(item.unit_price),
-      total_price: String(item.total_price),
+
+  try {
+    const ret = await db.transaction(async (tx) => {
+      const [ret] = await tx.insert(salesReturnsTable).values({
+        return_no, sale_id: sale_id ?? null, customer_id: customer_id ?? null,
+        customer_name: customer_name ?? null, total_amount: String(total),
+        reason: reason ?? null, notes: notes ?? null,
+      }).returning();
+
+      for (const item of items) {
+        await tx.insert(saleReturnItemsTable).values({
+          return_id: ret.id,
+          product_id: item.product_id,
+          product_name: item.product_name,
+          quantity: String(item.quantity),
+          unit_price: String(item.unit_price),
+          total_price: String(item.total_price),
+        });
+        // أعِد الكمية للمخزون (العميل يُرجع البضاعة → المخزون يرتفع)
+        const [prod] = await tx.select().from(productsTable).where(eq(productsTable.id, item.product_id));
+        if (prod) {
+          await tx.update(productsTable)
+            .set({ quantity: String(Number(prod.quantity) + item.quantity) })
+            .where(eq(productsTable.id, item.product_id));
+        }
+      }
+
+      // خصم المرتجع من رصيد العميل (كان دَيْناً → ينقص)
+      if (customer_id) {
+        const [cust] = await tx.select().from(customersTable).where(eq(customersTable.id, parseInt(customer_id)));
+        if (cust) {
+          await tx.update(customersTable)
+            .set({ balance: String(Math.max(0, Number(cust.balance) - total)) })
+            .where(eq(customersTable.id, cust.id));
+        }
+      }
+      return ret;
     });
-    // أعِد الكمية للمخزون
-    const [prod] = await db.select().from(productsTable).where(eq(productsTable.id, item.product_id));
-    if (prod) {
-      await db.update(productsTable).set({ quantity: prod.quantity + item.quantity }).where(eq(productsTable.id, item.product_id));
-    }
+
+    res.status(201).json({ ...ret, total_amount: Number(ret.total_amount), created_at: ret.created_at.toISOString() });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "خطأ في حفظ المرتجع" });
   }
-  // خصم من رصيد العميل إن وُجد
-  if (customer_id) {
-    const [cust] = await db.select().from(customersTable).where(eq(customersTable.id, customer_id));
-    if (cust) {
-      await db.update(customersTable).set({ balance: String(Math.max(0, Number(cust.balance) - total)) })
-        .where(eq(customersTable.id, customer_id));
-    }
-  }
-  res.status(201).json({ ...ret, total_amount: Number(ret.total_amount), created_at: ret.created_at.toISOString() });
 });
 
 router.delete("/sales-returns/:id", async (req, res): Promise<void> => {
