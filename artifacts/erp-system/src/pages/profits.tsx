@@ -124,7 +124,7 @@ export default function Profits() {
     });
   }, [data?.by_product, sortBy]);
 
-  const maxProfit = useMemo(() => Math.max(...(data?.by_product.map(p => p.profit) ?? [0])), [data?.by_product]);
+  const maxProfit = useMemo(() => Math.max(...(data?.by_product?.map(p => p.profit) ?? [0])), [data?.by_product]);
 
   const arabicMonth = (m: string) => {
     const months = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
