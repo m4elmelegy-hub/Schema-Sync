@@ -18,7 +18,7 @@ interface FinancialTransaction {
 const TYPE_LABELS: Record<string, string> = {
   sale_cash: "بيع نقدي", sale_credit: "بيع آجل", sale_partial: "بيع جزئي",
   expense: "مصروف", income: "إيراد",
-  voucher_receipt: "سند قبض (خزينة)", voucher_payment: "سند صرف (خزينة)",
+  voucher_receipt: "سند قبض (خزينة)", voucher_payment: "سند توريد (خزينة)",
   receipt_voucher: "سند قبض عميل", deposit_voucher: "سند توريد",
   transfer_in: "تحويل وارد", transfer_out: "تحويل صادر",
 };

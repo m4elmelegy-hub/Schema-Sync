@@ -657,7 +657,7 @@ function FinancialSummary() {
               ) : (
                 [...transactions].reverse().map(tx => {
                   const isIn = tx.type === 'sale' || tx.type === 'receipt' || tx.type === 'income';
-                  const labels: Record<string, string> = { sale: 'مبيعات', purchase: 'مشتريات', expense: 'مصروف', income: 'إيراد', receipt: 'سند قبض', payment: 'سند صرف' };
+                  const labels: Record<string, string> = { sale: 'مبيعات', purchase: 'مشتريات', expense: 'مصروف', income: 'إيراد', receipt: 'سند قبض', payment: 'سند توريد' };
                   const colors: Record<string, string> = { sale: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30', purchase: 'bg-red-500/20 text-red-400 border-red-500/30', expense: 'bg-orange-500/20 text-orange-400 border-orange-500/30', income: 'bg-blue-500/20 text-blue-400 border-blue-500/30', receipt: 'bg-teal-500/20 text-teal-400 border-teal-500/30', payment: 'bg-purple-500/20 text-purple-400 border-purple-500/30' };
                   return (
                     <tr key={tx.id} className="border-b border-white/5 hover:bg-white/3">

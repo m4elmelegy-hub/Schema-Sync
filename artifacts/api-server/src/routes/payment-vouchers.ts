@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
-import { db, paymentVouchersTable, safesTable, transactionsTable } from "@workspace/db";
+import { db, paymentVouchersTable, safesTable, customersTable, transactionsTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -23,14 +23,25 @@ router.post("/payment-vouchers", async (req, res): Promise<void> => {
 
   try {
     const voucher = await db.transaction(async (tx) => {
-      // 1. الخزينة تنزل
+      // 1. الخزينة تنزل (نحن ندفع للعميل)
       const [safe] = await tx.select().from(safesTable).where(eq(safesTable.id, parseInt(safe_id)));
       if (!safe) throw new Error("الخزينة غير موجودة");
-      const newBal = Number(safe.balance) - amt;
-      if (newBal < 0) throw new Error("رصيد الخزينة غير كافٍ");
-      await tx.update(safesTable).set({ balance: String(newBal) }).where(eq(safesTable.id, safe.id));
+      const newSafeBal = Number(safe.balance) - amt;
+      if (newSafeBal < 0) throw new Error("رصيد الخزينة غير كافٍ");
+      await tx.update(safesTable).set({ balance: String(newSafeBal) }).where(eq(safesTable.id, safe.id));
 
-      // 2. إنشاء سند الصرف
+      // 2. رصيد العميل يرتفع (نسدد له ما علينا)
+      // رصيد سالب (-500): نحن المدينون → يقل السالب (-500 + 200 = -300) ✓ سددنا 200
+      // رصيد موجب (+500): هو مدين لنا → يزيد (500 + 200 = 700) في حالة سلفة مثلاً
+      if (customer_id) {
+        const [cust] = await tx.select().from(customersTable).where(eq(customersTable.id, parseInt(customer_id)));
+        if (cust) {
+          const newCustBal = Number(cust.balance) + amt;
+          await tx.update(customersTable).set({ balance: String(newCustBal) }).where(eq(customersTable.id, cust.id));
+        }
+      }
+
+      // 3. إنشاء سند التوريد
       const voucher_no = `PAY-${Date.now()}`;
       const [v] = await tx.insert(paymentVouchersTable).values({
         voucher_no,
@@ -43,7 +54,7 @@ router.post("/payment-vouchers", async (req, res): Promise<void> => {
         notes: notes ?? null,
       }).returning();
 
-      // 3. الحركة المالية المركزية
+      // 4. الحركة المالية المركزية
       await tx.insert(transactionsTable).values({
         type: "payment_voucher",
         reference_type: "payment_voucher",
@@ -54,7 +65,7 @@ router.post("/payment-vouchers", async (req, res): Promise<void> => {
         customer_name,
         amount: String(amt),
         direction: "out",
-        description: `سند صرف ${voucher_no} — ${customer_name}`,
+        description: `سند توريد ${voucher_no} — ${customer_name} (تسديد ما علينا)`,
         date: date ?? new Date().toISOString().split("T")[0],
         related_id: v.id,
       });
@@ -63,7 +74,7 @@ router.post("/payment-vouchers", async (req, res): Promise<void> => {
     });
     res.status(201).json(fmt(voucher));
   } catch (err: unknown) {
-    res.status(400).json({ error: err instanceof Error ? err.message : "خطأ في حفظ سند الصرف" });
+    res.status(400).json({ error: err instanceof Error ? err.message : "خطأ في حفظ سند التوريد" });
   }
 });
 
@@ -73,9 +84,17 @@ router.delete("/payment-vouchers/:id", async (req, res): Promise<void> => {
     await db.transaction(async (tx) => {
       const [v] = await tx.select().from(paymentVouchersTable).where(eq(paymentVouchersTable.id, id));
       if (!v) throw new Error("غير موجود");
-      // عكس رصيد الخزينة
+
+      // عكس رصيد الخزينة (نرجع المبلغ للخزينة)
       const [safe] = await tx.select().from(safesTable).where(eq(safesTable.id, v.safe_id));
       if (safe) await tx.update(safesTable).set({ balance: String(Number(safe.balance) + Number(v.amount)) }).where(eq(safesTable.id, safe.id));
+
+      // عكس رصيد العميل (نرجع الدين)
+      if (v.customer_id) {
+        const [cust] = await tx.select().from(customersTable).where(eq(customersTable.id, v.customer_id));
+        if (cust) await tx.update(customersTable).set({ balance: String(Number(cust.balance) - Number(v.amount)) }).where(eq(customersTable.id, cust.id));
+      }
+
       await tx.delete(paymentVouchersTable).where(eq(paymentVouchersTable.id, id));
     });
     res.json({ success: true });

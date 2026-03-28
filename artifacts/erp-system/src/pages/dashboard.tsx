@@ -152,7 +152,7 @@ export default function Dashboard() {
                           tx.type === 'purchase' ? 'مشتريات' : 
                           tx.type === 'expense' ? 'مصروف' : 
                           tx.type === 'income' ? 'إيراد' : 
-                          tx.type === 'receipt' ? 'سند قبض' : 'سند صرف'
+                          tx.type === 'receipt' ? 'سند قبض' : 'سند توريد'
                         }
                       </span>
                       <span className="font-bold text-white">{formatCurrency(tx.amount)}</span>

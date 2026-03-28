@@ -28,11 +28,13 @@ router.post("/receipt-vouchers", async (req, res): Promise<void> => {
       if (!safe) throw new Error("الخزينة غير موجودة");
       await tx.update(safesTable).set({ balance: String(Number(safe.balance) + amt) }).where(eq(safesTable.id, safe.id));
 
-      // 2. خصم رصيد العميل (تخفيض الديون)
+      // 2. خصم من رصيد العميل — بدون سقف عند الصفر
+      // رصيد موجب (+500): يدين لنا → يقل (500 - 200 = 300) ✓
+      // رصيد سالب (-500): نحن المدينون → يزيد السالب (-500 - 200 = -700) ✓ (أعطانا أكثر كرصيد له)
       if (customer_id) {
         const [cust] = await tx.select().from(customersTable).where(eq(customersTable.id, parseInt(customer_id)));
         if (cust) {
-          const newBalance = Math.max(0, Number(cust.balance) - amt);
+          const newBalance = Number(cust.balance) - amt;
           await tx.update(customersTable).set({ balance: String(newBalance) }).where(eq(customersTable.id, cust.id));
         }
       }

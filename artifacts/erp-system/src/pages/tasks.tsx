@@ -80,12 +80,12 @@ export default function Tasks() {
     },
     {
       op: "payment-voucher" as Operation,
-      title: "سند صرف",
-      sub: "صرف لعميل",
+      title: "سند توريد",
+      sub: "تسديد للعميل",
       icon: ArrowUpFromLine,
-      color: "text-red-400",
-      ring: "ring-red-500/30",
-      bg: "bg-red-500/8",
+      color: "text-orange-400",
+      ring: "ring-orange-500/30",
+      bg: "bg-orange-500/8",
       stat: formatCurrency(safes.reduce((s, x) => s + Number(x.balance), 0)),
       statLabel: "رصيد الخزائن",
     },
@@ -345,23 +345,32 @@ function PaymentVoucherForm({ safes, customers, onSuccess }: { safes: Safe[]; cu
     setError(""); setLoading(true);
     try {
       await post("/api/payment-vouchers", { customer_id: customerId || undefined, customer_name: customerName, safe_id: safeId, amount: Number(amount), notes });
-      onSuccess(`تم حفظ سند الصرف — ${formatCurrency(Number(amount))} ✓`);
+      onSuccess(`تم حفظ سند التوريد — ${formatCurrency(Number(amount))} ✓`);
     } catch (e: unknown) { setError(e instanceof Error ? e.message : "خطأ"); }
     finally { setLoading(false); }
   };
 
+  const selectedCust = customers.find(x => String(x.id) === customerId);
+
   return (
-    <FormShell title="سند صرف" icon={ArrowUpFromLine} color="text-red-400">
-      <p className="text-xs text-white/50 -mt-2 mb-2">الشركة تصرف نقداً → الخزينة تنزل</p>
+    <FormShell title="سند توريد" icon={ArrowUpFromLine} color="text-orange-400">
+      <p className="text-xs text-white/50 -mt-2 mb-2">تسديد نقدي للعميل → الخزينة تنزل ورصيد العميل يرتفع</p>
       <form onSubmit={submit} className="space-y-4">
         <div>
           <FL>العميل</FL>
           <select className="glass-input w-full text-white text-sm" value={customerId} onChange={e => handleCustomer(e.target.value)}>
             <option value="" className="bg-gray-900">-- اختر العميل --</option>
             {customers.map(c => (
-              <option key={c.id} value={c.id} className="bg-gray-900">{c.name}</option>
+              <option key={c.id} value={c.id} className="bg-gray-900">
+                {c.name}{Number(c.balance) < 0 ? ` (علينا له ${formatCurrency(Math.abs(Number(c.balance)))})` : ""}
+              </option>
             ))}
           </select>
+          {selectedCust && Number(selectedCust.balance) < 0 && (
+            <p className="text-xs text-orange-400 mt-1">
+              رصيد العميل الحالي: <span className="font-bold">{formatCurrency(Math.abs(Number(selectedCust.balance)))}</span> علينا له
+            </p>
+          )}
           {!customerId && (
             <input className="glass-input w-full text-white text-sm mt-2" placeholder="أو أدخل الاسم يدوياً..."
               value={customerName} onChange={e => setCustomerName(e.target.value)} />
@@ -369,7 +378,7 @@ function PaymentVoucherForm({ safes, customers, onSuccess }: { safes: Safe[]; cu
         </div>
         <SafeSelect safes={safes} value={safeId} onChange={setSafeId} />
         <div>
-          <FL>المبلغ (ج.م)</FL>
+          <FL>المبلغ المُسدَّد</FL>
           <input type="number" min="0.01" step="0.01" className="glass-input w-full text-white text-sm"
             placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} />
         </div>
@@ -378,7 +387,7 @@ function PaymentVoucherForm({ safes, customers, onSuccess }: { safes: Safe[]; cu
           <input className="glass-input w-full text-white text-sm" placeholder="..." value={notes} onChange={e => setNotes(e.target.value)} />
         </div>
         <ErrRow error={error} />
-        <SaveBtn loading={loading} label="حفظ سند الصرف" />
+        <SaveBtn loading={loading} label="حفظ سند التوريد" />
       </form>
     </FormShell>
   );

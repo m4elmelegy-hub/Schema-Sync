@@ -40,7 +40,7 @@ export function AppLayout({ children }: LayoutProps) {
       : location === "/income" ? "الإيرادات"
       : location === "/receipt-vouchers" ? "سندات القبض"
       : location === "/deposit-vouchers" ? "سندات التوريد"
-      : location === "/payment-vouchers" ? "سندات الصرف"
+      : location === "/payment-vouchers" ? "سندات التوريد"
       : location === "/safe-transfers" ? "تحويل الخزائن"
       : "مرحباً بك");
 

@@ -43,9 +43,10 @@ export default function PaymentVouchers() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "تم حفظ سند الصرف" });
+      toast({ title: "تم حفظ سند التوريد" });
       qc.invalidateQueries({ queryKey: ["/api/payment-vouchers"] });
       qc.invalidateQueries({ queryKey: ["/api/settings/safes"] });
+      qc.invalidateQueries({ queryKey: ["/api/customers"] });
       setShowAdd(false);
       setForm({ customer_id: "", customer_name_manual: "", safe_id: "", amount: "", notes: "", date: new Date().toISOString().split("T")[0] });
     },
@@ -61,6 +62,7 @@ export default function PaymentVouchers() {
       toast({ title: "تم الحذف" });
       qc.invalidateQueries({ queryKey: ["/api/payment-vouchers"] });
       qc.invalidateQueries({ queryKey: ["/api/settings/safes"] });
+      qc.invalidateQueries({ queryKey: ["/api/customers"] });
     },
     onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
   });
@@ -86,60 +88,79 @@ export default function PaymentVouchers() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-3">
-          <ArrowUpFromLine className="w-6 h-6 text-red-400" />
-          <h2 className="text-xl font-bold text-white">سندات الصرف</h2>
+          <ArrowUpFromLine className="w-6 h-6 text-orange-400" />
+          <h2 className="text-xl font-bold text-white">سندات التوريد</h2>
           <span className="text-xs text-white/40 bg-white/5 px-2 py-1 rounded-full">{vouchers.length} سند</span>
         </div>
         <button onClick={() => setShowAdd(true)} className="btn-primary flex items-center gap-2 px-5 py-2.5 rounded-xl">
-          <Plus className="w-4 h-4" /> سند صرف جديد
+          <Plus className="w-4 h-4" /> سند توريد جديد
         </button>
       </div>
 
       {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
           <form onSubmit={handleSubmit} className="glass-panel rounded-3xl p-8 w-full max-w-md space-y-4 animate-in zoom-in-95">
-            <h3 className="text-xl font-bold text-white mb-2">سند صرف جديد</h3>
-            <p className="text-xs text-white/50 -mt-2 mb-4">الشركة تصرف نقداً → الخزينة تنزل</p>
+            <h3 className="text-xl font-bold text-white mb-2">سند توريد جديد</h3>
+            <p className="text-xs text-white/50 -mt-2 mb-4">تسديد نقدي للعميل → الخزينة تنزل ورصيده يرتفع</p>
 
             <div>
               <label className="text-white/60 text-sm block mb-1">العميل *</label>
-              <select className="glass-input w-full" value={form.customer_id} onChange={e => setForm(f => ({ ...f, customer_id: e.target.value, customer_name_manual: "" }))}>
+              <select className="glass-input w-full" value={form.customer_id}
+                onChange={e => setForm(f => ({ ...f, customer_id: e.target.value, customer_name_manual: "" }))}>
                 <option value="">-- اختر العميل --</option>
-                {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {customers.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}{Number(c.balance) < 0 ? ` (علينا له ${formatCurrency(Math.abs(Number(c.balance)))})` : ""}
+                  </option>
+                ))}
               </select>
+              {selectedCustomer && Number(selectedCustomer.balance) < 0 && (
+                <p className="text-xs text-orange-400 mt-1">
+                  رصيد العميل الحالي: <span className="font-bold">{formatCurrency(Math.abs(Number(selectedCustomer.balance)))}</span> علينا له
+                </p>
+              )}
               {!form.customer_id && (
-                <input type="text" className="glass-input w-full mt-2" placeholder="أو اكتب الاسم يدوياً..." value={form.customer_name_manual} onChange={e => setForm(f => ({ ...f, customer_name_manual: e.target.value }))} />
+                <input type="text" className="glass-input w-full mt-2" placeholder="أو اكتب الاسم يدوياً..."
+                  value={form.customer_name_manual}
+                  onChange={e => setForm(f => ({ ...f, customer_name_manual: e.target.value }))} />
               )}
             </div>
 
             <div>
               <label className="text-white/60 text-sm block mb-1">الخزينة الصارفة *</label>
-              <select required className="glass-input w-full" value={form.safe_id} onChange={e => setForm(f => ({ ...f, safe_id: e.target.value }))}>
+              <select required className="glass-input w-full" value={form.safe_id}
+                onChange={e => setForm(f => ({ ...f, safe_id: e.target.value }))}>
                 <option value="">-- اختر الخزينة --</option>
                 {safes.map(s => <option key={s.id} value={s.id}>{s.name} ({formatCurrency(Number(s.balance))})</option>)}
               </select>
             </div>
 
             <div>
-              <label className="text-white/60 text-sm block mb-1">المبلغ *</label>
-              <input required type="number" step="0.01" min="0.01" className="glass-input w-full" placeholder="0.00" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
+              <label className="text-white/60 text-sm block mb-1">المبلغ المُسدَّد *</label>
+              <input required type="number" step="0.01" min="0.01" className="glass-input w-full"
+                placeholder="0.00" value={form.amount}
+                onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
             </div>
 
             <div>
               <label className="text-white/60 text-sm block mb-1">التاريخ</label>
-              <input type="date" className="glass-input w-full" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+              <input type="date" className="glass-input w-full" value={form.date}
+                onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
             </div>
 
             <div>
               <label className="text-white/60 text-sm block mb-1">ملاحظات</label>
-              <input type="text" className="glass-input w-full" placeholder="اختياري" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+              <input type="text" className="glass-input w-full" placeholder="اختياري"
+                value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
             </div>
 
             <div className="flex gap-3 pt-2">
-              <button type="submit" disabled={createMutation.isPending} className="flex-1 btn-primary py-3 rounded-xl font-bold">
-                {createMutation.isPending ? "جاري الحفظ..." : "حفظ السند"}
+              <button type="submit" disabled={createMutation.isPending}
+                className="flex-1 btn-primary py-3 rounded-xl font-bold">
+                {createMutation.isPending ? "جاري الحفظ..." : "حفظ سند التوريد"}
               </button>
-              <button type="button" onClick={() => setShowAdd(false)} className="flex-1 bg-white/10 text-white py-3 rounded-xl font-bold hover:bg-white/20">إلغاء</button>
+              <button type="button" onClick={() => setShowAdd(false)}
+                className="flex-1 bg-white/10 text-white py-3 rounded-xl font-bold hover:bg-white/20">إلغاء</button>
             </div>
           </form>
         </div>
@@ -153,7 +174,7 @@ export default function PaymentVouchers() {
                 <th className="p-4 font-medium">رقم السند</th>
                 <th className="p-4 font-medium">العميل</th>
                 <th className="p-4 font-medium">الخزينة</th>
-                <th className="p-4 font-medium">المبلغ</th>
+                <th className="p-4 font-medium">المبلغ المُسدَّد</th>
                 <th className="p-4 font-medium">التاريخ</th>
                 <th className="p-4 font-medium">ملاحظات</th>
                 <th className="p-4 w-16"></th>
@@ -163,13 +184,13 @@ export default function PaymentVouchers() {
               {isLoading ? (
                 <tr><td colSpan={7} className="p-8 text-center text-white/50">جاري التحميل...</td></tr>
               ) : vouchers.length === 0 ? (
-                <tr><td colSpan={7} className="p-8 text-center text-white/40">لا توجد سندات صرف بعد</td></tr>
+                <tr><td colSpan={7} className="p-8 text-center text-white/40">لا توجد سندات توريد بعد</td></tr>
               ) : vouchers.map(v => (
                 <tr key={v.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                  <td className="p-4 font-mono text-red-400 text-sm">{v.voucher_no}</td>
+                  <td className="p-4 font-mono text-orange-400 text-sm">{v.voucher_no}</td>
                   <td className="p-4 font-bold text-white">{v.customer_name}</td>
                   <td className="p-4 text-blue-300">{v.safe_name}</td>
-                  <td className="p-4 font-bold text-red-400">{formatCurrency(v.amount)}</td>
+                  <td className="p-4 font-bold text-orange-400">{formatCurrency(v.amount)}</td>
                   <td className="p-4 text-sm text-white/60">{v.date}</td>
                   <td className="p-4 text-white/50 text-sm">{v.notes || '-'}</td>
                   <td className="p-4">
