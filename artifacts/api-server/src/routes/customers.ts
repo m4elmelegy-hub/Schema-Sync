@@ -94,14 +94,15 @@ router.post("/customers/:id/receipt", async (req, res): Promise<void> => {
     return;
   }
 
-  const newBalance = Math.max(0, Number(customer.balance) - parsed.data.amount);
+  // بدون سقف — الرصيد يُسمح له بأن يصبح سالباً (رصيد دائن للعميل)
+  const newBalance = Number(customer.balance) - parsed.data.amount;
   const [updated] = await db.update(customersTable).set({ balance: String(newBalance) })
     .where(eq(customersTable.id, params.data.id)).returning();
 
   await db.insert(transactionsTable).values({
     type: "receipt",
     amount: String(parsed.data.amount),
-    description: parsed.data.description ?? `سند توريد - ${customer.name}`,
+    description: parsed.data.description ?? `سند قبض - ${customer.name}`,
     related_id: params.data.id,
   });
 
