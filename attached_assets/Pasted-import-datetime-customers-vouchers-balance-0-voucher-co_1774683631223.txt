@@ -1,0 +1,108 @@
+import datetime
+
+# بيانات
+customers = ["أحمد", "محمد", "علي"]
+vouchers = []
+balance = 0
+voucher_counter = 1
+
+def add_customer():
+    name = input("اسم العميل: ")
+    if name not in customers:
+        customers.append(name)
+        print("✔️ تم إضافة العميل")
+
+def choose_customer():
+    print("\nقائمة العملاء:")
+    for i, c in enumerate(customers, 1):
+        print(f"{i}. {c}")
+    
+    choice = input("اختار رقم العميل أو اكتب اسم جديد: ")
+    
+    if choice.isdigit():
+        return customers[int(choice)-1]
+    else:
+        customers.append(choice)
+        return choice
+
+def add_voucher(v_type):
+    global balance, voucher_counter
+    
+    customer = choose_customer()
+    
+    try:
+        amount = float(input("المبلغ: "))
+        if amount <= 0:
+            print("❌ المبلغ لازم يكون أكبر من صفر")
+            return
+    except:
+        print("❌ رقم غير صحيح")
+        return
+    
+    notes = input("ملاحظات: ")
+    
+    voucher = {
+        "id": voucher_counter,
+        "type": v_type,
+        "customer": customer,
+        "amount": amount,
+        "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "notes": notes
+    }
+    
+    if v_type == "قبض":
+        balance += amount
+    else:
+        balance -= amount
+    
+    vouchers.append(voucher)
+    voucher_counter += 1
+    
+    print("✔️ تم حفظ السند بنجاح")
+
+def show_vouchers():
+    print("\n📄 كل السندات:")
+    for v in vouchers:
+        print(f"""
+رقم: {v['id']}
+نوع: سند {v['type']}
+عميل: {v['customer']}
+مبلغ: {v['amount']}
+تاريخ: {v['date']}
+ملاحظات: {v['notes']}
+------------------------
+""")
+
+def show_balance():
+    print(f"\n💰 الرصيد الحالي: {balance}")
+
+def menu():
+    while True:
+        print("""
+===== النظام =====
+1. إضافة سند قبض
+2. إضافة سند صرف
+3. عرض السندات
+4. عرض الرصيد
+5. إضافة عميل
+0. خروج
+""")
+        
+        choice = input("اختار: ")
+        
+        if choice == "1":
+            add_voucher("قبض")
+        elif choice == "2":
+            add_voucher("صرف")
+        elif choice == "3":
+            show_vouchers()
+        elif choice == "4":
+            show_balance()
+        elif choice == "5":
+            add_customer()
+        elif choice == "0":
+            break
+        else:
+            print("❌ اختيار غلط")
+
+menu()

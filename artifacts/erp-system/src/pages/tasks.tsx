@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/format";
 import {
-  Wallet, TrendingUp, HandCoins, ArrowDownToLine,
+  Wallet, TrendingUp, HandCoins, ArrowDownToLine, ArrowUpFromLine,
   ArrowLeftRight, ArrowRight, CheckCircle2, AlertCircle,
   Loader2, Lock, Printer, ChevronLeft, ChevronRight,
 } from "lucide-react";
@@ -13,7 +13,7 @@ const post = (url: string, body: object) =>
   fetch(api(url), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
     .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "خطأ غير معروف"); return d; });
 
-type Operation = "hub" | "receipt-voucher" | "deposit-voucher" | "expense" | "income" | "safe-transfer" | "safe-closing";
+type Operation = "hub" | "receipt-voucher" | "deposit-voucher" | "payment-voucher" | "expense" | "income" | "safe-transfer" | "safe-closing";
 
 interface Safe { id: number; name: string; balance: number | string; }
 interface Customer { id: number; name: string; balance: number | string; }
@@ -58,6 +58,7 @@ export default function Tasks() {
         </button>
         {op === "receipt-voucher" && <ReceiptVoucherForm safes={safes} customers={customers} onSuccess={goHub} />}
         {op === "deposit-voucher" && <DepositVoucherForm safes={safes} customers={customers} onSuccess={goHub} />}
+        {op === "payment-voucher" && <PaymentVoucherForm safes={safes} customers={customers} onSuccess={goHub} />}
         {op === "expense" && <ExpenseForm safes={safes} onSuccess={goHub} />}
         {op === "income" && <IncomeForm safes={safes} onSuccess={goHub} />}
         {op === "safe-transfer" && <SafeTransferForm safes={safes} onSuccess={goHub} />}
@@ -88,6 +89,17 @@ export default function Tasks() {
       bg: "bg-indigo-500/8",
       stat: stats ? formatCurrency(Number(stats.total_customer_debts)) : "—",
       statLabel: "ديون العملاء",
+    },
+    {
+      op: "payment-voucher" as Operation,
+      title: "سند صرف",
+      sub: "صرف لعميل",
+      icon: ArrowUpFromLine,
+      color: "text-red-400",
+      ring: "ring-red-500/30",
+      bg: "bg-red-500/8",
+      stat: formatCurrency(safes.reduce((s, x) => s + Number(x.balance), 0)),
+      statLabel: "رصيد الخزائن",
     },
     {
       op: "expense" as Operation,
@@ -378,6 +390,69 @@ function DepositVoucherForm({ safes, customers, onSuccess }: { safes: Safe[]; cu
         </div>
         <ErrRow error={error} />
         <SaveBtn loading={loading} label="حفظ سند التوريد" />
+      </form>
+    </FormShell>
+  );
+}
+
+/* ─── Payment Voucher ─── */
+function PaymentVoucherForm({ safes, customers, onSuccess }: { safes: Safe[]; customers: Customer[]; onSuccess: (m: string) => void }) {
+  const [customerId, setCustomerId] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [safeId, setSafeId] = useFirstSafeId(safes);
+  const [amount, setAmount] = useState("");
+  const [notes, setNotes] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleCustomer = (id: string) => {
+    setCustomerId(id);
+    const c = customers.find(x => String(x.id) === id);
+    setCustomerName(c ? c.name : "");
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customerName) { setError("اختر العميل أو أدخل الاسم"); return; }
+    if (!safeId) { setError("اختر الخزينة"); return; }
+    if (!amount || Number(amount) <= 0) { setError("أدخل مبلغاً صحيحاً"); return; }
+    setError(""); setLoading(true);
+    try {
+      await post("/api/payment-vouchers", { customer_id: customerId || undefined, customer_name: customerName, safe_id: safeId, amount: Number(amount), notes });
+      onSuccess(`تم حفظ سند الصرف — ${formatCurrency(Number(amount))} ✓`);
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : "خطأ"); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <FormShell title="سند صرف" icon={ArrowUpFromLine} color="text-red-400">
+      <p className="text-xs text-white/50 -mt-2 mb-2">الشركة تصرف نقداً → الخزينة تنزل</p>
+      <form onSubmit={submit} className="space-y-4">
+        <div>
+          <FL>العميل</FL>
+          <select className="glass-input w-full text-white text-sm" value={customerId} onChange={e => handleCustomer(e.target.value)}>
+            <option value="" className="bg-gray-900">-- اختر العميل --</option>
+            {customers.map(c => (
+              <option key={c.id} value={c.id} className="bg-gray-900">{c.name}</option>
+            ))}
+          </select>
+          {!customerId && (
+            <input className="glass-input w-full text-white text-sm mt-2" placeholder="أو أدخل الاسم يدوياً..."
+              value={customerName} onChange={e => setCustomerName(e.target.value)} />
+          )}
+        </div>
+        <SafeSelect safes={safes} value={safeId} onChange={setSafeId} />
+        <div>
+          <FL>المبلغ (ج.م)</FL>
+          <input type="number" min="0.01" step="0.01" className="glass-input w-full text-white text-sm"
+            placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} />
+        </div>
+        <div>
+          <FL>ملاحظات</FL>
+          <input className="glass-input w-full text-white text-sm" placeholder="..." value={notes} onChange={e => setNotes(e.target.value)} />
+        </div>
+        <ErrRow error={error} />
+        <SaveBtn loading={loading} label="حفظ سند الصرف" />
       </form>
     </FormShell>
   );
