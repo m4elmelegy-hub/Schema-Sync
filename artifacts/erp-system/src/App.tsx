@@ -25,6 +25,7 @@ import SafeTransfers from "@/pages/safe-transfers";
 import FinancialTransactions from "@/pages/financial-transactions";
 import Tasks from "@/pages/tasks";
 import Profits from "@/pages/profits";
+import Products from "@/pages/products";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -54,6 +55,7 @@ function Router() {
         <Route path="/" component={Dashboard} />
         <Route path="/sales" component={Sales} />
         <Route path="/purchases" component={Purchases} />
+        <Route path="/products" component={Products} />
         <Route path="/customers" component={Customers} />
         <Route path="/expenses" component={Expenses} />
         <Route path="/income" component={Income} />

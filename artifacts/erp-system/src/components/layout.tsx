@@ -6,7 +6,7 @@ import { useAppSettings } from "@/contexts/app-settings";
 import { 
   LayoutDashboard, Users, Receipt, FileText,
   CreditCard, Settings, BookOpen, BookMarked,
-  Activity, ClipboardList, LogOut, UserCircle, TrendingUp,
+  Activity, ClipboardList, LogOut, UserCircle, TrendingUp, Package,
 } from "lucide-react";
 
 interface LayoutProps { children: ReactNode; }
@@ -16,6 +16,7 @@ const navItems = [
   { name: "المهام السريعة",  href: "/tasks",                icon: ClipboardList },
   { name: "المبيعات",        href: "/sales",                icon: Receipt },
   { name: "المشتريات",       href: "/purchases",            icon: CreditCard },
+  { name: "المنتجات",        href: "/products",             icon: Package },
   { name: "العملاء",         href: "/customers",            icon: Users },
   { name: "الأرباح",         href: "/profits",              icon: TrendingUp },
   { name: "الحركات المالية", href: "/financial-transactions", icon: Activity },
@@ -111,7 +112,7 @@ export function AppLayout({ children }: LayoutProps) {
 
       {/* Mobile Nav */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 glass-panel border-t border-white/10 rounded-t-3xl p-2 flex justify-around">
-        {[navItems[0], navItems[1], navItems[2], navItems[3], navItems[9]].map((item) => (
+        {[navItems[0], navItems[2], navItems[3], navItems[4], navItems[10]].map((item) => (
           <Link key={item.href} href={item.href} className={`p-3 rounded-xl ${location === item.href ? 'bg-amber-500/20 text-amber-400' : 'text-white/50'}`}>
             <item.icon className="w-6 h-6" />
           </Link>
