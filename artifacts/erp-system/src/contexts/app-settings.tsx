@@ -94,14 +94,16 @@ export const LOGIN_BG_OPTIONS = [
 function applySettings(s: AppSettings) {
   const root = document.documentElement;
 
-  // Font family
+  // Font family — applied to html so rem units + Tailwind inherit correctly
   const fontDef = FONTS[s.fontFamily];
   root.style.setProperty("--erp-font", `'${s.fontFamily}', sans-serif`);
+  root.style.fontFamily = `'${s.fontFamily}', sans-serif`;
   document.body.style.fontFamily = `'${s.fontFamily}', sans-serif`;
 
-  // Font size
+  // Font size — set on html so all rem-based Tailwind classes scale correctly
   const sizeVal = FONT_SIZES[s.fontSize ?? "md"].cssVal;
   root.style.setProperty("--erp-font-size", sizeVal);
+  root.style.fontSize = sizeVal;
   document.body.style.fontSize = sizeVal;
 
   // Load Google Font

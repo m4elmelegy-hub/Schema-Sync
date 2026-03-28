@@ -10,9 +10,12 @@ const api = (p: string) => `${BASE}${p}`;
 
 interface DepositVoucher {
   id: number; voucher_no: string; date: string;
+  customer_id: number | null; customer_name: string | null;
   safe_id: number; safe_name: string;
   amount: number; source: string | null; notes: string | null; created_at: string;
 }
+
+interface Customer { id: number; name: string; balance: number; }
 
 export default function DepositVouchers() {
   const qc = useQueryClient();
@@ -22,9 +25,17 @@ export default function DepositVouchers() {
     queryKey: ["/api/deposit-vouchers"],
     queryFn: () => fetch(api("/api/deposit-vouchers")).then(r => r.json()),
   });
+  const { data: customers = [] } = useQuery<Customer[]>({
+    queryKey: ["/api/customers"],
+    queryFn: () => fetch(api("/api/customers")).then(r => r.json()),
+  });
 
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ safe_id: "", amount: "", source: "", notes: "", date: new Date().toISOString().split("T")[0] });
+  const [sourceType, setSourceType] = useState<"customer" | "external">("customer");
+  const [form, setForm] = useState({
+    safe_id: "", amount: "", customer_id: "", source: "", notes: "",
+    date: new Date().toISOString().split("T")[0],
+  });
 
   const createMutation = useMutation({
     mutationFn: async (body: Record<string, unknown>) => {
@@ -32,7 +43,14 @@ export default function DepositVouchers() {
       if (!res.ok) { const e = await res.json(); throw new Error(e.error || "خطأ"); }
       return res.json();
     },
-    onSuccess: () => { toast({ title: "تم حفظ سند التوريد" }); qc.invalidateQueries({ queryKey: ["/api/deposit-vouchers"] }); qc.invalidateQueries({ queryKey: ["/api/settings/safes"] }); setShowAdd(false); setForm({ safe_id: "", amount: "", source: "", notes: "", date: new Date().toISOString().split("T")[0] }); },
+    onSuccess: () => {
+      toast({ title: "تم حفظ سند التوريد" });
+      qc.invalidateQueries({ queryKey: ["/api/deposit-vouchers"] });
+      qc.invalidateQueries({ queryKey: ["/api/settings/safes"] });
+      qc.invalidateQueries({ queryKey: ["/api/customers"] });
+      setShowAdd(false);
+      setForm({ safe_id: "", amount: "", customer_id: "", source: "", notes: "", date: new Date().toISOString().split("T")[0] });
+    },
     onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
   });
 
@@ -41,14 +59,33 @@ export default function DepositVouchers() {
       const res = await fetch(api(`/api/deposit-vouchers/${id}`), { method: "DELETE" });
       if (!res.ok) throw new Error("فشل الحذف");
     },
-    onSuccess: () => { toast({ title: "تم الحذف" }); qc.invalidateQueries({ queryKey: ["/api/deposit-vouchers"] }); qc.invalidateQueries({ queryKey: ["/api/settings/safes"] }); },
+    onSuccess: () => {
+      toast({ title: "تم الحذف" });
+      qc.invalidateQueries({ queryKey: ["/api/deposit-vouchers"] });
+      qc.invalidateQueries({ queryKey: ["/api/settings/safes"] });
+      qc.invalidateQueries({ queryKey: ["/api/customers"] });
+    },
     onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
   });
+
+  const selectedCustomer = customers.find(c => String(c.id) === form.customer_id);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.safe_id || !form.amount) { toast({ title: "الرجاء اختيار الخزينة وإدخال المبلغ", variant: "destructive" }); return; }
-    createMutation.mutate({ safe_id: parseInt(form.safe_id), amount: parseFloat(form.amount), source: form.source || undefined, notes: form.notes || undefined, date: form.date });
+    if (sourceType === "customer" && !form.customer_id) { toast({ title: "الرجاء اختيار العميل", variant: "destructive" }); return; }
+    const payload: Record<string, unknown> = {
+      safe_id: parseInt(form.safe_id),
+      amount: parseFloat(form.amount),
+      notes: form.notes || undefined,
+      date: form.date,
+    };
+    if (sourceType === "customer") {
+      payload.customer_id = parseInt(form.customer_id);
+    } else {
+      payload.source = form.source || undefined;
+    }
+    createMutation.mutate(payload);
   };
 
   return (
@@ -68,7 +105,46 @@ export default function DepositVouchers() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
           <form onSubmit={handleSubmit} className="glass-panel rounded-3xl p-8 w-full max-w-md space-y-4 animate-in zoom-in-95">
             <h3 className="text-xl font-bold text-white mb-2">سند توريد جديد</h3>
-            <p className="text-xs text-white/50 -mt-2 mb-4">إيداع نقود في الخزينة من مصدر خارجي</p>
+
+            {/* نوع المصدر */}
+            <div>
+              <label className="text-white/60 text-sm block mb-2">مصدر الإيداع *</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setSourceType("customer")}
+                  className={`py-2.5 rounded-xl text-sm font-bold border transition-all ${sourceType === "customer" ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400" : "glass-panel border-white/10 text-white/50 hover:text-white"}`}>
+                  👤 من عميل
+                </button>
+                <button type="button" onClick={() => setSourceType("external")}
+                  className={`py-2.5 rounded-xl text-sm font-bold border transition-all ${sourceType === "external" ? "bg-blue-500/20 border-blue-500/40 text-blue-400" : "glass-panel border-white/10 text-white/50 hover:text-white"}`}>
+                  🏦 مصدر خارجي
+                </button>
+              </div>
+              <p className="text-xs text-white/30 mt-1.5">
+                {sourceType === "customer"
+                  ? "العميل يورّد نقداً ← رصيده ينخفض، الخزينة ترتفع"
+                  : "إيداع خارجي ← الخزينة ترتفع (رأس مال، قرض، ...)"}
+              </p>
+            </div>
+
+            {/* العميل أو المصدر */}
+            {sourceType === "customer" ? (
+              <div>
+                <label className="text-white/60 text-sm block mb-1">العميل *</label>
+                <select required className="glass-input w-full" value={form.customer_id} onChange={e => setForm(f => ({ ...f, customer_id: e.target.value }))}>
+                  <option value="">-- اختر العميل --</option>
+                  {customers.map(c => <option key={c.id} value={c.id}>{c.name} — دين: {formatCurrency(c.balance)}</option>)}
+                </select>
+                {selectedCustomer && (
+                  <p className="text-xs mt-1 text-amber-400">إجمالي دين العميل: {formatCurrency(selectedCustomer.balance)}</p>
+                )}
+              </div>
+            ) : (
+              <div>
+                <label className="text-white/60 text-sm block mb-1">المصدر</label>
+                <input type="text" className="glass-input w-full" placeholder="مثال: رأس مال، قرض، تمويل..." value={form.source} onChange={e => setForm(f => ({ ...f, source: e.target.value }))} />
+              </div>
+            )}
+
             <div>
               <label className="text-white/60 text-sm block mb-1">الخزينة المستلِمة *</label>
               <select required className="glass-input w-full" value={form.safe_id} onChange={e => setForm(f => ({ ...f, safe_id: e.target.value }))}>
@@ -76,24 +152,26 @@ export default function DepositVouchers() {
                 {safes.map(s => <option key={s.id} value={s.id}>{s.name} ({formatCurrency(Number(s.balance))})</option>)}
               </select>
             </div>
+
             <div>
-              <label className="text-white/60 text-sm block mb-1">المبلغ (ج.م) *</label>
+              <label className="text-white/60 text-sm block mb-1">المبلغ *</label>
               <input required type="number" step="0.01" min="0.01" className="glass-input w-full" placeholder="0.00" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
             </div>
-            <div>
-              <label className="text-white/60 text-sm block mb-1">المصدر</label>
-              <input type="text" className="glass-input w-full" placeholder="مثال: رأس مال، قرض، تمويل..." value={form.source} onChange={e => setForm(f => ({ ...f, source: e.target.value }))} />
-            </div>
+
             <div>
               <label className="text-white/60 text-sm block mb-1">التاريخ</label>
               <input type="date" className="glass-input w-full" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
             </div>
+
             <div>
               <label className="text-white/60 text-sm block mb-1">ملاحظات</label>
               <input type="text" className="glass-input w-full" placeholder="اختياري" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
             </div>
+
             <div className="flex gap-3 pt-2">
-              <button type="submit" disabled={createMutation.isPending} className="flex-1 btn-primary py-3 rounded-xl font-bold">{createMutation.isPending ? "جاري الحفظ..." : "حفظ السند"}</button>
+              <button type="submit" disabled={createMutation.isPending} className="flex-1 btn-primary py-3 rounded-xl font-bold">
+                {createMutation.isPending ? "جاري الحفظ..." : "حفظ السند"}
+              </button>
               <button type="button" onClick={() => setShowAdd(false)} className="flex-1 bg-white/10 text-white py-3 rounded-xl font-bold hover:bg-white/20">إلغاء</button>
             </div>
           </form>
@@ -106,9 +184,9 @@ export default function DepositVouchers() {
             <thead className="bg-white/5 border-b border-white/10">
               <tr>
                 <th className="p-4 font-medium">رقم السند</th>
+                <th className="p-4 font-medium">المصدر</th>
                 <th className="p-4 font-medium">الخزينة</th>
                 <th className="p-4 font-medium">المبلغ</th>
-                <th className="p-4 font-medium">المصدر</th>
                 <th className="p-4 font-medium">التاريخ</th>
                 <th className="p-4 font-medium">ملاحظات</th>
                 <th className="p-4 w-16"></th>
@@ -122,13 +200,18 @@ export default function DepositVouchers() {
               ) : vouchers.map(v => (
                 <tr key={v.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                   <td className="p-4 font-mono text-amber-400 text-sm">{v.voucher_no}</td>
+                  <td className="p-4">
+                    {v.customer_name
+                      ? <span className="text-emerald-400 font-bold">👤 {v.customer_name}</span>
+                      : <span className="text-white/60">{v.source || '—'}</span>}
+                  </td>
                   <td className="p-4 font-bold text-blue-300">{v.safe_name}</td>
                   <td className="p-4 font-bold text-emerald-400">{formatCurrency(v.amount)}</td>
-                  <td className="p-4 text-white/70">{v.source || '-'}</td>
                   <td className="p-4 text-sm text-white/60">{v.date}</td>
                   <td className="p-4 text-white/50 text-sm">{v.notes || '-'}</td>
                   <td className="p-4">
-                    <button onClick={() => { if (confirm("حذف هذا السند؟")) deleteMutation.mutate(v.id); }} className="text-red-400 hover:text-red-300 p-2 rounded-lg hover:bg-red-400/10 transition-colors">
+                    <button onClick={() => { if (confirm("حذف هذا السند؟")) deleteMutation.mutate(v.id); }}
+                      className="text-red-400 hover:text-red-300 p-2 rounded-lg hover:bg-red-400/10 transition-colors">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </td>
