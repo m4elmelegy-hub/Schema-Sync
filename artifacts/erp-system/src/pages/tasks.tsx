@@ -162,22 +162,22 @@ export default function Tasks() {
       )}
 
       {/* Operations grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2">
         {cards.map(c => {
           const Icon = c.icon;
           return (
             <button
               key={c.op}
               onClick={() => setOp(c.op)}
-              className={`glass-panel rounded-2xl p-4 text-right ring-1 ${c.ring} ${c.bg} hover:brightness-110 transition-all duration-200 hover:-translate-y-0.5 group`}
+              className={`glass-panel rounded-xl p-3 text-right ring-1 ${c.ring} ${c.bg} hover:brightness-110 transition-all duration-200 hover:-translate-y-0.5 group`}
             >
-              <div className="flex items-center justify-between mb-3">
-                <Icon className={`w-5 h-5 ${c.color}`} />
-                <ChevronLeft className="w-3.5 h-3.5 text-white/20 group-hover:text-white/40 transition-colors" />
+              <div className="flex items-center justify-between mb-1.5">
+                <Icon className={`w-4 h-4 ${c.color}`} />
+                <ChevronLeft className="w-3 h-3 text-white/20 group-hover:text-white/40 transition-colors" />
               </div>
               <p className={`font-bold text-sm ${c.color}`}>{c.title}</p>
               <p className="text-white/35 text-xs mt-0.5">{c.sub}</p>
-              <div className="mt-3 pt-2.5 border-t border-white/5">
+              <div className="mt-2 pt-1.5 border-t border-white/5">
                 <p className="text-white/20 text-xs">{c.statLabel}</p>
                 <p className={`font-bold text-xs mt-0.5 ${c.color}`}>{c.stat}</p>
               </div>
