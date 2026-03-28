@@ -9,7 +9,7 @@
  */
 
 import { Router, type IRouter } from "express";
-import { gte, lte, and } from "drizzle-orm";
+import { gte, lte, and, eq } from "drizzle-orm";
 import {
   db, salesTable, saleItemsTable, expensesTable,
 } from "@workspace/db";
@@ -17,47 +17,67 @@ import {
 const router: IRouter = Router();
 
 // ──────────────────────────────────────────────────────────
-//  GET /api/profits?date_from=YYYY-MM-DD&date_to=YYYY-MM-DD
+//  GET /api/profits?date_from=YYYY-MM-DD&date_to=YYYY-MM-DD&product_id=N
 // ──────────────────────────────────────────────────────────
 router.get("/profits", async (req, res): Promise<void> => {
   try {
-    const { date_from, date_to } = req.query as { date_from?: string; date_to?: string };
+    const { date_from, date_to, product_id } = req.query as {
+      date_from?: string;
+      date_to?: string;
+      product_id?: string;
+    };
 
-    // ── بناء شروط الفترة الزمنية ──────────────────────────
-    const conditions = [];
+    // ── شروط الفترة للمبيعات (salesTable) ─────────────────
+    const saleConditions = [];
     if (date_from) {
-      conditions.push(gte(salesTable.created_at, new Date(date_from + "T00:00:00Z")));
+      saleConditions.push(gte(salesTable.created_at, new Date(date_from + "T00:00:00Z")));
     }
     if (date_to) {
-      conditions.push(lte(salesTable.created_at, new Date(date_to + "T23:59:59Z")));
+      saleConditions.push(lte(salesTable.created_at, new Date(date_to + "T23:59:59Z")));
     }
+    const saleWhereClause = saleConditions.length > 0 ? and(...saleConditions) : undefined;
 
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    // ── شروط الفترة للمصاريف (expensesTable) — منفصلة تماماً
+    const expenseConditions = [];
+    if (date_from) {
+      expenseConditions.push(gte(expensesTable.created_at, new Date(date_from + "T00:00:00Z")));
+    }
+    if (date_to) {
+      expenseConditions.push(lte(expensesTable.created_at, new Date(date_to + "T23:59:59Z")));
+    }
+    const expenseWhereClause = expenseConditions.length > 0 ? and(...expenseConditions) : undefined;
 
-    // ── جلب كل الفواتير في الفترة ─────────────────────────
-    const sales = whereClause
-      ? await db.select().from(salesTable).where(whereClause)
+    // ── جلب الفواتير في الفترة ─────────────────────────────
+    const sales = saleWhereClause
+      ? await db.select().from(salesTable).where(saleWhereClause)
       : await db.select().from(salesTable);
 
+    const emptyResult = {
+      total_revenue: 0, total_cost: 0, gross_profit: 0,
+      profit_margin: 0, net_profit: 0, total_expenses: 0,
+      by_product: [], by_month: [], invoice_count: 0, item_count: 0,
+    };
+
     if (sales.length === 0) {
-      res.json({
-        total_revenue: 0, total_cost: 0, gross_profit: 0,
-        profit_margin: 0, net_profit: 0, total_expenses: 0,
-        by_product: [], by_month: [], invoice_count: 0, item_count: 0,
-      });
+      res.json(emptyResult);
       return;
     }
 
     const saleIds = sales.map(s => s.id);
 
-    // ── جلب كل بنود الفواتير ──────────────────────────────
-    // نجلب جميع البنود ثم نُصفّي بـ JavaScript لأن drizzle لا يدعم inArray بسهولة
+    // ── جلب بنود الفواتير مع فلتر اختياري للصنف ──────────
     const allItems = await db.select().from(saleItemsTable);
-    const items = allItems.filter(i => saleIds.includes(i.sale_id));
+    let items = allItems.filter(i => saleIds.includes(i.sale_id));
 
-    // ── جلب المصاريف في الفترة ───────────────────────────
-    const allExpenses = whereClause
-      ? await db.select().from(expensesTable).where(whereClause)
+    // فلتر صنف معين
+    if (product_id) {
+      const pid = parseInt(product_id);
+      items = items.filter(i => i.product_id === pid);
+    }
+
+    // ── جلب المصاريف في الفترة (بشروط منفصلة) ─────────────
+    const allExpenses = expenseWhereClause
+      ? await db.select().from(expensesTable).where(expenseWhereClause)
       : await db.select().from(expensesTable);
     const totalExpenses = allExpenses.reduce((s, e) => s + Number(e.amount), 0);
 
@@ -76,10 +96,8 @@ router.get("/profits", async (req, res): Promise<void> => {
 
     for (const item of items) {
       const qty = Number(item.quantity);
-      const salePrice = Number(item.unit_price);   // سعر البيع للوحدة
-      const costPrice = Number(item.cost_price);   // متوسط التكلفة وقت البيع
       const itemRevenue = Number(item.total_price);
-      const itemCost = Number(item.cost_total);    // التكلفة الإجمالية للبند
+      const itemCost = Number(item.cost_total);
 
       totalRevenue += itemRevenue;
       totalCost += itemCost;
@@ -112,7 +130,7 @@ router.get("/profits", async (req, res): Promise<void> => {
     for (const item of items) {
       const sale = sales.find(s => s.id === item.sale_id);
       if (!sale) continue;
-      const monthKey = sale.created_at.toISOString().slice(0, 7); // YYYY-MM
+      const monthKey = sale.created_at.toISOString().slice(0, 7);
       const itemRevenue = Number(item.total_price);
       const itemCost = Number(item.cost_total);
       const existing = byMonth.get(monthKey);
@@ -129,30 +147,33 @@ router.get("/profits", async (req, res): Promise<void> => {
     const byProductArr = Array.from(byProduct.values())
       .map(p => ({
         ...p,
-        profit_margin: p.revenue > 0 ? (p.profit / p.revenue) * 100 : 0,
-        avg_cost_price: p.qty_sold > 0 ? p.cost / p.qty_sold : 0,
-        avg_sale_price: p.qty_sold > 0 ? p.revenue / p.qty_sold : 0,
+        profit_margin: p.revenue > 0 ? Math.round((p.profit / p.revenue) * 10000) / 100 : 0,
+        avg_cost_price: p.qty_sold > 0 ? Math.round((p.cost / p.qty_sold) * 100) / 100 : 0,
+        avg_sale_price: p.qty_sold > 0 ? Math.round((p.revenue / p.qty_sold) * 100) / 100 : 0,
       }))
       .sort((a, b) => b.profit - a.profit);
 
     const byMonthArr = Array.from(byMonth.values()).sort((a, b) => a.month.localeCompare(b.month));
 
+    // عدد الفواتير الفعلية (قد يختلف لو فُلتر صنف معين)
+    const invoiceCount = product_id
+      ? new Set(items.map(i => i.sale_id)).size
+      : sales.length;
+
     res.json({
-      // ── الإجماليات ──
       total_revenue: Math.round(totalRevenue * 100) / 100,
       total_cost: Math.round(totalCost * 100) / 100,
       gross_profit: Math.round(grossProfit * 100) / 100,
       profit_margin: Math.round(profitMargin * 100) / 100,
       total_expenses: Math.round(totalExpenses * 100) / 100,
       net_profit: Math.round(netProfit * 100) / 100,
-      invoice_count: sales.length,
+      invoice_count: invoiceCount,
       item_count: items.reduce((s, i) => s + Number(i.quantity), 0),
-      // ── تفصيل بالصنف ──
       by_product: byProductArr,
-      // ── تفصيل شهري ──
       by_month: byMonthArr,
     });
   } catch (err: unknown) {
+    console.error("[profits]", err);
     res.status(500).json({ error: err instanceof Error ? err.message : "خطأ في حساب الأرباح" });
   }
 });
