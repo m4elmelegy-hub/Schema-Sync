@@ -1,9 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useGetSales, useGetSaleById, useGetProducts, useGetCustomers, useGetSettingsSafes } from "@workspace/api-client-react";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { Search, Plus, Minus, Trash2, X, Printer, ShoppingCart, User, Package, Receipt, RotateCcw, Percent, Vault } from "lucide-react";
+import { Search, Plus, Minus, Trash2, X, Printer, ShoppingCart, User, Package, Receipt, RotateCcw, Percent, Vault, Lock } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/auth";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
@@ -223,6 +224,82 @@ function PaymentBadge({ type }: { type: string }) {
 
 function SaleDetailModal({ saleId, onClose }: { saleId: number; onClose: () => void }) {
   const { data: sale, isLoading } = useGetSaleById({ id: saleId });
+
+  const handlePrint = () => {
+    if (!sale) return;
+    const payLabel: Record<string, string> = { cash: 'نقدي', credit: 'آجل', partial: 'جزئي' };
+    const s = sale as any;
+    const itemsHtml = (sale.items || []).map((item, i) =>
+      `<tr><td>${i+1}</td><td><strong>${item.product_name}</strong></td><td>${item.quantity}</td><td>${Number(item.unit_price).toFixed(2)} ج.م</td><td><strong>${Number(item.total_price).toFixed(2)} ج.م</strong></td></tr>`
+    ).join("");
+    const discountHtml = Number(s.discount_amount) > 0 ? `
+      <div class="total-row"><span>الإجمالي قبل الخصم</span><span>${(Number(sale.total_amount) + Number(s.discount_amount)).toFixed(2)} ج.م</span></div>
+      <div class="total-row"><span>الخصم (${s.discount_percent}%)</span><span>- ${Number(s.discount_amount).toFixed(2)} ج.م</span></div>` : "";
+    const remainHtml = Number(sale.remaining_amount) > 0 ?
+      `<div class="total-row" style="color:red"><span>المتبقي</span><span><strong>${Number(sale.remaining_amount).toFixed(2)} ج.م</strong></span></div>` : "";
+    const extraMeta = [
+      s.warehouse_name ? `<div class="meta-item"><span class="meta-label">المخزن:</span><span class="meta-value">${s.warehouse_name}</span></div>` : "",
+      s.salesperson_name ? `<div class="meta-item"><span class="meta-label">المندوب:</span><span class="meta-value">${s.salesperson_name}</span></div>` : "",
+    ].join("");
+    const html = `<!DOCTYPE html><html dir="rtl" lang="ar">
+<head><meta charset="UTF-8"/><title>فاتورة ${sale.invoice_no}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;color:#111;background:#fff;padding:24px;direction:rtl}
+  .header{text-align:center;border-bottom:3px double #333;padding-bottom:14px;margin-bottom:16px}
+  .company-name{font-size:28px;font-weight:900;letter-spacing:2px}
+  .company-slogan{font-size:13px;color:#666;margin:4px 0}
+  .company-info{font-size:12px;color:#555;margin-top:6px}
+  .invoice-title{text-align:center;font-size:19px;font-weight:bold;margin:14px 0;background:#f3f3f3;padding:9px;border-radius:6px}
+  .meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;margin-bottom:16px;font-size:13px}
+  .meta-item{display:flex;gap:6px}
+  .meta-label{color:#777;font-weight:600;min-width:80px}
+  .meta-value{font-weight:bold;color:#111}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:14px}
+  thead{background:#222;color:#fff}
+  th,td{padding:9px 10px;text-align:right}
+  td{border-bottom:1px solid #e8e8e8}
+  tbody tr:nth-child(even){background:#f7f7f7}
+  .totals{border:2px solid #333;border-radius:6px;padding:12px 16px;font-size:13px}
+  .total-row{display:flex;justify-content:space-between;padding:4px 0}
+  .total-final{font-size:18px;font-weight:900;border-top:2px solid #333;padding-top:8px;margin-top:6px}
+  .footer{text-align:center;margin-top:24px;font-size:12px;color:#999;border-top:1px dashed #ccc;padding-top:12px}
+  @media print{body{padding:10px}}
+</style></head>
+<body>
+<div class="header">
+  <div class="company-name">Halal Tech — حلال تك</div>
+  <div class="company-slogan">الحلال = البركة | متخصصون في صيانة الهواتف المحمولة</div>
+  <div class="company-info">📍 مصر — القاهرة &nbsp;&nbsp; 📞 01000000000</div>
+</div>
+<div class="invoice-title">فاتورة مبيعات — ${sale.invoice_no}</div>
+<div class="meta-grid">
+  <div class="meta-item"><span class="meta-label">رقم الفاتورة:</span><span class="meta-value">${sale.invoice_no}</span></div>
+  <div class="meta-item"><span class="meta-label">التاريخ:</span><span class="meta-value">${formatDate(sale.created_at)}</span></div>
+  <div class="meta-item"><span class="meta-label">العميل:</span><span class="meta-value">${sale.customer_name || 'عميل نقدي'}</span></div>
+  <div class="meta-item"><span class="meta-label">طريقة الدفع:</span><span class="meta-value">${payLabel[sale.payment_type] || sale.payment_type}</span></div>
+  ${extraMeta}
+</div>
+<table>
+  <thead><tr><th>#</th><th>الصنف</th><th>الكمية</th><th>سعر الوحدة</th><th>الإجمالي</th></tr></thead>
+  <tbody>${itemsHtml}</tbody>
+</table>
+<div class="totals">
+  ${discountHtml}
+  <div class="total-row total-final"><span>الإجمالي الكلي</span><span>${Number(sale.total_amount).toFixed(2)} ج.م</span></div>
+  <div class="total-row"><span>المدفوع</span><span>${Number(sale.paid_amount).toFixed(2)} ج.م</span></div>
+  ${remainHtml}
+</div>
+<div class="footer">شكراً لتعاملكم معنا — Halal Tech | الحلال = البركة</div>
+</body></html>`;
+    const w = window.open("", "_blank", "width=820,height=950");
+    if (!w) return;
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => { w.print(); w.close(); }, 600);
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
       <div className="glass-panel rounded-3xl p-8 w-full max-w-2xl border border-white/10 shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -231,7 +308,9 @@ function SaleDetailModal({ saleId, onClose }: { saleId: number; onClose: () => v
             <Receipt className="w-6 h-6 text-amber-400" /> تفاصيل الفاتورة
           </h3>
           <div className="flex gap-2">
-            <button onClick={() => window.print()} className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/70 transition-colors"><Printer className="w-5 h-5" /></button>
+            <button onClick={handlePrint} disabled={isLoading || !sale} className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500/20 border border-amber-500/30 hover:bg-amber-500/30 text-amber-300 transition-colors text-sm font-bold">
+              <Printer className="w-4 h-4" /> طباعة
+            </button>
             <button onClick={onClose} className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/70 transition-colors"><X className="w-5 h-5" /></button>
           </div>
         </div>
@@ -240,47 +319,56 @@ function SaleDetailModal({ saleId, onClose }: { saleId: number; onClose: () => v
         ) : !sale ? (
           <div className="text-center py-12 text-white/40">لم يتم العثور على الفاتورة</div>
         ) : (
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-4 p-4 bg-white/5 rounded-2xl border border-white/5">
-              <div><p className="text-white/50 text-sm">رقم الفاتورة</p><p className="text-amber-400 font-bold text-lg">{sale.invoice_no}</p></div>
-              <div><p className="text-white/50 text-sm">التاريخ</p><p className="text-white">{formatDate(sale.created_at)}</p></div>
-              <div><p className="text-white/50 text-sm">العميل</p><p className="text-white font-semibold">{sale.customer_name || 'عميل نقدي'}</p></div>
-              <div><p className="text-white/50 text-sm">طريقة الدفع</p><PaymentBadge type={sale.payment_type} /></div>
-            </div>
-            <div>
-              <h4 className="text-white font-bold mb-3">أصناف الفاتورة</h4>
-              <div className="rounded-2xl overflow-hidden border border-white/10">
-                <table className="w-full text-right text-sm">
-                  <thead className="bg-white/5 border-b border-white/10">
-                    <tr>
-                      <th className="p-3 text-white/60">الصنف</th>
-                      <th className="p-3 text-white/60">الكمية</th>
-                      <th className="p-3 text-white/60">سعر الوحدة</th>
-                      <th className="p-3 text-white/60">الإجمالي</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(sale.items || []).map((item, i) => (
-                      <tr key={i} className="border-b border-white/5">
-                        <td className="p-3 font-bold text-white">{item.product_name}</td>
-                        <td className="p-3 text-white/70">{item.quantity}</td>
-                        <td className="p-3 text-white/70">{formatCurrency(item.unit_price)}</td>
-                        <td className="p-3 font-bold text-emerald-400">{formatCurrency(item.total_price)}</td>
+          <>
+            {/* Screen view */}
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4 p-4 bg-white/5 rounded-2xl border border-white/5">
+                <div><p className="text-white/50 text-sm">رقم الفاتورة</p><p className="text-amber-400 font-bold text-lg">{sale.invoice_no}</p></div>
+                <div><p className="text-white/50 text-sm">التاريخ</p><p className="text-white">{formatDate(sale.created_at)}</p></div>
+                <div><p className="text-white/50 text-sm">العميل</p><p className="text-white font-semibold">{sale.customer_name || 'عميل نقدي'}</p></div>
+                <div><p className="text-white/50 text-sm">طريقة الدفع</p><PaymentBadge type={sale.payment_type} /></div>
+                {(sale as any).warehouse_name && <div><p className="text-white/50 text-sm">المخزن</p><p className="text-white">{(sale as any).warehouse_name}</p></div>}
+                {(sale as any).salesperson_name && <div><p className="text-white/50 text-sm">المندوب</p><p className="text-amber-300 font-semibold">{(sale as any).salesperson_name}</p></div>}
+              </div>
+              <div>
+                <h4 className="text-white font-bold mb-3">أصناف الفاتورة</h4>
+                <div className="rounded-2xl overflow-hidden border border-white/10">
+                  <table className="w-full text-right text-sm">
+                    <thead className="bg-white/5 border-b border-white/10">
+                      <tr>
+                        <th className="p-3 text-white/60">الصنف</th>
+                        <th className="p-3 text-white/60">الكمية</th>
+                        <th className="p-3 text-white/60">سعر الوحدة</th>
+                        <th className="p-3 text-white/60">الإجمالي</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {(sale.items || []).map((item, i) => (
+                        <tr key={i} className="border-b border-white/5">
+                          <td className="p-3 font-bold text-white">{item.product_name}</td>
+                          <td className="p-3 text-white/70">{item.quantity}</td>
+                          <td className="p-3 text-white/70">{formatCurrency(item.unit_price)}</td>
+                          <td className="p-3 font-bold text-emerald-400">{formatCurrency(item.total_price)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div className="p-5 bg-white/5 rounded-2xl border border-white/5 space-y-3">
+                {(sale as any).discount_amount > 0 && <>
+                  <div className="flex justify-between"><span className="text-white/60">الإجمالي قبل الخصم</span><span className="text-white">{formatCurrency(sale.total_amount + (sale as any).discount_amount)}</span></div>
+                  <div className="flex justify-between"><span className="text-white/60">الخصم ({(sale as any).discount_percent}%)</span><span className="text-red-400">- {formatCurrency((sale as any).discount_amount)}</span></div>
+                </>}
+                <div className="flex justify-between border-t border-white/10 pt-3"><span className="text-white/60">الإجمالي</span><span className="font-bold text-white text-lg">{formatCurrency(sale.total_amount)}</span></div>
+                <div className="flex justify-between"><span className="text-white/60">المدفوع</span><span className="font-bold text-emerald-400">{formatCurrency(sale.paid_amount)}</span></div>
+                {sale.remaining_amount > 0 && (
+                  <div className="flex justify-between border-t border-white/10 pt-3"><span className="text-white/60">المتبقي</span><span className="font-bold text-red-400 text-lg">{formatCurrency(sale.remaining_amount)}</span></div>
+                )}
+                <div className="flex justify-between border-t border-white/10 pt-3"><span className="text-white/60">الحالة</span><StatusBadge status={sale.status} /></div>
               </div>
             </div>
-            <div className="p-5 bg-white/5 rounded-2xl border border-white/5 space-y-3">
-              <div className="flex justify-between"><span className="text-white/60">الإجمالي</span><span className="font-bold text-white text-lg">{formatCurrency(sale.total_amount)}</span></div>
-              <div className="flex justify-between"><span className="text-white/60">المدفوع</span><span className="font-bold text-emerald-400">{formatCurrency(sale.paid_amount)}</span></div>
-              {sale.remaining_amount > 0 && (
-                <div className="flex justify-between border-t border-white/10 pt-3"><span className="text-white/60">المتبقي</span><span className="font-bold text-red-400 text-lg">{formatCurrency(sale.remaining_amount)}</span></div>
-              )}
-              <div className="flex justify-between border-t border-white/10 pt-3"><span className="text-white/60">الحالة</span><StatusBadge status={sale.status} /></div>
-            </div>
-          </div>
+          </>
         )}
       </div>
     </div>
@@ -347,20 +435,16 @@ function WhatsAppSuccessModal({ invoice, onClose }: { invoice: SuccessInvoice; o
 }
 
 function NewSalePanel({ onDone }: { onDone: () => void }) {
+  const { user: currentUser } = useAuth();
   const { data: products = [] } = useGetProducts();
   const { data: customers = [] } = useGetCustomers();
   const { data: safes = [] } = useGetSettingsSafes();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  // جلب المخازن والمندوبين مباشرة
   const { data: warehouses = [] } = useQuery<{ id: number; name: string }[]>({
     queryKey: ["/api/settings/warehouses"],
     queryFn: () => fetch(api("/api/settings/warehouses")).then(r => r.json()),
-  });
-  const { data: salespeople = [] } = useQuery<{ id: number; name: string; role: string; active: boolean }[]>({
-    queryKey: ["/api/settings/users"],
-    queryFn: () => fetch(api("/api/settings/users")).then(r => r.json()),
   });
 
   const [search, setSearch] = useState("");
@@ -370,9 +454,19 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
   const [customerId, setCustomerId] = useState<string>("");
   const [safeId, setSafeId] = useState<string>("");
   const [warehouseId, setWarehouseId] = useState<string>("");
-  const [salespersonId, setSalespersonId] = useState<string>("");
   const [discountPct, setDiscountPct] = useState<string>("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
+
+  // اختيار المخزن رقم 1 تلقائياً عند التحميل
+  useEffect(() => {
+    if (warehouses.length > 0 && !warehouseId) {
+      setWarehouseId(String(warehouses[0].id));
+    }
+  }, [warehouses]);
+
+  // المندوب هو المستخدم الحالي تلقائياً
+  const salespersonId = currentUser ? String(currentUser.id) : "";
+  const salespersonName = currentUser?.name ?? "—";
   const [successInvoice, setSuccessInvoice] = useState<SuccessInvoice | null>(null);
 
   const checkoutMutation = useMutation({
@@ -394,7 +488,7 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
         items: [...cart],
       });
       setCart([]); setPaidAmount(""); setCustomerId(""); setSafeId("");
-      setWarehouseId(""); setSalespersonId(""); setDiscountPct(""); setPaymentType("cash");
+      setDiscountPct(""); setPaymentType("cash");
     },
     onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
   });
@@ -506,20 +600,19 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
               </h3>
               <span className="bg-amber-500/20 text-amber-400 px-3 py-1 rounded-full text-xs font-bold">{cart.length} صنف</span>
             </div>
-            {/* حقول الفاتورة الرئيسية - مستوحاة من النموذج القديم */}
+            {/* حقول الفاتورة الرئيسية */}
             <div className="grid grid-cols-2 gap-1.5 text-xs">
               {selectRow("المخزن", <Vault className="w-3.5 h-3.5" />,
                 <select className="bg-transparent text-white outline-none w-full appearance-none text-xs" value={warehouseId} onChange={e => setWarehouseId(e.target.value)}>
-                  <option value="" className="bg-slate-900">-- اختر مخزن --</option>
+                  <option value="" className="bg-slate-900">-- مخزن --</option>
                   {warehouses.map(w => <option key={w.id} value={w.id} className="bg-slate-900">{w.name}</option>)}
                 </select>
               )}
-              {selectRow("المندوب", <User className="w-3.5 h-3.5" />,
-                <select className="bg-transparent text-white outline-none w-full appearance-none text-xs" value={salespersonId} onChange={e => setSalespersonId(e.target.value)}>
-                  <option value="" className="bg-slate-900">-- اختر مندوب --</option>
-                  {salespeople.filter(u => u.active !== false).map(u => <option key={u.id} value={u.id} className="bg-slate-900">{u.name}</option>)}
-                </select>
-              )}
+              <div className="flex items-center gap-2 bg-white/5 border border-amber-500/20 rounded-xl px-3 py-2">
+                <span className="text-amber-400/60 shrink-0"><Lock className="w-3.5 h-3.5" /></span>
+                <span className="text-white/40 text-xs w-14 shrink-0">المندوب</span>
+                <span className="text-amber-300 text-xs font-bold truncate">{salespersonName}</span>
+              </div>
             </div>
           </div>
 

@@ -5,7 +5,20 @@
 Full-stack Arabic ERP System (نظام ERP) for Halal Tech (Egyptian mobile repair shop). Arabic RTL interface with dark glass-morphism UI, EGP currency, amber theme.
 
 ### Navigation Pages
-Dashboard, Sales (POS + Returns), Purchases (+ Returns), Customers, Suppliers, Expenses, Income, سندات القبض (Receipt Vouchers), سندات التوريد (Deposit Vouchers), تحويل الخزائن (Safe Transfers), الحركات المالية (Financial Transactions Ledger), Chart of Accounts, Journal Entries, Reports, Settings.
+Dashboard, Sales (POS + Returns), Purchases (+ Returns), Customers, Suppliers, Expenses, Income, سندات القبض (Receipt Vouchers), سندات التوريد (Deposit Vouchers), تحويل الخزائن (Safe Transfers), المهام والعمليات (Unified Activity Log), الحركات المالية (Financial Transactions Ledger), Chart of Accounts, Journal Entries, Reports, Settings.
+
+### Authentication (Auth)
+- Login screen on app startup (dark glass-morphism Halal Tech branded)
+- User selects name from dropdown (from `erp_users` table), enters PIN via numpad
+- AuthContext stores user in localStorage, persists across sessions
+- All routes protected — redirects to `/login` if not logged in
+- Sidebar and header show current logged-in user + logout button
+- Context: `src/contexts/auth.tsx`, Login page: `src/pages/login.tsx`
+
+### POS Enhancements (sales.tsx NewSalePanel)
+- Warehouse #1 auto-selected on mount via `useEffect`
+- Salesperson auto-set to logged-in user (read-only, can't be changed)
+- Professional invoice print opens in new window with company header, table, totals
 
 ### Financial Transaction Engine
 Every money movement uses `db.transaction()` atomically:

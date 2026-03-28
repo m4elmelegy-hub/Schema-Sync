@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
+import { useAuth } from "@/contexts/auth";
 import { 
   LayoutDashboard, 
   Users, 
@@ -17,6 +18,9 @@ import {
   ArrowDownToLine,
   ArrowLeftRight,
   Activity,
+  ClipboardList,
+  LogOut,
+  UserCircle,
 } from "lucide-react";
 
 interface LayoutProps {
@@ -34,6 +38,7 @@ const navItems = [
   { name: "سندات القبض", href: "/receipt-vouchers", icon: HandCoins },
   { name: "سندات التوريد", href: "/deposit-vouchers", icon: ArrowDownToLine },
   { name: "تحويل الخزائن", href: "/safe-transfers", icon: ArrowLeftRight },
+  { name: "المهام والعمليات", href: "/tasks", icon: ClipboardList },
   { name: "الحركات المالية", href: "/financial-transactions", icon: Activity },
   { name: "دليل الحسابات", href: "/accounts", icon: BookOpen },
   { name: "القيود اليومية", href: "/journal-entries", icon: BookMarked },
@@ -41,8 +46,16 @@ const navItems = [
   { name: "الإعدادات", href: "/settings", icon: Settings },
 ];
 
+const ROLE_LABELS: Record<string, string> = {
+  admin: "مدير",
+  manager: "مشرف",
+  cashier: "كاشير",
+  salesperson: "مندوب",
+};
+
 export function AppLayout({ children }: LayoutProps) {
   const [location] = useLocation();
+  const { user, logout } = useAuth();
 
   return (
     <div className="min-h-screen bg-background relative flex" dir="rtl">
@@ -54,11 +67,12 @@ export function AppLayout({ children }: LayoutProps) {
 
       {/* Sidebar */}
       <aside className="relative z-10 w-64 glass-panel border-r-0 border-l m-4 rounded-3xl overflow-hidden flex-col hidden lg:flex">
+        {/* Logo */}
         <div className="p-4 flex flex-col items-center gap-2 border-b border-white/10 bg-black/30">
           <img 
             src={`${import.meta.env.BASE_URL}logo.png`} 
             alt="Halal Tech" 
-            className="w-16 h-16 object-contain rounded-2xl"
+            className="w-14 h-14 object-contain rounded-2xl"
           />
           <div className="text-center">
             <h1 className="text-base font-black text-amber-400 tracking-widest">Halal Tech</h1>
@@ -66,7 +80,27 @@ export function AppLayout({ children }: LayoutProps) {
           </div>
         </div>
 
-        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
+        {/* Logged in user */}
+        {user && (
+          <div className="mx-3 mt-3 p-3 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center shrink-0">
+              <UserCircle className="w-5 h-5 text-amber-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-white text-sm font-bold truncate">{user.name}</p>
+              <p className="text-white/40 text-xs">{ROLE_LABELS[user.role] || user.role}</p>
+            </div>
+            <button
+              onClick={logout}
+              title="تسجيل الخروج"
+              className="p-1.5 rounded-xl text-white/30 hover:text-red-400 hover:bg-red-500/10 transition-all"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto mt-2">
           {navItems.map((item) => {
             const isActive = location === item.href;
             return (
@@ -92,7 +126,7 @@ export function AppLayout({ children }: LayoutProps) {
         </nav>
 
         <div className="p-3 border-t border-white/5 text-center">
-          <p className="text-xs text-white/20">نظام ERP الإداري v1.0</p>
+          <p className="text-xs text-white/20">Halal Tech ERP v2.0</p>
         </div>
       </aside>
 
@@ -118,9 +152,15 @@ export function AppLayout({ children }: LayoutProps) {
             <div className="text-xs text-white/50 hidden sm:block">
               {new Date().toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             </div>
-            <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-amber-500/30">
-              <img src={`${import.meta.env.BASE_URL}logo.png`} alt="logo" className="w-full h-full object-cover" />
-            </div>
+            {user && (
+              <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-2xl px-3 py-1.5">
+                <UserCircle className="w-4 h-4 text-amber-400" />
+                <span className="text-white text-sm font-medium">{user.name}</span>
+                <button onClick={logout} className="text-white/30 hover:text-red-400 transition-colors pr-1">
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
           </div>
         </header>
 

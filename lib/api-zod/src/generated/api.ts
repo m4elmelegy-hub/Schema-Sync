@@ -496,18 +496,11 @@ export const GetDashboardStatsResponse = zod.object({
   recent_transactions: zod.array(
     zod.object({
       id: zod.number(),
-      type: zod.enum([
-        "sale",
-        "purchase",
-        "expense",
-        "income",
-        "receipt",
-        "payment",
-      ]),
+      type: zod.string(),
       amount: zod.number(),
       description: zod.string().nullish(),
       related_id: zod.number().nullish(),
       created_at: zod.string(),
-    }),
+    }).passthrough(),
   ),
 });
