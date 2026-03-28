@@ -547,6 +547,96 @@ function AppearanceTab() {
         </div>
       </div>
 
+      {/* ─── لون مخصص (Hex) ─── */}
+      <div className="glass-panel rounded-2xl p-5 border border-white/10 space-y-4">
+        <div className="flex items-center gap-2 mb-1">
+          <Palette className="w-4 h-4 text-amber-400" />
+          <h4 className="font-bold text-white text-sm">لون مخصص (Hex) — يتجاوز الألوان أعلاه</h4>
+        </div>
+        <div className="flex items-center gap-4">
+          <input
+            type="color"
+            value={settings.customAccentHex || "#f59e0b"}
+            onChange={e => update({ customAccentHex: e.target.value })}
+            className="w-16 h-12 rounded-xl cursor-pointer border-0 bg-transparent"
+            style={{ padding: "2px" }}
+          />
+          <div className="flex-1">
+            <p className="text-white/60 text-xs mb-2">اختر أي لون تريده — سيطبّق فوراً على كل التطبيق</p>
+            <div className="flex gap-2">
+              <code className="text-amber-400 text-xs font-mono bg-black/30 px-2 py-1 rounded-lg">
+                {settings.customAccentHex || "#f59e0b"}
+              </code>
+              {settings.customAccentHex && (
+                <button
+                  onClick={() => update({ customAccentHex: "" })}
+                  className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded-lg bg-red-500/10 border border-red-500/20 transition-colors"
+                >
+                  إلغاء المخصص
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="w-10 h-10 rounded-full border-2 border-white/20 shadow-lg shrink-0"
+            style={{ backgroundColor: settings.customAccentHex || "#f59e0b" }} />
+        </div>
+      </div>
+
+      {/* ─── سماكة الحدود + سماكة النص + حجم الأيقونات ─── */}
+      <div className="glass-panel rounded-2xl p-5 border border-white/10 space-y-5">
+        <div className="flex items-center gap-2 mb-1">
+          <Type className="w-4 h-4 text-amber-400" />
+          <h4 className="font-bold text-white text-sm">إعدادات المظهر المتقدمة</h4>
+        </div>
+
+        {/* سماكة الحدود */}
+        <div className="space-y-2">
+          <div className="flex justify-between items-center">
+            <Label>سماكة الحدود</Label>
+            <span className="text-amber-400 font-bold text-xs font-mono">{settings.borderWidth ?? 1}px</span>
+          </div>
+          <input type="range" min={0.5} max={4} step={0.5}
+            value={settings.borderWidth ?? 1}
+            onChange={e => update({ borderWidth: parseFloat(e.target.value) })}
+            className="w-full accent-amber-500 cursor-pointer h-2 rounded-full" />
+          <div className="flex justify-between text-white/30 text-xs">
+            <span>رفيع جداً</span><span>سميك</span>
+          </div>
+        </div>
+
+        {/* سماكة النص */}
+        <div className="space-y-2">
+          <Label>سماكة النص</Label>
+          <div className="grid grid-cols-4 gap-2">
+            {([400, 500, 600, 700] as const).map(w => (
+              <button key={w} onClick={() => update({ fontWeightNormal: w })}
+                className={`py-2 rounded-xl border text-xs font-bold transition-all ${(settings.fontWeightNormal ?? 400) === w ? "bg-amber-500/20 border-amber-500/40 text-amber-400" : "glass-panel border-white/10 text-white/50 hover:text-white hover:border-white/20"}`}
+                style={{ fontWeight: w }}>
+                {w === 400 ? "عادي" : w === 500 ? "متوسط" : w === 600 ? "نصف غامق" : "غامق"}
+              </button>
+            ))}
+          </div>
+          <p className="text-white/40 text-xs text-center" style={{ fontWeight: settings.fontWeightNormal ?? 400 }}>
+            نموذج النص بهذه السماكة — أبجد هوز حطي كلمن
+          </p>
+        </div>
+
+        {/* حجم الأيقونات */}
+        <div className="space-y-2">
+          <div className="flex justify-between items-center">
+            <Label>حجم أيقونات القائمة</Label>
+            <span className="text-amber-400 font-bold text-xs font-mono">{settings.iconSize ?? 20}px</span>
+          </div>
+          <input type="range" min={14} max={36} step={2}
+            value={settings.iconSize ?? 20}
+            onChange={e => update({ iconSize: parseInt(e.target.value) })}
+            className="w-full accent-amber-500 cursor-pointer h-2 rounded-full" />
+          <div className="flex justify-between text-white/30 text-xs">
+            <span>صغير</span><span>كبير</span>
+          </div>
+        </div>
+      </div>
+
       {/* Login background */}
       <div className="glass-panel rounded-2xl p-5 border border-white/10 space-y-4">
         <div className="flex items-center gap-2 mb-1">

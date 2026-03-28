@@ -97,7 +97,7 @@ export function AppLayout({ children }: LayoutProps) {
                       transition={{ type: "spring", stiffness: 300, damping: 30 }}
                     />
                   )}
-                  <item.icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-amber-400' : 'group-hover:text-white transition-colors'}`} />
+                  <item.icon className={`erp-nav-icon shrink-0 ${isActive ? 'text-amber-400' : 'group-hover:text-white transition-colors'}`} />
                   <span className="font-medium text-sm">{item.name}</span>
                 </div>
               </Link>
@@ -114,7 +114,7 @@ export function AppLayout({ children }: LayoutProps) {
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 glass-panel border-t border-white/10 rounded-t-3xl p-2 flex justify-around">
         {[navItems[0], navItems[2], navItems[3], navItems[4], navItems[10]].map((item) => (
           <Link key={item.href} href={item.href} className={`p-3 rounded-xl ${location === item.href ? 'bg-amber-500/20 text-amber-400' : 'text-white/50'}`}>
-            <item.icon className="w-6 h-6" />
+            <item.icon className="erp-nav-icon" />
           </Link>
         ))}
       </nav>

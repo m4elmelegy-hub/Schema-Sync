@@ -84,11 +84,28 @@
 
 /* Glass panel utility */
 .glass-panel {
-  @apply bg-card border border-white/5 backdrop-blur-xl shadow-2xl shadow-black/40;
+  @apply bg-card backdrop-blur-xl shadow-2xl shadow-black/40;
+  border-width: var(--erp-border-width, 1px);
+  border-style: solid;
+  border-color: rgba(255,255,255,0.05);
 }
 
 .glass-input {
-  @apply bg-black/20 border border-white/10 text-white placeholder:text-white/40 focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all rounded-xl px-4 py-2 w-full outline-none;
+  @apply bg-black/20 text-white placeholder:text-white/40 focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all rounded-xl px-4 py-2 w-full outline-none;
+  border-width: var(--erp-border-width, 1px);
+  border-style: solid;
+  border-color: rgba(255,255,255,0.10);
+}
+
+/* Dynamic icon size for navigation */
+.erp-nav-icon {
+  width: var(--erp-icon-size, 24px) !important;
+  height: var(--erp-icon-size, 24px) !important;
+}
+
+/* Dynamic font weight */
+body {
+  font-weight: var(--erp-font-weight, 400);
 }
 
 .btn-primary {

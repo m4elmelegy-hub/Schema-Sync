@@ -15,6 +15,11 @@ export interface AppSettings {
   customLogo: string;
   loginBg: string;
   loginBgImage: string;
+  /* ─── إعدادات المظهر المتقدمة ─── */
+  customAccentHex: string;   // "" = استخدم اللون المحدد مسبقاً، "#rrggbb" = لون مخصص
+  borderWidth: number;       // 0.5 — 4 بكسل
+  fontWeightNormal: number;  // 400 | 500 | 600 | 700
+  iconSize: number;          // 16 — 36 بكسل
 }
 
 export const FONT_SIZES: Record<FontSize, { label: string; base: string; cssVal: string }> = {
@@ -34,7 +39,32 @@ const DEFAULTS: AppSettings = {
   customLogo: "",
   loginBg: "default",
   loginBgImage: "",
+  customAccentHex: "",
+  borderWidth: 1,
+  fontWeightNormal: 400,
+  iconSize: 24,
 };
+
+/* ─── تحويل Hex إلى HSL ─── */
+function hexToHsl(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0;
+  const l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+  return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
+}
 
 const STORAGE_KEY = "halal_erp_settings";
 
@@ -115,10 +145,27 @@ function applySettings(s: AppSettings) {
   link.href = fontDef.googleUrl;
   document.head.appendChild(link);
 
-  // Accent color
-  const accent = ACCENT_COLORS[s.accentColor];
-  root.style.setProperty("--primary", accent.primary);
-  root.style.setProperty("--ring", accent.ring);
+  // Accent color — اللون المخصص يتجاوز الألوان المحددة مسبقاً
+  if (s.customAccentHex && /^#[0-9a-fA-F]{6}$/.test(s.customAccentHex)) {
+    const hsl = hexToHsl(s.customAccentHex);
+    root.style.setProperty("--primary", hsl);
+    root.style.setProperty("--ring", hsl);
+  } else {
+    const accent = ACCENT_COLORS[s.accentColor];
+    root.style.setProperty("--primary", accent.primary);
+    root.style.setProperty("--ring", accent.ring);
+  }
+
+  // Border width — سماكة الحدود
+  root.style.setProperty("--erp-border-width", `${s.borderWidth ?? 1}px`);
+
+  // Font weight — سماكة النص
+  const fw = String(s.fontWeightNormal ?? 400);
+  root.style.setProperty("--erp-font-weight", fw);
+  document.body.style.fontWeight = fw;
+
+  // Icon size — حجم الأيقونات
+  root.style.setProperty("--erp-icon-size", `${s.iconSize ?? 24}px`);
 }
 
 function loadSettings(): AppSettings {

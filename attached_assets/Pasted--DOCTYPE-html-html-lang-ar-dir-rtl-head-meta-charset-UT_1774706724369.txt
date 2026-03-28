@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إعدادات المظهر - نظام المحاسبة</title>
+    <style>
+        /* قاعدة لتطبيق المتغيرات على الصفحة الحالية */
+        :root {
+            --primary-color: #2c7da0;
+            --primary-light: #61a5c2;
+            --primary-dark: #1f5068;
+            --text-color: #1e2a32;
+            --bg-body: #f4f9fc;
+            --bg-card: #ffffff;
+            --border-color: #cbd5e1;
+            --border-width: 1px;
+            --font-family: 'Tajawal', 'Segoe UI', system-ui, 'Cairo', sans-serif;
+            --font-weight-normal: 400;
+            --font-weight-bold: 600;
+            --border-radius: 16px;
+            --icon-size: 24px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            transition: all 0.2s ease;
+        }
+
+        body {
+            background-color: var(--bg-body);
+            font-family: var(--font-family);
+            color: var(--text-color);
+            font-weight: var(--font-weight-normal);
+            padding: 30px 20px;
+            direction: rtl;
+        }
+
+        .settings-container {
+            max-width: 750px;
+            margin: 0 auto;
+            background: var(--bg-card);
+            border-radius: var(--border-radius);
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+            border: var(--border-width) solid var(--border-color);
+            overflow: hidden;
+        }
+
+        .settings-header {
+            background: linear-gradient(135deg, var(--primary-light), var(--primary-color));
+            padding: 24px;
+            color: white;
+        }
+
+        .settings-header h1 {
+            font-size: 1.8rem;
+            font-weight: var(--font-weight-bold);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .settings-body {
+            padding: 28px;
+        }
+
+        .control-group {
+            margin-bottom: 28px;
+        }
+
+        .control-group label {
+            display: block;
+            font-weight: var(--font-weight-bold);
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            color: var(--primary-dark);
+        }
+
+        .control-group input, 
+        .control-group select {
+            width: 100%;
+            padding: 12px 16px;
+            border: var(--border-width) solid var(--border-color);
+            border-radius: 12px;
+            font-family: var(--font-family);
+            font-size: 1rem;
+            background: white;
+            outline: none;
+        }
+
+        .control-group input:focus, 
+        .control-group select:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(44, 125, 160, 0.2);
+        }
+
+        input[type="color"] {
+            height: 50px;
+            cursor: pointer;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+
+        .preview-box {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 14px;
+            margin-top: 20px;
+            border: var(--border-width) solid var(--border-color);
+            text-align: center;
+        }
+
+        .preview-box p {
+            margin-bottom: 12px;
+        }
+
+        .preview-icons {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            font-size: var(--icon-size);
+            color: var(--primary-color);
+        }
+
+        .preview-icons span {
+            display: inline-block;
+        }
+
+        .btn-save {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 40px;
+            font-weight: var(--font-weight-bold);
+            cursor: pointer;
+            width: 100%;
+            font-size: 1rem;
+            margin-top: 20px;
+            transition: 0.2s;
+        }
+
+        .btn-save:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+
+        hr {
+            margin: 16px 0;
+            border-color: var(--border-color);
+            border-width: var(--border-width);
+        }
+    </style>
+</head>
+<body>
+<div class="settings-container">
+    <div class="settings-header">
+        <h1>⚙️ إعدادات المظهر</h1>
+        <p>خصص الألوان، الخطوط، السماكات والأيقونات حسب رغبتك</p>
+    </div>
+    <div class="settings-body">
+        <!-- اللون الأساسي -->
+        <div class="control-group">
+            <label>🎨 اللون الأساسي للتطبيق</label>
+            <input type="color" id="primaryColor" value="#2c7da0">
+        </div>
+
+        <!-- نوع الخط -->
+        <div class="control-group">
+            <label>✍️ نوع الخط</label>
+            <select id="fontFamily">
+                <option value="'Tajawal', 'Segoe UI', system-ui, 'Cairo', sans-serif">تاجوال (افتراضي)</option>
+                <option value="'Cairo', 'Tajawal', sans-serif">القاهرة (Cairo)</option>
+                <option value="'Amiri', 'Times New Roman', serif">أميري (كلاسيكي)</option>
+                <option value="'Almarai', sans-serif">المراعي (حديث)</option>
+                <option value="'IBM Plex Sans Arabic', sans-serif">بليكس عربي</option>
+            </select>
+        </div>
+
+        <!-- سماكة الحدود -->
+        <div class="control-group">
+            <label>📏 سماكة الحدود (Border Width)</label>
+            <input type="range" id="borderWidth" min="0.5" max="5" step="0.5" value="1">
+            <span id="borderWidthValue" style="display: inline-block; margin-top: 5px;">1px</span>
+        </div>
+
+        <!-- سماكة النص -->
+        <div class="control-group">
+            <label>🔤 سماكة النص (Font Weight)</label>
+            <select id="fontWeight">
+                <option value="400">عادي (400)</option>
+                <option value="500">متوسط (500)</option>
+                <option value="600">نصف غامق (600)</option>
+                <option value="700">غامق (700)</option>
+            </select>
+        </div>
+
+        <!-- حجم الأيقونات -->
+        <div class="control-group">
+            <label>🔍 حجم الأيقونات (Icon Size)</label>
+            <input type="range" id="iconSize" min="16" max="48" step="2" value="24">
+            <span id="iconSizeValue">24px</span>
+        </div>
+
+        <!-- معاينة حية -->
+        <div class="preview-box">
+            <p>🧪 <strong>معاينة فورية</strong></p>
+            <div class="preview-icons">
+                <span>📊</span>
+                <span>💰</span>
+                <span>🧾</span>
+                <span>⚙️</span>
+            </div>
+            <p style="margin-top: 12px;">هذا النص سيظهر بالخط الجديد</p>
+            <button class="btn-save" style="width: auto; padding: 8px 20px;">زر تجريبي</button>
+        </div>
+
+        <hr>
+        <button id="applySettings" class="btn-save">تطبيق الإعدادات وحفظها</button>
+    </div>
+</div>
+
+<script>
+    // تطبيق التغييرات على متغيرات CSS مباشرة
+    const root = document.documentElement;
+
+    function updatePrimaryColor(color) {
+        root.style.setProperty('--primary-color', color);
+        // تحسين الألوان المساعدة
+        let r, g, b;
+        if (color.startsWith('#')) {
+            r = parseInt(color.slice(1,3), 16);
+            g = parseInt(color.slice(3,5), 16);
+            b = parseInt(color.slice(5,7), 16);
+        } else {
+            r = 44; g = 125; b = 160;
+        }
+        const primaryLight = `rgb(${Math.min(r+40, 255)}, ${Math.min(g+40, 255)}, ${Math.min(b+40, 255)})`;
+        const primaryDark = `rgb(${Math.max(r-35, 20)}, ${Math.max(g-35, 20)}, ${Math.max(b-35, 20)})`;
+        root.style.setProperty('--primary-light', primaryLight);
+        root.style.setProperty('--primary-dark', primaryDark);
+    }
+
+    function updateFontFamily(font) {
+        root.style.setProperty('--font-family', font);
+    }
+
+    function updateBorderWidth(width) {
+        root.style.setProperty('--border-width', width + 'px');
+        document.getElementById('borderWidthValue').innerText = width + 'px';
+    }
+
+    function updateFontWeight(weight) {
+        root.style.setProperty('--font-weight-normal', weight);
+        let boldWeight = parseInt(weight) + 100;
+        if (boldWeight > 800) boldWeight = 800;
+        root.style.setProperty('--font-weight-bold', boldWeight);
+    }
+
+    function updateIconSize(size) {
+        root.style.setProperty('--icon-size', size + 'px');
+        document.getElementById('iconSizeValue').innerText = size + 'px';
+    }
+
+    // ربط العناصر
+    const colorPicker = document.getElementById('primaryColor');
+    const fontSelect = document.getElementById('fontFamily');
+    const borderSlider = document.getElementById('borderWidth');
+    const fontWeightSelect = document.getElementById('fontWeight');
+    const iconSizeSlider = document.getElementById('iconSize');
+
+    colorPicker.addEventListener('input', (e) => updatePrimaryColor(e.target.value));
+    fontSelect.addEventListener('change', (e) => updateFontFamily(e.target.value));
+    borderSlider.addEventListener('input', (e) => updateBorderWidth(parseFloat(e.target.value)));
+    fontWeightSelect.addEventListener('change', (e) => updateFontWeight(e.target.value));
+    iconSizeSlider.addEventListener('input', (e) => updateIconSize(parseInt(e.target.value)));
+
+    // حفظ الإعدادات في localStorage (اختياري)
+    document.getElementById('applySettings').addEventListener('click', () => {
+        const settings = {
+            primaryColor: colorPicker.value,
+            fontFamily: fontSelect.value,
+            borderWidth: borderSlider.value,
+            fontWeight: fontWeightSelect.value,
+            iconSize: iconSizeSlider.value
+        };
+        localStorage.setItem('appSettings', JSON.stringify(settings));
+        alert('تم حفظ الإعدادات! سيتم تطبيقها في下次 فتح التطبيق.');
+    });
+
+    // استرجاع الإعدادات المحفوظة عند تحميل الصفحة
+    function loadSettings() {
+        const saved = localStorage.getItem('appSettings');
+        if (saved) {
+            try {
+                const settings = JSON.parse(saved);
+                colorPicker.value = settings.primaryColor;
+                updatePrimaryColor(settings.primaryColor);
+                fontSelect.value = settings.fontFamily;
+                updateFontFamily(settings.fontFamily);
+                borderSlider.value = settings.borderWidth;
+                updateBorderWidth(parseFloat(settings.borderWidth));
+                fontWeightSelect.value = settings.fontWeight;
+                updateFontWeight(settings.fontWeight);
+                iconSizeSlider.value = settings.iconSize;
+                updateIconSize(parseInt(settings.iconSize));
+            } catch(e) {}
+        }
+    }
+    loadSettings();
+</script>
+</body>
+</html>
