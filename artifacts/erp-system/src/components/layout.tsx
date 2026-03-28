@@ -6,17 +6,12 @@ import {
   LayoutDashboard, 
   Users, 
   Receipt, 
-  Wallet, 
   FileText,
   CreditCard,
-  TrendingUp,
   Settings,
   Truck,
   BookOpen,
   BookMarked,
-  HandCoins,
-  ArrowDownToLine,
-  ArrowLeftRight,
   Activity,
   ClipboardList,
   LogOut,
@@ -29,16 +24,11 @@ interface LayoutProps {
 
 const navItems = [
   { name: "لوحة القيادة", href: "/", icon: LayoutDashboard },
+  { name: "المهام السريعة", href: "/tasks", icon: ClipboardList },
   { name: "المبيعات", href: "/sales", icon: Receipt },
   { name: "المشتريات", href: "/purchases", icon: CreditCard },
   { name: "العملاء", href: "/customers", icon: Users },
   { name: "الموردون", href: "/suppliers", icon: Truck },
-  { name: "المصروفات", href: "/expenses", icon: Wallet },
-  { name: "الإيرادات", href: "/income", icon: TrendingUp },
-  { name: "سندات القبض", href: "/receipt-vouchers", icon: HandCoins },
-  { name: "سندات التوريد", href: "/deposit-vouchers", icon: ArrowDownToLine },
-  { name: "تحويل الخزائن", href: "/safe-transfers", icon: ArrowLeftRight },
-  { name: "المهام والعمليات", href: "/tasks", icon: ClipboardList },
   { name: "الحركات المالية", href: "/financial-transactions", icon: Activity },
   { name: "دليل الحسابات", href: "/accounts", icon: BookOpen },
   { name: "القيود اليومية", href: "/journal-entries", icon: BookMarked },
@@ -57,6 +47,14 @@ export function AppLayout({ children }: LayoutProps) {
   const [location] = useLocation();
   const { user, logout } = useAuth();
 
+  const pageTitle = navItems.find(i => i.href === location)?.name
+    || (location === "/expenses" ? "المصروفات"
+      : location === "/income" ? "الإيرادات"
+      : location === "/receipt-vouchers" ? "سندات القبض"
+      : location === "/deposit-vouchers" ? "سندات التوريد"
+      : location === "/safe-transfers" ? "تحويل الخزائن"
+      : "مرحباً بك");
+
   return (
     <div className="min-h-screen bg-background relative flex" dir="rtl">
       <div 
@@ -66,25 +64,25 @@ export function AppLayout({ children }: LayoutProps) {
       <div className="fixed inset-0 z-0 bg-gradient-to-br from-black/80 via-background/90 to-black/90 pointer-events-none" />
 
       {/* Sidebar */}
-      <aside className="relative z-10 w-64 glass-panel border-r-0 border-l m-4 rounded-3xl overflow-hidden flex-col hidden lg:flex">
+      <aside className="relative z-10 w-60 glass-panel border-r-0 border-l m-4 rounded-3xl overflow-hidden flex-col hidden lg:flex">
         {/* Logo */}
         <div className="p-4 flex flex-col items-center gap-2 border-b border-white/10 bg-black/30">
           <img 
             src={`${import.meta.env.BASE_URL}logo.png`} 
             alt="Halal Tech" 
-            className="w-14 h-14 object-contain rounded-2xl"
+            className="w-12 h-12 object-contain rounded-2xl"
           />
           <div className="text-center">
-            <h1 className="text-base font-black text-amber-400 tracking-widest">Halal Tech</h1>
-            <p className="text-xs text-white/40 mt-0.5">الحلال = البركة</p>
+            <h1 className="text-sm font-black text-amber-400 tracking-widest">Halal Tech</h1>
+            <p className="text-xs text-white/30 mt-0.5">الحلال = البركة</p>
           </div>
         </div>
 
         {/* Logged in user */}
         {user && (
-          <div className="mx-3 mt-3 p-3 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center shrink-0">
-              <UserCircle className="w-5 h-5 text-amber-400" />
+          <div className="mx-3 mt-3 p-3 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center shrink-0">
+              <UserCircle className="w-4 h-4 text-amber-400" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-white text-sm font-bold truncate">{user.name}</p>
@@ -95,7 +93,7 @@ export function AppLayout({ children }: LayoutProps) {
               title="تسجيل الخروج"
               className="p-1.5 rounded-xl text-white/30 hover:text-red-400 hover:bg-red-500/10 transition-all"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
@@ -130,9 +128,9 @@ export function AppLayout({ children }: LayoutProps) {
         </div>
       </aside>
 
-      {/* Mobile Nav */}
+      {/* Mobile Nav - top 5 most used */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 glass-panel border-t border-white/10 rounded-t-3xl p-2 flex justify-around">
-        {navItems.slice(0, 5).map((item) => (
+        {[navItems[0], navItems[1], navItems[2], navItems[3], navItems[10]].map((item) => (
           <Link key={item.href} href={item.href} className={`p-3 rounded-xl ${location === item.href ? 'bg-amber-500/20 text-amber-400' : 'text-white/50'}`}>
             <item.icon className="w-6 h-6" />
           </Link>
@@ -144,9 +142,7 @@ export function AppLayout({ children }: LayoutProps) {
         <header className="glass-panel rounded-3xl p-4 flex justify-between items-center mb-4 shrink-0 border border-white/5">
           <div className="flex items-center gap-3">
             <div className="w-1 h-7 bg-gradient-to-b from-amber-400 to-amber-600 rounded-full" />
-            <h2 className="text-lg lg:text-xl font-bold text-white tracking-wide">
-              {navItems.find(i => i.href === location)?.name || "مرحباً بك"}
-            </h2>
+            <h2 className="text-lg lg:text-xl font-bold text-white tracking-wide">{pageTitle}</h2>
           </div>
           <div className="flex items-center gap-4">
             <div className="text-xs text-white/50 hidden sm:block">
