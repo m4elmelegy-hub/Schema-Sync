@@ -174,6 +174,41 @@ html.light ::-webkit-scrollbar-track  { background: rgba(0, 0, 0, 0.03); }
 html.light ::-webkit-scrollbar-thumb  { background: rgba(0, 0, 0, 0.15); }
 html.light ::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.25); }
 
+/* ═══════════════════════════════════════════
+   Select / Option — ثابت في كل الأوضاع
+   المتصفح يرسم القائمة المنسدلة بألوانه الخاصة
+   لذا نحدد اللون والخلفية بشكل صريح على
+   العنصر وكل خياراته
+   ═══════════════════════════════════════════ */
+
+/* Dark mode defaults (already dark-first app) */
+select,
+select option {
+  background-color: #1a1f2e;
+  color: #f0f2f8;
+}
+
+select option:hover,
+select option:focus,
+select option:checked {
+  background-color: #2a3045;
+  color: #ffffff;
+}
+
+/* Light mode overrides */
+html.light select,
+html.light select option {
+  background-color: #ffffff !important;
+  color: #1e2433 !important;
+}
+
+html.light select option:hover,
+html.light select option:focus,
+html.light select option:checked {
+  background-color: #f0f4ff !important;
+  color: #1e2433 !important;
+}
+
 /* Secondary btn in light mode */
 html.light .btn-secondary {
   background: rgba(0, 0, 0, 0.06) !important;
