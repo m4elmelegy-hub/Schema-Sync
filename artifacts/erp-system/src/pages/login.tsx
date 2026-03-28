@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/auth";
+import { useAppSettings, getLoginBgStyle } from "@/contexts/app-settings";
 import { useLocation } from "wouter";
 import { LogIn, Shield } from "lucide-react";
 
@@ -18,6 +19,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 export default function Login() {
   const { login } = useAuth();
+  const { settings } = useAppSettings();
   const [, setLocation] = useLocation();
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [pin, setPin] = useState<string>("");
@@ -48,13 +50,15 @@ export default function Login() {
     setLocation("/");
   };
 
+  const bgStyle = getLoginBgStyle(settings.loginBg);
+  const logoSrc = settings.customLogo || `${import.meta.env.BASE_URL}logo.png`;
+
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden" dir="rtl">
-      <div
-        className="fixed inset-0 z-0 opacity-30 pointer-events-none bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: `url(${import.meta.env.BASE_URL}images/bg-mesh.png)` }}
-      />
-      <div className="fixed inset-0 z-0 bg-gradient-to-br from-black/90 via-background/95 to-black/90 pointer-events-none" />
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden" dir="rtl"
+      style={{ background: bgStyle }}>
+      <div className="fixed inset-0 z-0 opacity-15 pointer-events-none bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: `url(${import.meta.env.BASE_URL}images/bg-mesh.png)` }} />
+      <div className="fixed inset-0 z-0 bg-black/40 pointer-events-none" />
 
       <div className="relative z-10 w-full max-w-xs">
         {/* Logo & Branding */}
@@ -62,20 +66,17 @@ export default function Login() {
           <div className="flex justify-center mb-4">
             <div className="relative">
               <div className="w-24 h-24 rounded-3xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shadow-2xl shadow-amber-500/20">
-                <img
-                  src={`${import.meta.env.BASE_URL}logo.png`}
-                  alt="Halal Tech"
+                <img src={logoSrc} alt={settings.companyName}
                   className="w-16 h-16 object-contain"
-                  onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                />
+                  onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
               </div>
               <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center border-2 border-background">
                 <Shield className="w-3 h-3 text-white" />
               </div>
             </div>
           </div>
-          <h1 className="text-3xl font-black text-white tracking-wide">Halal Tech</h1>
-          <p className="text-amber-400/80 text-sm mt-1">الحلال = البركة</p>
+          <h1 className="text-3xl font-black text-white tracking-wide">{settings.companyName}</h1>
+          <p className="text-amber-400/80 text-sm mt-1">{settings.companySlogan}</p>
         </div>
 
         {/* Login Card */}

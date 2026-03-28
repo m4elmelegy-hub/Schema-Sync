@@ -2,14 +2,32 @@
 
 ## Overview
 
-Full-stack Arabic ERP System (نظام ERP) for Halal Tech (Egyptian mobile repair shop). Arabic RTL interface with dark glass-morphism UI, EGP currency, amber theme.
+Full-stack Arabic ERP System (نظام ERP) for Halal Tech (Egyptian mobile repair shop). Arabic RTL interface with dark glass-morphism UI. Dynamic currency, font, accent color, and company branding — all configurable from Settings without code changes.
 
 ### Navigation Pages
 Dashboard, Sales (POS + Returns), Purchases (+ Returns), Customers, Suppliers, Expenses, Income, سندات القبض (Receipt Vouchers), سندات التوريد (Deposit Vouchers), تحويل الخزائن (Safe Transfers), المهام والعمليات (Unified Activity Log), الحركات المالية (Financial Transactions Ledger), Chart of Accounts, Journal Entries, Reports, Settings.
 
+### App-Wide Settings Context (`src/contexts/app-settings.tsx`)
+- `AppSettingsProvider` wraps entire app; reads/writes `halal_erp_settings` from localStorage
+- **Currency**: EGP/SAR/AED/USD/KWD/BHD — `formatCurrency()` in `lib/format.ts` reads from localStorage dynamically
+- **Font**: Tajawal/Cairo/Almarai/Changa — loaded via Google Fonts link injection + CSS variable `--erp-font`
+- **Accent color**: 6 palettes (amber/emerald/violet/sky/rose/orange) — applied to CSS `--primary` and `--ring` custom props
+- **Company branding**: name + slogan + custom logo (base64 in localStorage)
+- **Login background**: 5 gradient presets
+
+### Settings Page (7 Tabs)
+- **المستخدمون**: CRUD for users with roles + permissions checkboxes
+- **الخزائن**: Add/delete safes + inter-safe transfers
+- **المخازن**: Add/delete warehouse locations
+- **الواجهة**: Font picker, accent color grid, logo upload (500 KB limit), login background selector, company name/slogan
+- **العملة**: Live currency card grid with preview of formatted numbers
+- **الأصناف**: Excel export (XLSX) of all products + bulk import from xlsx/xls/csv + template download
+- **البيانات**: Granular table-level clearing (10 tables) + full database reset
+- API endpoint: `POST /api/admin/clear { tables: string[] }` — clears any subset of tables
+
 ### Authentication (Auth)
-- Login screen on app startup (dark glass-morphism Halal Tech branded)
-- User selects name from dropdown (from `erp_users` table), enters PIN via numpad
+- Login screen on app startup — uses AppSettings: dynamic company name, slogan, logo, background
+- User selects name from dropdown (from `erp_users` table), enters PIN
 - AuthContext stores user in localStorage, persists across sessions
 - All routes protected — redirects to `/login` if not logged in
 - Sidebar and header show current logged-in user + logout button
