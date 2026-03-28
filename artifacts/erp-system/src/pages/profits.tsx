@@ -171,7 +171,7 @@ export default function Profits() {
 
       {isLoading ? (
         <div className="text-center py-20 text-white/40 text-lg">جاري حساب الأرباح...</div>
-      ) : !data ? null : (
+      ) : (!data || typeof data.profit_margin !== "number") ? null : (
         <>
           {/* ── بطاقات الملخص ── */}
           <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
@@ -357,7 +357,7 @@ export default function Profits() {
                             p.profit_margin >= 15 ? 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30' :
                             p.profit_margin >= 0  ? 'text-orange-400 bg-orange-500/10 border-orange-500/30' :
                                                     'text-red-400 bg-red-500/10 border-red-500/30'}`}>
-                            {p.profit_margin.toFixed(1)}%
+                            {Number(p.profit_margin ?? 0).toFixed(1)}%
                           </span>
                         </td>
                       </tr>
