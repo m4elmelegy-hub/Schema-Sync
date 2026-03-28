@@ -280,13 +280,13 @@ export default function Products() {
                         </span>
                       </td>
                       <td className="p-4">
-                        <div className="flex items-center justify-center gap-2">
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
                           <button
                             onClick={() => openEdit(product)}
                             title="تعديل المنتج"
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/30 transition-colors text-xs font-bold"
+                            style={{ display: "flex", alignItems: "center", gap: "4px", padding: "4px 10px", borderRadius: "8px", background: "rgba(59,130,246,0.2)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.4)", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }}
                           >
-                            <Pencil className="w-3.5 h-3.5" />
+                            <Pencil style={{ width: "14px", height: "14px" }} />
                             تعديل
                           </button>
                           <button
