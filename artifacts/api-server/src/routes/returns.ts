@@ -3,7 +3,7 @@ import { eq, desc } from "drizzle-orm";
 import {
   db, salesReturnsTable, saleReturnItemsTable,
   purchaseReturnsTable, purchaseReturnItemsTable,
-  productsTable, customersTable, safesTable, transactionsTable, stockMovementsTable,
+  productsTable, customersTable, suppliersTable, safesTable, transactionsTable, stockMovementsTable,
 } from "@workspace/db";
 
 import { wrap, httpError } from "../lib/async-handler";
@@ -218,69 +218,103 @@ router.get("/purchase-returns/:id", wrap(async (req, res) => {
 }));
 
 router.post("/purchase-returns", wrap(async (req, res) => {
-  const { purchase_id, customer_id, customer_name, supplier_name, items, reason, notes, date } = req.body;
+  // FIX 3: أضيف refund_type (cash|balance_credit) و safe_id و supplier_id
+  // FIX 9: supplier_name يُحفظ بشكل صحيح ولا يُخلط مع customer_name
+  const {
+    purchase_id, supplier_id, customer_id, customer_name, supplier_name,
+    items, reason, notes, date,
+    refund_type, safe_id,
+  } = req.body;
+
   if (!items?.length) { res.status(400).json({ error: "أضف أصناف المرتجع" }); return; }
 
   const total: number = items.reduce((s: number, i: { total_price: number }) => s + Number(i.total_price), 0);
   const return_no = `PR-${Date.now()}`;
+  const txDate = date ?? new Date().toISOString().split("T")[0];
+  const rtype: string = refund_type === "cash" ? "cash" : "balance_credit";
 
   const ret = await db.transaction(async (tx) => {
-      const [ret] = await tx.insert(purchaseReturnsTable).values({
-        return_no,
-        purchase_id: purchase_id ?? null,
-        customer_id: customer_id ? parseInt(customer_id) : null,
-        customer_name: customer_name ?? supplier_name ?? null,
-        supplier_name: supplier_name ?? customer_name ?? null,
-        total_amount: String(total),
-        date: date ?? new Date().toISOString().split("T")[0],
-        reason: reason ?? null,
-        notes: notes ?? null,
-      }).returning();
+    // ── نوع الاسترداد: نقدي → زيادة رصيد الخزينة ─────────────────────────
+    if (rtype === "cash") {
+      if (!safe_id) throw httpError(400, "يجب اختيار الخزينة للاسترداد النقدي");
+      const [safe] = await tx.select().from(safesTable).where(eq(safesTable.id, parseInt(safe_id)));
+      if (!safe) throw httpError(400, "الخزينة غير موجودة");
 
-      for (const item of items) {
-        await tx.insert(purchaseReturnItemsTable).values({
-          return_id: ret.id,
+      await tx.update(safesTable)
+        .set({ balance: String(Number(safe.balance) + total) })
+        .where(eq(safesTable.id, safe.id));
+
+      await tx.insert(transactionsTable).values({
+        type: "purchase_return",
+        reference_type: "purchase_return",
+        safe_id: safe.id,
+        safe_name: safe.name,
+        amount: String(total),
+        direction: "in",
+        description: `مرتجع مشتريات نقدي ${return_no}${supplier_name ? ` — ${supplier_name}` : ""}`,
+        date: txDate,
+      });
+    } else {
+      // ── خصم من رصيد المورد (دين يُقلَّل) ─────────────────────────────
+      if (supplier_id) {
+        const [supp] = await tx.select().from(suppliersTable).where(eq(suppliersTable.id, parseInt(supplier_id)));
+        if (supp) {
+          const newBal = Math.max(0, Number(supp.balance) - total);
+          await tx.update(suppliersTable)
+            .set({ balance: String(newBal) })
+            .where(eq(suppliersTable.id, supp.id));
+        }
+      }
+    }
+
+    // ── إنشاء سجل المرتجع ──────────────────────────────────────────────────
+    const [ret] = await tx.insert(purchaseReturnsTable).values({
+      return_no,
+      purchase_id: purchase_id ?? null,
+      customer_id: customer_id ? parseInt(customer_id) : null,
+      customer_name: customer_name ?? null,        // FIX 9: لا خلط مع supplier_name
+      supplier_name: supplier_name ?? null,        // FIX 9: مستقل
+      total_amount: String(total),
+      date: txDate,
+      reason: reason ?? null,
+      notes: notes ?? null,
+    }).returning();
+
+    // ── خصم من المخزون + حركة صادر ────────────────────────────────────────
+    for (const item of items) {
+      await tx.insert(purchaseReturnItemsTable).values({
+        return_id: ret.id,
+        product_id: item.product_id,
+        product_name: item.product_name,
+        quantity: String(item.quantity),
+        unit_price: String(item.unit_price),
+        total_price: String(item.total_price),
+      });
+
+      const [prod] = await tx.select().from(productsTable).where(eq(productsTable.id, item.product_id));
+      if (prod) {
+        const oldQty = Number(prod.quantity);
+        const newQty = Math.max(0, oldQty - Number(item.quantity));
+        await tx.update(productsTable)
+          .set({ quantity: String(newQty) })
+          .where(eq(productsTable.id, item.product_id));
+
+        await tx.insert(stockMovementsTable).values({
           product_id: item.product_id,
           product_name: item.product_name,
-          quantity: String(item.quantity),
-          unit_price: String(item.unit_price),
-          total_price: String(item.total_price),
+          movement_type: "purchase_return",
+          quantity: String(-Number(item.quantity)),
+          quantity_before: String(oldQty),
+          quantity_after: String(newQty),
+          unit_cost: String(Number(item.unit_price)),
+          reference_type: "purchase_return",
+          reference_id: ret.id,
+          reference_no: return_no,
+          notes: supplier_name ? `مرتجع مشتريات لـ ${supplier_name}` : "مرتجع مشتريات",
+          date: txDate,
         });
-
-        const [prod] = await tx.select().from(productsTable).where(eq(productsTable.id, item.product_id));
-        if (prod) {
-          const oldQty = Number(prod.quantity);
-          const newQty = Math.max(0, oldQty - Number(item.quantity));
-          await tx.update(productsTable)
-            .set({ quantity: String(newQty) })
-            .where(eq(productsTable.id, item.product_id));
-
-          // ── تسجيل حركة صادر (مرتجع مشتريات = ينقص المخزون) ─
-          await tx.insert(stockMovementsTable).values({
-            product_id: item.product_id,
-            product_name: item.product_name,
-            movement_type: "purchase_return",
-            quantity: String(-Number(item.quantity)),  // سالب = صادر
-            quantity_before: String(oldQty),
-            quantity_after: String(newQty),
-            unit_cost: String(Number(item.unit_price)),
-            reference_type: "purchase_return",
-            reference_id: ret.id,
-            reference_no: return_no,
-            notes: supplier_name ? `مرتجع مشتريات لـ ${supplier_name}` : "مرتجع مشتريات",
-            date: date ?? new Date().toISOString().split("T")[0],
-          });
-        }
       }
-
-      if (customer_id) {
-        const [cust] = await tx.select().from(customersTable).where(eq(customersTable.id, parseInt(customer_id)));
-        if (cust) {
-          await tx.update(customersTable)
-            .set({ balance: String(Number(cust.balance) + total) })
-            .where(eq(customersTable.id, cust.id));
-        }
-      }
+    }
 
     return ret;
   });

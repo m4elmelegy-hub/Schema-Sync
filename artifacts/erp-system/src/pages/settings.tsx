@@ -258,7 +258,7 @@ function SafesTab() {
   const [tf, setTf] = useState({ from_safe_id: "", to_safe_id: "", amount: "", notes: "" });
   const totalBalance = safes.reduce((s, x) => s + Number(x.balance), 0);
 
-  const invalidate = () => { queryClient.invalidateQueries({ queryKey: ["/api/settings/safes"] }); queryClient.invalidateQueries({ queryKey: ["/api/settings/safe-transfers"] }); };
+  const invalidate = () => { queryClient.invalidateQueries({ queryKey: ["/api/settings/safes"] }); queryClient.invalidateQueries({ queryKey: ["/api/safe-transfers"] }); };
 
   return (
     <div className="space-y-5">

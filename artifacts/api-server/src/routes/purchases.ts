@@ -53,6 +53,7 @@ router.post("/purchases", wrap(async (req, res) => {
     customer_name,
     safe_id,
     notes,
+    date,
   } = parsed.data;
 
   const remaining = total_amount - paid_amount;
@@ -63,7 +64,7 @@ router.post("/purchases", wrap(async (req, res) => {
 
   const invoiceNo = `PUR-${Date.now()}`;
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = date ?? new Date().toISOString().split("T")[0];
 
   const purchase = await db.transaction(async (tx) => {
     const [newPurchase] = await tx.insert(purchasesTable).values({
@@ -77,6 +78,7 @@ router.post("/purchases", wrap(async (req, res) => {
       paid_amount: String(paid_amount),
       remaining_amount: String(payment_type === "credit" ? total_amount : remaining),
       status,
+      date: today,
       notes: notes ?? null,
     }).returning();
 

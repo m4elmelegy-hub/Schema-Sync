@@ -42,7 +42,7 @@ router.post("/sales", wrap(async (req, res) => {
     return;
   }
 
-  const { payment_type, total_amount, paid_amount, items, customer_name, customer_id, notes } = parsed.data;
+  const { payment_type, total_amount, paid_amount, items, customer_name, customer_id, notes, date } = parsed.data;
   const safe_id: number | undefined = req.body.safe_id ? parseInt(req.body.safe_id) : undefined;
   const warehouse_id: number | undefined = req.body.warehouse_id ? parseInt(req.body.warehouse_id) : undefined;
   const salesperson_id: number | undefined = req.body.salesperson_id ? parseInt(req.body.salesperson_id) : undefined;
@@ -100,6 +100,7 @@ router.post("/sales", wrap(async (req, res) => {
         discount_percent: String(discount_percent),
         discount_amount: String(discount_amount),
         notes: notes ?? null,
+        date: date ?? new Date().toISOString().split("T")[0],
       }).returning();
 
       // 3. البنود: خصم المخزون + تسجيل التكلفة + حركة مخزون صادر

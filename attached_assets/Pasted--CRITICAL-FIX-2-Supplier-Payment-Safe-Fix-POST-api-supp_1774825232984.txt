@@ -1,0 +1,135 @@
+🔴 CRITICAL FIX 2: Supplier Payment → Safe
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Fix POST /api/suppliers/:id/payment
+
+Current bug: reduces supplier balance but NEVER deducts from safe.
+
+Fix:
+1. Require safe_id in request body
+2. Check safe balance >= amount → else BLOCK
+3. UPDATE safes.balance -= amount
+4. UPDATE suppliers.balance -= amount
+5. INSERT into transactions:
+   type='supplier_payment', direction='out'
+   safe_id, safe_name, amount, reference_type='supplier_payment'
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔴 CRITICAL FIX 3: Purchase Return → Safe
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Fix POST /api/purchase-returns
+
+Current bug: deducts stock but NEVER adds cash back to safe.
+
+Fix:
+1. Add refund_type field: 'cash' | 'balance_credit'
+2. Add safe_id field (required if refund_type = 'cash')
+3. If cash: UPDATE safes.balance += total_amount
+4. If balance_credit: UPDATE suppliers.balance -= total_amount
+5. INSERT into transactions:
+   type='purchase_return', direction='in' (cash back)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔴 CRITICAL FIX 4: Remove Duplicate Safe Transfer
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+There are 2 conflicting safe transfer routes:
+- /api/safe-transfers → uses transactions table ✅ KEEP THIS
+- /api/settings/safe-transfers → uses safe_transfers table ❌ REMOVE
+
+Steps:
+1. Delete /api/settings/safe-transfers route entirely
+2. Update any frontend component using /api/settings/safe-transfers
+   to use /api/safe-transfers instead
+3. Ensure /api/safe-transfers inserts into BOTH:
+   - safe_transfers table (for history)
+   - transactions table (for financial ledger) with direction='none'
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔴 CRITICAL FIX 5: Profit Report Date Filter
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Current bug: profits route filters by created_at
+but transactions route filters by date field.
+This causes backdated sales to appear in wrong period.
+
+Fix in GET /api/profits:
+Change ALL date filters from:
+  WHERE created_at BETWEEN ? AND ?
+To:
+  WHERE date BETWEEN ? AND ?
+
+Apply same fix to sale_items join queries.
+Test: create a backdated sale → verify it appears 
+in correct period in BOTH profits and transactions.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔴 CRITICAL FIX 6: Receipt Voucher Balance Cap
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Current bug: deposit-voucher caps customer balance at 0
+but receipt-voucher does NOT cap → balance goes negative.
+
+Fix POST /api/receipt-vouchers:
+Change customer balance update to:
+  new_balance = Math.max(0, current_balance - amount)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔴 CRITICAL FIX 7: Dashboard Profit Calculation
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Current bug: 
+  net_profit = total_sales - total_expenses + total_income
+This is WRONG — it doesn't subtract cost of goods sold.
+
+Fix GET /api/dashboard/stats:
+  gross_profit = SUM(sale_items.total_price - sale_items.cost_total)
+                 WHERE sales.date = TODAY
+  net_profit = gross_profit - total_expenses + total_income
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🟡 FIX 8: Supplier Statement Endpoint
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Create GET /api/suppliers/:id/statement
+
+Return (sorted by date DESC):
+- All purchases for this supplier
+- All purchase returns
+- All payment vouchers
+- Opening balance entry (if exists)
+- Running balance after each row
+
+Same structure as GET /api/customers/:id/statement
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🟡 FIX 9: Purchase Returns Field Names
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Current bug: purchase_returns table uses customer_id 
+and customer_name for what is actually a SUPPLIER.
+
+Fix:
+1. Ensure supplier_name is correctly saved (not as customer_name)
+2. In CreatePurchaseReturn: pass supplier_name correctly
+3. In the list/detail views: display supplier name correctly
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🟢 VALIDATION — Prove everything works
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+After all fixes, run this exact test scenario:
+
+Product: "كولا 250ml"
+Step 1: Set opening balance → qty=100, cost=5.00
+  Expected: stock=100, avg_cost=5.00
+Step 2: Purchase → qty=50, cost=6.00
+  Expected: avg_cost=(100×5+50×6)/150 = 5.33, stock=150
+Step 3: Sale → qty=30, price=8.00
+  Expected: stock=120, COGS=30×5.33=159.90, profit=80.10
+Step 4: Sales return → qty=5
+  Expected: stock=125, refund=5×5.33=26.65
+Step 5: Check dashboard profit → must show 53.45 (25 units × profit)
+Step 6: Check safe balance → must reflect all cash movements
+
+Show output as JSON from the database after each step.
+
+FAIL CONDITIONS:
+- Any fix skipped = FAIL
+- Safe not updated on supplier payment = FAIL  
+- Safe not updated on purchase return = FAIL
+- Profit using wrong date field = FAIL
+- Dashboard profit ignoring COGS = FAIL
+- Opening balance not flowing into inventory audit = FAIL

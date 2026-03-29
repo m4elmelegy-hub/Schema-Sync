@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
-import { db, safesTable, transactionsTable } from "@workspace/db";
+import { db, safesTable, safeTransfersTable, transactionsTable } from "@workspace/db";
 
 import { wrap, httpError } from "../lib/async-handler";
 
@@ -41,6 +41,17 @@ router.post("/safe-transfers", wrap(async (req, res) => {
     await tx.update(safesTable).set({ balance: String(Number(fromSafe.balance) - amt) }).where(eq(safesTable.id, fromSafe.id));
     await tx.update(safesTable).set({ balance: String(Number(toSafe.balance) + amt) }).where(eq(safesTable.id, toSafe.id));
 
+    // ── سجل في جدول safe_transfers للتاريخ ─────────────────────────────────
+    await tx.insert(safeTransfersTable).values({
+      from_safe_id: fromSafe.id,
+      from_safe_name: fromSafe.name,
+      to_safe_id: toSafe.id,
+      to_safe_name: toSafe.name,
+      amount: String(amt),
+      notes: notes ?? null,
+    });
+
+    // ── سجلان في transactions للدفتر المالي المركزي ─────────────────────────
     await tx.insert(transactionsTable).values({
       type: "transfer_out",
       reference_type: "safe_transfer",

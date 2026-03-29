@@ -221,6 +221,7 @@ export const CreateSupplierPaymentParams = zod.object({
 
 export const CreateSupplierPaymentBody = zod.object({
   amount: zod.number(),
+  safe_id: zod.number(),
   description: zod.string().nullish(),
 });
 
@@ -259,6 +260,7 @@ export const CreateSaleBody = zod.object({
   payment_type: zod.enum(["cash", "credit", "partial"]),
   total_amount: zod.number(),
   paid_amount: zod.number(),
+  date: zod.string().nullish(),
   notes: zod.string().nullish(),
   items: zod.array(
     zod.object({
@@ -336,6 +338,7 @@ export const CreatePurchaseBody = zod.object({
   payment_type: zod.enum(["cash", "credit", "partial"]),
   total_amount: zod.number(),
   paid_amount: zod.number(),
+  date: zod.string().nullish(),
   notes: zod.string().nullish(),
   items: zod.array(
     zod.object({

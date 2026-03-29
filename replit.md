@@ -7,6 +7,17 @@ Full-stack Arabic ERP System (نظام ERP) for Halal Tech (Egyptian mobile repa
 ### Navigation Pages
 Dashboard, Sales (POS + Returns), Purchases (+ Returns), Customers, **الأرباح (Profits)**, Expenses, Income, سندات القبض (Receipt Vouchers), سندات التوريد (Deposit Vouchers), تحويل الخزائن (Safe Transfers), المهام والعمليات (Unified Activity Log), الحركات المالية (Financial Transactions Ledger), Chart of Accounts, Journal Entries, Reports, Settings, **مراجعة المخزون (Inventory Audit)**.
 
+### Critical Bug Fixes Applied (Batch 2)
+1. **Supplier Payment → Safe**: `POST /api/suppliers/:id/payment` now requires `safe_id`, deducts from safe balance, blocks if insufficient balance, logs transaction with `direction='out'`
+2. **Purchase Return → Safe**: `POST /api/purchase-returns` accepts `refund_type` ('cash'|'balance_credit') + `safe_id`. Cash refunds increase safe balance + insert transaction `direction='in'`. Balance credit reduces supplier balance.
+3. **Duplicate Safe Transfer removed**: `/api/settings/safe-transfers` routes deleted from `settings.ts`. Canonical `/api/safe-transfers` now writes to **both** `safe_transfers` table (history) AND `transactions` table (financial ledger).
+4. **Profit Date Filter fixed**: `GET /api/profits` now filters by `salesTable.date` (text YYYY-MM-DD) instead of `created_at`. Backdated sales appear in correct period. Month grouping uses `sale.date`.
+5. **Sale/Purchase date stored**: `CreateSaleBody` and `CreatePurchaseBody` Zod schemas now include `date` field. Both routes store `date` in the DB (previously ignored).
+6. **Receipt Voucher balance cap**: `POST /api/receipt-vouchers` now uses `Math.max(0, balance - amount)` — customer balance cannot go negative.
+7. **Dashboard profit uses COGS**: `GET /api/dashboard/stats` calculates `net_profit = gross_profit_today - expenses + income` where `gross_profit = SUM(sale_price - cost_price) × qty` for today's sales.
+8. **Supplier Statement**: New `GET /api/suppliers/:id/statement` endpoint returns purchases, purchase returns, payments, opening balance entries with running balance per row.
+9. **Purchase Returns field names**: `customer_name` and `supplier_name` columns saved independently (no cross-filling). `supplier_id` accepted in body for balance_credit refund.
+
 ### Opening Balance System (Settings → أول المدة)
 4-tab panel in Settings (admin only) for entering all opening balances at system start:
 - **Tab 1 — الخزائن**: `POST /api/opening-balance/treasury` — adds to safe balance + inserts transaction with `reference_type='treasury_opening'`

@@ -143,57 +143,7 @@ router.delete("/settings/safes/:id", authenticate, requireRole("admin"), async (
   }
 });
 
-// ─── SAFE TRANSFERS ───────────────────────────────────────────────────────────
-
-router.get("/settings/safe-transfers", async (req, res) => {
-  try {
-    const transfers = await db.select().from(safeTransfersTable).orderBy(desc(safeTransfersTable.created_at));
-    res.json(transfers);
-  } catch (e) {
-    res.status(500).json({ error: "فشل جلب التحويلات" });
-  }
-});
-
-router.post("/settings/safe-transfers", async (req, res) => {
-  try {
-    const { from_safe_id, to_safe_id, amount, notes } = req.body;
-    const amt = Number(amount);
-    if (!amt || amt <= 0) { res.status(400).json({ error: "مبلغ غير صحيح" }); return; }
-
-    const transfer = await db.transaction(async (tx) => {
-      const [fromSafe] = await tx.select().from(safesTable).where(eq(safesTable.id, Number(from_safe_id)));
-      const [toSafe] = await tx.select().from(safesTable).where(eq(safesTable.id, Number(to_safe_id)));
-
-      if (!fromSafe || !toSafe) throw new Error("خزنة غير موجودة");
-      if (Number(fromSafe.balance) < amt) throw new Error("رصيد الخزنة غير كافٍ");
-
-      await tx.update(safesTable)
-        .set({ balance: String(Number(fromSafe.balance) - amt) })
-        .where(eq(safesTable.id, fromSafe.id));
-
-      await tx.update(safesTable)
-        .set({ balance: String(Number(toSafe.balance) + amt) })
-        .where(eq(safesTable.id, toSafe.id));
-
-      const [t] = await tx.insert(safeTransfersTable).values({
-        from_safe_id: fromSafe.id,
-        from_safe_name: fromSafe.name,
-        to_safe_id: toSafe.id,
-        to_safe_name: toSafe.name,
-        amount: String(amt),
-        notes: notes || null,
-      }).returning();
-
-      return t;
-    });
-
-    res.json(transfer);
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "فشل التحويل";
-    const status = msg === "خزنة غير موجودة" ? 404 : msg === "رصيد الخزنة غير كافٍ" ? 400 : 500;
-    res.status(status).json({ error: msg });
-  }
-});
+// ─── SAFE TRANSFERS (REMOVED — use /api/safe-transfers instead) ──────────────
 
 // ─── WAREHOUSES ───────────────────────────────────────────────────────────────
 
