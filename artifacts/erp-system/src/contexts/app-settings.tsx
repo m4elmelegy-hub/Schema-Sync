@@ -5,9 +5,11 @@ export type FontFamily = "Tajawal" | "Cairo" | "Almarai" | "Changa";
 export type AccentColor = "amber" | "emerald" | "violet" | "sky" | "rose" | "orange";
 export type FontSize = "sm" | "md" | "lg" | "xl";
 export type Theme = "dark" | "light";
+export type NumberFormat = "western" | "arabic-indic";
 
 export interface AppSettings {
   currency: CurrencyCode;
+  numberFormat: NumberFormat;
   fontFamily: FontFamily;
   fontSize: FontSize;
   accentColor: AccentColor;
@@ -33,6 +35,7 @@ export const FONT_SIZES: Record<FontSize, { label: string; base: string; cssVal:
 
 const DEFAULTS: AppSettings = {
   currency: "EGP",
+  numberFormat: "western",
   fontFamily: "Tajawal",
   fontSize: "md",
   accentColor: "amber",

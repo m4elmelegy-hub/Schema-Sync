@@ -1,0 +1,59 @@
+Redesign the Currency Settings page to look modern and professional.
+
+## Current State:
+The page shows currency cards in a grid (EGP, SAR, AED, USD, KWD, BHD) 
+with the active one highlighted in gold/orange border.
+
+## Required Changes:
+
+### 1. Replace Grid Cards with Professional Dropdown
+- Remove the card grid completely
+- Add a styled Select/Dropdown for currency selection
+- Each option should show: flag emoji + currency name (Arabic) + currency code
+- Example options:
+  🇪🇬 جنيه مصري — EGP
+  🇸🇦 ريال سعودي — SAR
+  🇦🇪 درهم إماراتي — AED
+  🇺🇸 دولار أمريكي — USD
+  🇰🇼 دينار كويتي — KWD
+  🇧🇭 دينار بحريني — BHD
+- Style it with a dark background, gold/orange accent border on focus
+- Add a small currency symbol badge next to the selected value
+
+### 2. Add Number Format Dropdown
+- Label: "صيغة الأرقام"
+- Two options:
+  • Western numerals — 1, 2, 3 ... 111
+  • Arabic-Indic numerals — ١، ٢، ٣ ... ١١١
+- Show a live preview below the dropdown
+  Example preview box: "١٢٣٤.٥٦ ج.م" or "1234.56 EGP"
+- Changing this setting should update all number displays app-wide
+
+### 3. Page Layout
+- Use a clean card/panel container with subtle border and shadow
+- Two settings side by side (or stacked on mobile):
+  Left: Currency Dropdown
+  Right: Number Format Dropdown
+- Below both: a live preview section showing:
+  "المبلغ: 1,234.56 ج.م" (updates instantly when settings change)
+- Add a Save Button with gold accent color
+- Show a success toast notification after saving: "تم حفظ الإعدادات ✓"
+
+### 4. Visual Style
+- Dark theme consistent with current app
+- Gold/orange (#F59E0B or similar) as accent color
+- Smooth dropdown animation (fade + slide)
+- Hover states on all interactive elements
+- RTL layout support (direction: rtl)
+
+## Technical Requirements:
+- Save both settings (currency + number format) together on Save click
+- Apply number format globally using a utility function:
+  formatNumber(value, format) → returns formatted string
+- Store preference in the same place the current currency is stored
+- The number format change should reflect immediately in the preview
+
+## Show me:
+1. The redesigned settings component
+2. The formatNumber utility function
+3. How to apply it globally across the app

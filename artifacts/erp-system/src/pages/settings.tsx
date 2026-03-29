@@ -8,10 +8,10 @@ import {
   useGetSettingsWarehouses, useCreateSettingsWarehouse, useDeleteSettingsWarehouse,
   useResetDatabase,
 } from "@workspace/api-client-react";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate, formatCurrencyPreview } from "@/lib/format";
 import {
   useAppSettings, CURRENCIES, FONTS, ACCENT_COLORS, FONT_SIZES, LOGIN_BG_OPTIONS,
-  type CurrencyCode, type FontFamily, type AccentColor, type FontSize,
+  type CurrencyCode, type FontFamily, type AccentColor, type FontSize, type NumberFormat,
 } from "@/contexts/app-settings";
 import {
   Users, Landmark, Warehouse, AlertTriangle, Plus, Trash2, Edit2, X, Check,
@@ -687,37 +687,216 @@ function AppearanceTab() {
 }
 
 /* ─── Currency Tab ─── */
+const CURRENCY_OPTIONS: { code: CurrencyCode; flag: string; label: string; symbol: string }[] = [
+  { code: "EGP", flag: "🇪🇬", label: "جنيه مصري",    symbol: "ج.م" },
+  { code: "SAR", flag: "🇸🇦", label: "ريال سعودي",   symbol: "ر.س" },
+  { code: "AED", flag: "🇦🇪", label: "درهم إماراتي", symbol: "د.إ" },
+  { code: "USD", flag: "🇺🇸", label: "دولار أمريكي", symbol: "$"   },
+  { code: "KWD", flag: "🇰🇼", label: "دينار كويتي",  symbol: "د.ك" },
+  { code: "BHD", flag: "🇧🇭", label: "دينار بحريني", symbol: "د.ب" },
+];
+
+const NUMBER_FORMAT_OPTIONS: { value: NumberFormat; label: string; preview: string }[] = [
+  { value: "western",      label: "أرقام غربية",       preview: "1, 2, 3 … 1234" },
+  { value: "arabic-indic", label: "أرقام عربية-هندية", preview: "١، ٢، ٣ … ١٢٣٤" },
+];
+
 function CurrencyTab() {
   const { settings, update } = useAppSettings();
   const { toast } = useToast();
 
+  const [localCurrency,    setLocalCurrency]    = useState<CurrencyCode>(settings.currency);
+  const [localNumFmt,      setLocalNumFmt]      = useState<NumberFormat>(settings.numberFormat ?? "western");
+  const [saved,            setSaved]            = useState(false);
+
+  const selectedCurr = CURRENCY_OPTIONS.find(o => o.code === localCurrency)!;
+  const previewAmount = 1234.56;
+  const previewFormatted = formatCurrencyPreview(previewAmount, localCurrency, localNumFmt);
+
+  const handleSave = () => {
+    update({ currency: localCurrency, numberFormat: localNumFmt });
+    setSaved(true);
+    toast({ title: "تم حفظ الإعدادات ✓", description: "تم تطبيق العملة وصيغة الأرقام على كامل النظام" });
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const selectBase = {
+    WebkitAppearance: "none" as const,
+    MozAppearance: "none" as const,
+    appearance: "none" as const,
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.10)",
+    color: "#fff",
+    borderRadius: "14px",
+    padding: "12px 42px 12px 16px",
+    width: "100%",
+    fontSize: "14px",
+    fontWeight: 600,
+    cursor: "pointer",
+    outline: "none",
+    direction: "rtl" as const,
+    transition: "border-color 0.2s, box-shadow 0.2s",
+  };
+
   return (
-    <div className="space-y-5">
-      <SectionHeader title="إعداد العملة" sub="اختر العملة المستخدمة في جميع الفواتير والتقارير" />
+    <div className="max-w-2xl mx-auto space-y-6">
+      <SectionHeader
+        title="العملة والأرقام"
+        sub="اختر العملة وصيغة عرض الأرقام المستخدمة في جميع أنحاء النظام"
+      />
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {(Object.keys(CURRENCIES) as CurrencyCode[]).map(code => {
-          const c = CURRENCIES[code];
-          const isActive = settings.currency === code;
-          return (
-            <button key={code}
-              onClick={() => { update({ currency: code }); toast({ title: `تم تغيير العملة إلى ${c.label}` }); window.location.reload(); }}
-              className={`glass-panel rounded-2xl p-5 text-right border transition-all hover:-translate-y-0.5 ${isActive ? "border-amber-500/40 bg-amber-500/10" : "border-white/8 hover:border-white/20"}`}>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-3xl font-black text-white/80">{c.symbol}</span>
-                {isActive && <CheckCircle2 className="w-5 h-5 text-amber-400" />}
-              </div>
-              <p className={`font-bold text-base ${isActive ? "text-amber-400" : "text-white"}`}>{c.label}</p>
-              <p className="text-white/30 text-xs mt-0.5">{code}</p>
-              <p className="text-white/20 text-xs mt-2">{formatCurrency(1234.5)}</p>
-            </button>
-          );
-        })}
-      </div>
+      <div className="glass-panel rounded-2xl p-6 border border-white/8 space-y-6">
 
-      <div className="glass-panel rounded-2xl p-4 border border-white/5">
-        <p className="text-white/40 text-sm">العملة الحالية: <span className="text-amber-400 font-bold">{CURRENCIES[settings.currency].label} — {CURRENCIES[settings.currency].symbol}</span></p>
-        <p className="text-white/25 text-xs mt-1">سيتم تغيير العملة في جميع الشاشات والتقارير والفواتير</p>
+        {/* ── Two dropdowns side by side ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+
+          {/* Currency dropdown */}
+          <div>
+            <Label>العملة</Label>
+            <div style={{ position: "relative" }}>
+              <select
+                value={localCurrency}
+                onChange={(e) => setLocalCurrency(e.target.value as CurrencyCode)}
+                style={selectBase}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "rgba(245,158,11,0.5)";
+                  e.currentTarget.style.boxShadow  = "0 0 0 3px rgba(245,158,11,0.12)";
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)";
+                  e.currentTarget.style.boxShadow  = "none";
+                }}
+              >
+                {CURRENCY_OPTIONS.map(o => (
+                  <option key={o.code} value={o.code} style={{ background: "#111118", color: "#fff" }}>
+                    {o.flag}  {o.label} — {o.code}
+                  </option>
+                ))}
+              </select>
+
+              {/* chevron icon */}
+              <span style={{
+                position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)",
+                color: "rgba(255,255,255,0.35)", pointerEvents: "none", fontSize: "10px",
+              }}>▼</span>
+
+              {/* currency symbol badge */}
+              <span style={{
+                position: "absolute", right: "14px", top: "50%", transform: "translateY(-50%)",
+                background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.3)",
+                color: "#F59E0B", borderRadius: "8px", padding: "2px 8px",
+                fontSize: "12px", fontWeight: 800, pointerEvents: "none",
+              }}>
+                {selectedCurr.symbol}
+              </span>
+            </div>
+            <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.3)", marginTop: "6px" }}>
+              {selectedCurr.flag} {selectedCurr.label}
+            </p>
+          </div>
+
+          {/* Number format dropdown */}
+          <div>
+            <Label>صيغة الأرقام</Label>
+            <div style={{ position: "relative" }}>
+              <select
+                value={localNumFmt}
+                onChange={(e) => setLocalNumFmt(e.target.value as NumberFormat)}
+                style={selectBase}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "rgba(245,158,11,0.5)";
+                  e.currentTarget.style.boxShadow  = "0 0 0 3px rgba(245,158,11,0.12)";
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)";
+                  e.currentTarget.style.boxShadow  = "none";
+                }}
+              >
+                {NUMBER_FORMAT_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value} style={{ background: "#111118", color: "#fff" }}>
+                    {o.label} — {o.preview}
+                  </option>
+                ))}
+              </select>
+              <span style={{
+                position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)",
+                color: "rgba(255,255,255,0.35)", pointerEvents: "none", fontSize: "10px",
+              }}>▼</span>
+            </div>
+            <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.3)", marginTop: "6px" }}>
+              {NUMBER_FORMAT_OPTIONS.find(o => o.value === localNumFmt)?.preview}
+            </p>
+          </div>
+        </div>
+
+        {/* ── Live preview ── */}
+        <div style={{
+          borderRadius: "14px",
+          border: "1px solid rgba(255,255,255,0.07)",
+          background: "rgba(255,255,255,0.02)",
+          padding: "18px 20px",
+        }}>
+          <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.35)", marginBottom: "12px", letterSpacing: "0.06em" }}>
+            معاينة مباشرة
+          </p>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: "13px", color: "rgba(255,255,255,0.4)" }}>المبلغ التجريبي</span>
+            <span style={{
+              fontSize: "26px", fontWeight: 900, color: "#F59E0B",
+              textShadow: "0 0 20px rgba(245,158,11,0.35)",
+              letterSpacing: "-0.5px",
+            }}>
+              {previewFormatted}
+            </span>
+          </div>
+          <div style={{
+            marginTop: "10px", display: "flex", gap: "6px", flexWrap: "wrap" as const,
+          }}>
+            {[100, 999, 50000].map(n => (
+              <span key={n} style={{
+                fontSize: "12px", color: "rgba(255,255,255,0.3)",
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                borderRadius: "8px", padding: "3px 10px",
+              }}>
+                {formatCurrencyPreview(n, localCurrency, localNumFmt)}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Save button ── */}
+        <button
+          onClick={handleSave}
+          style={{
+            width: "100%", padding: "13px", borderRadius: "14px",
+            fontWeight: 800, fontSize: "15px", cursor: "pointer",
+            background: saved ? "rgba(52,211,153,0.9)" : "#F59E0B",
+            color: saved ? "#fff" : "#000",
+            border: "none", transition: "all 0.25s",
+            boxShadow: saved
+              ? "0 4px 20px rgba(52,211,153,0.3)"
+              : "0 4px 20px rgba(245,158,11,0.25)",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+          }}
+        >
+          {saved ? (
+            <>
+              <CheckCircle2 style={{ width: "18px", height: "18px" }} />
+              تم الحفظ
+            </>
+          ) : (
+            <>
+              <Save style={{ width: "18px", height: "18px" }} />
+              حفظ الإعدادات
+            </>
+          )}
+        </button>
+
+        {/* ── Info note ── */}
+        <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.25)", textAlign: "center" }}>
+          سيتم تطبيق التغييرات فوراً على جميع الشاشات والتقارير والفواتير
+        </p>
       </div>
     </div>
   );
