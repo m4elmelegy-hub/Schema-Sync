@@ -4,6 +4,7 @@ import { formatCurrency } from "@/lib/format";
 import { Search, Plus, Minus, Trash2, ShoppingBag, Package, User, Vault, AlertTriangle } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { TableSkeleton } from "@/components/skeletons";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -352,7 +353,7 @@ function ProductsPanel() {
       </div>
 
       {showAdd && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm modal-overlay">
           <form onSubmit={handleSubmit} className="glass-panel rounded-3xl p-8 w-full max-w-md border border-white/10">
             <h3 className="text-xl font-bold text-white mb-5">إضافة منتج جديد</h3>
             <div className="space-y-3">
@@ -402,12 +403,12 @@ function ProductsPanel() {
               </tr>
             </thead>
             <tbody>
-              {isLoading ? <tr><td colSpan={6} className="p-8 text-center text-white/40">جاري التحميل...</td></tr>
+              {isLoading ? <TableSkeleton cols={6} rows={5} />
                 : filtered.length === 0 ? <tr><td colSpan={6} className="p-8 text-center text-white/40">لا توجد منتجات</td></tr>
                   : filtered.map(product => {
                     const isLow = product.low_stock_threshold !== null && product.quantity <= (product.low_stock_threshold ?? 5);
                     return (
-                      <tr key={product.id} className="border-b border-white/5 hover:bg-white/3">
+                      <tr key={product.id} className="border-b border-white/5 erp-table-row">
                         <td className="p-3 font-bold text-white">{product.name}</td>
                         <td className="p-3">{product.category ? <span className="px-2 py-0.5 rounded-lg text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/20">{product.category}</span> : '-'}</td>
                         <td className="p-3 text-white/60">{formatCurrency(product.cost_price)}</td>

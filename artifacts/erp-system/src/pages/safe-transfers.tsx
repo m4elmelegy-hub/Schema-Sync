@@ -4,6 +4,7 @@ import { useGetSettingsSafes } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
 import { ArrowLeftRight, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { TableSkeleton } from "@/components/skeletons";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
@@ -74,8 +75,8 @@ export default function SafeTransfers() {
       </div>
 
       {showAdd && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <form onSubmit={handleSubmit} className="glass-panel rounded-3xl p-8 w-full max-w-md space-y-4 animate-in zoom-in-95">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm modal-overlay">
+          <form onSubmit={handleSubmit} className="glass-panel rounded-3xl p-8 w-full max-w-md space-y-4 modal-panel">
             <h3 className="text-xl font-bold text-white mb-2">تحويل بين الخزائن</h3>
             <div>
               <label className="text-white/60 text-sm block mb-1">من الخزينة *</label>
@@ -128,11 +129,11 @@ export default function SafeTransfers() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={5} className="p-8 text-center text-white/50">جاري التحميل...</td></tr>
+                <TableSkeleton cols={5} rows={5} />
               ) : outTransfers.length === 0 ? (
                 <tr><td colSpan={5} className="p-8 text-center text-white/40">لا توجد تحويلات بعد</td></tr>
               ) : outTransfers.map(t => (
-                <tr key={t.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                <tr key={t.id} className="border-b border-white/5 erp-table-row">
                   <td className="p-4 font-bold text-white">{t.safe_name}</td>
                   <td className="p-4"><span className={`px-2 py-1 rounded-lg text-xs font-bold ${t.direction === 'out' ? 'bg-red-500/15 text-red-400 border border-red-500/20' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'}`}>{t.direction === 'out' ? '↑ صادر' : '↓ وارد'}</span></td>
                   <td className="p-4 font-bold text-amber-400">{formatCurrency(t.amount)}</td>

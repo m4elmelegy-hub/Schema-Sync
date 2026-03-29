@@ -6,6 +6,7 @@ import {
   TrendingUp, TrendingDown, RotateCcw, ArrowUpFromLine, ArrowDownToLine,
   Printer, MessageCircle, Vault, FileDown,
 } from "lucide-react";
+import { TableSkeleton } from "@/components/skeletons";
 import { exportCustomersExcel } from "@/lib/export-excel";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -276,7 +277,7 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm modal-overlay">
       <div className="glass-panel rounded-3xl p-0 w-full max-w-4xl border border-white/10 shadow-2xl max-h-[92vh] overflow-hidden flex flex-col">
 
         {/* ─── رأس الكشف ─── */}
@@ -387,7 +388,7 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
                   {rowsWithBalance.map((r, i) => {
                     const cfg = typeConfig[r.type] || typeConfig["sale"];
                     return (
-                      <tr key={i} className="border-b border-white/5 hover:bg-white/3 transition-colors">
+                      <tr key={i} className="border-b border-white/5 erp-table-row">
                         <td className="p-3 text-white/50 text-xs whitespace-nowrap">{r.date ? r.date.split("T")[0] : "—"}</td>
                         <td className="p-3">
                           <span className={`px-2 py-0.5 rounded-lg text-xs font-bold border ${cfg.bg} ${cfg.color}`}>
@@ -536,7 +537,7 @@ export default function Customers() {
 
       {/* إضافة عميل */}
       {showAdd && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm modal-overlay">
           <form onSubmit={handleAdd} className="glass-panel rounded-3xl p-8 w-full max-w-md border border-white/10">
             <h3 className="text-2xl font-bold text-white mb-6">عميل جديد</h3>
             <div className="space-y-4">
@@ -563,7 +564,7 @@ export default function Customers() {
 
       {/* سند قبض */}
       {showReceipt !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm modal-overlay">
           <form onSubmit={handleReceipt} className="glass-panel rounded-3xl p-8 w-full max-w-md border border-white/10 space-y-5">
             <div className="flex justify-between items-center">
               <div>
@@ -652,12 +653,12 @@ export default function Customers() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={4} className="p-12 text-center text-white/40">جاري التحميل...</td></tr>
+                <TableSkeleton cols={4} rows={5} />
               ) : filtered.length === 0 ? (
                 <tr><td colSpan={4} className="p-12 text-center text-white/40">لا يوجد عملاء</td></tr>
               ) : (
                 filtered.map(customer => (
-                  <tr key={customer.id} className="border-b border-white/5 hover:bg-white/3 transition-colors">
+                  <tr key={customer.id} className="border-b border-white/5 erp-table-row">
                     <td className="p-4 font-bold text-white">{customer.name}</td>
                     <td className="p-4 text-white/60">{customer.phone || '-'}</td>
                     <td className="p-4 font-bold">

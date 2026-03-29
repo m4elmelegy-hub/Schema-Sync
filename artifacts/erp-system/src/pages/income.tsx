@@ -4,6 +4,7 @@ import { useDeleteIncome, useGetSettingsSafes } from "@workspace/api-client-reac
 import { formatCurrency, formatDate } from "@/lib/format";
 import { Plus, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { TableSkeleton } from "@/components/skeletons";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
@@ -75,7 +76,7 @@ export default function Income() {
       </div>
 
       {showAdd && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm modal-overlay">
           <form onSubmit={handleAdd} className="glass-panel rounded-3xl p-8 w-full max-w-md animate-in zoom-in-95 space-y-4">
             <h3 className="text-2xl font-bold text-white">إيراد جديد</h3>
             <div>
@@ -120,19 +121,19 @@ export default function Income() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={6} className="p-8 text-center text-white/50">جاري التحميل...</td></tr>
+                <TableSkeleton cols={6} rows={5} />
               ) : incomeList.length === 0 ? (
                 <tr><td colSpan={6} className="p-8 text-center text-white/50">لا توجد إيرادات</td></tr>
               ) : (
                 incomeList.map(inc => (
-                  <tr key={inc.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                  <tr key={inc.id} className="border-b border-white/5 erp-table-row">
                     <td className="p-4 font-bold text-white">{inc.source}</td>
                     <td className="p-4 font-bold text-emerald-400">{formatCurrency(inc.amount)}</td>
                     <td className="p-4 text-blue-300 text-sm">{inc.safe_name || '—'}</td>
                     <td className="p-4 text-white/70">{inc.description || '-'}</td>
                     <td className="p-4 text-sm text-white/60">{formatDate(inc.created_at)}</td>
                     <td className="p-4">
-                      <button onClick={() => handleDelete(inc.id)} className="text-red-400 hover:text-red-300 transition-colors p-2 hover:bg-red-400/10 rounded-lg">
+                      <button onClick={() => handleDelete(inc.id)} className="btn-icon btn-icon-danger">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </td>

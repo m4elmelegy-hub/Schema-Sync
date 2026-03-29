@@ -5,6 +5,7 @@ import { Search, Plus, Minus, Trash2, X, Printer, ShoppingCart, User, Package, R
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth";
+import { TableSkeleton } from "@/components/skeletons";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
@@ -98,7 +99,7 @@ function SalesReturnsPanel() {
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm modal-overlay">
           <form onSubmit={handleSubmit} className="glass-panel rounded-3xl p-8 w-full max-w-md border border-white/10 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center">
               <h3 className="text-xl font-bold text-white">مرتجع مبيعات جديد</h3>
@@ -224,11 +225,11 @@ function SalesReturnsPanel() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={7} className="p-12 text-center text-white/40">جاري التحميل...</td></tr>
+                <TableSkeleton cols={7} rows={5} />
               ) : returns_.length === 0 ? (
                 <tr><td colSpan={7} className="p-12 text-center text-white/40">لا توجد مرتجعات</td></tr>
               ) : returns_.map(r => (
-                <tr key={r.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                <tr key={r.id} className="border-b border-white/5 erp-table-row">
                   <td className="p-4 font-bold text-amber-400 font-mono">{r.return_no}</td>
                   <td className="p-4 text-white">{r.customer_name || "عميل نقدي"}</td>
                   <td className="p-4 font-bold text-orange-400">{formatCurrency(r.total_amount)}</td>
@@ -365,7 +366,7 @@ function SaleDetailModal({ saleId, onClose }: { saleId: number; onClose: () => v
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm modal-overlay">
       <div className="glass-panel rounded-3xl p-8 w-full max-w-2xl border border-white/10 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-2xl font-bold text-white flex items-center gap-2">
@@ -379,7 +380,7 @@ function SaleDetailModal({ saleId, onClose }: { saleId: number; onClose: () => v
           </div>
         </div>
         {isLoading ? (
-          <div className="text-center py-12 text-white/40">جاري التحميل...</div>
+          <div className="flex flex-col gap-3 p-8">{Array.from({length:4}).map((_,i)=><div key={i} className="skeleton-shimmer h-8 rounded-xl"/>)}</div>
         ) : !sale ? (
           <div className="text-center py-12 text-white/40">لم يتم العثور على الفاتورة</div>
         ) : (

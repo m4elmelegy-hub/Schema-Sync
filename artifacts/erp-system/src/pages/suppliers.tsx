@@ -4,6 +4,7 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import { Plus, Search, DollarSign, FileText, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { TableSkeleton } from "@/components/skeletons";
 
 function SupplierReportModal({ supplierId, supplierName, onClose }: {
   supplierId: number;
@@ -26,7 +27,7 @@ function SupplierReportModal({ supplierId, supplierName, onClose }: {
   const totalRemaining = supplierPurchases.reduce((s, v) => s + v.remaining_amount, 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm modal-overlay">
       <div className="glass-panel rounded-3xl p-0 w-full max-w-3xl border border-white/10 shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex justify-between items-center p-6 border-b border-white/10 bg-white/5">
           <div>
@@ -75,7 +76,7 @@ function SupplierReportModal({ supplierId, supplierName, onClose }: {
                   </thead>
                   <tbody>
                     {supplierPurchases.map(purchase => (
-                      <tr key={purchase.id} className="border-b border-white/5 hover:bg-white/3">
+                      <tr key={purchase.id} className="border-b border-white/5 erp-table-row">
                         <td className="p-3 font-bold text-amber-400">{purchase.invoice_no}</td>
                         <td className="p-3 text-white">{formatCurrency(purchase.total_amount)}</td>
                         <td className="p-3 text-emerald-400">{formatCurrency(purchase.paid_amount)}</td>
@@ -116,7 +117,7 @@ function SupplierReportModal({ supplierId, supplierName, onClose }: {
                   </thead>
                   <tbody>
                     {paymentTxns.map(t => (
-                      <tr key={t.id} className="border-b border-white/5 hover:bg-white/3">
+                      <tr key={t.id} className="border-b border-white/5 erp-table-row">
                         <td className="p-3 font-bold text-red-400">{formatCurrency(t.amount)}</td>
                         <td className="p-3 text-white/70">{t.description || '-'}</td>
                         <td className="p-3 text-white/50">{formatDate(t.created_at)}</td>
@@ -197,7 +198,7 @@ export default function Suppliers() {
       )}
 
       {showAdd && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm modal-overlay">
           <form onSubmit={handleAdd} className="glass-panel rounded-3xl p-8 w-full max-w-md border border-white/10">
             <h3 className="text-2xl font-bold text-white mb-6">مورد جديد</h3>
             <div className="space-y-4">
@@ -223,7 +224,7 @@ export default function Suppliers() {
       )}
 
       {showPayment !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm modal-overlay">
           <form onSubmit={handlePayment} className="glass-panel rounded-3xl p-8 w-full max-w-md border border-white/10">
             <h3 className="text-2xl font-bold text-white mb-2">سند صرف</h3>
             <p className="text-white/50 text-sm mb-6">دفع مبلغ للمورد</p>
@@ -258,12 +259,12 @@ export default function Suppliers() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={4} className="p-12 text-center text-white/40">جاري التحميل...</td></tr>
+                <TableSkeleton cols={4} rows={5} />
               ) : filtered.length === 0 ? (
                 <tr><td colSpan={4} className="p-12 text-center text-white/40">لا يوجد موردون</td></tr>
               ) : (
                 filtered.map(supplier => (
-                  <tr key={supplier.id} className="border-b border-white/5 hover:bg-white/3 transition-colors">
+                  <tr key={supplier.id} className="border-b border-white/5 erp-table-row">
                     <td className="p-4 font-bold text-white">{supplier.name}</td>
                     <td className="p-4 text-white/60">{supplier.phone || '-'}</td>
                     <td className={`p-4 font-bold ${supplier.balance > 0 ? 'text-red-400' : 'text-white/30'}`}>

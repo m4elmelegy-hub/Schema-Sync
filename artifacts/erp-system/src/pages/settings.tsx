@@ -217,7 +217,7 @@ function UsersTab() {
               </thead>
               <tbody>
                 {users.map((u: any) => (
-                  <tr key={u.id} className="border-b border-white/5 hover:bg-white/3">
+                  <tr key={u.id} className="border-b border-white/5 erp-table-row">
                     <td className="p-3 font-bold text-white">{u.name}</td>
                     <td className="p-3 text-white/50 font-mono text-xs">@{u.username}</td>
                     <td className="p-3"><span className={`px-2 py-1 rounded-lg text-xs font-bold border ${ROLES[u.role]?.color}`}>{ROLES[u.role]?.label || u.role}</span></td>

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { Plus, X, Trash2, CheckCircle, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { TableSkeleton } from "@/components/skeletons";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
@@ -38,7 +39,7 @@ function EntryDetailModal({ entryId, onClose }: { entryId: number; onClose: () =
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm modal-overlay">
       <div className="glass-panel rounded-3xl p-0 w-full max-w-3xl border border-white/10 shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex justify-between items-center p-6 border-b border-white/10 bg-white/5">
           <div>
@@ -156,7 +157,7 @@ function NewEntryModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm modal-overlay">
       <div className="glass-panel rounded-3xl p-0 w-full max-w-4xl border border-white/10 shadow-2xl max-h-[95vh] overflow-hidden flex flex-col">
         <div className="flex justify-between items-center p-6 border-b border-white/10 bg-white/5">
           <h3 className="text-xl font-bold text-white">قيد يومي جديد</h3>
@@ -278,11 +279,11 @@ export default function JournalEntries() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={6} className="p-12 text-center text-white/40">جاري التحميل...</td></tr>
+                <TableSkeleton cols={6} rows={5} />
               ) : filtered.length === 0 ? (
                 <tr><td colSpan={6} className="p-12 text-center text-white/40">لا توجد قيود</td></tr>
               ) : filtered.map(entry => (
-                <tr key={entry.id} className="border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer" onClick={() => setSelectedId(entry.id)}>
+                <tr key={entry.id} className="border-b border-white/5 erp-table-row cursor-pointer" onClick={() => setSelectedId(entry.id)}>
                   <td className="p-4 font-bold text-amber-400 font-mono">{entry.entry_no}</td>
                   <td className="p-4 text-white/70">{entry.date}</td>
                   <td className="p-4 text-white font-medium">{entry.description}</td>

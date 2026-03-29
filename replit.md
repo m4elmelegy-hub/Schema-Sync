@@ -197,3 +197,30 @@ Database layer using Drizzle ORM. Push schema: `pnpm --filter @workspace/db run 
 ### `lib/api-spec` (`@workspace/api-spec`)
 
 OpenAPI spec + Orval codegen. Run: `pnpm --filter @workspace/api-spec run codegen`
+
+## UX Design System (`artifacts/erp-system/src/index.css`)
+
+Global CSS classes for consistent premium UX across all pages:
+
+| Class | Purpose |
+|---|---|
+| `erp-table-row` | Table row hover highlight + amber border accent |
+| `btn-icon` | Base 32×32 icon button |
+| `btn-icon-danger/primary/info/green` | Colored icon button variants with scale hover |
+| `modal-overlay` | Fade-in animation for modal backdrops |
+| `modal-panel` | Spring-pop animation for modal inner panels |
+| `slide-down` | Slide-in for collapsible form sections |
+| `skeleton-shimmer` | Shimmer loading skeleton animation |
+| `interactive-card` | Lift + glow on hover for stat cards |
+| `status-badge` | Pill badge base |
+| `status-paid/unpaid/partial` | Payment status color tokens |
+| `value-appear` | Count-up animation for numeric values |
+| `glass-input:focus-visible` | Amber glow ring on focused inputs |
+
+## Skeleton Components (`src/components/skeletons.tsx`)
+
+- `TableSkeleton({ cols, rows })` — shimmer rows for any table
+- `CardSkeleton({ count })` — shimmer stat card grid
+- `StatCardSkeleton()` — single stat card skeleton
+
+All pages use `<TableSkeleton />` instead of plain "جاري التحميل..." text rows.

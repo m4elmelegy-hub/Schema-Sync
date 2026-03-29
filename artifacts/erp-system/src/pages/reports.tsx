@@ -4,6 +4,7 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import { AlertTriangle, TrendingUp, TrendingDown, Package, Users, FileText, DollarSign, X, ChevronDown, ChevronUp, ShoppingBag, ShoppingCart, Search, FileDown, Printer } from "lucide-react";
 import { exportSalesExcel, exportPurchasesExcel } from "@/lib/export-excel";
 import { printSalesReport, printPurchasesReport, printCustomerStatement } from "@/lib/export-pdf";
+import { TableSkeleton } from "@/components/skeletons";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
@@ -107,10 +108,10 @@ function SalesInvoicesReport() {
               </tr>
             </thead>
             <tbody>
-              {isLoading ? <tr><td colSpan={8} className="p-12 text-center text-white/40">جاري التحميل...</td></tr>
+              {isLoading ? <TableSkeleton cols={8} rows={5} />
                 : filtered.length === 0 ? <tr><td colSpan={8} className="p-12 text-center text-white/40">لا توجد فواتير</td></tr>
                 : filtered.map(s => (
-                  <tr key={s.id} className="border-b border-white/5 hover:bg-white/3">
+                  <tr key={s.id} className="border-b border-white/5 erp-table-row">
                     <td className="p-3 font-bold text-amber-400">{s.invoice_no}</td>
                     <td className="p-3 text-white">{s.customer_name || "عميل نقدي"}</td>
                     <td className="p-3 font-bold text-white">{formatCurrency(s.total_amount)}</td>
@@ -215,10 +216,10 @@ function PurchasesInvoicesReport() {
               </tr>
             </thead>
             <tbody>
-              {isLoading ? <tr><td colSpan={8} className="p-12 text-center text-white/40">جاري التحميل...</td></tr>
+              {isLoading ? <TableSkeleton cols={8} rows={5} />
                 : filtered.length === 0 ? <tr><td colSpan={8} className="p-12 text-center text-white/40">لا توجد مشتريات</td></tr>
                 : filtered.map(p => (
-                  <tr key={p.id} className="border-b border-white/5 hover:bg-white/3">
+                  <tr key={p.id} className="border-b border-white/5 erp-table-row">
                     <td className="p-3 font-bold text-amber-400">{p.invoice_no}</td>
                     <td className="p-3 text-white">{p.customer_name || "—"}</td>
                     <td className="p-3 font-bold text-white">{formatCurrency(p.total_amount)}</td>
@@ -346,7 +347,7 @@ function InventoryReport() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={8} className="p-12 text-center text-white/40">جاري التحميل...</td></tr>
+                <TableSkeleton cols={8} rows={5} />
               ) : filtered.length === 0 ? (
                 <tr><td colSpan={8} className="p-12 text-center text-white/40">لا توجد منتجات</td></tr>
               ) : (
@@ -414,7 +415,7 @@ function CustomerStatementModal({ customerId, onClose }: { customerId: number; o
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm modal-overlay">
       <div className="glass-panel rounded-3xl p-0 w-full max-w-4xl border border-white/10 shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex justify-between items-center p-6 border-b border-white/10 bg-white/5">
           <div>
@@ -758,10 +759,10 @@ function CustomerAccountsReport() {
               </tr>
             </thead>
             <tbody>
-              {custLoading ? <tr><td colSpan={7} className="p-12 text-center text-white/40">جاري التحميل...</td></tr>
+              {custLoading ? <TableSkeleton cols={7} rows={5} />
                 : filtered.length === 0 ? <tr><td colSpan={7} className="p-12 text-center text-white/40">لا يوجد عملاء</td></tr>
                 : filtered.map(c => (
-                  <tr key={c.id} className="border-b border-white/5 hover:bg-white/3 transition-colors">
+                  <tr key={c.id} className="border-b border-white/5 erp-table-row">
                     <td className="p-4 font-bold text-white">{c.name}</td>
                     <td className="p-4 text-white/50">{c.phone || '—'}</td>
                     <td className="p-4 text-white/70">{c.salesCount}</td>
@@ -847,7 +848,7 @@ function FinancialSummary() {
                   const labels: Record<string, string> = { sale: 'مبيعات', purchase: 'مشتريات', expense: 'مصروف', income: 'إيراد', receipt: 'سند قبض', payment: 'سند توريد' };
                   const colors: Record<string, string> = { sale: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30', purchase: 'bg-red-500/20 text-red-400 border-red-500/30', expense: 'bg-orange-500/20 text-orange-400 border-orange-500/30', income: 'bg-blue-500/20 text-blue-400 border-blue-500/30', receipt: 'bg-teal-500/20 text-teal-400 border-teal-500/30', payment: 'bg-purple-500/20 text-purple-400 border-purple-500/30' };
                   return (
-                    <tr key={tx.id} className="border-b border-white/5 hover:bg-white/3">
+                    <tr key={tx.id} className="border-b border-white/5 erp-table-row">
                       <td className="p-4"><span className={`px-2 py-0.5 rounded-lg text-xs font-bold border ${colors[tx.type] || ''}`}>{labels[tx.type] || tx.type}</span></td>
                       <td className={`p-4 font-bold ${isIn ? 'text-emerald-400' : 'text-red-400'}`}>{isIn ? '+' : '-'} {formatCurrency(tx.amount)}</td>
                       <td className="p-4 text-white/70">{tx.description || '-'}</td>

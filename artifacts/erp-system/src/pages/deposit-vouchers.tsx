@@ -4,6 +4,7 @@ import { useGetSettingsSafes } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
 import { Plus, Trash2, ArrowDownToLine } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { TableSkeleton } from "@/components/skeletons";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
@@ -99,8 +100,8 @@ export default function DepositVouchers() {
       </div>
 
       {showAdd && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <form onSubmit={handleSubmit} className="glass-panel rounded-3xl p-8 w-full max-w-md space-y-4 animate-in zoom-in-95">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm modal-overlay">
+          <form onSubmit={handleSubmit} className="glass-panel rounded-3xl p-8 w-full max-w-md space-y-4 modal-panel">
             <h3 className="text-xl font-bold text-white mb-2">سند توريد جديد</h3>
             <p className="text-xs text-white/50 -mt-2 mb-4">العميل يورّد نقداً → الخزينة ترتفع، رصيد العميل ينزل</p>
             <div>
@@ -156,11 +157,11 @@ export default function DepositVouchers() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={7} className="p-8 text-center text-white/50">جاري التحميل...</td></tr>
+                <TableSkeleton cols={7} rows={5} />
               ) : vouchers.length === 0 ? (
                 <tr><td colSpan={7} className="p-8 text-center text-white/40">لا توجد سندات توريد بعد</td></tr>
               ) : vouchers.map(v => (
-                <tr key={v.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                <tr key={v.id} className="border-b border-white/5 erp-table-row">
                   <td className="p-4 font-mono text-amber-400 text-sm">{v.voucher_no}</td>
                   <td className="p-4 font-bold text-white">{v.customer_name || v.source || '—'}</td>
                   <td className="p-4 text-blue-300">{v.safe_name}</td>
@@ -169,7 +170,7 @@ export default function DepositVouchers() {
                   <td className="p-4 text-white/50 text-sm">{v.notes || '-'}</td>
                   <td className="p-4">
                     <button onClick={() => { if (confirm("حذف هذا السند؟")) deleteMutation.mutate(v.id); }}
-                      className="text-red-400 hover:text-red-300 p-2 rounded-lg hover:bg-red-400/10 transition-colors">
+                      className="btn-icon btn-icon-danger">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </td>

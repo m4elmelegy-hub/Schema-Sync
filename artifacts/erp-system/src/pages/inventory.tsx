@@ -5,6 +5,8 @@ import {
   Package, AlertTriangle, TrendingDown, TrendingUp,
   Search, X, RefreshCw, ChevronDown, ChevronUp, Edit3, Check,
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { TableSkeleton } from "@/components/skeletons";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
@@ -74,6 +76,7 @@ const movementTypeLabel: Record<string, { label: string; color: string; sign: "+
 
 export default function Inventory() {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<number | null>(null);
   const [sortKey, setSortKey] = useState<keyof AuditProduct>("name");
@@ -106,6 +109,10 @@ export default function Inventory() {
       setShowAdjust(null);
       setAdjustQty("");
       setAdjustNotes("");
+      toast({ title: "تم تعديل المخزون بنجاح" });
+    },
+    onError: () => {
+      toast({ title: "حدث خطأ أثناء تعديل المخزون", variant: "destructive" });
     },
   });
 
@@ -206,7 +213,9 @@ export default function Inventory() {
 
       {/* ── جدول المخزون ──────────────────────────────────── */}
       {isLoading ? (
-        <div className="text-center text-white/50 py-12">جارٍ تحميل بيانات المخزون...</div>
+        <div className="overflow-x-auto rounded-2xl border border-white/10">
+          <table className="w-full text-sm min-w-[1100px]"><tbody><TableSkeleton cols={13} rows={7} /></tbody></table>
+        </div>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-white/10">
           <table className="w-full text-sm min-w-[1100px]">
@@ -242,7 +251,7 @@ export default function Inventory() {
                 const isZero = p.actual_qty <= 0;
                 const hasDisc = Math.abs(p.discrepancy) > 0.001;
                 return (
-                  <tr key={p.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                  <tr key={p.id} className="border-b border-white/5 erp-table-row">
                     {/* المنتج */}
                     <td className="p-3">
                       <div className="flex items-center gap-2">

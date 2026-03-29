@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/format";
 import { Plus, ChevronDown, ChevronLeft, Edit2, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { TableSkeleton } from "@/components/skeletons";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
@@ -56,7 +57,7 @@ function AccountRow({ account, accounts, depth = 0 }: { account: Account; accoun
 
   return (
     <>
-      <tr className="border-b border-white/5 hover:bg-white/3 transition-colors">
+      <tr className="border-b border-white/5 erp-table-row">
         <td className="p-3">
           <div className="flex items-center gap-2" style={{ paddingRight: `${depth * 20}px` }}>
             {hasChildren ? (
@@ -166,8 +167,8 @@ export default function Accounts() {
 
       {/* نموذج الإضافة */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="glass-panel rounded-3xl p-8 w-full max-w-md border border-white/10 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm modal-overlay">
+          <div className="glass-panel rounded-3xl p-8 w-full max-w-md border border-white/10 shadow-2xl modal-panel">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-bold text-white">حساب جديد</h3>
               <button onClick={() => setShowForm(false)} className="p-2 rounded-xl bg-white/10 hover:bg-white/20"><X className="w-4 h-4 text-white/70" /></button>
@@ -221,7 +222,7 @@ export default function Accounts() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={5} className="p-12 text-center text-white/40">جاري التحميل...</td></tr>
+                <TableSkeleton cols={5} rows={6} />
               ) : accounts.length === 0 ? (
                 <tr><td colSpan={5} className="p-12 text-center">
                   <div className="text-white/30 space-y-3">

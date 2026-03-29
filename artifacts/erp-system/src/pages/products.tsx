@@ -5,6 +5,7 @@ import { Plus, Search, Trash2, AlertTriangle, Pencil, X, FileDown } from "lucide
 import { exportProductsExcel } from "@/lib/export-excel";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { TableSkeleton } from "@/components/skeletons";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
@@ -35,7 +36,7 @@ function ProductModal({ title, initial, onSave, onClose, isPending }: {
   const set = (k: keyof ProductForm, v: string | number) => setForm(f => ({ ...f, [k]: v }));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm modal-overlay">
       <form
         onSubmit={e => { e.preventDefault(); onSave(form); }}
         className="glass-panel rounded-3xl p-8 w-full max-w-md shadow-2xl border border-white/10"
@@ -250,7 +251,7 @@ export default function Products() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={8} className="p-12 text-center text-white/40">جاري التحميل...</td></tr>
+                <TableSkeleton cols={8} rows={6} />
               ) : filtered.length === 0 ? (
                 <tr><td colSpan={8} className="p-12 text-center text-white/40">لا توجد منتجات</td></tr>
               ) : (
@@ -260,7 +261,7 @@ export default function Products() {
                     ? ((Number(product.sale_price) - Number(product.cost_price)) / Number(product.sale_price)) * 100
                     : 0;
                   return (
-                    <tr key={product.id} className="border-b border-white/5 hover:bg-white/3 transition-colors">
+                    <tr key={product.id} className="border-b border-white/5 erp-table-row">
                       <td className="p-4 font-bold text-white">{product.name}</td>
                       <td className="p-4 text-white/50 font-mono text-xs">{product.sku || '-'}</td>
                       <td className="p-4">

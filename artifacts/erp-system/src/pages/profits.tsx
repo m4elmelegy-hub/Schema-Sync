@@ -431,7 +431,7 @@ export default function Profits() {
                   </thead>
                   <tbody>
                     {sortedProducts.map((p, i) => (
-                      <tr key={p.product_id} className="border-b border-white/5 hover:bg-white/3 transition-colors">
+                      <tr key={p.product_id} className="border-b border-white/5 erp-table-row">
                         <td className="p-4 text-white/30 text-xs">{i + 1}</td>
                         <td className="p-4">
                           <div className="font-bold text-white">{p.product_name}</div>

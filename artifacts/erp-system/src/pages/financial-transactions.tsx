@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useGetSettingsSafes } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
 import { Activity, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { TableSkeleton } from "@/components/skeletons";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
@@ -110,14 +111,14 @@ export default function FinancialTransactions() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={8} className="p-8 text-center text-white/50">جاري التحميل...</td></tr>
+                <TableSkeleton cols={8} rows={6} />
               ) : transactions.length === 0 ? (
                 <tr><td colSpan={8} className="p-8 text-center text-white/40">لا توجد حركات مالية بعد</td></tr>
               ) : transactions.map(t => {
                 const dir = DIRECTION_CONFIG[t.direction as keyof typeof DIRECTION_CONFIG] ?? DIRECTION_CONFIG.none;
                 const DirIcon = dir.icon;
                 return (
-                  <tr key={t.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                  <tr key={t.id} className="border-b border-white/5 erp-table-row">
                     <td className="p-4 text-white/30 text-xs">{t.id}</td>
                     <td className="p-4"><span className="px-2 py-1 rounded-lg text-xs bg-amber-500/10 border border-amber-500/20 text-amber-300">{TYPE_LABELS[t.type] ?? t.type}</span></td>
                     <td className="p-4 text-blue-300 text-sm">{t.safe_name || '—'}</td>
