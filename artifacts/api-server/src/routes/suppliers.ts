@@ -101,8 +101,12 @@ router.post("/suppliers/:id/payment", wrap(async (req, res) => {
 
   await db.insert(transactionsTable).values({
     type: "payment",
+    reference_type: "supplier_payment",
+    reference_id: params.data.id,
     amount: String(parsed.data.amount),
+    direction: "out",
     description: parsed.data.description ?? `سند صرف - ${supplier.name}`,
+    date: new Date().toISOString().split("T")[0],
   });
 
   res.json(CreateSupplierPaymentResponse.parse(formatSupplier(updated)));

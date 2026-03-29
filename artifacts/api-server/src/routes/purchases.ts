@@ -177,20 +177,6 @@ router.post("/purchases", wrap(async (req, res) => {
       }
     }
 
-    await tx.insert(transactionsTable).values({
-      type: "purchase",
-      reference_type: "purchase",
-      reference_id: newPurchase.id,
-      safe_id: safe_id ?? null,
-      safe_name: null,
-      customer_id: customer_id ?? null,
-      customer_name: customer_name ?? null,
-      amount: String(total_amount),
-      direction: "out",
-      description: `فاتورة مشتريات ${invoiceNo}${customer_name ? ` — ${customer_name}` : ""}`,
-      date: today,
-    });
-
     return newPurchase;
   });
 

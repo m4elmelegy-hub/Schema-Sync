@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, ReactNode } from "react";
 
 export interface AuthUser {
   id: number;
@@ -38,12 +38,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.getItem(TOKEN_KEY),
   );
 
-  /* Keep token available globally for raw fetch() calls */
-  useEffect(() => {
-    if (token) localStorage.setItem(TOKEN_KEY, token);
-    else localStorage.removeItem(TOKEN_KEY);
-  }, [token]);
-
   const login = (u: AuthUser, t: string) => {
     localStorage.setItem(USER_KEY, JSON.stringify(u));
     localStorage.setItem(TOKEN_KEY, t);
@@ -66,19 +60,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 export const useAuth = () => useContext(AuthContext);
-
-/** Returns the stored JWT token for use in raw fetch() calls */
-export function getStoredToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
-}
-
-/** Helper for authenticated fetch calls in pages */
-export async function authFetch(url: string, init: RequestInit = {}): Promise<Response> {
-  const t = localStorage.getItem(TOKEN_KEY);
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(t ? { Authorization: `Bearer ${t}` } : {}),
-    ...(init.headers as Record<string, string> | undefined),
-  };
-  return fetch(url, { ...init, headers });
-}

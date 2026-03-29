@@ -357,11 +357,12 @@ export default function Login() {
 
   /* ══ 5. Auto-submit when PIN is complete ════════════════════ */
   useEffect(() => {
-    if (step !== "pin" || loading || pin.length === 0) return;
+    if (step !== "pin" || loading || pin.length === 0) return undefined;
     if (pin.length === pinLength) {
       const t = setTimeout(() => triggerLogin(), 180);
       return () => clearTimeout(t);
     }
+    return undefined;
   }, [pin, pinLength, step, loading]);
 
   /* ══ Step transitions ════════════════════════════════════════ */
@@ -704,7 +705,6 @@ export default function Login() {
                 <h2 style={{ fontSize: "21px", fontWeight: 900, color: "#fff", marginBottom: "4px" }}>الرقم السري</h2>
                 <p style={{ fontSize: "12.5px", color: "rgba(255,255,255,0.3)" }}>
                   اضغط على الأرقام أدناه
-                  {selectedUser?.pin === "0000" && <span style={{ color: "rgba(245,158,11,0.5)" }}> · الافتراضي: 0000</span>}
                 </p>
               </div>
 

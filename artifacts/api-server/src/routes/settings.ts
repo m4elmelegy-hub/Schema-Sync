@@ -34,7 +34,7 @@ const router = Router();
 
 // ─── USERS ────────────────────────────────────────────────────────────────────
 
-router.get("/settings/users", async (req, res) => {
+router.get("/settings/users", authenticate, requireRole("admin"), async (req, res) => {
   try {
     const users = await db.select().from(erpUsersTable).orderBy(erpUsersTable.id);
     res.json(users);
