@@ -77,7 +77,7 @@ router.delete("/receipt-vouchers/:id", wrap(async (req, res) => {
   if (isNaN(id)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
   await db.transaction(async (tx) => {
     const [v] = await tx.select().from(receiptVouchersTable).where(eq(receiptVouchersTable.id, id));
-    if (!v) throw new Error("غير موجود");
+    if (!v) throw httpError(404, "سند القبض غير موجود");
     // عكس تأثير السند
     const [safe] = await tx.select().from(safesTable).where(eq(safesTable.id, v.safe_id));
     if (safe) await tx.update(safesTable).set({ balance: String(Number(safe.balance) - Number(v.amount)) }).where(eq(safesTable.id, safe.id));

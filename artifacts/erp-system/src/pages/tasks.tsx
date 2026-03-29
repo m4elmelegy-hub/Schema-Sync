@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/format";
 import {
   Wallet, TrendingUp, HandCoins, ArrowUpFromLine,
-  ArrowLeftRight, ArrowRight, CheckCircle2, AlertCircle,
+  ArrowLeftRight, CheckCircle2, AlertCircle,
   Loader2, Lock, Printer, ChevronLeft, ChevronRight,
 } from "lucide-react";
 
@@ -515,7 +515,7 @@ function SafeTransferForm({ safes, onSuccess }: { safes: Safe[]; onSuccess: (m: 
 
   useEffect(() => {
     if (safes.length >= 2 && !toSafeId) setToSafeId(String(safes[1].id));
-  }, [safes]);
+  }, [safes, toSafeId]);
 
   const fromSafe = safes.find(s => String(s.id) === fromSafeId);
 

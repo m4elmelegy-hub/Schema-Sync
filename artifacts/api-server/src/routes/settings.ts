@@ -144,32 +144,38 @@ router.post("/settings/safe-transfers", async (req, res) => {
     const amt = Number(amount);
     if (!amt || amt <= 0) { res.status(400).json({ error: "مبلغ غير صحيح" }); return; }
 
-    const [fromSafe] = await db.select().from(safesTable).where(eq(safesTable.id, Number(from_safe_id)));
-    const [toSafe] = await db.select().from(safesTable).where(eq(safesTable.id, Number(to_safe_id)));
+    const transfer = await db.transaction(async (tx) => {
+      const [fromSafe] = await tx.select().from(safesTable).where(eq(safesTable.id, Number(from_safe_id)));
+      const [toSafe] = await tx.select().from(safesTable).where(eq(safesTable.id, Number(to_safe_id)));
 
-    if (!fromSafe || !toSafe) { res.status(404).json({ error: "خزنة غير موجودة" }); return; }
-    if (Number(fromSafe.balance) < amt) { res.status(400).json({ error: "رصيد الخزنة غير كافٍ" }); return; }
+      if (!fromSafe || !toSafe) throw new Error("خزنة غير موجودة");
+      if (Number(fromSafe.balance) < amt) throw new Error("رصيد الخزنة غير كافٍ");
 
-    await db.update(safesTable)
-      .set({ balance: String(Number(fromSafe.balance) - amt) })
-      .where(eq(safesTable.id, Number(from_safe_id)));
+      await tx.update(safesTable)
+        .set({ balance: String(Number(fromSafe.balance) - amt) })
+        .where(eq(safesTable.id, fromSafe.id));
 
-    await db.update(safesTable)
-      .set({ balance: String(Number(toSafe.balance) + amt) })
-      .where(eq(safesTable.id, Number(to_safe_id)));
+      await tx.update(safesTable)
+        .set({ balance: String(Number(toSafe.balance) + amt) })
+        .where(eq(safesTable.id, toSafe.id));
 
-    const [transfer] = await db.insert(safeTransfersTable).values({
-      from_safe_id: Number(from_safe_id),
-      from_safe_name: fromSafe.name,
-      to_safe_id: Number(to_safe_id),
-      to_safe_name: toSafe.name,
-      amount: String(amt),
-      notes: notes || null,
-    }).returning();
+      const [t] = await tx.insert(safeTransfersTable).values({
+        from_safe_id: fromSafe.id,
+        from_safe_name: fromSafe.name,
+        to_safe_id: toSafe.id,
+        to_safe_name: toSafe.name,
+        amount: String(amt),
+        notes: notes || null,
+      }).returning();
+
+      return t;
+    });
 
     res.json(transfer);
-  } catch (e) {
-    res.status(500).json({ error: "فشل التحويل" });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "فشل التحويل";
+    const status = msg === "خزنة غير موجودة" ? 404 : msg === "رصيد الخزنة غير كافٍ" ? 400 : 500;
+    res.status(status).json({ error: msg });
   }
 });
 
