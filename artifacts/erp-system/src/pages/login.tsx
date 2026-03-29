@@ -76,6 +76,10 @@ export default function Login() {
   const rafRef = useRef<number>(0);
   const mountedRef = useRef(false);
 
+  // Refs to always hold current values — fixes stale closure in useCallback
+  const pinRef = useRef(pin);
+  const selectedUserRef = useRef<ErpUser | undefined>(undefined);
+
   const { data: users = [] } = useQuery<ErpUser[]>({
     queryKey: ["/api/settings/users"],
     queryFn: () =>
@@ -89,6 +93,10 @@ export default function Login() {
   const selectedUser = activeUsers.find((u) => String(u.id) === selectedUserId);
   const logoSrc = settings.customLogo || `${import.meta.env.BASE_URL}logo.png`;
   const pinLength = selectedUser ? Math.min(Math.max(selectedUser.pin.length, 4), MAX_PIN_DOTS) : 4;
+
+  // Keep refs in sync every render so stale closures always read current values
+  pinRef.current = pin;
+  selectedUserRef.current = selectedUser;
 
   /* ── 1. Canvas particle network ──────────────────────────────── */
   useEffect(() => {
@@ -353,8 +361,12 @@ export default function Login() {
 
   /* ── Login logic ──────────────────────────────────────────────── */
   const triggerLogin = async () => {
-    if (!selectedUser) { setError("اختر المستخدم أولاً"); return; }
-    if (!pin) { setError("أدخل الرقم السري"); return; }
+    // Read from refs to avoid stale closure (handleKeyPress is memoized with [loading] only)
+    const currentUser = selectedUserRef.current;
+    const currentPin = pinRef.current;
+
+    if (!currentUser) { setError("اختر المستخدم أولاً"); return; }
+    if (!currentPin) { setError("أدخل الرقم السري"); return; }
     if (loading) return;
 
     setLoading(true);
@@ -362,7 +374,7 @@ export default function Login() {
 
     await new Promise((r) => setTimeout(r, 460));
 
-    if (selectedUser.pin !== pin) {
+    if (currentUser.pin !== currentPin) {
       setError("الرقم السري غير صحيح");
       setPin("");
       setLoading(false);
@@ -389,10 +401,10 @@ export default function Login() {
         easing: "easeInCubic",
         onComplete: () => {
           login({
-            id: selectedUser.id,
-            name: selectedUser.name,
-            username: selectedUser.username,
-            role: selectedUser.role,
+            id: currentUser.id,
+            name: currentUser.name,
+            username: currentUser.username,
+            role: currentUser.role,
           });
           setLocation("/");
         },
