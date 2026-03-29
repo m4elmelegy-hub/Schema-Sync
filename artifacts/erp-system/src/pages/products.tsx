@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useGetProducts, useCreateProduct, useDeleteProduct } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
-import { Plus, Search, Trash2, AlertTriangle, Pencil, X } from "lucide-react";
+import { Plus, Search, Trash2, AlertTriangle, Pencil, X, FileDown } from "lucide-react";
+import { exportProductsExcel } from "@/lib/export-excel";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
@@ -198,9 +199,15 @@ export default function Products() {
           <input type="text" placeholder="بحث عن منتج..." className="glass-input pl-4 pr-12 w-full"
             value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <button onClick={() => setShowAdd(true)} className="btn-primary flex items-center gap-2 whitespace-nowrap">
-          <Plus className="w-5 h-5" /> إضافة منتج
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => exportProductsExcel(products)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/30 transition-all whitespace-nowrap">
+            <FileDown className="w-4 h-4" /> Excel
+          </button>
+          <button onClick={() => setShowAdd(true)} className="btn-primary flex items-center gap-2 whitespace-nowrap">
+            <Plus className="w-5 h-5" /> إضافة منتج
+          </button>
+        </div>
       </div>
 
       {/* نافذة الإضافة */}

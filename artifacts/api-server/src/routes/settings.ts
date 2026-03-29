@@ -251,7 +251,7 @@ router.post("/settings/reset", async (req, res) => {
 
 router.get("/customers/:id/statement", async (req, res) => {
   try {
-    const customerId = Number(req.params.id);
+    const customerId = Number(req.params.id as string);
 
     const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, customerId));
     if (!customer) { res.status(404).json({ error: "العميل غير موجود" }); return; }
@@ -274,10 +274,30 @@ router.get("/customers/:id/statement", async (req, res) => {
       return { ...pur, items };
     }));
 
+    const salesReturns = await db.select().from(salesReturnsTable)
+      .where(eq(salesReturnsTable.customer_id, customerId))
+      .orderBy(desc(salesReturnsTable.created_at));
+
+    const receiptVouchers = await db.select().from(receiptVouchersTable)
+      .where(eq(receiptVouchersTable.customer_id, customerId))
+      .orderBy(desc(receiptVouchersTable.created_at));
+
+    const depositVouchers = await db.select().from(depositVouchersTable)
+      .where(eq(depositVouchersTable.customer_id, customerId))
+      .orderBy(desc(depositVouchersTable.created_at));
+
+    const paymentVouchers = await db.select().from(paymentVouchersTable)
+      .where(eq(paymentVouchersTable.customer_id, customerId))
+      .orderBy(desc(paymentVouchersTable.created_at));
+
     res.json({
       customer,
       sales: salesWithItems,
       linked_purchases: purchasesWithItems,
+      sales_returns: salesReturns,
+      receipt_vouchers: receiptVouchers,
+      deposit_vouchers: depositVouchers,
+      payment_vouchers: paymentVouchers,
     });
   } catch (e) {
     res.status(500).json({ error: "فشل جلب كشف الحساب" });

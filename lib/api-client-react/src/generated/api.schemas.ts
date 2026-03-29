@@ -406,8 +406,31 @@ export interface CustomerStatementPurchase {
   items: CustomerStatementItem[];
 }
 
+export interface CustomerStatementReturn {
+  id: number;
+  return_no: string;
+  total_amount: number;
+  refund_type?: string | null;
+  reason?: string | null;
+  notes?: string | null;
+  created_at: string;
+}
+
+export interface CustomerStatementVoucher {
+  id: number;
+  voucher_no: string;
+  amount: number;
+  safe_name: string;
+  notes?: string | null;
+  date: string;
+}
+
 export interface CustomerStatement {
   customer: Customer;
   sales: CustomerStatementSale[];
   linked_purchases: CustomerStatementPurchase[];
+  sales_returns: CustomerStatementReturn[];
+  receipt_vouchers: CustomerStatementVoucher[];
+  deposit_vouchers: CustomerStatementVoucher[];
+  payment_vouchers: CustomerStatementVoucher[];
 }

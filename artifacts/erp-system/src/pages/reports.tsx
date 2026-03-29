@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { useGetProducts, useGetCustomers, useGetSales, useGetPurchases, useGetTransactions, useGetDashboardStats, useGetCustomerStatement } from "@workspace/api-client-react";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { AlertTriangle, TrendingUp, TrendingDown, Package, Users, FileText, DollarSign, X, ChevronDown, ChevronUp, ShoppingBag, ShoppingCart, Search } from "lucide-react";
+import { AlertTriangle, TrendingUp, TrendingDown, Package, Users, FileText, DollarSign, X, ChevronDown, ChevronUp, ShoppingBag, ShoppingCart, Search, FileDown, Printer } from "lucide-react";
+import { exportSalesExcel, exportPurchasesExcel } from "@/lib/export-excel";
+import { printSalesReport, printPurchasesReport, printCustomerStatement } from "@/lib/export-pdf";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
@@ -62,7 +64,7 @@ function SalesInvoicesReport() {
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Filters + Export */}
       <div className="flex gap-3 flex-wrap items-center">
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
@@ -75,6 +77,16 @@ function SalesInvoicesReport() {
               {opt.l}
             </button>
           ))}
+        </div>
+        <div className="flex gap-2 mr-auto">
+          <button onClick={() => exportSalesExcel(filtered)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/30 transition-all">
+            <FileDown className="w-3.5 h-3.5" /> Excel
+          </button>
+          <button onClick={() => printSalesReport(filtered)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-500/20 border border-blue-500/40 text-blue-400 hover:bg-blue-500/30 transition-all">
+            <Printer className="w-3.5 h-3.5" /> PDF
+          </button>
         </div>
       </div>
 
@@ -174,6 +186,16 @@ function PurchasesInvoicesReport() {
               {opt.l}
             </button>
           ))}
+        </div>
+        <div className="flex gap-2 mr-auto">
+          <button onClick={() => exportPurchasesExcel(filtered)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/30 transition-all">
+            <FileDown className="w-3.5 h-3.5" /> Excel
+          </button>
+          <button onClick={() => printPurchasesReport(filtered)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-500/20 border border-blue-500/40 text-blue-400 hover:bg-blue-500/30 transition-all">
+            <Printer className="w-3.5 h-3.5" /> PDF
+          </button>
         </div>
       </div>
 
@@ -376,9 +398,20 @@ function CustomerStatementModal({ customerId, onClose }: { customerId: number; o
   );
   if (!data) return null;
 
-  const { customer, sales, linked_purchases } = data;
+  const { customer, sales, linked_purchases, sales_returns = [], receipt_vouchers = [], deposit_vouchers = [], payment_vouchers = [] } = data;
   const totalSold = sales.reduce((s, v) => s + Number(v.total_amount), 0);
   const totalPaid = sales.reduce((s, v) => s + Number(v.paid_amount), 0);
+
+  const handlePdfExport = () => {
+    printCustomerStatement(
+      { name: customer.name, phone: customer.phone, balance: Number(customer.balance) },
+      sales.map(s => ({ invoice_no: s.invoice_no, total_amount: Number(s.total_amount), paid_amount: Number(s.paid_amount), remaining_amount: Number(s.remaining_amount), payment_type: s.payment_type, status: s.status, created_at: s.created_at })),
+      sales_returns.map(r => ({ return_no: r.return_no, total_amount: Number(r.total_amount), refund_type: r.refund_type, reason: r.reason, created_at: r.created_at })),
+      receipt_vouchers.map(v => ({ voucher_no: v.voucher_no, amount: Number(v.amount), safe_name: v.safe_name, notes: v.notes, date: v.date })),
+      deposit_vouchers.map(v => ({ voucher_no: v.voucher_no, amount: Number(v.amount), safe_name: v.safe_name, notes: v.notes, date: v.date })),
+      payment_vouchers.map(v => ({ voucher_no: v.voucher_no, amount: Number(v.amount), safe_name: v.safe_name, notes: v.notes, date: v.date })),
+    );
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
@@ -389,7 +422,13 @@ function CustomerStatementModal({ customerId, onClose }: { customerId: number; o
             <p className="text-amber-400 font-semibold mt-1">{customer.name}</p>
             {customer.phone && <p className="text-white/40 text-sm">{customer.phone}</p>}
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"><X className="w-5 h-5 text-white/70" /></button>
+          <div className="flex items-center gap-2">
+            <button onClick={handlePdfExport}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-blue-500/20 border border-blue-500/40 text-blue-400 hover:bg-blue-500/30 transition-colors">
+              <Printer className="w-3.5 h-3.5" /> طباعة PDF
+            </button>
+            <button onClick={onClose} className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"><X className="w-5 h-5 text-white/70" /></button>
+          </div>
         </div>
 
         <div className="overflow-y-auto p-6 space-y-6">
@@ -501,7 +540,155 @@ function CustomerStatementModal({ customerId, onClose }: { customerId: number; o
               </div>
             </div>
           )}
-          {sales.length === 0 && linked_purchases.length === 0 && (
+          {sales_returns.length > 0 && (
+            <div>
+              <h4 className="text-white font-bold mb-3 flex items-center gap-2"><FileText className="w-4 h-4 text-red-400" /> المرتجعات ({sales_returns.length})</h4>
+              <div className="glass-panel rounded-2xl overflow-hidden border border-white/5">
+                <table className="w-full text-right text-sm">
+                  <thead className="bg-white/5 border-b border-white/10">
+                    <tr>
+                      <th className="p-3 text-white/50">رقم المرتجع</th>
+                      <th className="p-3 text-white/50">المبلغ</th>
+                      <th className="p-3 text-white/50">نوع الاسترداد</th>
+                      <th className="p-3 text-white/50">السبب</th>
+                      <th className="p-3 text-white/50">التاريخ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sales_returns.map(r => (
+                      <tr key={r.id} className="border-b border-white/5">
+                        <td className="p-3 font-bold text-red-400">{r.return_no}</td>
+                        <td className="p-3 font-bold text-red-400">{formatCurrency(Number(r.total_amount))}</td>
+                        <td className="p-3 text-white/70">{r.refund_type === "cash" ? "نقدي" : "رصيد"}</td>
+                        <td className="p-3 text-white/50 text-xs">{r.reason ?? "—"}</td>
+                        <td className="p-3 text-white/40 text-xs">{formatDate(r.created_at)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-white/5 border-t border-white/10">
+                    <tr>
+                      <td className="p-3 font-bold text-white/50">الإجمالي</td>
+                      <td className="p-3 font-black text-red-400">{formatCurrency(sales_returns.reduce((s, r) => s + Number(r.total_amount), 0))}</td>
+                      <td colSpan={3}></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {receipt_vouchers.length > 0 && (
+            <div>
+              <h4 className="text-white font-bold mb-3 flex items-center gap-2"><DollarSign className="w-4 h-4 text-emerald-400" /> سندات القبض — مدفوعات العميل ({receipt_vouchers.length})</h4>
+              <div className="glass-panel rounded-2xl overflow-hidden border border-white/5">
+                <table className="w-full text-right text-sm">
+                  <thead className="bg-white/5 border-b border-white/10">
+                    <tr>
+                      <th className="p-3 text-white/50">رقم السند</th>
+                      <th className="p-3 text-white/50">المبلغ</th>
+                      <th className="p-3 text-white/50">الخزينة</th>
+                      <th className="p-3 text-white/50">بيان</th>
+                      <th className="p-3 text-white/50">التاريخ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {receipt_vouchers.map(v => (
+                      <tr key={v.id} className="border-b border-white/5">
+                        <td className="p-3 font-bold text-emerald-400">{v.voucher_no}</td>
+                        <td className="p-3 font-bold text-emerald-400">{formatCurrency(Number(v.amount))}</td>
+                        <td className="p-3 text-white/70">{v.safe_name}</td>
+                        <td className="p-3 text-white/50 text-xs">{v.notes ?? "—"}</td>
+                        <td className="p-3 text-white/40 text-xs">{formatDate(v.date)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-white/5 border-t border-white/10">
+                    <tr>
+                      <td className="p-3 font-bold text-white/50">الإجمالي</td>
+                      <td className="p-3 font-black text-emerald-400">{formatCurrency(receipt_vouchers.reduce((s, v) => s + Number(v.amount), 0))}</td>
+                      <td colSpan={3}></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {deposit_vouchers.length > 0 && (
+            <div>
+              <h4 className="text-white font-bold mb-3 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-blue-400" /> سندات الإيداع ({deposit_vouchers.length})</h4>
+              <div className="glass-panel rounded-2xl overflow-hidden border border-white/5">
+                <table className="w-full text-right text-sm">
+                  <thead className="bg-white/5 border-b border-white/10">
+                    <tr>
+                      <th className="p-3 text-white/50">رقم السند</th>
+                      <th className="p-3 text-white/50">المبلغ</th>
+                      <th className="p-3 text-white/50">الخزينة</th>
+                      <th className="p-3 text-white/50">بيان</th>
+                      <th className="p-3 text-white/50">التاريخ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {deposit_vouchers.map(v => (
+                      <tr key={v.id} className="border-b border-white/5">
+                        <td className="p-3 font-bold text-blue-400">{v.voucher_no}</td>
+                        <td className="p-3 font-bold text-blue-400">{formatCurrency(Number(v.amount))}</td>
+                        <td className="p-3 text-white/70">{v.safe_name}</td>
+                        <td className="p-3 text-white/50 text-xs">{v.notes ?? "—"}</td>
+                        <td className="p-3 text-white/40 text-xs">{formatDate(v.date)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-white/5 border-t border-white/10">
+                    <tr>
+                      <td className="p-3 font-bold text-white/50">الإجمالي</td>
+                      <td className="p-3 font-black text-blue-400">{formatCurrency(deposit_vouchers.reduce((s, v) => s + Number(v.amount), 0))}</td>
+                      <td colSpan={3}></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {payment_vouchers.length > 0 && (
+            <div>
+              <h4 className="text-white font-bold mb-3 flex items-center gap-2"><TrendingDown className="w-4 h-4 text-purple-400" /> سندات الصرف — مردودات للعميل ({payment_vouchers.length})</h4>
+              <div className="glass-panel rounded-2xl overflow-hidden border border-white/5">
+                <table className="w-full text-right text-sm">
+                  <thead className="bg-white/5 border-b border-white/10">
+                    <tr>
+                      <th className="p-3 text-white/50">رقم السند</th>
+                      <th className="p-3 text-white/50">المبلغ</th>
+                      <th className="p-3 text-white/50">الخزينة</th>
+                      <th className="p-3 text-white/50">بيان</th>
+                      <th className="p-3 text-white/50">التاريخ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payment_vouchers.map(v => (
+                      <tr key={v.id} className="border-b border-white/5">
+                        <td className="p-3 font-bold text-purple-400">{v.voucher_no}</td>
+                        <td className="p-3 font-bold text-purple-400">{formatCurrency(Number(v.amount))}</td>
+                        <td className="p-3 text-white/70">{v.safe_name}</td>
+                        <td className="p-3 text-white/50 text-xs">{v.notes ?? "—"}</td>
+                        <td className="p-3 text-white/40 text-xs">{formatDate(v.date)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-white/5 border-t border-white/10">
+                    <tr>
+                      <td className="p-3 font-bold text-white/50">الإجمالي</td>
+                      <td className="p-3 font-black text-purple-400">{formatCurrency(payment_vouchers.reduce((s, v) => s + Number(v.amount), 0))}</td>
+                      <td colSpan={3}></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {sales.length === 0 && linked_purchases.length === 0 && sales_returns.length === 0 && receipt_vouchers.length === 0 && deposit_vouchers.length === 0 && payment_vouchers.length === 0 && (
             <div className="text-center py-8 text-white/40">لا توجد حركات لهذا العميل</div>
           )}
         </div>
