@@ -7,7 +7,7 @@ import {
   GetSaleByIdParams,
   GetSaleByIdResponse,
 } from "@workspace/api-zod";
-import { wrap } from "../lib/async-handler";
+import { wrap, httpError } from "../lib/async-handler";
 
 const router: IRouter = Router();
 
@@ -35,7 +35,7 @@ router.get("/sales", wrap(async (_req, res) => {
   res.json(GetSalesResponse.parse(sales.map(formatSale)));
 }));
 
-router.post("/sales", async (req, res): Promise<void> => {
+router.post("/sales", wrap(async (req, res) => {
   const parsed = CreateSaleBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -61,13 +61,12 @@ router.post("/sales", async (req, res): Promise<void> => {
 
   const invoiceNo = `INV-${Date.now()}`;
 
-  try {
-    const sale = await db.transaction(async (tx) => {
+  const sale = await db.transaction(async (tx) => {
       // 1. جلب بيانات الخزينة
       let safe: typeof safesTable.$inferSelect | null = null;
       if (safe_id && paid_amount > 0) {
         const [s] = await tx.select().from(safesTable).where(eq(safesTable.id, safe_id));
-        if (!s) throw new Error("الخزينة غير موجودة");
+        if (!s) throw httpError(400, "الخزينة غير موجودة");
         safe = s;
       }
 
@@ -182,14 +181,10 @@ router.post("/sales", async (req, res): Promise<void> => {
       });
 
       return newSale;
-    });
+  });
 
-    res.status(201).json(formatSale(sale));
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "خطأ في حفظ الفاتورة";
-    res.status(500).json({ error: msg });
-  }
-});
+  res.status(201).json(formatSale(sale));
+}));
 
 router.get("/sales/:id", wrap(async (req, res) => {
   const params = GetSaleByIdParams.safeParse(req.params);

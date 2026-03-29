@@ -287,7 +287,7 @@ function PaymentBadge({ type }: { type: string }) {
 }
 
 function SaleDetailModal({ saleId, onClose }: { saleId: number; onClose: () => void }) {
-  const { data: sale, isLoading } = useGetSaleById({ id: saleId });
+  const { data: sale, isLoading } = useGetSaleById(saleId);
 
   const handlePrint = () => {
     if (!sale) return;

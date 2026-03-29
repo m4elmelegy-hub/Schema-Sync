@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, salesTable, purchasesTable, expensesTable, incomeTable,
   receiptVouchersTable, depositVouchersTable, transactionsTable,
   productsTable, customersTable, suppliersTable } from "@workspace/db";
+import { wrap } from "../lib/async-handler";
 
 const router: IRouter = Router();
 
@@ -18,7 +19,7 @@ const TABLES: Record<string, () => Promise<void>> = {
   suppliers: async () => { await db.delete(suppliersTable); },
 };
 
-router.post("/admin/clear", async (req, res): Promise<void> => {
+router.post("/admin/clear", wrap(async (req, res) => {
   const { tables } = req.body as { tables: string[] };
   if (!tables || !Array.isArray(tables) || tables.length === 0) {
     res.status(400).json({ error: "حدد الجداول المطلوب مسحها" });
@@ -31,12 +32,8 @@ router.post("/admin/clear", async (req, res): Promise<void> => {
     return;
   }
 
-  try {
-    for (const t of tables) await TABLES[t]();
-    res.json({ success: true, cleared: tables });
-  } catch (err: unknown) {
-    res.status(500).json({ error: err instanceof Error ? err.message : "فشل المسح" });
-  }
-});
+  for (const t of tables) await TABLES[t]();
+  res.json({ success: true, cleared: tables });
+}));
 
 export default router;

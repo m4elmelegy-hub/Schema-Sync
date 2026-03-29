@@ -13,6 +13,8 @@ export interface Purchase {
   invoice_no: string;
   supplier_name?: string | null;
   supplier_id?: number | null;
+  customer_id?: number | null;
+  customer_name?: string | null;
   payment_type: PurchasePaymentType;
   total_amount: number;
   paid_amount: number;

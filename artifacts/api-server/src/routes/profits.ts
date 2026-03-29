@@ -13,15 +13,15 @@ import { gte, lte, and, eq } from "drizzle-orm";
 import {
   db, salesTable, saleItemsTable, expensesTable,
 } from "@workspace/db";
+import { wrap } from "../lib/async-handler";
 
 const router: IRouter = Router();
 
 // ──────────────────────────────────────────────────────────
 //  GET /api/profits?date_from=YYYY-MM-DD&date_to=YYYY-MM-DD&product_id=N
 // ──────────────────────────────────────────────────────────
-router.get("/profits", async (req, res): Promise<void> => {
-  try {
-    const { date_from, date_to, product_id } = req.query as {
+router.get("/profits", wrap(async (req, res) => {
+  const { date_from, date_to, product_id } = req.query as {
       date_from?: string;
       date_to?: string;
       product_id?: string;
@@ -172,10 +172,6 @@ router.get("/profits", async (req, res): Promise<void> => {
       by_product: byProductArr,
       by_month: byMonthArr,
     });
-  } catch (err: unknown) {
-    console.error("[profits]", err);
-    res.status(500).json({ error: err instanceof Error ? err.message : "خطأ في حساب الأرباح" });
-  }
-});
+}));
 
 export default router;

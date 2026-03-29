@@ -42,7 +42,7 @@ router.post("/accounts", wrap(async (req, res) => {
 }));
 
 router.put("/accounts/:id", wrap(async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
   const { name, is_active, is_posting } = req.body;
   const [acc] = await db.update(accountsTable)
@@ -53,7 +53,7 @@ router.put("/accounts/:id", wrap(async (req, res) => {
 }));
 
 router.delete("/accounts/:id", wrap(async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
   await db.delete(accountsTable).where(eq(accountsTable.id, id));
   res.json({ success: true });
@@ -67,7 +67,7 @@ router.get("/journal-entries", wrap(async (_req, res) => {
 }));
 
 router.get("/journal-entries/:id", wrap(async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
   const [entry] = await db.select().from(journalEntriesTable).where(eq(journalEntriesTable.id, id));
   if (!entry) { res.status(404).json({ error: "غير موجود" }); return; }
@@ -125,7 +125,7 @@ router.post("/journal-entries", wrap(async (req, res) => {
 }));
 
 router.patch("/journal-entries/:id/post", wrap(async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
   const [entry] = await db.update(journalEntriesTable)
     .set({ status: "posted" })
@@ -148,7 +148,7 @@ router.patch("/journal-entries/:id/post", wrap(async (req, res) => {
 }));
 
 router.delete("/journal-entries/:id", wrap(async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
   await db.delete(journalEntryLinesTable).where(eq(journalEntryLinesTable.entry_id, id));
   await db.delete(journalEntriesTable).where(eq(journalEntriesTable.id, id));

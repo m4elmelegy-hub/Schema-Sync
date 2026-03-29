@@ -142,13 +142,13 @@ router.post("/settings/safe-transfers", async (req, res) => {
   try {
     const { from_safe_id, to_safe_id, amount, notes } = req.body;
     const amt = Number(amount);
-    if (!amt || amt <= 0) return res.status(400).json({ error: "مبلغ غير صحيح" });
+    if (!amt || amt <= 0) { res.status(400).json({ error: "مبلغ غير صحيح" }); return; }
 
     const [fromSafe] = await db.select().from(safesTable).where(eq(safesTable.id, Number(from_safe_id)));
     const [toSafe] = await db.select().from(safesTable).where(eq(safesTable.id, Number(to_safe_id)));
 
-    if (!fromSafe || !toSafe) return res.status(404).json({ error: "خزنة غير موجودة" });
-    if (Number(fromSafe.balance) < amt) return res.status(400).json({ error: "رصيد الخزنة غير كافٍ" });
+    if (!fromSafe || !toSafe) { res.status(404).json({ error: "خزنة غير موجودة" }); return; }
+    if (Number(fromSafe.balance) < amt) { res.status(400).json({ error: "رصيد الخزنة غير كافٍ" }); return; }
 
     await db.update(safesTable)
       .set({ balance: String(Number(fromSafe.balance) - amt) })
@@ -210,7 +210,8 @@ router.post("/settings/reset", async (req, res) => {
   try {
     const { confirm } = req.body;
     if (confirm !== "تأكيد الحذف") {
-      return res.status(400).json({ error: "يجب كتابة عبارة التأكيد بشكل صحيح" });
+      res.status(400).json({ error: "يجب كتابة عبارة التأكيد بشكل صحيح" });
+      return;
     }
 
     // حذف البنود أولاً (foreign keys)
@@ -241,8 +242,8 @@ router.post("/settings/reset", async (req, res) => {
     await db.update(safesTable).set({ balance: "0" });
 
     res.json({ success: true, message: "تم تصفير قاعدة البيانات بنجاح" });
-  } catch (e: any) {
-    res.status(500).json({ error: "فشل التصفير: " + e?.message });
+  } catch (e: unknown) {
+    res.status(500).json({ error: "فشل التصفير: " + (e instanceof Error ? e.message : String(e)) });
   }
 });
 
@@ -253,7 +254,7 @@ router.get("/customers/:id/statement", async (req, res) => {
     const customerId = Number(req.params.id);
 
     const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, customerId));
-    if (!customer) return res.status(404).json({ error: "العميل غير موجود" });
+    if (!customer) { res.status(404).json({ error: "العميل غير موجود" }); return; }
 
     const sales = await db.select().from(salesTable)
       .where(eq(salesTable.customer_id, customerId))

@@ -80,7 +80,7 @@ router.get("/inventory/audit", wrap(async (_req, res) => {
 
 // ── كشف حركات منتج واحد ───────────────────────────────────────────────────
 router.get("/inventory/product/:id", wrap(async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
 
   const [product] = await db.select().from(productsTable).where(eq(productsTable.id, id));

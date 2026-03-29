@@ -16,7 +16,7 @@ router.get("/treasury-vouchers", wrap(async (_req, res) => {
 }));
 
 router.get("/treasury-vouchers/safe/:safeId", wrap(async (req, res) => {
-  const safeId = parseInt(req.params.safeId);
+  const safeId = parseInt(req.params.safeId as string);
   if (isNaN(safeId)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
   const vouchers = await db.select().from(treasuryVouchersTable)
     .where(eq(treasuryVouchersTable.safe_id, safeId))
@@ -24,7 +24,7 @@ router.get("/treasury-vouchers/safe/:safeId", wrap(async (req, res) => {
   res.json(vouchers.map(fmt));
 }));
 
-router.post("/treasury-vouchers", async (req, res): Promise<void> => {
+router.post("/treasury-vouchers", wrap(async (req, res) => {
   const { type, safe_id, amount, party_name, description, category } = req.body;
   if (!type || !safe_id || !amount || !description) {
     res.status(400).json({ error: "البيانات غير مكتملة" }); return;
@@ -41,36 +41,32 @@ router.post("/treasury-vouchers", async (req, res): Promise<void> => {
   const newBalance = type === "receipt" ? currentBal + amt : currentBal - amt;
   const voucher_no = `${type === "receipt" ? "RV" : "PV"}-${Date.now()}`;
 
-  try {
-    const voucher = await db.transaction(async (tx) => {
-      await tx.update(safesTable).set({ balance: String(newBalance) }).where(eq(safesTable.id, safe.id));
-      const [v] = await tx.insert(treasuryVouchersTable).values({
-        voucher_no, type,
-        safe_id: safe.id, safe_name: safe.name,
-        amount: String(amt), party_name: party_name ?? null,
-        description, category: category ?? null,
-      }).returning();
-      await tx.insert(transactionsTable).values({
-        type: `voucher_${type}`,
-        reference_type: "treasury_voucher",
-        reference_id: v.id,
-        safe_id: safe.id, safe_name: safe.name,
-        amount: String(amt),
-        direction: type === "receipt" ? "in" : "out",
-        description: `${type === "receipt" ? "سند قبض" : "سند صرف"}: ${description}`,
-        date: new Date().toISOString().split("T")[0],
-        related_id: v.id,
-      });
-      return v;
+  const voucher = await db.transaction(async (tx) => {
+    await tx.update(safesTable).set({ balance: String(newBalance) }).where(eq(safesTable.id, safe.id));
+    const [v] = await tx.insert(treasuryVouchersTable).values({
+      voucher_no, type,
+      safe_id: safe.id, safe_name: safe.name,
+      amount: String(amt), party_name: party_name ?? null,
+      description, category: category ?? null,
+    }).returning();
+    await tx.insert(transactionsTable).values({
+      type: `voucher_${type}`,
+      reference_type: "treasury_voucher",
+      reference_id: v.id,
+      safe_id: safe.id, safe_name: safe.name,
+      amount: String(amt),
+      direction: type === "receipt" ? "in" : "out",
+      description: `${type === "receipt" ? "سند قبض" : "سند صرف"}: ${description}`,
+      date: new Date().toISOString().split("T")[0],
+      related_id: v.id,
     });
-    res.status(201).json(fmt(voucher));
-  } catch (err: unknown) {
-    res.status(500).json({ error: err instanceof Error ? err.message : "خطأ في حفظ السند" });
-  }
-});
+    return v;
+  });
+  res.status(201).json(fmt(voucher));
+}));
 
 router.delete("/treasury-vouchers/:id", wrap(async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
   const [v] = await db.select().from(treasuryVouchersTable).where(eq(treasuryVouchersTable.id, id));
   if (!v) { res.status(404).json({ error: "غير موجود" }); return; }

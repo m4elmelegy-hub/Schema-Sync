@@ -2428,7 +2428,7 @@ export const getSettingsUsers = async (options?: RequestInit): Promise<ErpUser[]
 
 export const getGetSettingsUsersQueryKey = () => [getSettingsUsersUrl()] as const;
 
-export const getGetSettingsUsersQueryOptions = <TData = Awaited<ReturnType<typeof getSettingsUsers>>, TError = ErrorType<unknown>>(options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof getSettingsUsers>>, TError, TData>; request?: SecondParameter<typeof customFetch> }) => {
+export const getGetSettingsUsersQueryOptions = <TData = Awaited<ReturnType<typeof getSettingsUsers>>, TError = ErrorType<unknown>>(options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof getSettingsUsers>>, TError, TData>; request?: SecondParameter<typeof customFetch> }): UseQueryOptions<Awaited<ReturnType<typeof getSettingsUsers>>, TError, TData> & { queryKey: QueryKey } => {
   const { query: queryOptions } = options ?? {};
   const queryKey = queryOptions?.queryKey ?? getGetSettingsUsersQueryKey();
   return { queryKey, queryFn: () => getSettingsUsers(), ...queryOptions } satisfies UseQueryOptions<Awaited<ReturnType<typeof getSettingsUsers>>, TError, TData>;
@@ -2477,7 +2477,7 @@ export const getSettingsSafes = async (options?: RequestInit): Promise<Safe[]> =
 
 export const getGetSettingsSafesQueryKey = () => [getSettingsSafesUrl()] as const;
 
-export const getGetSettingsSafesQueryOptions = <TData = Awaited<ReturnType<typeof getSettingsSafes>>, TError = ErrorType<unknown>>(options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof getSettingsSafes>>, TError, TData>; request?: SecondParameter<typeof customFetch> }) => {
+export const getGetSettingsSafesQueryOptions = <TData = Awaited<ReturnType<typeof getSettingsSafes>>, TError = ErrorType<unknown>>(options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof getSettingsSafes>>, TError, TData>; request?: SecondParameter<typeof customFetch> }): UseQueryOptions<Awaited<ReturnType<typeof getSettingsSafes>>, TError, TData> & { queryKey: QueryKey } => {
   const { query: queryOptions } = options ?? {};
   const queryKey = queryOptions?.queryKey ?? getGetSettingsSafesQueryKey();
   return { queryKey, queryFn: () => getSettingsSafes(), ...queryOptions } satisfies UseQueryOptions<Awaited<ReturnType<typeof getSettingsSafes>>, TError, TData>;
@@ -2517,7 +2517,7 @@ export const getSettingsSafeTransfers = async (options?: RequestInit): Promise<S
 
 export const getGetSettingsSafeTransfersQueryKey = () => [getSettingsSafeTransfersUrl()] as const;
 
-export const getGetSettingsSafeTransfersQueryOptions = <TData = Awaited<ReturnType<typeof getSettingsSafeTransfers>>, TError = ErrorType<unknown>>(options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof getSettingsSafeTransfers>>, TError, TData>; request?: SecondParameter<typeof customFetch> }) => {
+export const getGetSettingsSafeTransfersQueryOptions = <TData = Awaited<ReturnType<typeof getSettingsSafeTransfers>>, TError = ErrorType<unknown>>(options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof getSettingsSafeTransfers>>, TError, TData>; request?: SecondParameter<typeof customFetch> }): UseQueryOptions<Awaited<ReturnType<typeof getSettingsSafeTransfers>>, TError, TData> & { queryKey: QueryKey } => {
   const { query: queryOptions } = options ?? {};
   const queryKey = queryOptions?.queryKey ?? getGetSettingsSafeTransfersQueryKey();
   return { queryKey, queryFn: () => getSettingsSafeTransfers(), ...queryOptions } satisfies UseQueryOptions<Awaited<ReturnType<typeof getSettingsSafeTransfers>>, TError, TData>;
@@ -2548,7 +2548,7 @@ export const getSettingsWarehouses = async (options?: RequestInit): Promise<Ware
 
 export const getGetSettingsWarehousesQueryKey = () => [getSettingsWarehousesUrl()] as const;
 
-export const getGetSettingsWarehousesQueryOptions = <TData = Awaited<ReturnType<typeof getSettingsWarehouses>>, TError = ErrorType<unknown>>(options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof getSettingsWarehouses>>, TError, TData>; request?: SecondParameter<typeof customFetch> }) => {
+export const getGetSettingsWarehousesQueryOptions = <TData = Awaited<ReturnType<typeof getSettingsWarehouses>>, TError = ErrorType<unknown>>(options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof getSettingsWarehouses>>, TError, TData>; request?: SecondParameter<typeof customFetch> }): UseQueryOptions<Awaited<ReturnType<typeof getSettingsWarehouses>>, TError, TData> & { queryKey: QueryKey } => {
   const { query: queryOptions } = options ?? {};
   const queryKey = queryOptions?.queryKey ?? getGetSettingsWarehousesQueryKey();
   return { queryKey, queryFn: () => getSettingsWarehouses(), ...queryOptions } satisfies UseQueryOptions<Awaited<ReturnType<typeof getSettingsWarehouses>>, TError, TData>;
@@ -2599,7 +2599,7 @@ export const getCustomerStatement = async (id: number, options?: RequestInit): P
 
 export const getGetCustomerStatementQueryKey = (id: number) => [getCustomerStatementUrl(id)] as const;
 
-export const getGetCustomerStatementQueryOptions = <TData = Awaited<ReturnType<typeof getCustomerStatement>>, TError = ErrorType<unknown>>(id: number, options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof getCustomerStatement>>, TError, TData>; request?: SecondParameter<typeof customFetch> }) => {
+export const getGetCustomerStatementQueryOptions = <TData = Awaited<ReturnType<typeof getCustomerStatement>>, TError = ErrorType<unknown>>(id: number, options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof getCustomerStatement>>, TError, TData>; request?: SecondParameter<typeof customFetch> }): UseQueryOptions<Awaited<ReturnType<typeof getCustomerStatement>>, TError, TData> & { queryKey: QueryKey } => {
   const { query: queryOptions } = options ?? {};
   const queryKey = queryOptions?.queryKey ?? getGetCustomerStatementQueryKey(id);
   return { queryKey, queryFn: () => getCustomerStatement(id), enabled: !!id, ...queryOptions } satisfies UseQueryOptions<Awaited<ReturnType<typeof getCustomerStatement>>, TError, TData>;

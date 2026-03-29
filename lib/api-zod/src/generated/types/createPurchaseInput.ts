@@ -11,9 +11,12 @@ import type { CreatePurchaseItemInput } from "./createPurchaseItemInput";
 export interface CreatePurchaseInput {
   supplier_name?: string | null;
   supplier_id?: number | null;
+  customer_id?: number | null;
+  customer_name?: string | null;
   payment_type: CreatePurchaseInputPaymentType;
   total_amount: number;
   paid_amount: number;
   notes?: string | null;
   items: CreatePurchaseItemInput[];
+  safe_id?: number | null;
 }

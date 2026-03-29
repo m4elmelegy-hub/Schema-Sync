@@ -6,7 +6,7 @@ import {
   productsTable, customersTable, safesTable, transactionsTable, stockMovementsTable,
 } from "@workspace/db";
 
-import { wrap } from "../lib/async-handler";
+import { wrap, httpError } from "../lib/async-handler";
 
 const router: IRouter = Router();
 
@@ -18,7 +18,7 @@ router.get("/sales-returns", wrap(async (_req, res) => {
 }));
 
 router.get("/sales-returns/:id", wrap(async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
   const [ret] = await db.select().from(salesReturnsTable).where(eq(salesReturnsTable.id, id));
   if (!ret) { res.status(404).json({ error: "غير موجود" }); return; }
@@ -31,7 +31,7 @@ router.get("/sales-returns/:id", wrap(async (req, res) => {
   });
 }));
 
-router.post("/sales-returns", async (req, res): Promise<void> => {
+router.post("/sales-returns", wrap(async (req, res) => {
   const { sale_id, customer_id, customer_name, items, reason, notes, date, refund_type, safe_id } = req.body;
   if (!items?.length) { res.status(400).json({ error: "أضف أصناف المرتجع" }); return; }
 
@@ -39,18 +39,17 @@ router.post("/sales-returns", async (req, res): Promise<void> => {
   const return_no = `SR-${Date.now()}`;
   const rtype: string = refund_type === "cash" ? "cash" : "credit";
 
-  try {
-    const ret = await db.transaction(async (tx) => {
-      let safeName: string | null = null;
-      let safeIdInt: number | null = null;
-      if (rtype === "cash" && safe_id) {
-        const [safe] = await tx.select().from(safesTable).where(eq(safesTable.id, parseInt(safe_id)));
-        if (!safe) throw new Error("الخزينة غير موجودة");
-        safeName = safe.name;
-        safeIdInt = safe.id;
-      }
+  const ret = await db.transaction(async (tx) => {
+    let safeName: string | null = null;
+    let safeIdInt: number | null = null;
+    if (rtype === "cash" && safe_id) {
+      const [safe] = await tx.select().from(safesTable).where(eq(safesTable.id, parseInt(safe_id)));
+      if (!safe) throw httpError(400, "الخزينة غير موجودة");
+      safeName = safe.name;
+      safeIdInt = safe.id;
+    }
 
-      const [ret] = await tx.insert(salesReturnsTable).values({
+    const [ret] = await tx.insert(salesReturnsTable).values({
         return_no,
         sale_id: sale_id ?? null,
         customer_id: customer_id ? parseInt(customer_id) : null,
@@ -133,21 +132,17 @@ router.post("/sales-returns", async (req, res): Promise<void> => {
         });
       }
 
-      return ret;
-    });
+    return ret;
+  });
 
-    res.status(201).json({ ...ret, total_amount: Number(ret.total_amount), created_at: ret.created_at.toISOString() });
-  } catch (err: unknown) {
-    res.status(500).json({ error: err instanceof Error ? err.message : "خطأ في حفظ المرتجع" });
-  }
-});
+  res.status(201).json({ ...ret, total_amount: Number(ret.total_amount), created_at: ret.created_at.toISOString() });
+}));
 
-router.delete("/sales-returns/:id", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
-  try {
-    await db.transaction(async (tx) => {
-      const [ret] = await tx.select().from(salesReturnsTable).where(eq(salesReturnsTable.id, id));
-      if (!ret) throw new Error("المرتجع غير موجود");
+router.delete("/sales-returns/:id", wrap(async (req, res) => {
+  const id = parseInt(req.params.id as string);
+  await db.transaction(async (tx) => {
+    const [ret] = await tx.select().from(salesReturnsTable).where(eq(salesReturnsTable.id, id));
+    if (!ret) throw httpError(400, "المرتجع غير موجود");
 
       const items = await tx.select().from(saleReturnItemsTable).where(eq(saleReturnItemsTable.return_id, id));
       const total = Number(ret.total_amount);
@@ -195,15 +190,12 @@ router.delete("/sales-returns/:id", async (req, res): Promise<void> => {
         }
       }
 
-      await tx.delete(saleReturnItemsTable).where(eq(saleReturnItemsTable.return_id, id));
-      await tx.delete(salesReturnsTable).where(eq(salesReturnsTable.id, id));
-    });
+    await tx.delete(saleReturnItemsTable).where(eq(saleReturnItemsTable.return_id, id));
+    await tx.delete(salesReturnsTable).where(eq(salesReturnsTable.id, id));
+  });
 
-    res.json({ success: true });
-  } catch (err: unknown) {
-    res.status(400).json({ error: err instanceof Error ? err.message : "خطأ في الحذف" });
-  }
-});
+  res.json({ success: true });
+}));
 
 // ── مرتجعات المشتريات ──────────────────────────────────────
 
@@ -213,7 +205,7 @@ router.get("/purchase-returns", wrap(async (_req, res) => {
 }));
 
 router.get("/purchase-returns/:id", wrap(async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
   const [ret] = await db.select().from(purchaseReturnsTable).where(eq(purchaseReturnsTable.id, id));
   if (!ret) { res.status(404).json({ error: "غير موجود" }); return; }
@@ -226,15 +218,14 @@ router.get("/purchase-returns/:id", wrap(async (req, res) => {
   });
 }));
 
-router.post("/purchase-returns", async (req, res): Promise<void> => {
+router.post("/purchase-returns", wrap(async (req, res) => {
   const { purchase_id, customer_id, customer_name, supplier_name, items, reason, notes, date } = req.body;
   if (!items?.length) { res.status(400).json({ error: "أضف أصناف المرتجع" }); return; }
 
   const total: number = items.reduce((s: number, i: { total_price: number }) => s + Number(i.total_price), 0);
   const return_no = `PR-${Date.now()}`;
 
-  try {
-    const ret = await db.transaction(async (tx) => {
+  const ret = await db.transaction(async (tx) => {
       const [ret] = await tx.insert(purchaseReturnsTable).values({
         return_no,
         purchase_id: purchase_id ?? null,
@@ -292,21 +283,17 @@ router.post("/purchase-returns", async (req, res): Promise<void> => {
         }
       }
 
-      return ret;
-    });
+    return ret;
+  });
 
-    res.status(201).json({ ...ret, total_amount: Number(ret.total_amount), created_at: ret.created_at.toISOString() });
-  } catch (err: unknown) {
-    res.status(500).json({ error: err instanceof Error ? err.message : "خطأ في حفظ المرتجع" });
-  }
-});
+  res.status(201).json({ ...ret, total_amount: Number(ret.total_amount), created_at: ret.created_at.toISOString() });
+}));
 
-router.delete("/purchase-returns/:id", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
-  try {
-    await db.transaction(async (tx) => {
-      const [ret] = await tx.select().from(purchaseReturnsTable).where(eq(purchaseReturnsTable.id, id));
-      if (!ret) throw new Error("غير موجود");
+router.delete("/purchase-returns/:id", wrap(async (req, res) => {
+  const id = parseInt(req.params.id as string);
+  await db.transaction(async (tx) => {
+    const [ret] = await tx.select().from(purchaseReturnsTable).where(eq(purchaseReturnsTable.id, id));
+    if (!ret) throw httpError(400, "غير موجود");
       const items = await tx.select().from(purchaseReturnItemsTable).where(eq(purchaseReturnItemsTable.return_id, id));
 
       for (const item of items) {
@@ -344,13 +331,10 @@ router.delete("/purchase-returns/:id", async (req, res): Promise<void> => {
         }
       }
 
-      await tx.delete(purchaseReturnItemsTable).where(eq(purchaseReturnItemsTable.return_id, id));
-      await tx.delete(purchaseReturnsTable).where(eq(purchaseReturnsTable.id, id));
-    });
-    res.json({ success: true });
-  } catch (err: unknown) {
-    res.status(400).json({ error: err instanceof Error ? err.message : "خطأ في الحذف" });
-  }
-});
+    await tx.delete(purchaseReturnItemsTable).where(eq(purchaseReturnItemsTable.return_id, id));
+    await tx.delete(purchaseReturnsTable).where(eq(purchaseReturnsTable.id, id));
+  });
+  res.json({ success: true });
+}));
 
 export default router;
