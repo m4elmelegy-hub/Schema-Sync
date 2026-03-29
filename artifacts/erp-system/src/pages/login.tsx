@@ -355,6 +355,15 @@ export default function Login() {
     return () => window.removeEventListener("keydown", onKey);
   }, [step, pin, loading]);
 
+  /* ══ 5. Auto-submit when PIN is complete ════════════════════ */
+  useEffect(() => {
+    if (step !== "pin" || loading || pin.length === 0) return;
+    if (pin.length === pinLength) {
+      const t = setTimeout(() => triggerLogin(), 180);
+      return () => clearTimeout(t);
+    }
+  }, [pin, pinLength, step, loading]);
+
   /* ══ Step transitions ════════════════════════════════════════ */
   const selectUser = (id: string) => {
     setSelectedUserId(id);
@@ -377,11 +386,21 @@ export default function Login() {
       translateX: [0, 36], opacity: [1, 0], duration: 250, easing: "easeInCubic",
       onComplete: () => {
         setStep("user"); setPin(""); setError("");
-        requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
           animate("#lp-user-step", {
             translateX: [-36, 0], opacity: [0, 1], duration: 320, easing: "easeOutCubic",
-          })
-        );
+          });
+          /* Re-animate cards — they reset to opacity:0 on re-render */
+          setTimeout(() =>
+            animate(".account-card", {
+              translateX: [18, 0],
+              opacity: [0, 1],
+              delay: stagger(90),
+              duration: 380,
+              easing: "easeOutExpo",
+            }), 80
+          );
+        });
       },
     });
   };
