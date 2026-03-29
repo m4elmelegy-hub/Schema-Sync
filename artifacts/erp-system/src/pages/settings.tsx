@@ -1,10 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
   useGetSettingsUsers, useCreateSettingsUser, useUpdateSettingsUser, useDeleteSettingsUser,
   useGetSettingsSafes, useCreateSettingsSafe, useDeleteSettingsSafe,
-  useGetSettingsSafeTransfers, useCreateSettingsSafeTransfer,
   useGetSettingsWarehouses, useCreateSettingsWarehouse, useDeleteSettingsWarehouse,
   useResetDatabase,
   useGetProducts, useGetCustomers, useGetSuppliers,
@@ -246,11 +245,16 @@ function UsersTab() {
 /* ─── Safes Tab ─── */
 function SafesTab() {
   const { data: safes = [], isLoading } = useGetSettingsSafes();
-  const { data: transfers = [] } = useGetSettingsSafeTransfers();
   const createSafe = useCreateSettingsSafe();
   const deleteSafe = useDeleteSettingsSafe();
-  const createTransfer = useCreateSettingsSafeTransfer();
   const queryClient = useQueryClient();
+  const createTransfer = useMutation({
+    mutationFn: (body: { from_safe_id: number; to_safe_id: number; amount: number; notes?: string }) =>
+      authFetch(api("/api/safe-transfers"), { method: "POST", body: JSON.stringify(body) }).then(r => {
+        if (!r.ok) return r.json().then((j: { error?: string }) => { throw new Error(j.error || "فشل التحويل"); });
+        return r.json();
+      }),
+  });
   const { toast } = useToast();
   const [showAdd, setShowAdd] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);

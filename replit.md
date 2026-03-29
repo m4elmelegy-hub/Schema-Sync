@@ -7,6 +7,19 @@ Full-stack Arabic ERP System (نظام ERP) for Halal Tech (Egyptian mobile repa
 ### Navigation Pages
 Dashboard, Sales (POS + Returns), Purchases (+ Returns), Customers, **الأرباح (Profits)**, Expenses, Income, سندات القبض (Receipt Vouchers), سندات التوريد (Deposit Vouchers), تحويل الخزائن (Safe Transfers), المهام والعمليات (Unified Activity Log), الحركات المالية (Financial Transactions Ledger), Chart of Accounts, Journal Entries, Reports, Settings, **مراجعة المخزون (Inventory Audit)**.
 
+### Production Cleanup (Batch 3 — Code Stabilization)
+**Backend:**
+- `dashboard.ts`: Removed unused `eq` import; replaced in-memory N+1 filter with `inArray` SQL WHERE clause for today's sale items
+- `settings.ts`: Removed unused `sql` import (dead code)
+
+**Frontend:**
+- `reports.tsx`: Fixed TypeScript type error — categories filter now uses explicit `(c): c is string => Boolean(c)` type guard; `key={cat}` no longer errors on null categories
+- `sales.tsx`: Added missing `warehouseId` to `useEffect` dependency array (ESLint warning fix)
+- `purchases.tsx`: Same missing dep fix as sales.tsx
+- `settings.tsx`: Removed stale `useGetSettingsSafeTransfers` + `useCreateSettingsSafeTransfer` imports that called the deleted `/api/settings/safe-transfers` endpoint (was causing 404); replaced with `useMutation` calling canonical `/api/safe-transfers`; removed dead `transfers` variable that was fetched but never rendered
+
+**Verified:** 0 errors/404s in new server session; dashboard, profits, and safe-transfers all return correct data.
+
 ### Critical Bug Fixes Applied (Batch 2)
 1. **Supplier Payment → Safe**: `POST /api/suppliers/:id/payment` now requires `safe_id`, deducts from safe balance, blocks if insufficient balance, logs transaction with `direction='out'`
 2. **Purchase Return → Safe**: `POST /api/purchase-returns` accepts `refund_type` ('cash'|'balance_credit') + `safe_id`. Cash refunds increase safe balance + insert transaction `direction='in'`. Balance credit reduces supplier balance.

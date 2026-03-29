@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { gte, sum, desc, eq } from "drizzle-orm";
+import { gte, sum, desc, inArray } from "drizzle-orm";
 import {
   db, salesTable, saleItemsTable, expensesTable, incomeTable,
   customersTable, suppliersTable, productsTable, transactionsTable,
@@ -29,16 +29,17 @@ router.get("/dashboard/stats", wrap(async (_req, res) => {
     .from(incomeTable).where(gte(incomeTable.created_at, today));
   const total_income_today = Number(incomeToday?.total ?? 0);
 
-  // ── صافي الربح: تكلفة المبيعات الفعلية لا إجمالي المبيعات (FIX 7) ────────
-  // جلب بنود مبيعات اليوم مع تكلفتها
-  const todaySales = await db.select().from(salesTable).where(gte(salesTable.date, todayStr));
+  // ── صافي الربح: تكلفة المبيعات الفعلية لا إجمالي المبيعات ───────────────
+  const todaySales = await db.select({ id: salesTable.id }).from(salesTable).where(gte(salesTable.date, todayStr));
   let gross_profit_today = 0;
   if (todaySales.length > 0) {
     const todaySaleIds = todaySales.map(s => s.id);
-    const allItems = await db.select().from(saleItemsTable);
-    const todayItems = allItems.filter(i => todaySaleIds.includes(i.sale_id));
-    gross_profit_today = todayItems.reduce((sum, item) => {
-      return sum + (Number(item.total_price) - Number(item.cost_total));
+    const todayItems = await db
+      .select({ total_price: saleItemsTable.total_price, cost_total: saleItemsTable.cost_total })
+      .from(saleItemsTable)
+      .where(inArray(saleItemsTable.sale_id, todaySaleIds));
+    gross_profit_today = todayItems.reduce((acc, item) => {
+      return acc + (Number(item.total_price) - Number(item.cost_total));
     }, 0);
   }
   const net_profit = gross_profit_today - total_expenses_today + total_income_today;

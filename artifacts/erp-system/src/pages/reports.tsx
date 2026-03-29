@@ -254,7 +254,7 @@ function InventoryReport() {
   const { data: products = [], isLoading } = useGetProducts();
   const [catFilter, setCatFilter] = useState("");
 
-  const categories = Array.from(new Set(products.map(p => p.category).filter(Boolean)));
+  const categories = Array.from(new Set(products.map(p => p.category).filter((c): c is string => Boolean(c))));
   const filtered = catFilter ? products.filter(p => p.category === catFilter) : products;
 
   const totalStockValue = filtered.reduce((s, p) => s + p.quantity * p.cost_price, 0);

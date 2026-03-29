@@ -39,7 +39,7 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
 
   useEffect(() => {
     if (warehouses.length > 0 && !warehouseId) setWarehouseId(String(warehouses[0].id));
-  }, [warehouses]);
+  }, [warehouses, warehouseId]);
 
   const categories = Array.from(new Set(products.map(p => p.category).filter(Boolean)));
   const filteredProducts = products.filter(p => {

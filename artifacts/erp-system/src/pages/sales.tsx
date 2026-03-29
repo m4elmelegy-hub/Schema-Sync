@@ -527,7 +527,7 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
     if (warehouses.length > 0 && !warehouseId) {
       setWarehouseId(String(warehouses[0].id));
     }
-  }, [warehouses]);
+  }, [warehouses, warehouseId]);
 
   // المندوب هو المستخدم الحالي تلقائياً
   const salespersonId = currentUser ? String(currentUser.id) : "";
