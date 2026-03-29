@@ -7,6 +7,7 @@ import {
   GetSaleByIdParams,
   GetSaleByIdResponse,
 } from "@workspace/api-zod";
+import { wrap } from "../lib/async-handler";
 
 const router: IRouter = Router();
 
@@ -29,10 +30,10 @@ function formatSaleItem(item: typeof saleItemsTable.$inferSelect) {
   };
 }
 
-router.get("/sales", async (_req, res): Promise<void> => {
+router.get("/sales", wrap(async (_req, res) => {
   const sales = await db.select().from(salesTable).orderBy(salesTable.created_at);
   res.json(GetSalesResponse.parse(sales.map(formatSale)));
-});
+}));
 
 router.post("/sales", async (req, res): Promise<void> => {
   const parsed = CreateSaleBody.safeParse(req.body);
@@ -173,7 +174,7 @@ router.post("/sales", async (req, res): Promise<void> => {
   }
 });
 
-router.get("/sales/:id", async (req, res): Promise<void> => {
+router.get("/sales/:id", wrap(async (req, res) => {
   const params = GetSaleByIdParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -192,6 +193,6 @@ router.get("/sales/:id", async (req, res): Promise<void> => {
     ...formatSale(sale),
     items: items.map(formatSaleItem),
   }));
-});
+}));
 
 export default router;

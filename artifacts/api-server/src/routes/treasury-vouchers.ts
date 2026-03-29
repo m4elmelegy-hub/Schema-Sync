@@ -2,24 +2,27 @@ import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db, treasuryVouchersTable, safesTable, transactionsTable } from "@workspace/db";
 
+import { wrap } from "../lib/async-handler";
+
 const router: IRouter = Router();
 
 function fmt(v: typeof treasuryVouchersTable.$inferSelect) {
   return { ...v, amount: Number(v.amount), created_at: v.created_at.toISOString() };
 }
 
-router.get("/treasury-vouchers", async (_req, res): Promise<void> => {
+router.get("/treasury-vouchers", wrap(async (_req, res) => {
   const vouchers = await db.select().from(treasuryVouchersTable).orderBy(desc(treasuryVouchersTable.created_at));
   res.json(vouchers.map(fmt));
-});
+}));
 
-router.get("/treasury-vouchers/safe/:safeId", async (req, res): Promise<void> => {
+router.get("/treasury-vouchers/safe/:safeId", wrap(async (req, res) => {
   const safeId = parseInt(req.params.safeId);
+  if (isNaN(safeId)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
   const vouchers = await db.select().from(treasuryVouchersTable)
     .where(eq(treasuryVouchersTable.safe_id, safeId))
     .orderBy(desc(treasuryVouchersTable.created_at));
   res.json(vouchers.map(fmt));
-});
+}));
 
 router.post("/treasury-vouchers", async (req, res): Promise<void> => {
   const { type, safe_id, amount, party_name, description, category } = req.body;
@@ -66,8 +69,9 @@ router.post("/treasury-vouchers", async (req, res): Promise<void> => {
   }
 });
 
-router.delete("/treasury-vouchers/:id", async (req, res): Promise<void> => {
+router.delete("/treasury-vouchers/:id", wrap(async (req, res) => {
   const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
   const [v] = await db.select().from(treasuryVouchersTable).where(eq(treasuryVouchersTable.id, id));
   if (!v) { res.status(404).json({ error: "غير موجود" }); return; }
   // عكس التأثير على الرصيد
@@ -78,6 +82,6 @@ router.delete("/treasury-vouchers/:id", async (req, res): Promise<void> => {
   }
   await db.delete(treasuryVouchersTable).where(eq(treasuryVouchersTable.id, id));
   res.json({ success: true });
-});
+}));
 
 export default router;

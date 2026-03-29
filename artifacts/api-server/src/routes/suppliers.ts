@@ -13,6 +13,7 @@ import {
   CreateSupplierPaymentBody,
   CreateSupplierPaymentResponse,
 } from "@workspace/api-zod";
+import { wrap } from "../lib/async-handler";
 
 const router: IRouter = Router();
 
@@ -24,12 +25,12 @@ function formatSupplier(s: typeof suppliersTable.$inferSelect) {
   };
 }
 
-router.get("/suppliers", async (_req, res): Promise<void> => {
+router.get("/suppliers", wrap(async (_req, res) => {
   const suppliers = await db.select().from(suppliersTable).orderBy(suppliersTable.name);
   res.json(GetSuppliersResponse.parse(suppliers.map(formatSupplier)));
-});
+}));
 
-router.post("/suppliers", async (req, res): Promise<void> => {
+router.post("/suppliers", wrap(async (req, res) => {
   const parsed = CreateSupplierBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -41,9 +42,9 @@ router.post("/suppliers", async (req, res): Promise<void> => {
     balance: String(parsed.data.balance ?? 0),
   }).returning();
   res.status(201).json(formatSupplier(supplier));
-});
+}));
 
-router.put("/suppliers/:id", async (req, res): Promise<void> => {
+router.put("/suppliers/:id", wrap(async (req, res) => {
   const params = UpdateSupplierParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -64,9 +65,9 @@ router.put("/suppliers/:id", async (req, res): Promise<void> => {
     return;
   }
   res.json(UpdateSupplierResponse.parse(formatSupplier(supplier)));
-});
+}));
 
-router.delete("/suppliers/:id", async (req, res): Promise<void> => {
+router.delete("/suppliers/:id", wrap(async (req, res) => {
   const params = DeleteSupplierParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -74,9 +75,9 @@ router.delete("/suppliers/:id", async (req, res): Promise<void> => {
   }
   await db.delete(suppliersTable).where(eq(suppliersTable.id, params.data.id));
   res.json(DeleteSupplierResponse.parse({ success: true, message: "Supplier deleted" }));
-});
+}));
 
-router.post("/suppliers/:id/payment", async (req, res): Promise<void> => {
+router.post("/suppliers/:id/payment", wrap(async (req, res) => {
   const params = CreateSupplierPaymentParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -106,6 +107,6 @@ router.post("/suppliers/:id/payment", async (req, res): Promise<void> => {
   });
 
   res.json(CreateSupplierPaymentResponse.parse(formatSupplier(updated)));
-});
+}));
 
 export default router;

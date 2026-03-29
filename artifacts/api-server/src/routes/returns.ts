@@ -6,17 +6,20 @@ import {
   productsTable, customersTable, safesTable, transactionsTable,
 } from "@workspace/db";
 
+import { wrap } from "../lib/async-handler";
+
 const router: IRouter = Router();
 
 // ── مرتجعات المبيعات ───────────────────────────────────────
 
-router.get("/sales-returns", async (_req, res): Promise<void> => {
+router.get("/sales-returns", wrap(async (_req, res) => {
   const items = await db.select().from(salesReturnsTable).orderBy(desc(salesReturnsTable.created_at));
   res.json(items.map(r => ({ ...r, total_amount: Number(r.total_amount), created_at: r.created_at.toISOString() })));
-});
+}));
 
-router.get("/sales-returns/:id", async (req, res): Promise<void> => {
+router.get("/sales-returns/:id", wrap(async (req, res) => {
   const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
   const [ret] = await db.select().from(salesReturnsTable).where(eq(salesReturnsTable.id, id));
   if (!ret) { res.status(404).json({ error: "غير موجود" }); return; }
   const items = await db.select().from(saleReturnItemsTable).where(eq(saleReturnItemsTable.return_id, id));
@@ -26,7 +29,7 @@ router.get("/sales-returns/:id", async (req, res): Promise<void> => {
     created_at: ret.created_at.toISOString(),
     items: items.map(i => ({ ...i, quantity: Number(i.quantity), unit_price: Number(i.unit_price), total_price: Number(i.total_price) })),
   });
-});
+}));
 
 router.post("/sales-returns", async (req, res): Promise<void> => {
   const { sale_id, customer_id, customer_name, items, reason, notes, date, refund_type, safe_id } = req.body;
@@ -176,13 +179,14 @@ router.delete("/sales-returns/:id", async (req, res): Promise<void> => {
 
 // ── مرتجعات المشتريات ──────────────────────────────────────
 
-router.get("/purchase-returns", async (_req, res): Promise<void> => {
+router.get("/purchase-returns", wrap(async (_req, res) => {
   const items = await db.select().from(purchaseReturnsTable).orderBy(desc(purchaseReturnsTable.created_at));
   res.json(items.map(r => ({ ...r, total_amount: Number(r.total_amount), created_at: r.created_at.toISOString() })));
-});
+}));
 
-router.get("/purchase-returns/:id", async (req, res): Promise<void> => {
+router.get("/purchase-returns/:id", wrap(async (req, res) => {
   const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
   const [ret] = await db.select().from(purchaseReturnsTable).where(eq(purchaseReturnsTable.id, id));
   if (!ret) { res.status(404).json({ error: "غير موجود" }); return; }
   const items = await db.select().from(purchaseReturnItemsTable).where(eq(purchaseReturnItemsTable.return_id, id));
@@ -192,7 +196,7 @@ router.get("/purchase-returns/:id", async (req, res): Promise<void> => {
     created_at: ret.created_at.toISOString(),
     items: items.map(i => ({ ...i, quantity: Number(i.quantity), unit_price: Number(i.unit_price), total_price: Number(i.total_price) })),
   });
-});
+}));
 
 router.post("/purchase-returns", async (req, res): Promise<void> => {
   const { purchase_id, customer_id, customer_name, supplier_name, items, reason, notes, date } = req.body;

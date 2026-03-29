@@ -2,16 +2,18 @@ import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db, depositVouchersTable, safesTable, customersTable, transactionsTable } from "@workspace/db";
 
+import { wrap } from "../lib/async-handler";
+
 const router: IRouter = Router();
 
 function fmt(v: typeof depositVouchersTable.$inferSelect) {
   return { ...v, amount: Number(v.amount), created_at: v.created_at.toISOString() };
 }
 
-router.get("/deposit-vouchers", async (_req, res): Promise<void> => {
+router.get("/deposit-vouchers", wrap(async (_req, res) => {
   const items = await db.select().from(depositVouchersTable).orderBy(desc(depositVouchersTable.created_at));
   res.json(items.map(fmt));
-});
+}));
 
 router.post("/deposit-vouchers", async (req, res): Promise<void> => {
   const { safe_id, amount, customer_id, customer_name, source, notes, date } = req.body;

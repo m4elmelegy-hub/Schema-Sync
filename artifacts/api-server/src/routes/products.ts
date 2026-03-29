@@ -10,21 +10,26 @@ import {
   DeleteProductParams,
   DeleteProductResponse,
 } from "@workspace/api-zod";
+import { wrap } from "../lib/async-handler";
 
 const router: IRouter = Router();
 
-router.get("/products", async (_req, res): Promise<void> => {
-  const products = await db.select().from(productsTable).orderBy(productsTable.created_at);
-  res.json(GetProductsResponse.parse(products.map(p => ({
+function formatProduct(p: typeof productsTable.$inferSelect) {
+  return {
     ...p,
     quantity: Number(p.quantity),
     cost_price: Number(p.cost_price),
     sale_price: Number(p.sale_price),
     created_at: p.created_at.toISOString(),
-  }))));
-});
+  };
+}
 
-router.post("/products", async (req, res): Promise<void> => {
+router.get("/products", wrap(async (_req, res) => {
+  const products = await db.select().from(productsTable).orderBy(productsTable.created_at);
+  res.json(GetProductsResponse.parse(products.map(formatProduct)));
+}));
+
+router.post("/products", wrap(async (req, res) => {
   const parsed = CreateProductBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -39,16 +44,10 @@ router.post("/products", async (req, res): Promise<void> => {
     sale_price: String(parsed.data.sale_price),
     low_stock_threshold: parsed.data.low_stock_threshold ?? null,
   }).returning();
-  res.status(201).json({
-    ...product,
-    quantity: Number(product.quantity),
-    cost_price: Number(product.cost_price),
-    sale_price: Number(product.sale_price),
-    created_at: product.created_at.toISOString(),
-  });
-});
+  res.status(201).json(formatProduct(product));
+}));
 
-router.put("/products/:id", async (req, res): Promise<void> => {
+router.put("/products/:id", wrap(async (req, res) => {
   const params = UpdateProductParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -72,16 +71,10 @@ router.put("/products/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Product not found" });
     return;
   }
-  res.json(UpdateProductResponse.parse({
-    ...product,
-    quantity: Number(product.quantity),
-    cost_price: Number(product.cost_price),
-    sale_price: Number(product.sale_price),
-    created_at: product.created_at.toISOString(),
-  }));
-});
+  res.json(UpdateProductResponse.parse(formatProduct(product)));
+}));
 
-router.delete("/products/:id", async (req, res): Promise<void> => {
+router.delete("/products/:id", wrap(async (req, res) => {
   const params = DeleteProductParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -89,6 +82,6 @@ router.delete("/products/:id", async (req, res): Promise<void> => {
   }
   await db.delete(productsTable).where(eq(productsTable.id, params.data.id));
   res.json(DeleteProductResponse.parse({ success: true, message: "Product deleted" }));
-});
+}));
 
 export default router;

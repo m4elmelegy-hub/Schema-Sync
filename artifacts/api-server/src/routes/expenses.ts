@@ -7,6 +7,7 @@ import {
   DeleteExpenseParams,
   DeleteExpenseResponse,
 } from "@workspace/api-zod";
+import { wrap } from "../lib/async-handler";
 
 const router: IRouter = Router();
 
@@ -14,10 +15,10 @@ function formatExpense(e: typeof expensesTable.$inferSelect) {
   return { ...e, amount: Number(e.amount), created_at: e.created_at.toISOString() };
 }
 
-router.get("/expenses", async (_req, res): Promise<void> => {
+router.get("/expenses", wrap(async (_req, res) => {
   const expenses = await db.select().from(expensesTable).orderBy(expensesTable.created_at);
   res.json(GetExpensesResponse.parse(expenses.map(formatExpense)));
-});
+}));
 
 router.post("/expenses", async (req, res): Promise<void> => {
   const parsed = CreateExpenseBody.safeParse(req.body);
@@ -58,7 +59,7 @@ router.post("/expenses", async (req, res): Promise<void> => {
   }
 });
 
-router.delete("/expenses/:id", async (req, res): Promise<void> => {
+router.delete("/expenses/:id", wrap(async (req, res) => {
   const params = DeleteExpenseParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   await db.transaction(async (tx) => {
@@ -70,6 +71,6 @@ router.delete("/expenses/:id", async (req, res): Promise<void> => {
     await tx.delete(expensesTable).where(eq(expensesTable.id, params.data.id));
   });
   res.json(DeleteExpenseResponse.parse({ success: true, message: "Expense deleted" }));
-});
+}));
 
 export default router;

@@ -7,6 +7,7 @@ import {
   GetPurchaseByIdParams,
   GetPurchaseByIdResponse,
 } from "@workspace/api-zod";
+import { wrap } from "../lib/async-handler";
 
 const router: IRouter = Router();
 
@@ -29,12 +30,12 @@ function formatPurchaseItem(item: typeof purchaseItemsTable.$inferSelect) {
   };
 }
 
-router.get("/purchases", async (_req, res): Promise<void> => {
+router.get("/purchases", wrap(async (_req, res) => {
   const purchases = await db.select().from(purchasesTable).orderBy(purchasesTable.created_at);
   res.json(GetPurchasesResponse.parse(purchases.map(formatPurchase)));
-});
+}));
 
-router.post("/purchases", async (req, res): Promise<void> => {
+router.post("/purchases", wrap(async (req, res) => {
   const parsed = CreatePurchaseBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -77,15 +78,6 @@ router.post("/purchases", async (req, res): Promise<void> => {
     notes: notes ?? null,
   } as any).returning();
 
-  // ─── تحديث المخزن + متوسط التكلفة المرجّح لكل صنف ───
-  //
-  // الصيغة: متوسط_جديد = (كمية_قديمة × تكلفة_قديمة + كمية_جديدة × سعر_شراء_جديد)
-  //                      ÷ (كمية_قديمة + كمية_جديدة)
-  //
-  // مثال: كان عنده 10 قطع بتكلفة 50 ج.م → متوسط التكلفة = 50
-  //        اشترى 5 قطع بـ 80 ج.م
-  //        متوسط_جديد = (10×50 + 5×80) / (10+5) = (500+400)/15 = 60 ج.م
-  //
   for (const item of items) {
     await db.insert(purchaseItemsTable).values({
       purchase_id: purchase.id,
@@ -98,30 +90,21 @@ router.post("/purchases", async (req, res): Promise<void> => {
     const [prod] = await db.select().from(productsTable).where(eq(productsTable.id, item.product_id));
     if (prod) {
       const oldQty = Number(prod.quantity);
-      const oldCost = Number(prod.cost_price);  // متوسط التكلفة الحالي
+      const oldCost = Number(prod.cost_price);
       const newItemQty = Number(item.quantity);
       const newItemCost = Number(item.unit_price);
       const newTotalQty = oldQty + newItemQty;
-
-      // حساب المتوسط المرجّح الجديد
       const newAvgCost = newTotalQty > 0
         ? (oldQty * oldCost + newItemQty * newItemCost) / newTotalQty
         : newItemCost;
-
       await db.update(productsTable)
         .set({
           quantity: String(newTotalQty),
-          cost_price: String(newAvgCost.toFixed(4)),  // 4 خانات عشرية للدقة
+          cost_price: String(newAvgCost.toFixed(4)),
         })
         .where(eq(productsTable.id, item.product_id));
     }
   }
-
-  // ─── المنطق المحاسبي للمشتريات ───
-  //
-  // نقدي  → نخصم المبلغ من الخزينة
-  // آجل   → نرحّل الفاتورة على حساب العميل بالسالب (علينا له)
-  // جزئي  → نخصم المدفوع من الخزينة + المتبقي يُرحَّل سالب على العميل
 
   const cashOut = payment_type === "cash" ? total_amount
     : payment_type === "partial" ? paid_amount
@@ -131,7 +114,6 @@ router.post("/purchases", async (req, res): Promise<void> => {
     : payment_type === "partial" ? remaining
     : 0;
 
-  // خصم من الخزينة (نقدي أو الجزء المدفوع في الجزئي)
   if (cashOut > 0 && safe_id) {
     const [safe] = await db.select().from(safesTable).where(eq(safesTable.id, safe_id));
     if (safe) {
@@ -139,7 +121,6 @@ router.post("/purchases", async (req, res): Promise<void> => {
       await db.update(safesTable)
         .set({ balance: String(newBalance) })
         .where(eq(safesTable.id, safe_id));
-
       await db.insert(transactionsTable).values({
         type: "purchase_cash",
         amount: String(cashOut),
@@ -151,16 +132,13 @@ router.post("/purchases", async (req, res): Promise<void> => {
     }
   }
 
-  // ترحيل على حساب العميل (سالب = علينا دين له)
   if (customerDebt > 0 && customer_id) {
     const [cust] = await db.select().from(customersTable).where(eq(customersTable.id, customer_id));
     if (cust) {
-      // نقلل رصيد العميل (إذا كان صفر يصبح سالب = علينا له)
       const newBalance = Number(cust.balance) - customerDebt;
       await db.update(customersTable)
         .set({ balance: String(newBalance) })
         .where(eq(customersTable.id, customer_id));
-
       await db.insert(transactionsTable).values({
         type: "purchase_credit",
         amount: String(customerDebt),
@@ -171,7 +149,6 @@ router.post("/purchases", async (req, res): Promise<void> => {
     }
   }
 
-  // سجل عملية الشراء العام
   await db.insert(transactionsTable).values({
     type: "purchase",
     amount: String(total_amount),
@@ -182,9 +159,9 @@ router.post("/purchases", async (req, res): Promise<void> => {
   } as any);
 
   res.status(201).json(formatPurchase(purchase));
-});
+}));
 
-router.get("/purchases/:id", async (req, res): Promise<void> => {
+router.get("/purchases/:id", wrap(async (req, res) => {
   const params = GetPurchaseByIdParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -203,6 +180,6 @@ router.get("/purchases/:id", async (req, res): Promise<void> => {
     ...formatPurchase(purchase),
     items: items.map(formatPurchaseItem),
   }));
-});
+}));
 
 export default router;

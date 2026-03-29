@@ -2,11 +2,11 @@ import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db, safesTable, transactionsTable } from "@workspace/db";
 
+import { wrap } from "../lib/async-handler";
+
 const router: IRouter = Router();
 
-// تحويل بين خزائن: خزينة A تنزل، خزينة B ترتفع
-// نسجّل حركتين في جدول transactions (out + in)
-router.get("/safe-transfers", async (_req, res): Promise<void> => {
+router.get("/safe-transfers", wrap(async (_req, res) => {
   const items = await db.select().from(transactionsTable)
     .where(eq(transactionsTable.reference_type, "safe_transfer"))
     .orderBy(desc(transactionsTable.created_at));
@@ -15,7 +15,7 @@ router.get("/safe-transfers", async (_req, res): Promise<void> => {
     amount: Number(t.amount),
     created_at: t.created_at.toISOString(),
   })));
-});
+}));
 
 router.post("/safe-transfers", async (req, res): Promise<void> => {
   const { from_safe_id, to_safe_id, amount, notes, date } = req.body;

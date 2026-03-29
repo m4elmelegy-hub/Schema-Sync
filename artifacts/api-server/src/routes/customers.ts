@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db, customersTable, transactionsTable } from "@workspace/db";
 import {
   GetCustomersResponse,
@@ -13,6 +13,7 @@ import {
   CreateCustomerReceiptBody,
   CreateCustomerReceiptResponse,
 } from "@workspace/api-zod";
+import { wrap } from "../lib/async-handler";
 
 const router: IRouter = Router();
 
@@ -24,12 +25,12 @@ function formatCustomer(c: typeof customersTable.$inferSelect) {
   };
 }
 
-router.get("/customers", async (_req, res): Promise<void> => {
+router.get("/customers", wrap(async (_req, res) => {
   const customers = await db.select().from(customersTable).orderBy(customersTable.name);
   res.json(GetCustomersResponse.parse(customers.map(formatCustomer)));
-});
+}));
 
-router.post("/customers", async (req, res): Promise<void> => {
+router.post("/customers", wrap(async (req, res) => {
   const parsed = CreateCustomerBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -41,9 +42,9 @@ router.post("/customers", async (req, res): Promise<void> => {
     balance: String(parsed.data.balance ?? 0),
   }).returning();
   res.status(201).json(formatCustomer(customer));
-});
+}));
 
-router.put("/customers/:id", async (req, res): Promise<void> => {
+router.put("/customers/:id", wrap(async (req, res) => {
   const params = UpdateCustomerParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -64,9 +65,9 @@ router.put("/customers/:id", async (req, res): Promise<void> => {
     return;
   }
   res.json(UpdateCustomerResponse.parse(formatCustomer(customer)));
-});
+}));
 
-router.delete("/customers/:id", async (req, res): Promise<void> => {
+router.delete("/customers/:id", wrap(async (req, res) => {
   const params = DeleteCustomerParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -74,9 +75,9 @@ router.delete("/customers/:id", async (req, res): Promise<void> => {
   }
   await db.delete(customersTable).where(eq(customersTable.id, params.data.id));
   res.json(DeleteCustomerResponse.parse({ success: true, message: "Customer deleted" }));
-});
+}));
 
-router.post("/customers/:id/receipt", async (req, res): Promise<void> => {
+router.post("/customers/:id/receipt", wrap(async (req, res) => {
   const params = CreateCustomerReceiptParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -94,7 +95,6 @@ router.post("/customers/:id/receipt", async (req, res): Promise<void> => {
     return;
   }
 
-  // بدون سقف — الرصيد يُسمح له بأن يصبح سالباً (رصيد دائن للعميل)
   const newBalance = Number(customer.balance) - parsed.data.amount;
   const [updated] = await db.update(customersTable).set({ balance: String(newBalance) })
     .where(eq(customersTable.id, params.data.id)).returning();
@@ -107,6 +107,6 @@ router.post("/customers/:id/receipt", async (req, res): Promise<void> => {
   });
 
   res.json(CreateCustomerReceiptResponse.parse(formatCustomer(updated)));
-});
+}));
 
 export default router;

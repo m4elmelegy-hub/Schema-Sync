@@ -2,16 +2,18 @@ import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db, receiptVouchersTable, customersTable, safesTable, transactionsTable } from "@workspace/db";
 
+import { wrap } from "../lib/async-handler";
+
 const router: IRouter = Router();
 
 function fmt(v: typeof receiptVouchersTable.$inferSelect) {
   return { ...v, amount: Number(v.amount), created_at: v.created_at.toISOString() };
 }
 
-router.get("/receipt-vouchers", async (_req, res): Promise<void> => {
+router.get("/receipt-vouchers", wrap(async (_req, res) => {
   const items = await db.select().from(receiptVouchersTable).orderBy(desc(receiptVouchersTable.created_at));
   res.json(items.map(fmt));
-});
+}));
 
 router.post("/receipt-vouchers", async (req, res): Promise<void> => {
   const { customer_id, customer_name, safe_id, amount, notes, date } = req.body;
@@ -76,8 +78,9 @@ router.post("/receipt-vouchers", async (req, res): Promise<void> => {
   }
 });
 
-router.delete("/receipt-vouchers/:id", async (req, res): Promise<void> => {
+router.delete("/receipt-vouchers/:id", wrap(async (req, res) => {
   const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
   await db.transaction(async (tx) => {
     const [v] = await tx.select().from(receiptVouchersTable).where(eq(receiptVouchersTable.id, id));
     if (!v) throw new Error("غير موجود");
@@ -91,6 +94,6 @@ router.delete("/receipt-vouchers/:id", async (req, res): Promise<void> => {
     await tx.delete(receiptVouchersTable).where(eq(receiptVouchersTable.id, id));
   });
   res.json({ success: true });
-});
+}));
 
 export default router;
