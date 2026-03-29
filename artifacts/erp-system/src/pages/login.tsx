@@ -139,6 +139,14 @@ export default function Login() {
 
     const tick = (now: number) => {
       const w = canvas.offsetWidth, h = canvas.offsetHeight;
+
+      /* canvas is hidden (display:none on mobile) — skip all drawing */
+      if (!w || !h) {
+        rafRef.current = requestAnimationFrame(tick);
+        return;
+      }
+
+      try {
       ctx.clearRect(0, 0, w, h);
 
       const stars   = starsRef.current;
@@ -241,6 +249,8 @@ export default function Login() {
         ctx.fill();
       }
 
+      } catch (_) { /* swallow canvas draw errors (e.g. Safari on hidden canvas) */ }
+
       rafRef.current = requestAnimationFrame(tick);
     };
 
@@ -258,57 +268,53 @@ export default function Login() {
     if (mountedRef.current) return;
     mountedRef.current = true;
 
-    const tl = createTimeline();
+    try {
+      const tl = createTimeline();
 
-    /* brand panel slides from left */
-    tl.add("#lp-brand", {
-      translateX: ["-100%", "0%"],
-      opacity: [0, 1],
-      duration: 900,
-      easing: "easeOutExpo",
-    });
+      tl.add("#lp-brand", {
+        translateX: ["-100%", "0%"],
+        opacity: [0, 1],
+        duration: 900,
+        easing: "easeOutExpo",
+      });
 
-    /* logo bounce */
-    tl.add("#lp-logo", {
-      scale: [0, 1.18, 0.95, 1.04, 1],
-      opacity: [0, 1],
-      duration: 800,
-      easing: "easeOutElastic(1, .6)",
-    }, 150);
+      tl.add("#lp-logo", {
+        scale: [0, 1],
+        opacity: [0, 1],
+        duration: 800,
+        easing: "easeOutElastic(1, .6)",
+      }, 150);
 
-    /* title */
-    tl.add("#lp-title", {
-      translateY: [28, 0],
-      opacity: [0, 1],
-      duration: 600,
-      easing: "easeOutExpo",
-    }, 480);
+      tl.add("#lp-title", {
+        translateY: [28, 0],
+        opacity: [0, 1],
+        duration: 600,
+        easing: "easeOutExpo",
+      }, 480);
 
-    /* tagline */
-    tl.add("#lp-tagline", {
-      translateY: [18, 0],
-      opacity: [0, 1],
-      duration: 500,
-      easing: "easeOutExpo",
-    }, 650);
+      tl.add("#lp-tagline", {
+        translateY: [18, 0],
+        opacity: [0, 1],
+        duration: 500,
+        easing: "easeOutExpo",
+      }, 650);
 
-    /* badges stagger spring */
-    tl.add(".lp-badge", {
-      translateY: [20, 0],
-      opacity: [0, 1],
-      scale: [0.82, 1.06, 1],
-      delay: stagger(90),
-      duration: 420,
-      easing: "easeOutBack",
-    }, 800);
+      tl.add(".lp-badge", {
+        translateY: [20, 0],
+        opacity: [0, 1],
+        scale: [0.82, 1],
+        delay: stagger(90),
+        duration: 420,
+        easing: "easeOutBack",
+      }, 800);
 
-    /* right panel */
-    tl.add("#lp-panel", {
-      translateX: ["4%", "0%"],
-      opacity: [0, 1],
-      duration: 700,
-      easing: "easeOutExpo",
-    }, 100);
+      tl.add("#lp-panel", {
+        translateX: ["4%", "0%"],
+        opacity: [0, 1],
+        duration: 700,
+        easing: "easeOutExpo",
+      }, 100);
+    } catch (_) { /* swallow entrance animation errors on mobile */ }
 
   }, []);
 
@@ -330,17 +336,21 @@ export default function Login() {
   /* ══ 3. Error shake ══════════════════════════════════════════ */
   useEffect(() => {
     if (!error) return;
-    animate("#lp-error", {
-      translateX: [0, -10, 10, -8, 8, -5, 5, -3, 3, 0],
-      duration: 560,
-      easing: "easeInOutSine",
-    });
-    animate(".pin-dot", {
-      scale: [1, 1.3, 0.85, 1],
-      delay: stagger(40),
-      duration: 380,
-      easing: "easeOutBack",
-    });
+    /* CSS-class shake — avoids multi-value keyframe issues in animejs v4 */
+    const el = document.getElementById("lp-error");
+    if (el) {
+      el.style.animation = "none";
+      void el.offsetWidth; /* force reflow */
+      el.style.animation = "lp-shake 0.55s ease-in-out";
+    }
+    try {
+      animate(".pin-dot", {
+        scale: [1, 1.18, 1],
+        delay: stagger(40),
+        duration: 320,
+        easing: "easeOutBack",
+      });
+    } catch (_) { /* ignore */ }
   }, [error]);
 
   /* ══ 4. Keyboard support ═════════════════════════════════════ */
@@ -369,41 +379,48 @@ export default function Login() {
   const selectUser = (id: string) => {
     setSelectedUserId(id);
     setError(""); setPin("");
-    animate("#lp-user-step", {
-      translateX: [0, 36], opacity: [1, 0], duration: 250, easing: "easeInCubic",
-      onComplete: () => {
-        setStep("pin");
-        requestAnimationFrame(() =>
-          animate("#lp-pin-step", {
-            translateX: [-36, 0], opacity: [0, 1], duration: 320, easing: "easeOutCubic",
-          })
-        );
-      },
-    });
+    try {
+      animate("#lp-user-step", {
+        translateX: [0, 36], opacity: [1, 0], duration: 250, easing: "easeInCubic",
+        onComplete: () => {
+          setStep("pin");
+          requestAnimationFrame(() => {
+            try {
+              animate("#lp-pin-step", {
+                translateX: [-36, 0], opacity: [0, 1], duration: 320, easing: "easeOutCubic",
+              });
+            } catch (_) { /* ignore */ }
+          });
+        },
+      });
+    } catch (_) { setStep("pin"); }
   };
 
   const backToUser = () => {
-    animate("#lp-pin-step", {
-      translateX: [0, 36], opacity: [1, 0], duration: 250, easing: "easeInCubic",
-      onComplete: () => {
-        setStep("user"); setPin(""); setError("");
-        requestAnimationFrame(() => {
-          animate("#lp-user-step", {
-            translateX: [-36, 0], opacity: [0, 1], duration: 320, easing: "easeOutCubic",
+    try {
+      animate("#lp-pin-step", {
+        translateX: [0, 36], opacity: [1, 0], duration: 250, easing: "easeInCubic",
+        onComplete: () => {
+          setStep("user"); setPin(""); setError("");
+          requestAnimationFrame(() => {
+            try {
+              animate("#lp-user-step", {
+                translateX: [-36, 0], opacity: [0, 1], duration: 320, easing: "easeOutCubic",
+              });
+              setTimeout(() =>
+                animate(".account-card", {
+                  translateX: [18, 0],
+                  opacity: [0, 1],
+                  delay: stagger(90),
+                  duration: 380,
+                  easing: "easeOutExpo",
+                }), 80
+              );
+            } catch (_) { /* ignore */ }
           });
-          /* Re-animate cards — they reset to opacity:0 on re-render */
-          setTimeout(() =>
-            animate(".account-card", {
-              translateX: [18, 0],
-              opacity: [0, 1],
-              delay: stagger(90),
-              duration: 380,
-              easing: "easeOutExpo",
-            }), 80
-          );
-        });
-      },
-    });
+        },
+      });
+    } catch (_) { setStep("user"); setPin(""); setError(""); }
   };
 
   /* ══ PIN key press ═══════════════════════════════════════════ */
@@ -417,8 +434,10 @@ export default function Login() {
       setError("");
       const idx = next.length - 1;
       requestAnimationFrame(() => {
-        const dot = document.querySelector(`.pin-dot-${idx}`);
-        if (dot) animate(dot as HTMLElement, { scale: [0.3, 1.4, 1], duration: 280, easing: "easeOutBack" });
+        try {
+          const dot = document.querySelector(`.pin-dot-${idx}`);
+          if (dot) animate(dot as HTMLElement, { scale: [0.3, 1], duration: 280, easing: "easeOutBack" });
+        } catch (_) { /* ignore */ }
       });
       return next;
     });
@@ -426,7 +445,7 @@ export default function Login() {
 
   /* ══ Key button with bounce ══════════════════════════════════ */
   const handleKeyBtn = useCallback((key: string, el: HTMLElement) => {
-    animate(el, { scale: [0.87, 1.06, 1], duration: 200, easing: "easeOutBack" });
+    try { animate(el, { scale: [0.87, 1], duration: 200, easing: "easeOutBack" }); } catch (_) { /* ignore */ }
     handleKeyPress(key);
   }, [handleKeyPress]);
 
@@ -460,16 +479,18 @@ export default function Login() {
       };
 
       /* success exit */
-      animate("#lp-panel", { scale: [1, 1.02, 1], duration: 300, easing: "easeOutCubic" });
-      setTimeout(() =>
-        animate("#lp-panel", {
-          translateX: ["0%", "6%"], opacity: [1, 0], duration: 300, easing: "easeInCubic",
-          onComplete: () => {
-            login(authedUser, token);
-            setLocation("/");
-          },
-        }), 280
-      );
+      try {
+        animate("#lp-panel", { scale: [1, 1.03], duration: 180, easing: "easeOutCubic" });
+        setTimeout(() =>
+          animate("#lp-panel", {
+            translateX: ["0%", "6%"], opacity: [1, 0], duration: 300, easing: "easeInCubic",
+            onComplete: () => { login(authedUser, token); setLocation("/"); },
+          }), 280
+        );
+      } catch (_) {
+        login(authedUser, token);
+        setLocation("/");
+      }
     } catch {
       setError("تعذّر الاتصال بالخادم");
       setLoading(false);
@@ -670,7 +691,7 @@ export default function Login() {
                     const el = e.currentTarget;
                     el.style.background = "rgba(255,255,255,0.07)";
                     el.style.color = "rgba(255,255,255,0.75)";
-                    animate(el, { translateX: [0, 4, -2, 3, 0], duration: 420, easing: "easeOutBack" });
+                    try { animate(el, { translateX: [0, 4], duration: 200, easing: "easeOutBack" }); } catch (_) { /* ignore */ }
                   }}
                   onMouseLeave={(e) => {
                     const el = e.currentTarget;
@@ -851,6 +872,15 @@ export default function Login() {
           0%   { transform: translateX(-110%); }
           100% { transform: translateX(110%); }
         }
+        @keyframes lp-shake {
+          0%, 100% { transform: translateX(0); }
+          15%       { transform: translateX(-9px); }
+          30%       { transform: translateX(8px); }
+          45%       { transform: translateX(-7px); }
+          60%       { transform: translateX(6px); }
+          75%       { transform: translateX(-4px); }
+          90%       { transform: translateX(3px); }
+        }
       `}</style>
     </div>
   );
@@ -895,11 +925,13 @@ function AccountCard({ user, colorFrom, colorTo, onSelect }: AccountCardProps) {
 
     /* elastic arrow */
     if (arrowRef.current) {
-      animate(arrowRef.current, {
-        translateX: [0, -6, 2, -4, 0],
-        duration: 480,
-        easing: "easeOutElastic(1, .5)",
-      });
+      try {
+        animate(arrowRef.current, {
+          translateX: [0, -5],
+          duration: 240,
+          easing: "easeOutBack",
+        });
+      } catch (_) { /* ignore */ }
     }
   };
 
@@ -914,7 +946,9 @@ function AccountCard({ user, colorFrom, colorTo, onSelect }: AccountCardProps) {
   const handleClick = () => {
     setPressed(true);
     const el = cardRef.current;
-    if (el) animate(el, { scale: [1, 0.97, 1.01, 1], duration: 240, easing: "easeOutBack" });
+    if (el) {
+      try { animate(el, { scale: [1, 0.96], duration: 120, easing: "easeInCubic" }); } catch (_) { /* ignore */ }
+    }
     setTimeout(() => { setPressed(false); onSelect(); }, 180);
   };
 
