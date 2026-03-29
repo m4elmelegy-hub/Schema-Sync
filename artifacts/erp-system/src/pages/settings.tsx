@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -7,7 +7,9 @@ import {
   useGetSettingsSafeTransfers, useCreateSettingsSafeTransfer,
   useGetSettingsWarehouses, useCreateSettingsWarehouse, useDeleteSettingsWarehouse,
   useResetDatabase,
+  useGetProducts, useGetCustomers, useGetSuppliers,
 } from "@workspace/api-client-react";
+import { authFetch } from "@/lib/auth-fetch";
 import { formatCurrency, formatDate, formatCurrencyPreview } from "@/lib/format";
 import {
   useAppSettings, CURRENCIES, FONTS, ACCENT_COLORS, FONT_SIZES, LOGIN_BG_OPTIONS,
@@ -17,23 +19,24 @@ import {
   Users, Landmark, Warehouse, AlertTriangle, Plus, Trash2, Edit2, X, Check,
   ArrowLeftRight, Eye, EyeOff, Save, Palette, DollarSign, Database,
   Upload, Download, RefreshCcw, Building2, Image, Type, Loader2, CheckCircle2,
-  HardDrive, History,
+  HardDrive, History, BookOpen, Package, UserCircle, Truck, Banknote,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
 
-type Tab = "users" | "safes" | "warehouses" | "appearance" | "currency" | "backup" | "data";
+type Tab = "users" | "safes" | "warehouses" | "appearance" | "currency" | "backup" | "data" | "opening-balance";
 
 const TABS: { id: Tab; label: string; icon: React.FC<{ className?: string }> }[] = [
-  { id: "users",      label: "المستخدمون",   icon: Users },
-  { id: "safes",      label: "الخزائن",      icon: Landmark },
-  { id: "warehouses", label: "المخازن",      icon: Warehouse },
-  { id: "appearance", label: "الواجهة",      icon: Palette },
-  { id: "currency",   label: "العملة",       icon: DollarSign },
-  { id: "backup",     label: "نسخ احتياطي",  icon: HardDrive },
-  { id: "data",       label: "البيانات",     icon: Database },
+  { id: "users",           label: "المستخدمون",     icon: Users },
+  { id: "safes",           label: "الخزائن",        icon: Landmark },
+  { id: "warehouses",      label: "المخازن",        icon: Warehouse },
+  { id: "opening-balance", label: "أول المدة",      icon: BookOpen },
+  { id: "appearance",      label: "الواجهة",        icon: Palette },
+  { id: "currency",        label: "العملة",         icon: DollarSign },
+  { id: "backup",          label: "نسخ احتياطي",    icon: HardDrive },
+  { id: "data",            label: "البيانات",       icon: Database },
 ];
 
 const ROLES: Record<string, { label: string; color: string }> = {
@@ -93,6 +96,7 @@ export default function Settings() {
         {tab === "users" && <UsersTab />}
         {tab === "safes" && <SafesTab />}
         {tab === "warehouses" && <WarehousesTab />}
+        {tab === "opening-balance" && <OpeningBalanceTab />}
         {tab === "appearance" && <AppearanceTab />}
         {tab === "currency" && <CurrencyTab />}
         {tab === "backup" && <BackupImportTab />}
@@ -1774,6 +1778,543 @@ function FullResetSection() {
         {resetDb.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCcw className="w-4 h-4" />}
         تصفير الكل
       </button>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Opening Balance Tab
+// ─────────────────────────────────────────────────────────────────────────────
+
+type OBSubTab = "treasury" | "products" | "customers" | "suppliers";
+
+const OB_SUB_TABS: { id: OBSubTab; label: string; icon: React.FC<{ className?: string }> }[] = [
+  { id: "treasury",  label: "الخزائن",   icon: Banknote },
+  { id: "products",  label: "المنتجات",  icon: Package },
+  { id: "customers", label: "العملاء",   icon: UserCircle },
+  { id: "suppliers", label: "الموردون",  icon: Truck },
+];
+
+interface OBEntry {
+  id: number;
+  amount?: number;
+  quantity?: number;
+  unit_cost?: number;
+  description?: string;
+  customer_name?: string;
+  safe_name?: string;
+  product_name?: string;
+  date?: string;
+  created_at: string;
+}
+
+function useOBData(path: string) {
+  const [data, setData] = useState<OBEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await authFetch(`${BASE}/api${path}`);
+      if (res.ok) setData(await res.json());
+    } finally {
+      setLoading(false);
+    }
+  }, [path]);
+
+  useEffect(() => { reload(); }, [reload]);
+  return { data, loading, reload };
+}
+
+function OBEntryTable({ entries, loading, columns }: {
+  entries: OBEntry[];
+  loading: boolean;
+  columns: { label: string; render: (e: OBEntry) => React.ReactNode }[];
+}) {
+  if (loading) return (
+    <div className="p-8 text-center text-white/40 text-sm">
+      <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
+      جاري التحميل...
+    </div>
+  );
+  if (entries.length === 0) return (
+    <div className="p-8 text-center text-white/30 text-sm">لا توجد قيود مسجلة</div>
+  );
+  return (
+    <table className="w-full text-right text-sm">
+      <thead className="bg-white/5 border-b border-white/10">
+        <tr>
+          {columns.map(c => (
+            <th key={c.label} className="p-3 text-white/50 text-xs font-medium">{c.label}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {entries.map(e => (
+          <tr key={e.id} className="border-b border-white/5 erp-table-row">
+            {columns.map(c => (
+              <td key={c.label} className="p-3 text-white/80 text-sm">{c.render(e)}</td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/* ── Treasury sub-tab ──────────────────────────────────── */
+function OBTreasuryTab() {
+  const { data: entries, loading, reload } = useOBData("/opening-balance/treasury");
+  const { data: safes = [] } = useGetSettingsSafes();
+  const { toast } = useToast();
+  const [form, setForm] = useState({ safe_id: "", amount: "", date: new Date().toISOString().split("T")[0], notes: "" });
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!form.safe_id || !form.amount) { toast({ title: "الخزينة والمبلغ مطلوبان", variant: "destructive" }); return; }
+    setSaving(true);
+    try {
+      const res = await authFetch(`${BASE}/api/opening-balance/treasury`, {
+        method: "POST",
+        body: JSON.stringify({ safe_id: parseInt(form.safe_id), amount: parseFloat(form.amount), date: form.date, notes: form.notes || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast({ title: data.error ?? "فشل الحفظ", variant: "destructive" }); return; }
+      toast({ title: "✅ تم تسجيل رصيد أول المدة للخزينة" });
+      setForm(f => ({ ...f, safe_id: "", amount: "", notes: "" }));
+      reload();
+    } catch {
+      toast({ title: "خطأ في الاتصال", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="رصيد أول المدة — الخزائن" sub="أضف الرصيد الافتتاحي لكل خزينة عند بداية تشغيل النظام" />
+
+      {/* Form */}
+      <div className="glass-panel rounded-3xl p-6 border border-amber-500/20 space-y-4">
+        <h4 className="font-bold text-amber-400 text-sm flex items-center gap-2">
+          <Banknote className="w-4 h-4" /> إضافة رصيد افتتاحي
+        </h4>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div>
+            <Label>الخزينة</Label>
+            <select className="glass-input w-full text-white text-sm" value={form.safe_id} onChange={e => setForm(f => ({ ...f, safe_id: e.target.value }))}>
+              <option value="">— اختر الخزينة —</option>
+              {(safes as any[]).map((s: any) => (
+                <option key={s.id} value={s.id}>{s.name} (رصيد حالي: {Number(s.balance).toLocaleString("ar-EG")} ج.م)</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <Label>المبلغ الافتتاحي (ج.م)</Label>
+            <input type="number" min="0.01" step="0.01" className="glass-input w-full text-white text-sm" placeholder="0.00" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
+          </div>
+          <div>
+            <Label>تاريخ أول المدة</Label>
+            <input type="date" className="glass-input w-full text-white text-sm" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+          </div>
+          <div>
+            <Label>ملاحظات (اختياري)</Label>
+            <input className="glass-input w-full text-white text-sm" placeholder="رصيد أول المدة" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+          </div>
+        </div>
+        <button onClick={handleSubmit} disabled={saving}
+          className="btn-primary flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm">
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+          تسجيل الرصيد الافتتاحي
+        </button>
+      </div>
+
+      {/* Existing entries */}
+      <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
+        <div className="p-4 border-b border-white/8">
+          <h4 className="font-bold text-white/70 text-sm">القيود المسجلة ({entries.length})</h4>
+        </div>
+        <OBEntryTable entries={entries} loading={loading} columns={[
+          { label: "الخزينة", render: e => <span className="font-bold text-amber-400">{e.safe_name}</span> },
+          { label: "المبلغ", render: e => <span className="text-emerald-400 font-mono">{Number(e.amount).toLocaleString("ar-EG", { minimumFractionDigits: 2 })} ج.م</span> },
+          { label: "التاريخ", render: e => <span className="text-white/50 text-xs">{e.date}</span> },
+          { label: "البيان", render: e => <span className="text-white/40 text-xs">{e.description}</span> },
+        ]} />
+      </div>
+    </div>
+  );
+}
+
+/* ── Products sub-tab ──────────────────────────────────── */
+function OBProductsTab() {
+  const { data: entries, loading, reload } = useOBData("/opening-balance/product");
+  const { data: products = [] } = useGetProducts();
+  const { toast } = useToast();
+  const [search, setSearch] = useState("");
+  const [form, setForm] = useState({ product_id: "", quantity: "", cost_price: "", date: new Date().toISOString().split("T")[0], notes: "" });
+  const [saving, setSaving] = useState(false);
+
+  const registeredProductIds = new Set(entries.map(e => e.id));
+  const filteredProducts = (products as any[]).filter((p: any) =>
+    !registeredProductIds.has(p.id) &&
+    (p.name.includes(search) || (p.sku ?? "").includes(search))
+  );
+
+  const handleSelectProduct = (p: any) => {
+    setForm(f => ({ ...f, product_id: String(p.id), cost_price: String(Number(p.cost_price)) }));
+    setSearch(p.name);
+  };
+
+  const selectedProduct = (products as any[]).find((p: any) => String(p.id) === form.product_id);
+
+  const handleSubmit = async () => {
+    if (!form.product_id || !form.quantity || !form.cost_price) {
+      toast({ title: "المنتج والكمية والتكلفة مطلوبة", variant: "destructive" }); return;
+    }
+    setSaving(true);
+    try {
+      const res = await authFetch(`${BASE}/api/inventory/opening-balance`, {
+        method: "POST",
+        body: JSON.stringify({
+          product_id: parseInt(form.product_id),
+          quantity: parseFloat(form.quantity),
+          cost_price: parseFloat(form.cost_price),
+          date: form.date,
+          notes: form.notes || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast({ title: data.error ?? "فشل الحفظ", variant: "destructive" }); return; }
+      toast({ title: `✅ تم تسجيل رصيد أول المدة لـ ${selectedProduct?.name ?? "المنتج"}` });
+      setForm(f => ({ ...f, product_id: "", quantity: "", cost_price: "", notes: "" }));
+      setSearch("");
+      reload();
+    } catch {
+      toast({ title: "خطأ في الاتصال", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="رصيد أول المدة — المنتجات" sub="أضف الكمية الافتتاحية وتكلفة الوحدة لكل منتج عند بدء تشغيل النظام" />
+
+      <div className="glass-panel rounded-3xl p-6 border border-amber-500/20 space-y-4">
+        <h4 className="font-bold text-amber-400 text-sm flex items-center gap-2">
+          <Package className="w-4 h-4" /> إضافة رصيد مخزن افتتاحي
+        </h4>
+        {/* Product search */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="relative">
+            <Label>البحث عن منتج</Label>
+            <input className="glass-input w-full text-white text-sm" placeholder="ابحث بالاسم أو الكود..." value={search} onChange={e => { setSearch(e.target.value); setForm(f => ({ ...f, product_id: "" })); }} />
+            {search && !form.product_id && filteredProducts.length > 0 && (
+              <div className="absolute top-full mt-1 right-0 left-0 z-20 glass-panel rounded-xl border border-white/10 max-h-48 overflow-y-auto">
+                {filteredProducts.slice(0, 12).map((p: any) => (
+                  <button key={p.id} onClick={() => handleSelectProduct(p)}
+                    className="w-full text-right px-3 py-2.5 text-sm text-white/80 hover:bg-white/10 transition-colors border-b border-white/5 last:border-0 flex items-center justify-between gap-2">
+                    <span className="font-medium">{p.name}</span>
+                    <span className="text-xs text-white/40 font-mono shrink-0">{p.sku}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {selectedProduct && (
+              <p className="mt-1 text-emerald-400 text-xs">✓ {selectedProduct.name} — رصيد حالي: {Number(selectedProduct.quantity)} وحدة</p>
+            )}
+          </div>
+          <div>
+            <Label>الكمية الافتتاحية</Label>
+            <input type="number" min="0.001" step="any" className="glass-input w-full text-white text-sm" placeholder="0" value={form.quantity} onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))} />
+          </div>
+          <div>
+            <Label>تكلفة الوحدة (ج.م)</Label>
+            <input type="number" min="0" step="0.01" className="glass-input w-full text-white text-sm" placeholder="0.00" value={form.cost_price} onChange={e => setForm(f => ({ ...f, cost_price: e.target.value }))} />
+          </div>
+          <div>
+            <Label>تاريخ أول المدة</Label>
+            <input type="date" className="glass-input w-full text-white text-sm" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+          </div>
+          <div>
+            <Label>ملاحظات (اختياري)</Label>
+            <input className="glass-input w-full text-white text-sm" placeholder="رصيد أول المدة" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+          </div>
+          <div className="flex items-end">
+            <button onClick={handleSubmit} disabled={saving || !form.product_id}
+              className="btn-primary w-full flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm disabled:opacity-40">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              تسجيل
+            </button>
+          </div>
+        </div>
+        {form.product_id && form.quantity && form.cost_price && (
+          <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+            <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+            <p className="text-amber-300 text-xs">
+              سيُضاف <strong>{parseFloat(form.quantity) || 0}</strong> وحدة بتكلفة <strong>{parseFloat(form.cost_price) || 0} ج.م</strong> للمنتج
+              {selectedProduct ? ` "${selectedProduct.name}"` : ""}
+              — ويُحسب متوسط التكلفة المرجّح تلقائياً
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Registered entries */}
+      <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
+        <div className="p-4 border-b border-white/8 flex justify-between items-center">
+          <h4 className="font-bold text-white/70 text-sm">أرصدة المنتجات المسجلة ({entries.length})</h4>
+          <p className="text-white/30 text-xs">كل منتج يُسجل مرة واحدة فقط</p>
+        </div>
+        <OBEntryTable entries={entries} loading={loading} columns={[
+          { label: "المنتج", render: e => <span className="font-bold text-white">{e.product_name}</span> },
+          { label: "الكمية", render: e => <span className="text-blue-400 font-mono">{Number(e.quantity).toLocaleString("ar-EG")}</span> },
+          { label: "تكلفة الوحدة", render: e => <span className="text-amber-400 font-mono">{Number(e.unit_cost).toLocaleString("ar-EG", { minimumFractionDigits: 2 })} ج.م</span> },
+          { label: "التاريخ", render: e => <span className="text-white/50 text-xs">{e.date}</span> },
+          { label: "البيان", render: e => <span className="text-white/40 text-xs">{e.notes ?? "رصيد أول المدة"}</span> },
+        ]} />
+      </div>
+    </div>
+  );
+}
+
+/* ── Customers sub-tab ─────────────────────────────────── */
+function OBCustomersTab() {
+  const { data: entries, loading, reload } = useOBData("/opening-balance/customer");
+  const { data: customers = [] } = useGetCustomers();
+  const { toast } = useToast();
+  const [search, setSearch] = useState("");
+  const [form, setForm] = useState({ customer_id: "", amount: "", date: new Date().toISOString().split("T")[0], notes: "" });
+  const [saving, setSaving] = useState(false);
+
+  const registeredIds = new Set(entries.map(e => e.id));
+  const filteredCustomers = (customers as any[]).filter((c: any) =>
+    !registeredIds.has(c.id) && c.name.includes(search)
+  );
+  const selectedCustomer = (customers as any[]).find((c: any) => String(c.id) === form.customer_id);
+
+  const handleSelect = (c: any) => { setForm(f => ({ ...f, customer_id: String(c.id) })); setSearch(c.name); };
+
+  const handleSubmit = async () => {
+    if (!form.customer_id || !form.amount) { toast({ title: "العميل والمبلغ مطلوبان", variant: "destructive" }); return; }
+    setSaving(true);
+    try {
+      const res = await authFetch(`${BASE}/api/opening-balance/customer`, {
+        method: "POST",
+        body: JSON.stringify({ customer_id: parseInt(form.customer_id), amount: parseFloat(form.amount), date: form.date, notes: form.notes || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast({ title: data.error ?? "فشل الحفظ", variant: "destructive" }); return; }
+      toast({ title: `✅ تم تسجيل رصيد أول المدة لـ ${selectedCustomer?.name ?? "العميل"}` });
+      setForm(f => ({ ...f, customer_id: "", amount: "", notes: "" }));
+      setSearch("");
+      reload();
+    } catch {
+      toast({ title: "خطأ في الاتصال", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="رصيد أول المدة — العملاء" sub="سجّل الأرصدة المدينة للعملاء عند بدء تشغيل النظام" />
+
+      <div className="glass-panel rounded-3xl p-6 border border-amber-500/20 space-y-4">
+        <h4 className="font-bold text-amber-400 text-sm flex items-center gap-2">
+          <UserCircle className="w-4 h-4" /> إضافة رصيد افتتاحي لعميل
+        </h4>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="relative">
+            <Label>العميل</Label>
+            <input className="glass-input w-full text-white text-sm" placeholder="ابحث عن عميل..." value={search} onChange={e => { setSearch(e.target.value); setForm(f => ({ ...f, customer_id: "" })); }} />
+            {search && !form.customer_id && filteredCustomers.length > 0 && (
+              <div className="absolute top-full mt-1 right-0 left-0 z-20 glass-panel rounded-xl border border-white/10 max-h-48 overflow-y-auto">
+                {filteredCustomers.slice(0, 10).map((c: any) => (
+                  <button key={c.id} onClick={() => handleSelect(c)} className="w-full text-right px-3 py-2.5 text-sm text-white/80 hover:bg-white/10 transition-colors border-b border-white/5 last:border-0">
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            {selectedCustomer && <p className="mt-1 text-emerald-400 text-xs">✓ {selectedCustomer.name}</p>}
+          </div>
+          <div>
+            <Label>مبلغ الدين الافتتاحي (ج.م)</Label>
+            <input type="number" min="0.01" step="0.01" className="glass-input w-full text-white text-sm" placeholder="0.00" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
+          </div>
+          <div>
+            <Label>تاريخ أول المدة</Label>
+            <input type="date" className="glass-input w-full text-white text-sm" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+          </div>
+          <div>
+            <Label>ملاحظات (اختياري)</Label>
+            <input className="glass-input w-full text-white text-sm" placeholder="رصيد أول المدة" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+          </div>
+        </div>
+        <button onClick={handleSubmit} disabled={saving || !form.customer_id}
+          className="btn-primary flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm disabled:opacity-40">
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+          تسجيل الرصيد الافتتاحي
+        </button>
+      </div>
+
+      <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
+        <div className="p-4 border-b border-white/8">
+          <h4 className="font-bold text-white/70 text-sm">أرصدة العملاء المسجلة ({entries.length})</h4>
+        </div>
+        <OBEntryTable entries={entries} loading={loading} columns={[
+          { label: "العميل", render: e => <span className="font-bold text-white">{e.customer_name}</span> },
+          { label: "المبلغ", render: e => <span className="text-red-400 font-mono">{Number(e.amount).toLocaleString("ar-EG", { minimumFractionDigits: 2 })} ج.م</span> },
+          { label: "التاريخ", render: e => <span className="text-white/50 text-xs">{e.date}</span> },
+          { label: "البيان", render: e => <span className="text-white/40 text-xs">{e.description}</span> },
+        ]} />
+      </div>
+    </div>
+  );
+}
+
+/* ── Suppliers sub-tab ─────────────────────────────────── */
+function OBSuppliersTab() {
+  const { data: entries, loading, reload } = useOBData("/opening-balance/supplier");
+  const { data: suppliers = [] } = useGetSuppliers();
+  const { toast } = useToast();
+  const [search, setSearch] = useState("");
+  const [form, setForm] = useState({ supplier_id: "", amount: "", date: new Date().toISOString().split("T")[0], notes: "" });
+  const [saving, setSaving] = useState(false);
+
+  const registeredIds = new Set(entries.map(e => e.id));
+  const filteredSuppliers = (suppliers as any[]).filter((s: any) =>
+    !registeredIds.has(s.id) && s.name.includes(search)
+  );
+  const selectedSupplier = (suppliers as any[]).find((s: any) => String(s.id) === form.supplier_id);
+
+  const handleSelect = (s: any) => { setForm(f => ({ ...f, supplier_id: String(s.id) })); setSearch(s.name); };
+
+  const handleSubmit = async () => {
+    if (!form.supplier_id || !form.amount) { toast({ title: "المورد والمبلغ مطلوبان", variant: "destructive" }); return; }
+    setSaving(true);
+    try {
+      const res = await authFetch(`${BASE}/api/opening-balance/supplier`, {
+        method: "POST",
+        body: JSON.stringify({ supplier_id: parseInt(form.supplier_id), amount: parseFloat(form.amount), date: form.date, notes: form.notes || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast({ title: data.error ?? "فشل الحفظ", variant: "destructive" }); return; }
+      toast({ title: `✅ تم تسجيل رصيد أول المدة لـ ${selectedSupplier?.name ?? "المورد"}` });
+      setForm(f => ({ ...f, supplier_id: "", amount: "", notes: "" }));
+      setSearch("");
+      reload();
+    } catch {
+      toast({ title: "خطأ في الاتصال", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="رصيد أول المدة — الموردون" sub="سجّل الأرصدة المستحقة للموردين عند بدء تشغيل النظام" />
+
+      <div className="glass-panel rounded-3xl p-6 border border-amber-500/20 space-y-4">
+        <h4 className="font-bold text-amber-400 text-sm flex items-center gap-2">
+          <Truck className="w-4 h-4" /> إضافة رصيد افتتاحي لمورد
+        </h4>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="relative">
+            <Label>المورد</Label>
+            <input className="glass-input w-full text-white text-sm" placeholder="ابحث عن مورد..." value={search} onChange={e => { setSearch(e.target.value); setForm(f => ({ ...f, supplier_id: "" })); }} />
+            {search && !form.supplier_id && filteredSuppliers.length > 0 && (
+              <div className="absolute top-full mt-1 right-0 left-0 z-20 glass-panel rounded-xl border border-white/10 max-h-48 overflow-y-auto">
+                {filteredSuppliers.slice(0, 10).map((s: any) => (
+                  <button key={s.id} onClick={() => handleSelect(s)} className="w-full text-right px-3 py-2.5 text-sm text-white/80 hover:bg-white/10 transition-colors border-b border-white/5 last:border-0">
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            {selectedSupplier && <p className="mt-1 text-emerald-400 text-xs">✓ {selectedSupplier.name}</p>}
+          </div>
+          <div>
+            <Label>مبلغ الرصيد المستحق (ج.م)</Label>
+            <input type="number" min="0.01" step="0.01" className="glass-input w-full text-white text-sm" placeholder="0.00" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
+          </div>
+          <div>
+            <Label>تاريخ أول المدة</Label>
+            <input type="date" className="glass-input w-full text-white text-sm" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+          </div>
+          <div>
+            <Label>ملاحظات (اختياري)</Label>
+            <input className="glass-input w-full text-white text-sm" placeholder="رصيد أول المدة" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+          </div>
+        </div>
+        <button onClick={handleSubmit} disabled={saving || !form.supplier_id}
+          className="btn-primary flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm disabled:opacity-40">
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+          تسجيل الرصيد الافتتاحي
+        </button>
+      </div>
+
+      <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
+        <div className="p-4 border-b border-white/8">
+          <h4 className="font-bold text-white/70 text-sm">أرصدة الموردين المسجلة ({entries.length})</h4>
+        </div>
+        <OBEntryTable entries={entries} loading={loading} columns={[
+          { label: "المورد", render: e => <span className="font-bold text-white">{e.description?.split("—")[1]?.trim() ?? `مورد #${e.id}`}</span> },
+          { label: "المبلغ", render: e => <span className="text-orange-400 font-mono">{Number(e.amount).toLocaleString("ar-EG", { minimumFractionDigits: 2 })} ج.م</span> },
+          { label: "التاريخ", render: e => <span className="text-white/50 text-xs">{e.date}</span> },
+          { label: "البيان", render: e => <span className="text-white/40 text-xs">{e.description}</span> },
+        ]} />
+      </div>
+    </div>
+  );
+}
+
+/* ── Main OpeningBalanceTab ─────────────────────────────── */
+function OpeningBalanceTab() {
+  const [subTab, setSubTab] = useState<OBSubTab>("treasury");
+
+  return (
+    <div className="space-y-4">
+      {/* Info banner */}
+      <div className="flex items-start gap-3 p-4 rounded-2xl bg-blue-500/10 border border-blue-500/20">
+        <BookOpen className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+        <div>
+          <p className="text-blue-300 font-bold text-sm">قيود أول المدة</p>
+          <p className="text-blue-300/60 text-xs mt-0.5">
+            سجّل هنا الأرصدة الافتتاحية عند بدء استخدام النظام لأول مرة.
+            قيود الخزائن والعملاء والموردين تُضاف للأرصدة الحالية مباشرة.
+            قيود المنتجات تُسجَّل مرة واحدة فقط لكل منتج وتُحسب التكلفة المرجّحة تلقائياً.
+          </p>
+        </div>
+      </div>
+
+      {/* Sub-tab bar */}
+      <div className="flex gap-1 glass-panel rounded-2xl p-1.5 border border-white/5">
+        {OB_SUB_TABS.map(t => {
+          const Icon = t.icon;
+          const active = subTab === t.id;
+          return (
+            <button
+              key={t.id}
+              onClick={() => setSubTab(t.id)}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all flex-1 justify-center
+                ${active ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" : "text-white/40 hover:text-white hover:bg-white/5"}`}
+            >
+              <Icon className="w-4 h-4 shrink-0" />
+              <span>{t.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Sub-tab content */}
+      <div>
+        {subTab === "treasury"  && <OBTreasuryTab />}
+        {subTab === "products"  && <OBProductsTab />}
+        {subTab === "customers" && <OBCustomersTab />}
+        {subTab === "suppliers" && <OBSuppliersTab />}
+      </div>
     </div>
   );
 }

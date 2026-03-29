@@ -7,6 +7,15 @@ Full-stack Arabic ERP System (نظام ERP) for Halal Tech (Egyptian mobile repa
 ### Navigation Pages
 Dashboard, Sales (POS + Returns), Purchases (+ Returns), Customers, **الأرباح (Profits)**, Expenses, Income, سندات القبض (Receipt Vouchers), سندات التوريد (Deposit Vouchers), تحويل الخزائن (Safe Transfers), المهام والعمليات (Unified Activity Log), الحركات المالية (Financial Transactions Ledger), Chart of Accounts, Journal Entries, Reports, Settings, **مراجعة المخزون (Inventory Audit)**.
 
+### Opening Balance System (Settings → أول المدة)
+4-tab panel in Settings (admin only) for entering all opening balances at system start:
+- **Tab 1 — الخزائن**: `POST /api/opening-balance/treasury` — adds to safe balance + inserts transaction with `reference_type='treasury_opening'`
+- **Tab 2 — المنتجات**: `POST /api/inventory/opening-balance` — adds stock, recalculates weighted avg cost, blocks duplicate (one entry per product), logs `movement_type='opening_balance'`
+- **Tab 3 — العملاء**: `POST /api/opening-balance/customer` — increases customer balance (debt) + logs transaction with `reference_type='customer_opening'`
+- **Tab 4 — الموردون**: `POST /api/opening-balance/supplier` — increases supplier balance (owed) + logs transaction with `reference_type='supplier_opening'`
+- All GET endpoints: `/api/opening-balance/product|treasury|customer|supplier`
+- Each sub-tab shows existing registered entries and a smart searchable form
+
 ### Inventory System (`/inventory`)
 Full double-entry inventory tracking via `stock_movements` table:
 - **Movement Types**: `opening_balance` (+), `purchase` (+), `sale` (−), `sale_return` (+), `purchase_return` (−), `adjustment` (±)
