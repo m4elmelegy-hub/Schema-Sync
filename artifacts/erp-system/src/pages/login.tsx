@@ -51,7 +51,11 @@ export default function Login() {
 
   const { data: users = [] } = useQuery<ErpUser[]>({
     queryKey: ["/api/settings/users"],
-    queryFn: () => fetch(api("/api/settings/users")).then((r) => r.json()),
+    queryFn: () =>
+      fetch(api("/api/settings/users")).then((r) => {
+        if (!r.ok) throw new Error("فشل جلب المستخدمين");
+        return r.json();
+      }),
   });
 
   const activeUsers = users.filter((u) => u.active !== false);
