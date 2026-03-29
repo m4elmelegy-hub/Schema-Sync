@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, salesTable, saleItemsTable, productsTable, customersTable, transactionsTable, safesTable, warehousesTable, erpUsersTable } from "@workspace/db";
+import { db, salesTable, saleItemsTable, productsTable, customersTable, transactionsTable, safesTable, warehousesTable, erpUsersTable, stockMovementsTable } from "@workspace/db";
 import {
   GetSalesResponse,
   CreateSaleBody,
@@ -50,7 +50,6 @@ router.post("/sales", async (req, res): Promise<void> => {
   const discount_amount: number = parseFloat(req.body.discount_amount) || 0;
   const remaining = total_amount - paid_amount;
 
-  // التحقق من وجود خزينة للبيع النقدي
   if ((payment_type === "cash" || payment_type === "partial") && paid_amount > 0 && !safe_id) {
     res.status(400).json({ error: "يجب اختيار الخزينة للمبيعات النقدية" });
     return;
@@ -64,7 +63,7 @@ router.post("/sales", async (req, res): Promise<void> => {
 
   try {
     const sale = await db.transaction(async (tx) => {
-      // 1. جلب بيانات الخزينة إن وجدت
+      // 1. جلب بيانات الخزينة
       let safe: typeof safesTable.$inferSelect | null = null;
       if (safe_id && paid_amount > 0) {
         const [s] = await tx.select().from(safesTable).where(eq(safesTable.id, safe_id));
@@ -72,7 +71,6 @@ router.post("/sales", async (req, res): Promise<void> => {
         safe = s;
       }
 
-      // جلب المخزن والمندوب
       let warehouseName: string | null = null;
       if (warehouse_id) {
         const [w] = await tx.select().from(warehousesTable).where(eq(warehousesTable.id, warehouse_id));
@@ -105,12 +103,13 @@ router.post("/sales", async (req, res): Promise<void> => {
         notes: notes ?? null,
       }).returning();
 
-      // 3. إضافة البنود وخصم المخزون + تسجيل التكلفة وقت البيع (متوسط مرجّح)
+      // 3. البنود: خصم المخزون + تسجيل التكلفة + حركة مخزون صادر
       for (const item of items) {
         const [prod] = await tx.select().from(productsTable).where(eq(productsTable.id, item.product_id));
-        // التكلفة وقت البيع = متوسط تكلفة الشراء المرجّح المسجل في المنتج
         const costAtSale = prod ? Number(prod.cost_price) : 0;
         const costTotal = costAtSale * item.quantity;
+        const oldQty = prod ? Number(prod.quantity) : 0;
+        const newQty = Math.max(0, oldQty - item.quantity);
 
         await tx.insert(saleItemsTable).values({
           sale_id: newSale.id,
@@ -122,13 +121,31 @@ router.post("/sales", async (req, res): Promise<void> => {
           cost_price: String(costAtSale),
           cost_total: String(costTotal),
         });
+
         if (prod) {
-          const newQty = Math.max(0, Number(prod.quantity) - item.quantity);
-          await tx.update(productsTable).set({ quantity: String(newQty) }).where(eq(productsTable.id, item.product_id));
+          await tx.update(productsTable)
+            .set({ quantity: String(newQty) })
+            .where(eq(productsTable.id, item.product_id));
+
+          // ── تسجيل حركة مخزون صادر (مبيعات) ────────────────
+          await tx.insert(stockMovementsTable).values({
+            product_id: item.product_id,
+            product_name: item.product_name,
+            movement_type: "sale",
+            quantity: String(-item.quantity),      // سالب = صادر
+            quantity_before: String(oldQty),
+            quantity_after: String(newQty),
+            unit_cost: String(costAtSale),
+            reference_type: "sale",
+            reference_id: newSale.id,
+            reference_no: invoiceNo,
+            notes: customer_name ? `مبيعات لـ ${customer_name}` : "فاتورة مبيعات",
+            date: new Date().toISOString().split("T")[0],
+          });
         }
       }
 
-      // 4. تحديث رصيد العميل (للآجل أو الجزئي)
+      // 4. تحديث رصيد العميل
       const debtAmount = payment_type === "credit" ? total_amount : (remaining > 0 ? remaining : 0);
       if (debtAmount > 0 && customer_id) {
         const [cust] = await tx.select().from(customersTable).where(eq(customersTable.id, customer_id));
@@ -139,7 +156,7 @@ router.post("/sales", async (req, res): Promise<void> => {
         }
       }
 
-      // 5. تحديث رصيد الخزينة (للنقدي فقط)
+      // 5. تحديث رصيد الخزينة
       if (safe && paid_amount > 0) {
         const newBalance = Number(safe.balance) + paid_amount;
         await tx.update(safesTable)
@@ -147,7 +164,7 @@ router.post("/sales", async (req, res): Promise<void> => {
           .where(eq(safesTable.id, safe.id));
       }
 
-      // 6. تسجيل الحركة المالية المركزية
+      // 6. الحركة المالية المركزية
       const txType = payment_type === "credit" ? "sale_credit" : payment_type === "partial" ? "sale_partial" : "sale_cash";
       await tx.insert(transactionsTable).values({
         type: txType,

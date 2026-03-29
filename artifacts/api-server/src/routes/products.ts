@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, productsTable } from "@workspace/db";
+import { db, productsTable, stockMovementsTable } from "@workspace/db";
 import {
   GetProductsResponse,
   CreateProductBody,
@@ -35,6 +35,7 @@ router.post("/products", wrap(async (req, res) => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+
   const [product] = await db.insert(productsTable).values({
     name: parsed.data.name,
     sku: parsed.data.sku ?? null,
@@ -44,6 +45,24 @@ router.post("/products", wrap(async (req, res) => {
     sale_price: String(parsed.data.sale_price),
     low_stock_threshold: parsed.data.low_stock_threshold ?? null,
   }).returning();
+
+  // ── تسجيل الرصيد الافتتاحي في جدول حركات المخزون ──
+  if (parsed.data.quantity > 0) {
+    await db.insert(stockMovementsTable).values({
+      product_id: product.id,
+      product_name: product.name,
+      movement_type: "opening_balance",
+      quantity: String(parsed.data.quantity),
+      quantity_before: "0",
+      quantity_after: String(parsed.data.quantity),
+      unit_cost: String(parsed.data.cost_price),
+      reference_type: "opening_balance",
+      reference_no: `OB-${product.id}`,
+      notes: "رصيد افتتاحي",
+      date: new Date().toISOString().split("T")[0],
+    });
+  }
+
   res.status(201).json(formatProduct(product));
 }));
 

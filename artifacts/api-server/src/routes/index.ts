@@ -20,6 +20,7 @@ import safeTransfersRouter from "./safe-transfers";
 import financialTransactionsRouter from "./financial-transactions";
 import adminRouter from "./admin";
 import profitsRouter from "./profits";
+import inventoryRouter from "./inventory";
 
 const router: IRouter = Router();
 
@@ -44,5 +45,6 @@ router.use(safeTransfersRouter);
 router.use(financialTransactionsRouter);
 router.use(adminRouter);
 router.use(profitsRouter);
+router.use(inventoryRouter);
 
 export default router;

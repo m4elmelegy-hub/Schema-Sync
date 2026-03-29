@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, purchasesTable, purchaseItemsTable, productsTable, customersTable, safesTable, transactionsTable } from "@workspace/db";
+import { db, purchasesTable, purchaseItemsTable, productsTable, customersTable, safesTable, transactionsTable, stockMovementsTable } from "@workspace/db";
 import {
   GetPurchasesResponse,
   CreatePurchaseBody,
@@ -87,6 +87,7 @@ router.post("/purchases", wrap(async (req, res) => {
       unit_price: String(item.unit_price),
       total_price: String(item.total_price),
     });
+
     const [prod] = await db.select().from(productsTable).where(eq(productsTable.id, item.product_id));
     if (prod) {
       const oldQty = Number(prod.quantity);
@@ -97,12 +98,29 @@ router.post("/purchases", wrap(async (req, res) => {
       const newAvgCost = newTotalQty > 0
         ? (oldQty * oldCost + newItemQty * newItemCost) / newTotalQty
         : newItemCost;
+
       await db.update(productsTable)
         .set({
           quantity: String(newTotalQty),
           cost_price: String(newAvgCost.toFixed(4)),
         })
         .where(eq(productsTable.id, item.product_id));
+
+      // ── تسجيل حركة مخزون وارد (مشتريات) ──────────────────
+      await db.insert(stockMovementsTable).values({
+        product_id: item.product_id,
+        product_name: item.product_name,
+        movement_type: "purchase",
+        quantity: String(newItemQty),          // موجب = وارد
+        quantity_before: String(oldQty),
+        quantity_after: String(newTotalQty),
+        unit_cost: String(newItemCost),
+        reference_type: "purchase",
+        reference_id: purchase.id,
+        reference_no: invoiceNo,
+        notes: supplier_name ? `مشتريات من ${supplier_name}` : "فاتورة مشتريات",
+        date: new Date().toISOString().split("T")[0],
+      });
     }
   }
 

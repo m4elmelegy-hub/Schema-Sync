@@ -12,3 +12,4 @@ export * from "./warehouses";
 export * from "./accounts";
 export * from "./returns";
 export * from "./vouchers";
+export * from "./stock_movements";

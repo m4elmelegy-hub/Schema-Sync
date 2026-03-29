@@ -26,6 +26,7 @@ import FinancialTransactions from "@/pages/financial-transactions";
 import Tasks from "@/pages/tasks";
 import Profits from "@/pages/profits";
 import Products from "@/pages/products";
+import Inventory from "@/pages/inventory";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,6 +57,7 @@ function Router() {
         <Route path="/sales" component={Sales} />
         <Route path="/purchases" component={Purchases} />
         <Route path="/products" component={Products} />
+        <Route path="/inventory" component={Inventory} />
         <Route path="/customers" component={Customers} />
         <Route path="/expenses" component={Expenses} />
         <Route path="/income" component={Income} />

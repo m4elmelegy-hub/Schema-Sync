@@ -7,7 +7,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { 
   LayoutDashboard, Users, Receipt, FileText,
   CreditCard, Settings, BookOpen, BookMarked,
-  Activity, ClipboardList, LogOut, UserCircle, TrendingUp, Package,
+  Activity, ClipboardList, LogOut, UserCircle, TrendingUp, Package, Warehouse,
 } from "lucide-react";
 
 interface LayoutProps { children: ReactNode; }
@@ -18,6 +18,7 @@ const navItems = [
   { name: "المبيعات",        href: "/sales",                icon: Receipt },
   { name: "المشتريات",       href: "/purchases",            icon: CreditCard },
   { name: "المنتجات",        href: "/products",             icon: Package },
+  { name: "مراجعة المخزون", href: "/inventory",            icon: Warehouse },
   { name: "العملاء",         href: "/customers",            icon: Users },
   { name: "الأرباح",         href: "/profits",              icon: TrendingUp },
   { name: "الحركات المالية", href: "/financial-transactions", icon: Activity },

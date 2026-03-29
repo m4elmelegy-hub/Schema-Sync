@@ -5,7 +5,20 @@
 Full-stack Arabic ERP System (نظام ERP) for Halal Tech (Egyptian mobile repair shop). Arabic RTL interface with dark glass-morphism UI. Dynamic currency, font, accent color, and company branding — all configurable from Settings without code changes.
 
 ### Navigation Pages
-Dashboard, Sales (POS + Returns), Purchases (+ Returns), Customers, **الأرباح (Profits)**, Expenses, Income, سندات القبض (Receipt Vouchers), سندات التوريد (Deposit Vouchers), تحويل الخزائن (Safe Transfers), المهام والعمليات (Unified Activity Log), الحركات المالية (Financial Transactions Ledger), Chart of Accounts, Journal Entries, Reports, Settings.
+Dashboard, Sales (POS + Returns), Purchases (+ Returns), Customers, **الأرباح (Profits)**, Expenses, Income, سندات القبض (Receipt Vouchers), سندات التوريد (Deposit Vouchers), تحويل الخزائن (Safe Transfers), المهام والعمليات (Unified Activity Log), الحركات المالية (Financial Transactions Ledger), Chart of Accounts, Journal Entries, Reports, Settings, **مراجعة المخزون (Inventory Audit)**.
+
+### Inventory System (`/inventory`)
+Full double-entry inventory tracking via `stock_movements` table:
+- **Movement Types**: `opening_balance` (+), `purchase` (+), `sale` (−), `sale_return` (+), `purchase_return` (−), `adjustment` (±)
+- **Quantity sign convention**: positive = IN (وارد), negative = OUT (صادر)
+- **Formula**: `current_qty = opening + purchases + sale_returns − sales − purchase_returns + adjustments`
+- **Discrepancy check**: `calculated_qty` from movements vs `actual_qty` from `products.quantity` — must equal 0
+- **APIs**:
+  - `GET /api/inventory/audit` — full report for all products with movement breakdown
+  - `GET /api/inventory/product/:id` — single product with full movement log + formula proof
+  - `POST /api/inventory/adjustment` — manual stock adjustment with automatic movement record
+- **Auto-seeding**: existing products seeded with opening_balance on schema push
+- **Frontend**: summary cards, sortable audit table, movements history modal per product, manual adjustment modal
 
 ### Profit Calculation Engine (Weighted Average Cost)
 - **متوسط التكلفة المرجّح**: Every purchase updates `products.cost_price` using:  
