@@ -49,13 +49,18 @@ Full double-entry inventory tracking via `stock_movements` table:
 - **البيانات**: Granular table-level clearing (10 tables) + full database reset
 - API endpoint: `POST /api/admin/clear { tables: string[] }` — clears any subset of tables
 
-### Authentication (Auth)
+### Authentication & RBAC (Role-Based Access Control)
 - Login screen on app startup — uses AppSettings: dynamic company name, slogan, logo, background
-- User selects name from dropdown (from `erp_users` table), enters PIN
-- AuthContext stores user in localStorage, persists across sessions
-- All routes protected — redirects to `/login` if not logged in
-- Sidebar and header show current logged-in user + logout button
-- Context: `src/contexts/auth.tsx`, Login page: `src/pages/login.tsx`
+- User selects name from dropdown (from `GET /api/auth/users` — returns `pinLength`, NOT raw PIN), enters PIN
+- Server validates PIN via `POST /api/auth/login` — returns signed JWT (HS256, secret via `JWT_SECRET` env var)
+- JWT stored in localStorage under `erp_auth_token`; `setAuthTokenGetter` in `main.tsx` makes every API mutation send `Authorization: Bearer <token>`
+- Roles: `admin`, `manager`, `cashier`, `salesperson` — defined in `src/lib/rbac.ts`
+- `ROUTE_ROLES` map controls which roles can access each page; `canAccess(role, path)` used in Guard + nav filtering
+- `Guard` component in `App.tsx` checks role before rendering any route — redirects to `/access-denied` if unauthorized
+- Sidebar nav filtered dynamically by role via `canAccess` — unauthorized items hidden
+- Admin-only backend routes protected with `authenticate + requireRole("admin")` middleware
+- Self-escalation prevention (can't promote yourself) and self-delete prevention enforced on backend
+- Context: `src/contexts/auth.tsx`, Login page: `src/pages/login.tsx`, RBAC: `src/lib/rbac.ts`
 
 ### POS Enhancements (sales.tsx NewSalePanel)
 - Warehouse #1 auto-selected on mount via `useEffect`

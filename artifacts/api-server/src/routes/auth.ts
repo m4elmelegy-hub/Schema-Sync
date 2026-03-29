@@ -39,40 +39,43 @@ router.get("/auth/users", async (_req, res) => {
 
 /* ── POST /auth/login — validate PIN server-side, return JWT ─ */
 router.post("/auth/login", async (req, res) => {
-  const { userId, pin } = req.body as { userId?: number; pin?: string };
+  try {
+    const { userId, pin } = req.body as { userId?: number; pin?: string };
 
-  if (!userId || !pin) {
-    res.status(400).json({ error: "يلزم تحديد المستخدم والرقم السري" });
-    return;
+    if (!userId || !pin) {
+      res.status(400).json({ error: "يلزم تحديد المستخدم والرقم السري" });
+      return;
+    }
+
+    const [user] = await db
+      .select()
+      .from(erpUsersTable)
+      .where(eq(erpUsersTable.id, Number(userId)));
+
+    if (!user || !user.active) {
+      res.status(401).json({ error: "الحساب غير موجود أو معطل" });
+      return;
+    }
+
+    if (user.pin !== pin) {
+      res.status(401).json({ error: "الرقم السري غير صحيح" });
+      return;
+    }
+
+    const token = signToken(user.id, user.role);
+
+    res.json({
+      token,
+      user: {
+        id:       user.id,
+        name:     user.name,
+        username: user.username,
+        role:     user.role,
+      },
+    });
+  } catch {
+    res.status(500).json({ error: "فشل تسجيل الدخول" });
   }
-
-  const [user] = await db
-    .select()
-    .from(erpUsersTable)
-    .where(eq(erpUsersTable.id, Number(userId)));
-
-  if (!user || !user.active) {
-    res.status(401).json({ error: "الحساب غير موجود أو معطل" });
-    return;
-  }
-
-  /* Constant-time string comparison to prevent timing attacks */
-  if (user.pin !== pin) {
-    res.status(401).json({ error: "الرقم السري غير صحيح" });
-    return;
-  }
-
-  const token = signToken(user.id, user.role);
-
-  res.json({
-    token,
-    user: {
-      id:       user.id,
-      name:     user.name,
-      username: user.username,
-      role:     user.role,
-    },
-  });
 });
 
 /* ── GET /auth/me — verify token + return fresh user data ─── */

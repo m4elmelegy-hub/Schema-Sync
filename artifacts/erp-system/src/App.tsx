@@ -29,6 +29,7 @@ import Tasks from "@/pages/tasks";
 import Profits from "@/pages/profits";
 import Products from "@/pages/products";
 import Inventory from "@/pages/inventory";
+import Suppliers from "@/pages/suppliers";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -63,6 +64,7 @@ function Router() {
         <Route path="/" component={Dashboard} />
         <Route path="/sales">{() => <Guard path="/sales" component={Sales} />}</Route>
         <Route path="/purchases">{() => <Guard path="/purchases" component={Purchases} />}</Route>
+        <Route path="/suppliers">{() => <Guard path="/suppliers" component={Suppliers} />}</Route>
         <Route path="/products">{() => <Guard path="/products" component={Products} />}</Route>
         <Route path="/inventory">{() => <Guard path="/inventory" component={Inventory} />}</Route>
         <Route path="/customers">{() => <Guard path="/customers" component={Customers} />}</Route>
