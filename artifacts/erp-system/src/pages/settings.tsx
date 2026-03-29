@@ -15,24 +15,25 @@ import {
 } from "@/contexts/app-settings";
 import {
   Users, Landmark, Warehouse, AlertTriangle, Plus, Trash2, Edit2, X, Check,
-  ArrowLeftRight, Eye, EyeOff, Save, Palette, DollarSign, Package, Database,
+  ArrowLeftRight, Eye, EyeOff, Save, Palette, DollarSign, Database,
   Upload, Download, RefreshCcw, Building2, Image, Type, Loader2, CheckCircle2,
+  HardDrive, History,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
 
-type Tab = "users" | "safes" | "warehouses" | "appearance" | "currency" | "products" | "data";
+type Tab = "users" | "safes" | "warehouses" | "appearance" | "currency" | "backup" | "data";
 
 const TABS: { id: Tab; label: string; icon: React.FC<{ className?: string }> }[] = [
-  { id: "users",      label: "المستخدمون",  icon: Users },
-  { id: "safes",      label: "الخزائن",     icon: Landmark },
-  { id: "warehouses", label: "المخازن",     icon: Warehouse },
-  { id: "appearance", label: "الواجهة",     icon: Palette },
-  { id: "currency",   label: "العملة",      icon: DollarSign },
-  { id: "products",   label: "الأصناف",     icon: Package },
-  { id: "data",       label: "البيانات",    icon: Database },
+  { id: "users",      label: "المستخدمون",   icon: Users },
+  { id: "safes",      label: "الخزائن",      icon: Landmark },
+  { id: "warehouses", label: "المخازن",      icon: Warehouse },
+  { id: "appearance", label: "الواجهة",      icon: Palette },
+  { id: "currency",   label: "العملة",       icon: DollarSign },
+  { id: "backup",     label: "نسخ احتياطي",  icon: HardDrive },
+  { id: "data",       label: "البيانات",     icon: Database },
 ];
 
 const ROLES: Record<string, { label: string; color: string }> = {
@@ -94,7 +95,7 @@ export default function Settings() {
         {tab === "warehouses" && <WarehousesTab />}
         {tab === "appearance" && <AppearanceTab />}
         {tab === "currency" && <CurrencyTab />}
-        {tab === "products" && <ProductsTab />}
+        {tab === "backup" && <BackupImportTab />}
         {tab === "data" && <DataTab />}
       </div>
     </div>
@@ -902,63 +903,185 @@ function CurrencyTab() {
   );
 }
 
-/* ─── Products Excel Tab ─── */
-function ProductsTab() {
-  const { toast } = useToast();
-  const [importing, setImporting] = useState(false);
-  const [exportLoading, setExportLoading] = useState(false);
-  const [importResult, setImportResult] = useState<{ success: number; failed: number } | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+/* ─── Backup & Import Tab ─── */
 
-  const handleExport = async () => {
-    setExportLoading(true);
+const BACKUP_MODULES_LIST = [
+  { key: "sales",        icon: "🛍️", label: "المبيعات",          sub: "الفواتير، العملاء، المرتجعات",         url: "/api/sales" },
+  { key: "purchases",    icon: "🛒", label: "المشتريات",          sub: "فواتير الموردين، المرتجعات",           url: "/api/purchases" },
+  { key: "products",     icon: "📦", label: "المخزن",             sub: "الأصناف، الكميات، الحركات",            url: "/api/products" },
+  { key: "treasury",     icon: "💰", label: "الخزينة",            sub: "الإيرادات، المصروفات، السندات",        url: "/api/financial-transactions" },
+  { key: "customers",    icon: "👥", label: "العملاء والموردين",  sub: "الأرصدة والبيانات",                    url: "/api/customers" },
+  { key: "settings",     icon: "⚙️", label: "الإعدادات",          sub: "العملة والتفضيلات",                    url: null },
+  { key: "reports",      icon: "📊", label: "التقارير المحفوظة",  sub: "الإحصائيات والبيانات التاريخية",       url: null },
+] as const;
+
+const ACTIVITY_KEY  = "halal_erp_activity_log";
+const LAST_BK_KEY   = "halal_erp_last_backup";
+const SCHEDULE_KEY2 = "halal_erp_schedule";
+
+interface ActivityEntry {
+  id:     string;
+  date:   string;
+  type:   "backup" | "import-products" | "import-purchases";
+  file:   string;
+  status: string;
+  user:   string;
+}
+
+function loadActivityLog(): ActivityEntry[] {
+  try { return JSON.parse(localStorage.getItem(ACTIVITY_KEY) || "[]"); } catch { return []; }
+}
+function pushActivity(e: Omit<ActivityEntry, "id">) {
+  const log = loadActivityLog();
+  log.unshift({ ...e, id: `${Date.now()}` });
+  try { localStorage.setItem(ACTIVITY_KEY, JSON.stringify(log.slice(0, 50))); } catch {}
+}
+
+interface PurchaseRow {
+  idx:       number;
+  sku:       string;
+  name:      string;
+  quantity:  string;
+  unitPrice: string;
+  supplier:  string;
+  invoiceNo: string;
+  date:      string;
+  tax:       string;
+  discount:  string;
+  productId: number | null;
+  errors:    string[];
+}
+
+function BackupImportTab() {
+  const { toast } = useToast();
+  const [importSubTab, setImportSubTab] = useState<"products" | "purchases">("products");
+
+  /* ── Backup state ── */
+  const [bkModules,  setBkModules]  = useState<Set<string>>(new Set(BACKUP_MODULES_LIST.map(m => m.key)));
+  const [bkLoading,  setBkLoading]  = useState(false);
+  const [bkProgress, setBkProgress] = useState(0);
+  const [bkResult,   setBkResult]   = useState<{ name: string; size: string; count: number } | null>(null);
+  const [lastBackup, setLastBackup] = useState<string | null>(() => localStorage.getItem(LAST_BK_KEY));
+  const [schedule,   setSchedule]   = useState(() => localStorage.getItem(SCHEDULE_KEY2) || "none");
+
+  /* ── Products import state ── */
+  const [prodImporting, setProdImporting] = useState(false);
+  const [prodExporting, setProdExporting] = useState(false);
+  const [prodResult,    setProdResult]    = useState<{ success: number; failed: number } | null>(null);
+  const prodFileRef = useRef<HTMLInputElement>(null);
+
+  /* ── Purchase import state ── */
+  const [purRows,       setPurRows]       = useState<PurchaseRow[]>([]);
+  const [purParsed,     setPurParsed]     = useState(false);
+  const [purLoading,    setPurLoading]    = useState(false);
+  const [purConfirming, setPurConfirming] = useState(false);
+  const [purResult,     setPurResult]     = useState<string | null>(null);
+  const [purSupplier,   setPurSupplier]   = useState("");
+  const [purPayType,    setPurPayType]    = useState<"cash" | "credit">("cash");
+  const purFileRef = useRef<HTMLInputElement>(null);
+
+  /* ── Activity log ── */
+  const [activityLog, setActivityLog] = useState<ActivityEntry[]>(() => loadActivityLog());
+  const refreshLog = () => setActivityLog(loadActivityLog());
+
+  /* ─── BACKUP ─── */
+  const toggleModule = (key: string) => setBkModules(prev => {
+    const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s;
+  });
+  const toggleAllModules = () =>
+    setBkModules(bkModules.size === BACKUP_MODULES_LIST.length ? new Set() : new Set(BACKUP_MODULES_LIST.map(m => m.key)));
+
+  const handleBackup = async () => {
+    if (bkModules.size === 0) { toast({ title: "اختر وحدة واحدة على الأقل", variant: "destructive" }); return; }
+    setBkLoading(true); setBkProgress(5); setBkResult(null);
     try {
-      const res = await fetch(api("/api/products"));
-      const products = await res.json();
-      const rows = products.map((p: any) => ({
-        "اسم الصنف": p.name,
-        "كود الصنف (SKU)": p.sku || "",
-        "التصنيف": p.category || "",
-        "الكمية": Number(p.quantity),
-        "سعر التكلفة": Number(p.cost_price),
-        "سعر البيع": Number(p.sale_price),
-        "حد التنبيه": p.low_stock_threshold || "",
+      const selected = BACKUP_MODULES_LIST.filter(m => bkModules.has(m.key));
+      const bundle: Record<string, unknown> = {
+        version: "1.0", created_at: new Date().toISOString(), app: "Halal Tech ERP",
+        modules: selected.map(m => m.label),
+      };
+      const step = Math.floor(75 / selected.length);
+      for (const mod of selected) {
+        setBkProgress(p => Math.min(p + step, 85));
+        if (mod.url) {
+          try {
+            const res = await fetch(api(mod.url));
+            bundle[mod.key] = res.ok ? await res.json() : [];
+          } catch { bundle[mod.key] = []; }
+        } else if (mod.key === "settings") {
+          try { bundle[mod.key] = JSON.parse(localStorage.getItem("halal_erp_settings") || "{}"); } catch { bundle[mod.key] = {}; }
+        } else { bundle[mod.key] = null; }
+      }
+      setBkProgress(90);
+      const json  = JSON.stringify(bundle, null, 2);
+      const blob  = new Blob([json], { type: "application/json" });
+      const dt    = new Date().toISOString().replace("T", "_").replace(/:/g, "-").slice(0, 19);
+      const fname = `backup_${dt}.json`;
+      const link  = document.createElement("a");
+      link.href     = URL.createObjectURL(blob);
+      link.download = fname;
+      link.click();
+      URL.revokeObjectURL(link.href);
+      const sizekb = (blob.size / 1024).toFixed(1);
+      setBkResult({ name: fname, size: `${sizekb} KB`, count: selected.length });
+      setBkProgress(100);
+      const now = new Date().toISOString();
+      localStorage.setItem(LAST_BK_KEY, now);
+      setLastBackup(now);
+      pushActivity({ date: now, type: "backup", file: fname, status: `✅ ${selected.length} وحدات`, user: "Admin" });
+      refreshLog();
+      toast({ title: `✅ تم إنشاء النسخة الاحتياطية — ${fname}` });
+    } catch { toast({ title: "فشل إنشاء النسخة الاحتياطية", variant: "destructive" }); }
+    finally { setBkLoading(false); setTimeout(() => setBkProgress(0), 1500); }
+  };
+
+  const lastBackupLabel = () => {
+    if (!lastBackup) return "لم يتم إنشاء نسخة بعد";
+    const days = Math.floor((Date.now() - new Date(lastBackup).getTime()) / 86400000);
+    if (days === 0) return "اليوم";
+    if (days === 1) return "منذ يوم واحد";
+    if (days < 30)  return `منذ ${days} أيام`;
+    return new Date(lastBackup).toLocaleDateString("ar-EG");
+  };
+
+  /* ─── PRODUCTS IMPORT ─── */
+  const handleProductsExport = async () => {
+    setProdExporting(true);
+    try {
+      const res  = await fetch(api("/api/products"));
+      const prods = await res.json();
+      const rows = prods.map((p: any) => ({
+        "اسم الصنف": p.name, "كود الصنف (SKU)": p.sku || "", "التصنيف": p.category || "",
+        "الكمية": Number(p.quantity), "سعر التكلفة": Number(p.cost_price),
+        "سعر البيع": Number(p.sale_price), "حد التنبيه": p.low_stock_threshold || "",
       }));
       const ws = XLSX.utils.json_to_sheet(rows);
       ws["!cols"] = [{ wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 12 }];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "الأصناف");
       XLSX.writeFile(wb, `halal-tech-products-${new Date().toISOString().slice(0, 10)}.xlsx`);
-      toast({ title: `تم تصدير ${products.length} صنف بنجاح` });
-    } catch {
-      toast({ title: "فشل التصدير", variant: "destructive" });
-    } finally {
-      setExportLoading(false);
-    }
+      toast({ title: `تم تصدير ${prods.length} صنف بنجاح` });
+    } catch { toast({ title: "فشل التصدير", variant: "destructive" }); }
+    finally { setProdExporting(false); }
   };
 
-  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setImporting(true);
-    setImportResult(null);
+  const handleProductsImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    setProdImporting(true); setProdResult(null);
     try {
       const data = await file.arrayBuffer();
-      const wb = XLSX.read(data);
-      const ws = wb.Sheets[wb.SheetNames[0]];
+      const wb   = XLSX.read(data);
+      const ws   = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws) as any[];
-
       let success = 0, failed = 0;
       for (const row of rows) {
         const name = row["اسم الصنف"] || row["name"] || row["Name"];
         if (!name) { failed++; continue; }
         try {
           const res = await fetch(api("/api/products"), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
+            method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              name: String(name),
-              sku: String(row["كود الصنف (SKU)"] || row["sku"] || ""),
+              name: String(name), sku: String(row["كود الصنف (SKU)"] || row["sku"] || ""),
               category: String(row["التصنيف"] || row["category"] || ""),
               quantity: Number(row["الكمية"] || row["quantity"] || 0),
               cost_price: Number(row["سعر التكلفة"] || row["cost_price"] || 0),
@@ -969,85 +1092,555 @@ function ProductsTab() {
           if (res.ok) success++; else failed++;
         } catch { failed++; }
       }
-      setImportResult({ success, failed });
+      setProdResult({ success, failed });
+      const now = new Date().toISOString();
+      pushActivity({ date: now, type: "import-products", file: file.name, status: `✅ ${success} صنف${failed > 0 ? ` — ⚠️ ${failed} خطأ` : ""}`, user: "Admin" });
+      refreshLog();
       toast({ title: `تم الاستيراد: ${success} صنف ✓، ${failed} فشل` });
-    } catch {
-      toast({ title: "فشل قراءة الملف", variant: "destructive" });
-    } finally {
-      setImporting(false);
-      if (fileRef.current) fileRef.current.value = "";
-    }
+    } catch { toast({ title: "فشل قراءة الملف", variant: "destructive" }); }
+    finally { setProdImporting(false); if (prodFileRef.current) prodFileRef.current.value = ""; }
   };
 
-  const downloadTemplate = () => {
+  const downloadProductsTemplate = () => {
     const rows = [
       { "اسم الصنف": "شاشة LCD", "كود الصنف (SKU)": "SCR001", "التصنيف": "قطع غيار", "الكمية": 10, "سعر التكلفة": 150, "سعر البيع": 200, "حد التنبيه": 5 },
       { "اسم الصنف": "بطارية أيفون", "كود الصنف (SKU)": "BAT002", "التصنيف": "بطاريات", "الكمية": 20, "سعر التكلفة": 80, "سعر البيع": 120, "حد التنبيه": 3 },
     ];
     const ws = XLSX.utils.json_to_sheet(rows);
     ws["!cols"] = [{ wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 12 }];
+    const instRows = [
+      { "الحقل": "اسم الصنف",         "الوصف": "اسم المنتج (إلزامي)",           "مثال": "شاشة LCD" },
+      { "الحقل": "كود الصنف (SKU)",   "الوصف": "رمز تعريف فريد",                "مثال": "SCR001" },
+      { "الحقل": "التصنيف",           "الوصف": "فئة المنتج",                     "مثال": "قطع غيار" },
+      { "الحقل": "الكمية",            "الوصف": "الكمية في المخزن",               "مثال": "10" },
+      { "الحقل": "سعر التكلفة",       "الوصف": "سعر الشراء",                     "مثال": "150" },
+      { "الحقل": "سعر البيع",         "الوصف": "سعر البيع للعميل",               "مثال": "200" },
+      { "الحقل": "حد التنبيه",        "الوصف": "كمية التنبيه للنفاد",             "مثال": "5" },
+    ];
+    const wsInst = XLSX.utils.json_to_sheet(instRows);
+    wsInst["!cols"] = [{ wch: 20 }, { wch: 35 }, { wch: 15 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "الأصناف");
+    XLSX.utils.book_append_sheet(wb, wsInst, "التعليمات");
     XLSX.writeFile(wb, "template-products.xlsx");
   };
 
-  return (
-    <div className="space-y-5">
-      <SectionHeader title="الأصناف والمنتجات" sub="تصدير واستيراد الأصناف عبر Excel" />
+  /* ─── PURCHASE IMPORT ─── */
+  const handlePurchaseFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    setPurLoading(true); setPurParsed(false); setPurRows([]); setPurResult(null);
+    try {
+      const prodRes  = await fetch(api("/api/products"));
+      const products: any[] = prodRes.ok ? await prodRes.json() : [];
+      const skuMap   = new Map<string, { id: number; name: string }>();
+      for (const p of products) {
+        if (p.sku) skuMap.set(String(p.sku).trim().toUpperCase(), { id: p.id, name: p.name });
+      }
+      const data    = await file.arrayBuffer();
+      const wb      = XLSX.read(data);
+      const ws      = wb.Sheets[wb.SheetNames[0]];
+      const rawRows = XLSX.utils.sheet_to_json(ws) as any[];
+      const parsed: PurchaseRow[] = rawRows.map((row, idx) => {
+        const sku       = String(row["كود الصنف (SKU)"] || row["sku"] || "").trim();
+        const name      = String(row["اسم الصنف"]       || row["name"]       || "");
+        const quantity  = String(row["الكمية"]           || row["quantity"]   || "");
+        const unitPrice = String(row["سعر الشراء"]       || row["unit_price"] || "");
+        const supplier  = String(row["المورد"]           || row["supplier"]   || "");
+        const invoiceNo = String(row["رقم الفاتورة"]     || row["invoice_no"] || "");
+        const date      = String(row["تاريخ الفاتورة"]   || row["date"]       || "");
+        const tax       = String(row["الضريبة%"]         || row["tax"]        || "0");
+        const discount  = String(row["الخصم%"]           || row["discount"]   || "0");
+        const errors: string[] = [];
+        if (!sku)                                                             errors.push("كود الصنف مفقود");
+        else if (!skuMap.has(sku.toUpperCase()))                             errors.push(`كود غير موجود: ${sku}`);
+        if (!quantity  || isNaN(Number(quantity))  || Number(quantity) <= 0) errors.push("الكمية غير صالحة");
+        if (!unitPrice || isNaN(Number(unitPrice)) || Number(unitPrice) <= 0) errors.push("السعر غير صالح");
+        const resolved = skuMap.get(sku.toUpperCase());
+        return { idx, sku, name: name || resolved?.name || "", quantity, unitPrice, supplier, invoiceNo, date, tax, discount, productId: resolved?.id ?? null, errors };
+      });
+      setPurRows(parsed); setPurParsed(true);
+      if (parsed.length > 0 && parsed[0].supplier) setPurSupplier(parsed[0].supplier);
+    } catch { toast({ title: "فشل قراءة ملف المشتريات", variant: "destructive" }); }
+    finally { setPurLoading(false); if (purFileRef.current) purFileRef.current.value = ""; }
+  };
 
-      {/* Export */}
-      <div className="glass-panel rounded-2xl p-5 border border-emerald-500/20 bg-emerald-500/5">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-9 h-9 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-            <Download className="w-4 h-4 text-emerald-400" />
+  const updatePurRow = (idx: number, field: "quantity" | "unitPrice", value: string) => {
+    setPurRows(prev => prev.map(r => {
+      if (r.idx !== idx) return r;
+      const u = { ...r, [field]: value };
+      const errors: string[] = [];
+      if (!u.sku)                                                              errors.push("كود الصنف مفقود");
+      else if (!u.productId)                                                   errors.push("كود غير موجود في النظام");
+      if (!u.quantity  || isNaN(Number(u.quantity))  || Number(u.quantity) <= 0) errors.push("الكمية غير صالحة");
+      if (!u.unitPrice || isNaN(Number(u.unitPrice)) || Number(u.unitPrice) <= 0) errors.push("السعر غير صالح");
+      u.errors = errors;
+      return u;
+    }));
+  };
+
+  const validRows  = purRows.filter(r => r.errors.length === 0);
+  const errorRows  = purRows.filter(r => r.errors.length > 0);
+
+  const handlePurchaseConfirm = async () => {
+    if (validRows.length === 0) { toast({ title: "لا توجد صفوف صالحة للاستيراد", variant: "destructive" }); return; }
+    setPurConfirming(true);
+    try {
+      const items = validRows.map(r => {
+        const qty          = Number(r.quantity);
+        const price        = Number(r.unitPrice);
+        const discountFrac = Number(r.discount || 0) / 100;
+        const taxFrac      = Number(r.tax      || 0) / 100;
+        const unitNet      = price * (1 - discountFrac);
+        const totalPrice   = qty * unitNet * (1 + taxFrac);
+        return { product_id: r.productId!, product_name: r.name, quantity: qty, unit_price: unitNet, total_price: totalPrice };
+      });
+      const total = items.reduce((s, i) => s + i.total_price, 0);
+      const body  = {
+        payment_type: purPayType, total_amount: total,
+        paid_amount: purPayType === "credit" ? 0 : total,
+        items, supplier_name: purSupplier || undefined,
+        notes: `استيراد من Excel — ${validRows.length} صنف`,
+      };
+      const res  = await fetch(api("/api/purchases"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "فشل الاستيراد");
+      const msg = `تم إنشاء فاتورة مشتريات ${data.invoice_no} وتحديث المخزن بـ ${validRows.length} صنف ✓`;
+      setPurResult(msg);
+      const now = new Date().toISOString();
+      pushActivity({ date: now, type: "import-purchases", file: "Excel", status: `✅ ${validRows.length} صنف — ${data.invoice_no}`, user: "Admin" });
+      refreshLog();
+      toast({ title: msg });
+    } catch (err: any) { toast({ title: err.message || "فشل الاستيراد", variant: "destructive" }); }
+    finally { setPurConfirming(false); }
+  };
+
+  const downloadPurchaseTemplate = () => {
+    const rows = [
+      { "كود الصنف (SKU)": "SCR001", "اسم الصنف": "شاشة LCD", "الكمية": 10, "سعر الشراء": 150, "المورد": "مورد الشاشات", "تاريخ الفاتورة": "2024-01-15", "رقم الفاتورة": "INV-001", "الضريبة%": 14, "الخصم%": 0 },
+      { "كود الصنف (SKU)": "BAT002", "اسم الصنف": "بطارية أيفون", "الكمية": 20, "سعر الشراء": 80, "المورد": "مورد الشاشات", "تاريخ الفاتورة": "2024-01-15", "رقم الفاتورة": "INV-001", "الضريبة%": 14, "الخصم%": 5 },
+    ];
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws["!cols"] = [{ wch: 15 }, { wch: 20 }, { wch: 10 }, { wch: 12 }, { wch: 18 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 10 }];
+    const instRows = [
+      { "الحقل": "كود الصنف (SKU)",  "الوصف": "رمز الصنف الموجود في النظام (إلزامي)",         "مثال": "SCR001" },
+      { "الحقل": "اسم الصنف",        "الوصف": "اسم الصنف للعرض فقط (اختياري)",                "مثال": "شاشة LCD" },
+      { "الحقل": "الكمية",           "الوصف": "الكمية المشتراة (إلزامي، أكبر من صفر)",         "مثال": "10" },
+      { "الحقل": "سعر الشراء",       "الوصف": "سعر الوحدة قبل الضريبة (إلزامي)",               "مثال": "150" },
+      { "الحقل": "المورد",           "الوصف": "اسم المورد (اختياري)",                           "مثال": "مورد الشاشات" },
+      { "الحقل": "تاريخ الفاتورة",   "الوصف": "تاريخ الفاتورة بصيغة YYYY-MM-DD (اختياري)",   "مثال": "2024-01-15" },
+      { "الحقل": "رقم الفاتورة",     "الوصف": "رقم فاتورة المورد الأصلية (اختياري)",           "مثال": "INV-001" },
+      { "الحقل": "الضريبة%",         "الوصف": "نسبة ضريبة القيمة المضافة (اختياري، افتراضي 0)","مثال": "14" },
+      { "الحقل": "الخصم%",           "الوصف": "نسبة الخصم على سعر الوحدة (اختياري، افتراضي 0)","مثال": "0" },
+    ];
+    const wsInst = XLSX.utils.json_to_sheet(instRows);
+    wsInst["!cols"] = [{ wch: 18 }, { wch: 45 }, { wch: 15 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "فاتورة المشتريات");
+    XLSX.utils.book_append_sheet(wb, wsInst, "التعليمات");
+    XLSX.writeFile(wb, "template-purchase-invoice.xlsx");
+  };
+
+  /* ─── RENDER ─── */
+  return (
+    <div className="space-y-6">
+      <SectionHeader title="النسخ الاحتياطية والاستيراد" sub="احتفظ ببيانات نظامك واستورد البيانات بأمان" />
+
+      {/* ══════════ SECTION 1: BACKUP ══════════ */}
+      <div className="glass-panel rounded-2xl border border-white/8 overflow-hidden">
+        <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-blue-500/15 flex items-center justify-center">
+              <HardDrive className="w-4 h-4 text-blue-400" />
+            </div>
+            <div>
+              <h4 className="font-bold text-white text-sm">النسخ الاحتياطية</h4>
+              <p className="text-white/40 text-xs">آخر نسخة: {lastBackupLabel()}</p>
+            </div>
           </div>
-          <div>
-            <h4 className="font-bold text-emerald-400 text-sm">تصدير الأصناف</h4>
-            <p className="text-white/40 text-xs">تحميل جميع الأصناف كملف Excel</p>
-          </div>
+          <button onClick={toggleAllModules} className="text-xs text-amber-400 hover:text-amber-300 transition-colors">
+            {bkModules.size === BACKUP_MODULES_LIST.length ? "إلغاء تحديد الكل" : "تحديد الكل"}
+          </button>
         </div>
-        <button onClick={handleExport} disabled={exportLoading}
-          className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 rounded-xl text-emerald-400 font-bold text-sm transition-all disabled:opacity-40">
-          {exportLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-          {exportLoading ? "جاري التصدير..." : "تصدير Excel"}
-        </button>
+
+        <div className="p-6 space-y-5">
+          {/* Module checklist */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {BACKUP_MODULES_LIST.map(m => {
+              const active = bkModules.has(m.key);
+              return (
+                <button key={m.key} onClick={() => toggleModule(m.key)}
+                  className={`flex items-center gap-3 p-3 rounded-xl border text-right transition-all ${
+                    active ? "bg-blue-500/10 border-blue-500/25" : "glass-panel border-white/6 hover:border-white/15"
+                  }`}>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
+                    active ? "bg-blue-500/20" : "bg-white/5"
+                  }`}>
+                    {active
+                      ? <Check className="w-4 h-4 text-blue-400" />
+                      : <span className="text-base leading-none">{m.icon}</span>
+                    }
+                  </div>
+                  <div className="flex-1 text-right">
+                    <p className={`text-sm font-bold ${active ? "text-blue-300" : "text-white/70"}`}>{m.label}</p>
+                    <p className="text-white/30 text-xs">{m.sub}</p>
+                  </div>
+                  <span className="text-lg leading-none">{m.icon}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Schedule */}
+          <div className="flex flex-wrap items-center gap-3 p-3 rounded-xl bg-white/3 border border-white/5">
+            <span className="text-white/40 text-xs whitespace-nowrap">جدولة تلقائية:</span>
+            <div className="flex gap-2 flex-wrap">
+              {[
+                { v: "none", l: "بدون" }, { v: "daily", l: "يومياً" },
+                { v: "weekly", l: "أسبوعياً" }, { v: "monthly", l: "شهرياً" },
+              ].map(s => (
+                <button key={s.v}
+                  onClick={() => { setSchedule(s.v); localStorage.setItem(SCHEDULE_KEY2, s.v); }}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all border ${
+                    schedule === s.v
+                      ? "bg-amber-500/20 border-amber-500/30 text-amber-400"
+                      : "border-white/10 text-white/35 hover:border-white/20 hover:text-white/60"
+                  }`}>
+                  {s.l}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Progress bar */}
+          {bkLoading && (
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs text-white/40">
+                <span>جاري إنشاء النسخة الاحتياطية...</span>
+                <span>{bkProgress}%</span>
+              </div>
+              <div className="w-full h-2 rounded-full bg-white/5 overflow-hidden">
+                <div className="h-full bg-blue-400 rounded-full transition-all duration-300" style={{ width: `${bkProgress}%` }} />
+              </div>
+            </div>
+          )}
+
+          {/* Success card */}
+          {bkResult && !bkLoading && (
+            <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 space-y-3">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                <span className="text-emerald-400 font-bold text-sm">تم إنشاء النسخة الاحتياطية بنجاح</span>
+              </div>
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div>
+                  <p className="text-white/35 text-xs mb-0.5">الملف</p>
+                  <p className="text-white text-xs font-bold truncate">{bkResult.name.slice(0, 20)}…</p>
+                </div>
+                <div>
+                  <p className="text-white/35 text-xs mb-0.5">الحجم</p>
+                  <p className="text-white text-sm font-bold">{bkResult.size}</p>
+                </div>
+                <div>
+                  <p className="text-white/35 text-xs mb-0.5">الوحدات</p>
+                  <p className="text-white text-sm font-bold">{bkResult.count}</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={handleBackup}
+                  className="flex-1 flex items-center justify-center gap-2 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/25 rounded-lg text-emerald-400 text-xs font-bold transition-all">
+                  <Download className="w-3.5 h-3.5" /> تحميل مرة أخرى
+                </button>
+                <button disabled
+                  className="flex-1 flex items-center justify-center gap-2 py-2 bg-white/3 border border-white/8 rounded-lg text-white/20 text-xs font-bold cursor-not-allowed">
+                  ☁️ نسخ إلى السحابة (قريباً)
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Backup button */}
+          <button onClick={handleBackup} disabled={bkLoading || bkModules.size === 0}
+            className="w-full flex items-center justify-center gap-2 py-3.5 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-xl text-blue-300 font-bold text-sm transition-all disabled:opacity-40">
+            {bkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <HardDrive className="w-4 h-4" />}
+            {bkLoading ? `جاري الإنشاء... ${bkProgress}%` : `💾 إنشاء نسخة احتياطية (${bkModules.size} وحدات)`}
+          </button>
+        </div>
       </div>
 
-      {/* Import */}
-      <div className="glass-panel rounded-2xl p-5 border border-amber-500/20 bg-amber-500/5">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-9 h-9 rounded-xl bg-amber-500/20 flex items-center justify-center">
-            <Upload className="w-4 h-4 text-amber-400" />
+      {/* ══════════ SECTION 2: IMPORT ══════════ */}
+      <div className="glass-panel rounded-2xl border border-white/8 overflow-hidden">
+        <div className="px-6 py-4 border-b border-white/5 space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/15 flex items-center justify-center">
+              <Upload className="w-4 h-4 text-amber-400" />
+            </div>
+            <div>
+              <h4 className="font-bold text-white text-sm">الاستيراد</h4>
+              <p className="text-white/40 text-xs">استيراد الأصناف وفواتير المشتريات من ملفات Excel</p>
+            </div>
           </div>
-          <div>
-            <h4 className="font-bold text-amber-400 text-sm">استيراد الأصناف</h4>
-            <p className="text-white/40 text-xs">رفع ملف Excel لإضافة الأصناف دفعةً واحدة</p>
+          {/* Sub-tabs */}
+          <div className="flex gap-1.5">
+            {[
+              { id: "products"  as const, label: "📦 استيراد الأصناف" },
+              { id: "purchases" as const, label: "🛒 استيراد فاتورة مشتريات" },
+            ].map(t => (
+              <button key={t.id} onClick={() => setImportSubTab(t.id)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
+                  importSubTab === t.id
+                    ? "bg-amber-500/20 border-amber-500/30 text-amber-400"
+                    : "border-white/8 text-white/40 hover:text-white/60 hover:border-white/15"
+                }`}>
+                {t.label}
+              </button>
+            ))}
           </div>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <button onClick={() => fileRef.current?.click()} disabled={importing}
-            className="flex items-center gap-2 px-5 py-2.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 rounded-xl text-amber-400 font-bold text-sm transition-all disabled:opacity-40">
-            {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            {importing ? "جاري الاستيراد..." : "رفع ملف Excel"}
-          </button>
-          <button onClick={downloadTemplate}
-            className="flex items-center gap-2 px-4 py-2.5 glass-panel border border-white/10 hover:border-white/20 rounded-xl text-white/60 hover:text-white text-sm transition-all">
-            <Download className="w-4 h-4" /> تحميل نموذج فارغ
-          </button>
+
+        <div className="p-6">
+          {/* ── Products sub-tab ── */}
+          {importSubTab === "products" && (
+            <div className="space-y-4">
+              {/* Export existing products */}
+              <div className="flex items-center justify-between p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5">
+                <div>
+                  <p className="text-emerald-400 font-bold text-sm">تصدير الأصناف الحالية</p>
+                  <p className="text-white/30 text-xs">تحميل جميع الأصناف كملف Excel</p>
+                </div>
+                <button onClick={handleProductsExport} disabled={prodExporting}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 rounded-xl text-emerald-400 font-bold text-xs transition-all disabled:opacity-40">
+                  {prodExporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                  {prodExporting ? "جاري التصدير..." : "تصدير Excel"}
+                </button>
+              </div>
+
+              {/* Import products */}
+              <div className="p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 space-y-3">
+                <div>
+                  <p className="text-amber-400 font-bold text-sm">استيراد أصناف جديدة</p>
+                  <p className="text-white/30 text-xs">رفع ملف Excel لإضافة الأصناف دفعةً واحدة</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={() => prodFileRef.current?.click()} disabled={prodImporting}
+                    className="flex items-center gap-2 px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 rounded-xl text-amber-400 font-bold text-xs transition-all disabled:opacity-40">
+                    {prodImporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                    {prodImporting ? "جاري الاستيراد..." : "رفع ملف Excel"}
+                  </button>
+                  <button onClick={downloadProductsTemplate}
+                    className="flex items-center gap-2 px-4 py-2 glass-panel border border-white/10 hover:border-white/20 rounded-xl text-white/50 hover:text-white text-xs transition-all">
+                    <Download className="w-3.5 h-3.5" /> تحميل نموذج فارغ
+                  </button>
+                </div>
+                <input ref={prodFileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleProductsImport} />
+                {prodResult && (
+                  <div className={`p-3 rounded-xl border text-xs ${prodResult.failed === 0 ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-amber-500/10 border-amber-500/20 text-amber-400"}`}>
+                    <CheckCircle2 className="w-3.5 h-3.5 inline ml-2" />
+                    تم استيراد <strong>{prodResult.success}</strong> صنف
+                    {prodResult.failed > 0 && <span className="text-red-400"> — فشل {prodResult.failed}</span>}
+                  </div>
+                )}
+                <div className="p-3 rounded-xl bg-white/3 border border-white/5 text-xs text-white/25">
+                  الأعمدة: اسم الصنف، كود الصنف (SKU)، التصنيف، الكمية، سعر التكلفة، سعر البيع، حد التنبيه — الصيغ: xlsx, xls, csv
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Purchases sub-tab ── */}
+          {importSubTab === "purchases" && (
+            <div className="space-y-4">
+              {!purParsed ? (
+                <div className="p-4 rounded-xl border border-violet-500/20 bg-violet-500/5 space-y-3">
+                  <div>
+                    <p className="text-violet-400 font-bold text-sm">استيراد فاتورة مشتريات</p>
+                    <p className="text-white/30 text-xs">رفع ملف Excel يحتوي على بنود الفاتورة لإنشائها تلقائياً وتحديث المخزن</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={() => purFileRef.current?.click()} disabled={purLoading}
+                      className="flex items-center gap-2 px-4 py-2 bg-violet-500/20 hover:bg-violet-500/30 border border-violet-500/30 rounded-xl text-violet-400 font-bold text-xs transition-all disabled:opacity-40">
+                      {purLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                      {purLoading ? "جاري القراءة والتحقق..." : "رفع ملف Excel"}
+                    </button>
+                    <button onClick={downloadPurchaseTemplate}
+                      className="flex items-center gap-2 px-4 py-2 glass-panel border border-white/10 hover:border-white/20 rounded-xl text-white/50 hover:text-white text-xs transition-all">
+                      <Download className="w-3.5 h-3.5" /> تحميل نموذج فارغ
+                    </button>
+                  </div>
+                  <input ref={purFileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handlePurchaseFile} />
+                  <div className="p-3 rounded-xl bg-white/3 border border-white/5 text-xs text-white/25 space-y-0.5">
+                    <p><span className="text-white/40">إلزامي:</span> كود الصنف (SKU)، الكمية، سعر الشراء</p>
+                    <p><span className="text-white/40">اختياري:</span> اسم الصنف، المورد، تاريخ الفاتورة، رقم الفاتورة، الضريبة%، الخصم%</p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Summary bar */}
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-white/3 border border-white/8">
+                    <div className="flex gap-4">
+                      <span className="text-emerald-400 text-sm font-bold">{validRows.length} صنف صحيح ✓</span>
+                      {errorRows.length > 0 && <span className="text-red-400 text-sm font-bold">{errorRows.length} صنف به أخطاء ✗</span>}
+                    </div>
+                    <button onClick={() => { setPurParsed(false); setPurRows([]); setPurResult(null); }}
+                      className="text-white/30 hover:text-white/60 text-xs transition-colors">
+                      تغيير الملف
+                    </button>
+                  </div>
+
+                  {/* Invoice meta */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-white/40 text-xs mb-1.5">اسم المورد</label>
+                      <input value={purSupplier} onChange={e => setPurSupplier(e.target.value)}
+                        className="glass-input w-full text-white text-sm" placeholder="اسم المورد (اختياري)" />
+                    </div>
+                    <div>
+                      <label className="block text-white/40 text-xs mb-1.5">نوع الدفع</label>
+                      <select value={purPayType} onChange={e => setPurPayType(e.target.value as "cash" | "credit")}
+                        className="glass-input w-full text-white text-sm">
+                        <option value="cash">نقدي (كاش)</option>
+                        <option value="credit">آجل (دين)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Preview table */}
+                  <div className="overflow-x-auto rounded-xl border border-white/8">
+                    <table className="w-full text-xs min-w-[560px]">
+                      <thead>
+                        <tr className="border-b border-white/8 bg-white/3">
+                          <th className="px-3 py-2.5 text-right text-white/40 font-medium whitespace-nowrap">SKU</th>
+                          <th className="px-3 py-2.5 text-right text-white/40 font-medium">الصنف</th>
+                          <th className="px-3 py-2.5 text-right text-white/40 font-medium whitespace-nowrap">الكمية</th>
+                          <th className="px-3 py-2.5 text-right text-white/40 font-medium whitespace-nowrap">السعر</th>
+                          <th className="px-3 py-2.5 text-right text-white/40 font-medium whitespace-nowrap">الإجمالي</th>
+                          <th className="px-3 py-2.5 text-right text-white/40 font-medium">الحالة</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {purRows.map(r => {
+                          const hasError = r.errors.length > 0;
+                          const total    = (Number(r.quantity) || 0) * (Number(r.unitPrice) || 0);
+                          return (
+                            <tr key={r.idx}
+                              className={`border-b border-white/4 transition-colors ${hasError ? "bg-red-500/5" : "hover:bg-white/2"}`}>
+                              <td className="px-3 py-2 text-white/50 font-mono whitespace-nowrap">{r.sku || "—"}</td>
+                              <td className="px-3 py-2 text-white/70 max-w-[120px] truncate">{r.name || "—"}</td>
+                              <td className="px-3 py-2">
+                                <input type="number" value={r.quantity}
+                                  onChange={e => updatePurRow(r.idx, "quantity", e.target.value)}
+                                  className={`w-16 px-2 py-1 rounded-lg bg-white/5 border text-white text-center text-xs outline-none focus:ring-1 focus:ring-amber-500/30 ${
+                                    !r.quantity || Number(r.quantity) <= 0 ? "border-red-500/50" : "border-white/10 focus:border-amber-500/40"
+                                  }`} />
+                              </td>
+                              <td className="px-3 py-2">
+                                <input type="number" value={r.unitPrice}
+                                  onChange={e => updatePurRow(r.idx, "unitPrice", e.target.value)}
+                                  className={`w-20 px-2 py-1 rounded-lg bg-white/5 border text-white text-center text-xs outline-none focus:ring-1 focus:ring-amber-500/30 ${
+                                    !r.unitPrice || Number(r.unitPrice) <= 0 ? "border-red-500/50" : "border-white/10 focus:border-amber-500/40"
+                                  }`} />
+                              </td>
+                              <td className="px-3 py-2 text-white/55 font-mono whitespace-nowrap">
+                                {isNaN(total) ? "—" : total.toFixed(2)}
+                              </td>
+                              <td className="px-3 py-2">
+                                {hasError
+                                  ? <span className="text-red-400 text-xs" title={r.errors.join(" | ")}>✗ {r.errors[0]}</span>
+                                  : <span className="text-emerald-400 text-xs">✓ صالح</span>
+                                }
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Grand total */}
+                  {validRows.length > 0 && (
+                    <div className="flex justify-between items-center p-3 rounded-xl bg-white/3 border border-white/8">
+                      <span className="text-white/50 text-sm">إجمالي الفاتورة</span>
+                      <span className="text-amber-400 font-black text-lg">
+                        {validRows.reduce((s, r) => s + (Number(r.quantity) || 0) * (Number(r.unitPrice) || 0), 0).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Import result */}
+                  {purResult && (
+                    <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm">
+                      <CheckCircle2 className="w-4 h-4 inline ml-2" />{purResult}
+                    </div>
+                  )}
+
+                  {/* Confirm button */}
+                  <button onClick={handlePurchaseConfirm} disabled={purConfirming || validRows.length === 0}
+                    className="w-full flex items-center justify-center gap-2 py-3.5 bg-violet-500/20 hover:bg-violet-500/30 border border-violet-500/30 rounded-xl text-violet-400 font-bold text-sm transition-all disabled:opacity-40">
+                    {purConfirming ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                    {purConfirming ? "جاري إنشاء الفاتورة وتحديث المخزن..." : `تأكيد استيراد ${validRows.length} صنف وإنشاء فاتورة مشتريات`}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
-        <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImport} />
+      </div>
 
-        {importResult && (
-          <div className={`mt-3 p-3 rounded-xl border text-sm ${importResult.failed === 0 ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-amber-500/10 border-amber-500/20 text-amber-400"}`}>
-            <CheckCircle2 className="w-4 h-4 inline ml-2" />
-            تم استيراد <strong>{importResult.success}</strong> صنف بنجاح
-            {importResult.failed > 0 && <span className="text-red-400"> — فشل: {importResult.failed}</span>}
+      {/* ══════════ SECTION 3: ACTIVITY LOG ══════════ */}
+      <div className="glass-panel rounded-2xl border border-white/8 overflow-hidden">
+        <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-white/8 flex items-center justify-center">
+              <History className="w-4 h-4 text-white/50" />
+            </div>
+            <div>
+              <h4 className="font-bold text-white text-sm">سجل العمليات</h4>
+              <p className="text-white/40 text-xs">آخر {activityLog.length} عملية</p>
+            </div>
           </div>
-        )}
-
-        <div className="mt-3 p-3 rounded-xl bg-white/3 border border-white/5 text-xs text-white/30 space-y-0.5">
-          <p>الأعمدة المطلوبة: <span className="text-white/50">اسم الصنف، كود الصنف (SKU)، التصنيف، الكمية، سعر التكلفة، سعر البيع، حد التنبيه</span></p>
-          <p>الصيغ المدعومة: xlsx, xls, csv</p>
+          {activityLog.length > 0 && (
+            <button onClick={() => { localStorage.removeItem(ACTIVITY_KEY); setActivityLog([]); }}
+              className="text-xs text-white/30 hover:text-red-400 transition-colors">
+              مسح السجل
+            </button>
+          )}
+        </div>
+        <div className="overflow-x-auto">
+          {activityLog.length === 0 ? (
+            <div className="p-8 text-center text-white/25 text-sm">لا توجد عمليات مسجلة بعد</div>
+          ) : (
+            <table className="w-full text-xs min-w-[500px]">
+              <thead>
+                <tr className="border-b border-white/5 bg-white/2">
+                  <th className="px-4 py-3 text-right text-white/35 font-medium">التاريخ</th>
+                  <th className="px-4 py-3 text-right text-white/35 font-medium">النوع</th>
+                  <th className="px-4 py-3 text-right text-white/35 font-medium">الملف</th>
+                  <th className="px-4 py-3 text-right text-white/35 font-medium">الحالة</th>
+                  <th className="px-4 py-3 text-right text-white/35 font-medium">المستخدم</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activityLog.map(e => (
+                  <tr key={e.id} className="border-b border-white/4 hover:bg-white/2 transition-colors">
+                    <td className="px-4 py-3 text-white/45 font-mono whitespace-nowrap">
+                      {new Date(e.date).toLocaleDateString("ar-EG")} {new Date(e.date).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" })}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-0.5 rounded-md text-xs font-bold whitespace-nowrap ${
+                        e.type === "backup"            ? "bg-blue-500/15 text-blue-400"   :
+                        e.type === "import-products"   ? "bg-amber-500/15 text-amber-400" :
+                                                         "bg-violet-500/15 text-violet-400"
+                      }`}>
+                        {e.type === "backup" ? "نسخ احتياطي" : e.type === "import-products" ? "استيراد أصناف" : "استيراد مشتريات"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-white/45 font-mono max-w-[120px] truncate">{e.file}</td>
+                    <td className="px-4 py-3 text-white/65">{e.status}</td>
+                    <td className="px-4 py-3 text-white/45">{e.user}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>

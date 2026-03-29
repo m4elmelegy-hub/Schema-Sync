@@ -1,0 +1,112 @@
+Redesign and rebuild the Settings page into a professional 
+"Backup & Import" system.
+
+## Page Name: النسخ الاحتياطية والاستيراد
+
+---
+
+## SECTION 1: النسخ الاحتياطية (Backup)
+
+### UI Design:
+- Replace the export button with a full backup panel
+- Show a checklist of modules the user can include in the backup
+- Each module has a toggle/checkbox with icon and description
+
+### Backup Modules Checklist:
+☑ 🛍️ المبيعات — الفواتير، العملاء، المرتجعات
+☑ 🛒 المشتريات — فواتير الموردين، المرتجعات
+☑ 📦 المخزن — الأصناف، الكميات، الحركات
+☑ 💰 الخزينة — الإيرادات، المصروفات، السندات
+☑ 👥 العملاء والموردين
+☑ ⚙️ الإعدادات — العملة، الضرائب، الفروع
+☑ 📊 التقارير المحفوظة
+
+### Backup Actions:
+- "تحديد الكل / إلغاء الكل" toggle at the top
+- Primary button: "💾 إنشاء نسخة احتياطية"
+- On click: show progress bar while generating
+- Output: download a .zip or .json file named:
+  backup_[date]_[time].zip
+- Show last backup date/time: "آخر نسخة: منذ 3 أيام"
+- Option: Schedule automatic backup (Daily / Weekly / Monthly)
+  with time picker
+
+### After Backup:
+- Show success card with:
+  - File name and size
+  - Modules included count
+  - Download button
+  - "نسخ إلى السحابة" button (future feature placeholder)
+
+---
+
+## SECTION 2: الاستيراد (Import) — Enhanced
+
+### Keep existing Excel import but expand it:
+
+#### Sub-tabs inside Import section:
+1. 📦 استيراد الأصناف (existing functionality, keep as is)
+2. 🛒 استيراد فاتورة مشتريات ← NEW
+
+### استيراد فاتورة مشتريات:
+- Upload Excel/CSV file with purchase invoice data
+- Required columns in template:
+  كود الصنف (SKU), اسم الصنف, الكمية, سعر الشراء, 
+  المورد, تاريخ الفاتورة, رقم الفاتورة, الضريبة%, الخصم%
+
+- On upload:
+  1. Parse and validate the file
+  2. Show a preview table of all rows before confirming
+  3. Highlight errors in red (missing SKU, invalid numbers, etc.)
+  4. Show summary: "23 صنف صحيح، 2 صنف به أخطاء"
+  5. User can fix errors inline in the preview table
+  6. On confirm:
+     → Create purchase invoice in the database automatically
+     → Update inventory quantities for each item
+     → Update supplier balance
+     → Show success: "تم إنشاء فاتورة مشتريات #INV-2024-001 
+        وتحديث المخزن بـ 23 صنف ✓"
+
+### Download Empty Template:
+- Button: "تحميل نموذج فارغ"
+- Returns an Excel file with:
+  - Correct headers in row 1
+  - Example data in row 2 (grayed out / sample)
+  - Data validation on columns (dropdowns for units, etc.)
+  - Instructions sheet inside the Excel file
+
+---
+
+## SECTION 3: سجل العمليات (Activity Log)
+
+- Show a table at the bottom of the page:
+  | التاريخ | النوع | الملف | الحالة | المستخدم |
+  |---------|-------|-------|--------|----------|
+  | 2024-01-15 | نسخ احتياطي | backup_full.zip | ✅ نجح | Admin |
+  | 2024-01-14 | استيراد مشتريات | inv_jan.xlsx | ✅ 23 صنف | محمد |
+  | 2024-01-13 | استيراد أصناف | products.csv | ⚠️ 2 خطأ | Admin |
+
+---
+
+## Visual Design Requirements:
+- Dark theme consistent with current app
+- Gold/orange accent (#F59E0B) for primary actions
+- Each section in its own elevated card with subtle border
+- RTL layout (direction: rtl)
+- Smooth animations on progress bar and success states
+- Mobile responsive
+
+## Technical Requirements:
+- Parse Excel using SheetJS (xlsx library)
+- Validate all rows before any database write
+- Use transactions: either ALL rows import successfully or NONE
+  (rollback on error)
+- After purchase import: trigger inventory update function
+- Store backup metadata in DB (date, size, modules, created_by)
+
+## Show me:
+1. Full redesigned page component
+2. Excel parser and validator function
+3. Purchase invoice import logic with inventory update
+4. Empty template generator function
+5. Activity log component
