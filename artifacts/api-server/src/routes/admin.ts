@@ -3,6 +3,7 @@ import { db, salesTable, purchasesTable, expensesTable, incomeTable,
   receiptVouchersTable, depositVouchersTable, transactionsTable,
   productsTable, customersTable, suppliersTable } from "@workspace/db";
 import { wrap } from "../lib/async-handler";
+import { authenticate, requireRole } from "../middleware/auth";
 
 const router: IRouter = Router();
 
@@ -19,7 +20,7 @@ const TABLES: Record<string, () => Promise<void>> = {
   suppliers: async () => { await db.delete(suppliersTable); },
 };
 
-router.post("/admin/clear", wrap(async (req, res) => {
+router.post("/admin/clear", authenticate, requireRole("admin"), wrap(async (req, res) => {
   const { tables } = req.body as { tables: string[] };
   if (!tables || !Array.isArray(tables) || tables.length === 0) {
     res.status(400).json({ error: "حدد الجداول المطلوب مسحها" });

@@ -21,9 +21,11 @@ import financialTransactionsRouter from "./financial-transactions";
 import adminRouter from "./admin";
 import profitsRouter from "./profits";
 import inventoryRouter from "./inventory";
+import authRouter from "./auth";
 
 const router: IRouter = Router();
 
+router.use(authRouter);
 router.use(healthRouter);
 router.use(productsRouter);
 router.use(customersRouter);

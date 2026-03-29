@@ -4,29 +4,10 @@ import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/auth";
 import { useAppSettings } from "@/contexts/app-settings";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { 
-  LayoutDashboard, Users, Receipt, FileText,
-  CreditCard, Settings, BookOpen, BookMarked,
-  Activity, ClipboardList, LogOut, UserCircle, TrendingUp, Package, Warehouse,
-} from "lucide-react";
+import { NAV_ITEMS, canAccess, type UserRole } from "@/lib/rbac";
+import { LogOut, UserCircle } from "lucide-react";
 
 interface LayoutProps { children: ReactNode; }
-
-const navItems = [
-  { name: "لوحة القيادة",   href: "/",                     icon: LayoutDashboard },
-  { name: "المهام السريعة",  href: "/tasks",                icon: ClipboardList },
-  { name: "المبيعات",        href: "/sales",                icon: Receipt },
-  { name: "المشتريات",       href: "/purchases",            icon: CreditCard },
-  { name: "المنتجات",        href: "/products",             icon: Package },
-  { name: "مراجعة المخزون", href: "/inventory",            icon: Warehouse },
-  { name: "العملاء",         href: "/customers",            icon: Users },
-  { name: "الأرباح",         href: "/profits",              icon: TrendingUp },
-  { name: "الحركات المالية", href: "/financial-transactions", icon: Activity },
-  { name: "دليل الحسابات",   href: "/accounts",             icon: BookOpen },
-  { name: "القيود اليومية",  href: "/journal-entries",      icon: BookMarked },
-  { name: "التقارير",        href: "/reports",              icon: FileText },
-  { name: "الإعدادات",       href: "/settings",             icon: Settings },
-];
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "مدير", manager: "مشرف", cashier: "كاشير", salesperson: "مندوب",
@@ -38,14 +19,17 @@ export function AppLayout({ children }: LayoutProps) {
   const { settings } = useAppSettings();
   const isDark = (settings.theme ?? "dark") === "dark";
 
+  const role = (user?.role ?? "cashier") as UserRole;
+  const visibleNav = NAV_ITEMS.filter(item => canAccess(role, item.href));
+
   const logoSrc = settings.customLogo || `${import.meta.env.BASE_URL}logo.png`;
 
-  const pageTitle = navItems.find(i => i.href === location)?.name
+  const pageTitle = NAV_ITEMS.find(i => i.href === location)?.name
     || (location === "/expenses" ? "المصروفات"
       : location === "/income" ? "الإيرادات"
       : location === "/receipt-vouchers" ? "سندات القبض"
       : location === "/deposit-vouchers" ? "سندات التوريد"
-      : location === "/payment-vouchers" ? "سندات التوريد"
+      : location === "/payment-vouchers" ? "سندات الصرف"
       : location === "/safe-transfers" ? "تحويل الخزائن"
       : "مرحباً بك");
 
@@ -97,7 +81,7 @@ export function AppLayout({ children }: LayoutProps) {
         )}
 
         <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto mt-2">
-          {navItems.map((item) => {
+          {visibleNav.map((item) => {
             const isActive = location === item.href;
             return (
               <Link key={item.href} href={item.href} className="block group">
@@ -123,9 +107,9 @@ export function AppLayout({ children }: LayoutProps) {
         </div>
       </aside>
 
-      {/* Mobile Nav */}
+      {/* Mobile Nav — first 5 visible items */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 glass-panel border-t border-white/10 rounded-t-3xl p-2 flex justify-around">
-        {[navItems[0], navItems[2], navItems[3], navItems[4], navItems[10]].map((item) => (
+        {visibleNav.slice(0, 5).map((item) => (
           <Link key={item.href} href={item.href} className={`p-3 rounded-xl ${location === item.href ? 'bg-amber-500/20 text-amber-400' : 'text-white/50'}`}>
             <item.icon className="erp-nav-icon" />
           </Link>

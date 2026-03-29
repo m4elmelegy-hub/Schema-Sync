@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { eq, desc, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
+import { authenticate, requireRole } from "../middleware/auth";
 import {
   erpUsersTable,
   safesTable,
@@ -42,7 +43,7 @@ router.get("/settings/users", async (req, res) => {
   }
 });
 
-router.post("/settings/users", async (req, res) => {
+router.post("/settings/users", authenticate, requireRole("admin"), async (req, res) => {
   try {
     const { name, username, pin, role, permissions } = req.body;
     const [user] = await db.insert(erpUsersTable).values({
@@ -58,10 +59,18 @@ router.post("/settings/users", async (req, res) => {
   }
 });
 
-router.put("/settings/users/:id", async (req, res) => {
+router.put("/settings/users/:id", authenticate, requireRole("admin"), async (req, res) => {
   try {
     const id = Number(req.params.id);
+    const requesterId = req.user!.id;
     const { name, username, pin, role, permissions, active } = req.body;
+
+    /* Self-escalation prevention: no one can change their own role */
+    if (requesterId === id && role !== undefined && role !== req.user!.role) {
+      res.status(403).json({ error: "لا يمكنك تغيير دورك الخاص" });
+      return;
+    }
+
     const [user] = await db.update(erpUsersTable)
       .set({ name, username, pin, role, permissions, active })
       .where(eq(erpUsersTable.id, id))
@@ -72,9 +81,16 @@ router.put("/settings/users/:id", async (req, res) => {
   }
 });
 
-router.delete("/settings/users/:id", async (req, res) => {
+router.delete("/settings/users/:id", authenticate, requireRole("admin"), async (req, res) => {
   try {
     const id = Number(req.params.id);
+
+    /* Prevent deleting yourself */
+    if (req.user!.id === id) {
+      res.status(403).json({ error: "لا يمكنك حذف حسابك الخاص" });
+      return;
+    }
+
     await db.delete(erpUsersTable).where(eq(erpUsersTable.id, id));
     res.json({ success: true });
   } catch (e) {
@@ -93,7 +109,7 @@ router.get("/settings/safes", async (req, res) => {
   }
 });
 
-router.post("/settings/safes", async (req, res) => {
+router.post("/settings/safes", authenticate, requireRole("admin"), async (req, res) => {
   try {
     const { name, balance } = req.body;
     const [safe] = await db.insert(safesTable).values({ name, balance: String(balance || 0) }).returning();
@@ -103,7 +119,7 @@ router.post("/settings/safes", async (req, res) => {
   }
 });
 
-router.put("/settings/safes/:id", async (req, res) => {
+router.put("/settings/safes/:id", authenticate, requireRole("admin"), async (req, res) => {
   try {
     const id = Number(req.params.id);
     const { name, balance } = req.body;
@@ -117,7 +133,7 @@ router.put("/settings/safes/:id", async (req, res) => {
   }
 });
 
-router.delete("/settings/safes/:id", async (req, res) => {
+router.delete("/settings/safes/:id", authenticate, requireRole("admin"), async (req, res) => {
   try {
     const id = Number(req.params.id);
     await db.delete(safesTable).where(eq(safesTable.id, id));
@@ -190,7 +206,7 @@ router.get("/settings/warehouses", async (req, res) => {
   }
 });
 
-router.post("/settings/warehouses", async (req, res) => {
+router.post("/settings/warehouses", authenticate, requireRole("admin"), async (req, res) => {
   try {
     const { name, address } = req.body;
     const [warehouse] = await db.insert(warehousesTable).values({ name, address: address || null }).returning();
@@ -200,7 +216,7 @@ router.post("/settings/warehouses", async (req, res) => {
   }
 });
 
-router.delete("/settings/warehouses/:id", async (req, res) => {
+router.delete("/settings/warehouses/:id", authenticate, requireRole("admin"), async (req, res) => {
   try {
     const id = Number(req.params.id);
     await db.delete(warehousesTable).where(eq(warehousesTable.id, id));
@@ -212,7 +228,7 @@ router.delete("/settings/warehouses/:id", async (req, res) => {
 
 // ─── RESET DATABASE ───────────────────────────────────────────────────────────
 
-router.post("/settings/reset", async (req, res) => {
+router.post("/settings/reset", authenticate, requireRole("admin"), async (req, res) => {
   try {
     const { confirm } = req.body;
     if (confirm !== "تأكيد الحذف") {

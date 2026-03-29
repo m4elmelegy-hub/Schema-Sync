@@ -11,7 +11,7 @@ const api = (p: string) => `${BASE}${p}`;
 /* ─── Types ────────────────────────────────────────────────── */
 interface ErpUser {
   id: number; name: string; username: string;
-  pin: string; role: string; active: boolean;
+  pinLength: number; role: string; active: boolean;
 }
 interface Star {
   x: number; y: number; r: number;
@@ -94,9 +94,9 @@ export default function Login() {
   const selectedUserRef = useRef<ErpUser | undefined>(undefined);
 
   const { data: users = [] } = useQuery<ErpUser[]>({
-    queryKey: ["/api/settings/users"],
+    queryKey: ["/api/auth/users"],
     queryFn: () =>
-      fetch(api("/api/settings/users")).then((r) => {
+      fetch(api("/api/auth/users")).then((r) => {
         if (!r.ok) throw new Error("فشل جلب المستخدمين");
         return r.json();
       }),
@@ -105,7 +105,7 @@ export default function Login() {
   const activeUsers  = users.filter((u) => u.active !== false);
   const selectedUser = activeUsers.find((u) => String(u.id) === selectedUserId);
   const logoSrc      = settings.customLogo || `${import.meta.env.BASE_URL}logo.png`;
-  const pinLength    = selectedUser ? Math.min(Math.max(selectedUser.pin.length, 4), MAX_PIN_DOTS) : 4;
+  const pinLength    = selectedUser ? Math.min(Math.max(selectedUser.pinLength ?? 4, 4), MAX_PIN_DOTS) : 4;
 
   pinRef.current          = pin;
   selectedUserRef.current = selectedUser;
@@ -438,25 +438,41 @@ export default function Login() {
     if (loading) return;
 
     setLoading(true); setError("");
-    await new Promise((r) => setTimeout(r, 440));
 
-    if (currentUser.pin !== currentPin) {
-      setError("الرقم السري غير صحيح");
-      setPin(""); setLoading(false);
-      return;
+    try {
+      const res = await fetch(api("/api/auth/login"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: currentUser.id, pin: currentPin }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || "الرقم السري غير صحيح");
+        setPin(""); setLoading(false);
+        return;
+      }
+
+      const { user: authedUser, token } = await res.json() as {
+        user: { id: number; name: string; username: string; role: string };
+        token: string;
+      };
+
+      /* success exit */
+      animate("#lp-panel", { scale: [1, 1.02, 1], duration: 300, easing: "easeOutCubic" });
+      setTimeout(() =>
+        animate("#lp-panel", {
+          translateX: ["0%", "6%"], opacity: [1, 0], duration: 300, easing: "easeInCubic",
+          onComplete: () => {
+            login(authedUser, token);
+            setLocation("/");
+          },
+        }), 280
+      );
+    } catch {
+      setError("تعذّر الاتصال بالخادم");
+      setLoading(false);
     }
-
-    /* success exit */
-    animate("#lp-panel", { scale: [1, 1.02, 1], duration: 300, easing: "easeOutCubic" });
-    setTimeout(() =>
-      animate("#lp-panel", {
-        translateX: ["0%", "6%"], opacity: [1, 0], duration: 300, easing: "easeInCubic",
-        onComplete: () => {
-          login({ id: currentUser.id, name: currentUser.name, username: currentUser.username, role: currentUser.role });
-          setLocation("/");
-        },
-      }), 280
-    );
   };
 
   /* ══ Render ══════════════════════════════════════════════════ */

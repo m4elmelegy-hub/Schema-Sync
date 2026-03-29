@@ -1,0 +1,51 @@
+I need you to build a complete Role-Based Access Control (RBAC) system for my app.
+
+## Roles Required:
+1. **Admin** - Full access to everything including user management and settings
+2. **Supervisor** - Mid-level access, can view reports and manage agents but cannot change system settings
+3. **Agent (مندوب)** - Limited access, cannot access settings, cannot modify their own role or permissions
+4. **Client** - Read-only access
+
+## Critical Security Requirements:
+- Roles and permissions must be stored and validated on the BACKEND only, never trust the frontend
+- A user must NEVER be able to change their own role or grant themselves higher permissions
+- Settings page must be protected by middleware that checks role server-side
+- Even if someone manipulates the frontend, the backend must reject unauthorized actions
+- Every protected route must verify the user's role from the database, not from localStorage or client state
+
+## What to Build:
+
+### 1. Database Schema
+Create a users table with fields: id, name, email, password_hash, role (enum: admin/supervisor/agent/client), created_at, is_active
+
+### 2. Middleware (protectRoute)
+Create a middleware function that:
+- Reads the user's role from the database on every request
+- Rejects the request if the role doesn't match the required permission
+- Example: protectRoute(['admin']) or protectRoute(['admin', 'supervisor'])
+
+### 3. Protected Routes
+- GET/POST /settings → admin only
+- GET /users → admin, supervisor
+- POST /users → admin only
+- DELETE /users/:id → admin only
+- PATCH /users/:id/role → admin only (no user can change their own role)
+
+### 4. Frontend Guards
+- Hide settings menu for non-admins (UI only, not security)
+- Show "Access Denied" page if a user tries to navigate to a forbidden route
+- Disable role-change dropdown if the logged-in user is viewing their own profile
+
+### 5. Self-Escalation Prevention
+Add this check in the update user endpoint:
+- If req.user.id === req.params.id AND the request tries to change 'role' → reject with 403
+- Only admin can change roles, and they cannot change their own role either
+
+## Tech Stack:
+Use whatever stack is already in this project. If no backend exists yet, use Express.js + better-sqlite3 for simplicity.
+
+## Show me:
+1. The database setup
+2. The middleware code
+3. All protected route examples
+4. A simple login that returns a session/token with the role embedded

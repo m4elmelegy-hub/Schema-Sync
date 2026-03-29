@@ -1,11 +1,13 @@
-import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/layout";
 import { AuthProvider, useAuth } from "@/contexts/auth";
 import { AppSettingsProvider } from "@/contexts/app-settings";
+import { canAccess, type UserRole } from "@/lib/rbac";
 import NotFound from "@/pages/not-found";
+import AccessDenied from "@/pages/access-denied";
 
 import Login from "@/pages/login";
 import Dashboard from "@/pages/dashboard";
@@ -37,41 +39,46 @@ const queryClient = new QueryClient({
   },
 });
 
+function Guard({ path, component: Component }: { path: string; component: React.ComponentType }) {
+  const { user } = useAuth();
+  const role = (user?.role ?? "cashier") as UserRole;
+  if (!canAccess(role, path)) return <AccessDenied />;
+  return <Component />;
+}
+
 function Router() {
   const { user } = useAuth();
-  const [location, setLocation] = useLocation();
+  const [location] = useLocation();
 
   if (!user) {
-    if (location !== "/login") setLocation("/login");
-    return <Login />;
+    return location === "/login" ? <Login /> : <Redirect to="/login" />;
   }
   if (location === "/login") {
-    setLocation("/");
-    return null;
+    return <Redirect to="/" />;
   }
 
   return (
     <AppLayout>
       <Switch>
         <Route path="/" component={Dashboard} />
-        <Route path="/sales" component={Sales} />
-        <Route path="/purchases" component={Purchases} />
-        <Route path="/products" component={Products} />
-        <Route path="/inventory" component={Inventory} />
-        <Route path="/customers" component={Customers} />
-        <Route path="/expenses" component={Expenses} />
-        <Route path="/income" component={Income} />
+        <Route path="/sales">{() => <Guard path="/sales" component={Sales} />}</Route>
+        <Route path="/purchases">{() => <Guard path="/purchases" component={Purchases} />}</Route>
+        <Route path="/products">{() => <Guard path="/products" component={Products} />}</Route>
+        <Route path="/inventory">{() => <Guard path="/inventory" component={Inventory} />}</Route>
+        <Route path="/customers">{() => <Guard path="/customers" component={Customers} />}</Route>
+        <Route path="/expenses">{() => <Guard path="/expenses" component={Expenses} />}</Route>
+        <Route path="/income">{() => <Guard path="/income" component={Income} />}</Route>
         <Route path="/tasks" component={Tasks} />
-        <Route path="/profits" component={Profits} />
-        <Route path="/reports" component={Reports} />
-        <Route path="/settings" component={Settings} />
-        <Route path="/accounts" component={Accounts} />
-        <Route path="/journal-entries" component={JournalEntries} />
-        <Route path="/receipt-vouchers" component={ReceiptVouchers} />
-        <Route path="/deposit-vouchers" component={DepositVouchers} />
-        <Route path="/payment-vouchers" component={PaymentVouchers} />
-        <Route path="/safe-transfers" component={SafeTransfers} />
-        <Route path="/financial-transactions" component={FinancialTransactions} />
+        <Route path="/profits">{() => <Guard path="/profits" component={Profits} />}</Route>
+        <Route path="/reports">{() => <Guard path="/reports" component={Reports} />}</Route>
+        <Route path="/settings">{() => <Guard path="/settings" component={Settings} />}</Route>
+        <Route path="/accounts">{() => <Guard path="/accounts" component={Accounts} />}</Route>
+        <Route path="/journal-entries">{() => <Guard path="/journal-entries" component={JournalEntries} />}</Route>
+        <Route path="/receipt-vouchers">{() => <Guard path="/receipt-vouchers" component={ReceiptVouchers} />}</Route>
+        <Route path="/deposit-vouchers">{() => <Guard path="/deposit-vouchers" component={DepositVouchers} />}</Route>
+        <Route path="/payment-vouchers">{() => <Guard path="/payment-vouchers" component={PaymentVouchers} />}</Route>
+        <Route path="/safe-transfers">{() => <Guard path="/safe-transfers" component={SafeTransfers} />}</Route>
+        <Route path="/financial-transactions">{() => <Guard path="/financial-transactions" component={FinancialTransactions} />}</Route>
         <Route component={NotFound} />
       </Switch>
     </AppLayout>
