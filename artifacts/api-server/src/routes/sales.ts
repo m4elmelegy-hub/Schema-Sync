@@ -177,7 +177,6 @@ router.post("/sales", wrap(async (req, res) => {
         direction: paid_amount > 0 ? "in" : "none",
         description: `فاتورة مبيعات ${invoiceNo}`,
         date: new Date().toISOString().split("T")[0],
-        related_id: newSale.id,
       });
 
       return newSale;

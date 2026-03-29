@@ -1,4 +1,4 @@
-import { pgTable, serial, text, numeric, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, integer, timestamp, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -11,7 +11,11 @@ export const expensesTable = pgTable("expenses", {
   safe_id: integer("safe_id"),
   safe_name: text("safe_name"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index("expenses_safe_id_idx").on(t.safe_id),
+  index("expenses_category_idx").on(t.category),
+  index("expenses_created_at_idx").on(t.created_at),
+]);
 
 export const insertExpenseSchema = createInsertSchema(expensesTable).omit({ id: true, created_at: true });
 export type InsertExpense = z.infer<typeof insertExpenseSchema>;

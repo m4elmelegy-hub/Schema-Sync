@@ -103,7 +103,6 @@ router.post("/suppliers/:id/payment", wrap(async (req, res) => {
     type: "payment",
     amount: String(parsed.data.amount),
     description: parsed.data.description ?? `سند صرف - ${supplier.name}`,
-    related_id: params.data.id,
   });
 
   res.json(CreateSupplierPaymentResponse.parse(formatSupplier(updated)));

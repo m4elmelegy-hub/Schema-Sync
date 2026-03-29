@@ -128,7 +128,6 @@ router.post("/sales-returns", wrap(async (req, res) => {
           direction: "out",
           description: `مرتجع مبيعات نقدي ${return_no}${customer_name ? ` — ${customer_name}` : ""}`,
           date: date ?? new Date().toISOString().split("T")[0],
-          related_id: ret.id,
         });
       }
 

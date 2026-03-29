@@ -123,7 +123,7 @@ artifacts-monorepo/
 - **purchase_items**: same as sale_items but for purchases
 - **expenses**: category, amount, description
 - **income**: source, amount, description
-- **transactions**: type (sale/purchase/expense/income/receipt/payment), amount, description, related_id
+- **transactions**: type (sale/purchase/expense/income/receipt/payment), amount, description, reference_type, reference_id, safe_id, customer_id, direction, date
 
 ### Code Quality
 - All route handlers use `wrap()` from `lib/async-handler` — errors bubble to Express error middleware
@@ -131,6 +131,13 @@ artifacts-monorepo/
 - `inventory.ts` raw SQL results typed via `AuditRow` interface — no `any[]` casts
 - All React Query `queryFn`s check `r.ok` before calling `.json()` — throw on non-2xx
 - `useFirstSafeId` hook includes `safeId` in `useEffect` dependency array — no missing-dep warnings
+
+### Database Health (completed cleanup)
+- **Removed `transactions.related_id`**: deprecated duplicate of `reference_id` (was always set = reference_id, never queried distinctly). Removed from schema + all 12 INSERT call-sites across routes.
+- **Removed `purchases.customer_payment_type`**: unused duplicate of `payment_type` (written once, never read). Removed from schema + purchases route.
+- **21 performance indexes added**: covering all FK columns and high-frequency filter/order columns across every table (transactions, sales, purchases, expenses, income, vouchers, returns, stock_movements, safes, accounts, journal entries, etc.).
+- **11 FK constraints enforced**: `sale_items→sales`, `sale_items→products`, `purchase_items→purchases`, `purchase_items→products`, `sale_return_items→sales_returns`, `sale_return_items→products`, `purchase_return_items→purchase_returns`, `purchase_return_items→products`, `journal_entry_lines→journal_entries`, `journal_entry_lines→accounts`, `stock_movements→products`.
+- Zero orphan records confirmed before adding constraints.
 
 ### API Routes
 - `GET/POST /api/products`, `PUT/DELETE /api/products/:id`

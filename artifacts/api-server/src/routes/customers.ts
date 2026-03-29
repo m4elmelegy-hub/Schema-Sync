@@ -103,7 +103,6 @@ router.post("/customers/:id/receipt", wrap(async (req, res) => {
     type: "receipt",
     amount: String(parsed.data.amount),
     description: parsed.data.description ?? `سند قبض - ${customer.name}`,
-    related_id: params.data.id,
   });
 
   res.json(CreateCustomerReceiptResponse.parse(formatCustomer(updated)));

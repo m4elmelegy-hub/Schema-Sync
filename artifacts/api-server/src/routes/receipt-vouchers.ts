@@ -64,7 +64,6 @@ router.post("/receipt-vouchers", wrap(async (req, res) => {
       direction: "in",
       description: `سند قبض ${voucher_no} — ${customer_name}`,
       date: date ?? new Date().toISOString().split("T")[0],
-      related_id: v.id,
     });
 
     return v;

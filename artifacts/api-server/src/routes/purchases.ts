@@ -72,7 +72,6 @@ router.post("/purchases", wrap(async (req, res) => {
       supplier_id: supplier_id ?? null,
       customer_id: customer_id ?? null,
       customer_name: customer_name ?? null,
-      customer_payment_type: payment_type,
       payment_type,
       total_amount: String(total_amount),
       paid_amount: String(paid_amount),
@@ -152,7 +151,6 @@ router.post("/purchases", wrap(async (req, res) => {
           direction: "out",
           description: `دفع نقدي — فاتورة مشتريات ${invoiceNo}${customer_name ? ` (${customer_name})` : ""}`,
           date: today,
-          related_id: newPurchase.id,
         });
       }
     }
@@ -175,7 +173,6 @@ router.post("/purchases", wrap(async (req, res) => {
           direction: "out",
           description: `مشتريات آجل من ${customer_name ?? "عميل"} — فاتورة ${invoiceNo}`,
           date: today,
-          related_id: newPurchase.id,
         });
       }
     }
@@ -192,7 +189,6 @@ router.post("/purchases", wrap(async (req, res) => {
       direction: "out",
       description: `فاتورة مشتريات ${invoiceNo}${customer_name ? ` — ${customer_name}` : ""}`,
       date: today,
-      related_id: newPurchase.id,
     });
 
     return newPurchase;

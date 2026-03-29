@@ -1,6 +1,7 @@
-import { pgTable, serial, text, numeric, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, integer, timestamp, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { productsTable } from "./products";
 
 export const salesReturnsTable = pgTable("sales_returns", {
   id: serial("id").primaryKey(),
@@ -19,17 +20,24 @@ export const salesReturnsTable = pgTable("sales_returns", {
   reason: text("reason"),
   notes: text("notes"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index("sales_returns_customer_id_idx").on(t.customer_id),
+  index("sales_returns_sale_id_idx").on(t.sale_id),
+  index("sales_returns_created_at_idx").on(t.created_at),
+]);
 
 export const saleReturnItemsTable = pgTable("sale_return_items", {
   id: serial("id").primaryKey(),
-  return_id: integer("return_id").notNull(),
-  product_id: integer("product_id").notNull(),
+  return_id: integer("return_id").notNull().references(() => salesReturnsTable.id),
+  product_id: integer("product_id").notNull().references(() => productsTable.id),
   product_name: text("product_name").notNull(),
   quantity: numeric("quantity", { precision: 12, scale: 3 }).notNull(),
   unit_price: numeric("unit_price", { precision: 12, scale: 2 }).notNull(),
   total_price: numeric("total_price", { precision: 12, scale: 2 }).notNull(),
-});
+}, (t) => [
+  index("sale_return_items_return_id_idx").on(t.return_id),
+  index("sale_return_items_product_id_idx").on(t.product_id),
+]);
 
 export const purchaseReturnsTable = pgTable("purchase_returns", {
   id: serial("id").primaryKey(),
@@ -43,17 +51,24 @@ export const purchaseReturnsTable = pgTable("purchase_returns", {
   reason: text("reason"),
   notes: text("notes"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index("purchase_returns_purchase_id_idx").on(t.purchase_id),
+  index("purchase_returns_customer_id_idx").on(t.customer_id),
+  index("purchase_returns_created_at_idx").on(t.created_at),
+]);
 
 export const purchaseReturnItemsTable = pgTable("purchase_return_items", {
   id: serial("id").primaryKey(),
-  return_id: integer("return_id").notNull(),
-  product_id: integer("product_id").notNull(),
+  return_id: integer("return_id").notNull().references(() => purchaseReturnsTable.id),
+  product_id: integer("product_id").notNull().references(() => productsTable.id),
   product_name: text("product_name").notNull(),
   quantity: numeric("quantity", { precision: 12, scale: 3 }).notNull(),
   unit_price: numeric("unit_price", { precision: 12, scale: 2 }).notNull(),
   total_price: numeric("total_price", { precision: 12, scale: 2 }).notNull(),
-});
+}, (t) => [
+  index("purchase_return_items_return_id_idx").on(t.return_id),
+  index("purchase_return_items_product_id_idx").on(t.product_id),
+]);
 
 export const treasuryVouchersTable = pgTable("treasury_vouchers", {
   id: serial("id").primaryKey(),
@@ -66,7 +81,11 @@ export const treasuryVouchersTable = pgTable("treasury_vouchers", {
   description: text("description").notNull(),
   category: text("category"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index("treasury_vouchers_safe_id_idx").on(t.safe_id),
+  index("treasury_vouchers_type_idx").on(t.type),
+  index("treasury_vouchers_created_at_idx").on(t.created_at),
+]);
 
 export const insertSaleReturnSchema = createInsertSchema(salesReturnsTable).omit({ id: true, created_at: true });
 export const insertPurchaseReturnSchema = createInsertSchema(purchaseReturnsTable).omit({ id: true, created_at: true });

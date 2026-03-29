@@ -1,4 +1,4 @@
-import { pgTable, serial, text, numeric, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, integer, timestamp, index } from "drizzle-orm/pg-core";
 
 export const safesTable = pgTable("safes", {
   id: serial("id").primaryKey(),
@@ -16,7 +16,11 @@ export const safeTransfersTable = pgTable("safe_transfers", {
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
   notes: text("notes"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index("safe_transfers_from_safe_id_idx").on(t.from_safe_id),
+  index("safe_transfers_to_safe_id_idx").on(t.to_safe_id),
+  index("safe_transfers_created_at_idx").on(t.created_at),
+]);
 
 export type Safe = typeof safesTable.$inferSelect;
 export type SafeTransfer = typeof safeTransfersTable.$inferSelect;

@@ -71,7 +71,6 @@ router.post("/deposit-vouchers", wrap(async (req, res) => {
       direction: "in",
       description: desc_,
       date: date ?? new Date().toISOString().split("T")[0],
-      related_id: v.id,
     });
 
     return v;

@@ -50,7 +50,6 @@ router.post("/safe-transfers", wrap(async (req, res) => {
       direction: "out",
       description: `تحويل ${transferRef} → ${toSafe.name}${notes ? ` (${notes})` : ""}`,
       date: txDate,
-      related_id: fromSafe.id,
     });
 
     await tx.insert(transactionsTable).values({
@@ -62,7 +61,6 @@ router.post("/safe-transfers", wrap(async (req, res) => {
       direction: "in",
       description: `تحويل ${transferRef} ← ${fromSafe.name}${notes ? ` (${notes})` : ""}`,
       date: txDate,
-      related_id: toSafe.id,
     });
 
     return { transfer_ref: transferRef, from: fromSafe.name, to: toSafe.name, amount: amt };

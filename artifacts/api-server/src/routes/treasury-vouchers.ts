@@ -58,7 +58,6 @@ router.post("/treasury-vouchers", wrap(async (req, res) => {
       direction: type === "receipt" ? "in" : "out",
       description: `${type === "receipt" ? "سند قبض" : "سند صرف"}: ${description}`,
       date: new Date().toISOString().split("T")[0],
-      related_id: v.id,
     });
     return v;
   });

@@ -48,7 +48,7 @@ router.post("/expenses", wrap(async (req, res) => {
       safe_id: safe?.id ?? null, safe_name: safe?.name ?? null,
       amount: String(amt), direction: safe ? "out" : "none",
       description: parsed.data.description ?? parsed.data.category,
-      date: new Date().toISOString().split("T")[0], related_id: exp.id,
+      date: new Date().toISOString().split("T")[0],
     });
     return exp;
   });

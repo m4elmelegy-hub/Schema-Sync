@@ -47,7 +47,7 @@ router.post("/income", wrap(async (req, res) => {
       safe_id: safe?.id ?? null, safe_name: safe?.name ?? null,
       amount: String(amt), direction: safe ? "in" : "none",
       description: parsed.data.description ?? parsed.data.source,
-      date: new Date().toISOString().split("T")[0], related_id: inc.id,
+      date: new Date().toISOString().split("T")[0],
     });
     return inc;
   });
