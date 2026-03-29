@@ -34,7 +34,7 @@ const NAV_SECTIONS = [
   },
   {
     label: "المالية",
-    paths: ["/profits", "/financial-transactions", "/accounts", "/journal-entries", "/reports", "/expenses", "/income", "/receipt-vouchers", "/deposit-vouchers", "/payment-vouchers", "/safe-transfers"],
+    paths: ["/profits", "/financial-transactions", "/reports", "/expenses", "/income", "/receipt-vouchers", "/deposit-vouchers", "/payment-vouchers", "/safe-transfers"],
   },
   {
     label: "النظام",

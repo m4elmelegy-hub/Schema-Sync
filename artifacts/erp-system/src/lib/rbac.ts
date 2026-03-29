@@ -5,7 +5,7 @@
 import {
   LayoutDashboard, ClipboardList, Receipt, CreditCard,
   Package, Warehouse, Users, TrendingUp, Activity,
-  BookOpen, BookMarked, FileText, Settings,
+  FileText, Settings,
   type LucideIcon,
 } from "lucide-react";
 
@@ -23,9 +23,9 @@ export const ROUTE_ROLES: Record<string, AppRole[]> = {
   "/inventory":              ["admin", "manager", "cashier", "salesperson"],
   "/customers":              ["admin", "manager", "cashier", "salesperson"],
   "/profits":                ["admin", "manager"],
-  "/financial-transactions": ["admin", "manager"],
-  "/accounts":               ["admin", "manager"],
-  "/journal-entries":        ["admin", "manager"],
+  "/financial-transactions": ["admin"],
+  "/accounts":               ["admin"],
+  "/journal-entries":        ["admin"],
   "/reports":                ["admin", "manager"],
   "/expenses":               ["admin", "manager"],
   "/income":                 ["admin", "manager"],
@@ -47,9 +47,7 @@ export const NAV_ITEMS: { name: string; href: string; icon: LucideIcon; roles: A
   { name: "مراجعة المخزون",   href: "/inventory",              icon: Warehouse,       roles: ["admin","manager","cashier","salesperson"] },
   { name: "العملاء",           href: "/customers",              icon: Users,           roles: ["admin","manager","cashier","salesperson"] },
   { name: "الأرباح",           href: "/profits",                icon: TrendingUp,      roles: ["admin","manager"] },
-  { name: "الحركات المالية",   href: "/financial-transactions", icon: Activity,        roles: ["admin","manager"] },
-  { name: "دليل الحسابات",    href: "/accounts",               icon: BookOpen,        roles: ["admin","manager"] },
-  { name: "القيود اليومية",    href: "/journal-entries",        icon: BookMarked,      roles: ["admin","manager"] },
+  { name: "الحركات المالية",   href: "/financial-transactions", icon: Activity,        roles: ["admin"] },
   { name: "التقارير",          href: "/reports",                icon: FileText,        roles: ["admin","manager"] },
   { name: "الإعدادات",         href: "/settings",               icon: Settings,        roles: ["admin"] },
 ];
