@@ -104,11 +104,11 @@ export default function Accounts() {
 
   const { data: accounts = [], isLoading } = useQuery<Account[]>({
     queryKey: ["/api/accounts"],
-    queryFn: () => fetch(api("/api/accounts")).then(r => r.json()),
+    queryFn: () => fetch(api("/api/accounts")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: object) => fetch(api("/api/accounts"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(r => r.json()),
+    mutationFn: (data: object) => fetch(api("/api/accounts"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/accounts"] }); setShowForm(false); setForm({ code: "", name: "", type: "asset", parent_id: "", level: "2", is_posting: true, opening_balance: "" }); toast({ title: "✅ تم إضافة الحساب" }); },
     onError: () => toast({ title: "حدث خطأ", variant: "destructive" }),
   });

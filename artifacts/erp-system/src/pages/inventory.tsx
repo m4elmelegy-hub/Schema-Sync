@@ -84,12 +84,12 @@ export default function Inventory() {
 
   const { data: auditData, isLoading, refetch } = useQuery<{ products: AuditProduct[]; summary: AuditSummary }>({
     queryKey: ["inventory-audit"],
-    queryFn: () => fetch(api("/api/inventory/audit")).then(r => r.json()),
+    queryFn: () => fetch(api("/api/inventory/audit")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
 
   const { data: productDetail } = useQuery<ProductDetail>({
     queryKey: ["inventory-product", selectedProduct],
-    queryFn: () => fetch(api(`/api/inventory/product/${selectedProduct}`)).then(r => r.json()),
+    queryFn: () => fetch(api(`/api/inventory/product/${selectedProduct}`)).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
     enabled: selectedProduct !== null,
   });
 
@@ -99,7 +99,7 @@ export default function Inventory() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ product_id, new_quantity, notes }),
-      }).then(r => r.json()),
+      }).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["inventory-audit"] });
       qc.invalidateQueries({ queryKey: ["inventory-product"] });

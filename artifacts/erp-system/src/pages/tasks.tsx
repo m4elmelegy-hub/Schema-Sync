@@ -29,15 +29,15 @@ export default function Tasks() {
 
   const { data: safes = [] } = useQuery<Safe[]>({
     queryKey: ["/api/settings/safes"],
-    queryFn: () => fetch(api("/api/settings/safes")).then(r => r.json()),
+    queryFn: () => fetch(api("/api/settings/safes")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
   const { data: customers = [] } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],
-    queryFn: () => fetch(api("/api/customers")).then(r => r.json()),
+    queryFn: () => fetch(api("/api/customers")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
   const { data: stats } = useQuery<Record<string, number>>({
     queryKey: ["/api/dashboard/stats"],
-    queryFn: () => fetch(api("/api/dashboard/stats")).then(r => r.json()),
+    queryFn: () => fetch(api("/api/dashboard/stats")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
 
   const goHub = (msg: string) => {
@@ -196,7 +196,7 @@ function useFirstSafeId(safes: Safe[]) {
   const [safeId, setSafeId] = useState("");
   useEffect(() => {
     if (safes.length > 0 && !safeId) setSafeId(String(safes[0].id));
-  }, [safes]);
+  }, [safes, safeId]);
   return [safeId, setSafeId] as const;
 }
 
@@ -568,7 +568,7 @@ function SafeClosingForm({ safes, onSuccess }: { safes: Safe[]; onSuccess: (m: s
     queryKey: ["/api/financial-transactions", safeId, closingDate],
     queryFn: () =>
       safeId
-        ? fetch(api(`/api/financial-transactions?safe_id=${safeId}&from=${closingDate}&to=${closingDate}`)).then(r => r.json())
+        ? fetch(api(`/api/financial-transactions?safe_id=${safeId}&from=${closingDate}&to=${closingDate}`)).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); })
         : Promise.resolve([]),
     enabled: !!safeId,
   });

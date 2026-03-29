@@ -3,6 +3,24 @@ import { eq, sql } from "drizzle-orm";
 import { db, stockMovementsTable, productsTable } from "@workspace/db";
 import { wrap } from "../lib/async-handler";
 
+interface AuditRow {
+  id: unknown;
+  name: unknown;
+  sku: unknown;
+  category: unknown;
+  actual_qty: unknown;
+  cost_price: unknown;
+  sale_price: unknown;
+  low_stock_threshold: unknown;
+  opening_qty: unknown;
+  purchased_qty: unknown;
+  sold_qty: unknown;
+  sale_return_qty: unknown;
+  purchase_return_qty: unknown;
+  adjustment_qty: unknown;
+  calculated_qty: unknown;
+}
+
 const router: IRouter = Router();
 
 function fmtMovement(m: typeof stockMovementsTable.$inferSelect) {
@@ -41,7 +59,7 @@ router.get("/inventory/audit", wrap(async (_req, res) => {
     ORDER BY p.name
   `);
 
-  const products = (rows.rows as any[]).map(r => ({
+  const products = (rows.rows as AuditRow[]).map(r => ({
     id: Number(r.id),
     name: String(r.name),
     sku: r.sku ? String(r.sku) : null,

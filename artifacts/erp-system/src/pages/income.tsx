@@ -17,7 +17,7 @@ interface Income {
 export default function Income() {
   const { data: incomeList = [], isLoading } = useQuery<Income[]>({
     queryKey: ["/api/income"],
-    queryFn: () => fetch(api("/api/income")).then(r => r.json()),
+    queryFn: () => fetch(api("/api/income")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
   const { data: safes = [] } = useGetSettingsSafes();
   const deleteMutation = useDeleteIncome();

@@ -23,11 +23,11 @@ export default function PaymentVouchers() {
   const { data: safes = [] } = useGetSettingsSafes();
   const { data: vouchers = [], isLoading } = useQuery<PaymentVoucher[]>({
     queryKey: ["/api/payment-vouchers"],
-    queryFn: () => fetch(api("/api/payment-vouchers")).then(r => r.json()),
+    queryFn: () => fetch(api("/api/payment-vouchers")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
   const { data: customers = [] } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],
-    queryFn: () => fetch(api("/api/customers")).then(r => r.json()),
+    queryFn: () => fetch(api("/api/customers")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
 
   const [showAdd, setShowAdd] = useState(false);

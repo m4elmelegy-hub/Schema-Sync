@@ -26,14 +26,14 @@ function EntryDetailModal({ entryId, onClose }: { entryId: number; onClose: () =
   const { toast } = useToast();
   const { data: entry, isLoading } = useQuery<JournalEntryDetail>({
     queryKey: ["/api/journal-entries", entryId],
-    queryFn: () => fetch(api(`/api/journal-entries/${entryId}`)).then(r => r.json()),
+    queryFn: () => fetch(api(`/api/journal-entries/${entryId}`)).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
   const postMutation = useMutation({
-    mutationFn: () => fetch(api(`/api/journal-entries/${entryId}/post`), { method: "PATCH" }).then(r => r.json()),
+    mutationFn: () => fetch(api(`/api/journal-entries/${entryId}/post`), { method: "PATCH" }).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/journal-entries"] }); toast({ title: "✅ تم ترحيل القيد" }); onClose(); },
   });
   const deleteMutation = useMutation({
-    mutationFn: () => fetch(api(`/api/journal-entries/${entryId}`), { method: "DELETE" }).then(r => r.json()),
+    mutationFn: () => fetch(api(`/api/journal-entries/${entryId}`), { method: "DELETE" }).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/journal-entries"] }); toast({ title: "🗑 تم الحذف" }); onClose(); },
   });
 
@@ -126,7 +126,7 @@ function NewEntryModal({ onClose }: { onClose: () => void }) {
 
   const { data: accounts = [] } = useQuery<Account[]>({
     queryKey: ["/api/accounts"],
-    queryFn: () => fetch(api("/api/accounts")).then(r => r.json()),
+    queryFn: () => fetch(api("/api/accounts")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
 
   const postingAccounts = accounts.filter(a => a.is_posting);
@@ -239,7 +239,7 @@ export default function JournalEntries() {
 
   const { data: entries = [], isLoading } = useQuery<JournalEntry[]>({
     queryKey: ["/api/journal-entries"],
-    queryFn: () => fetch(api("/api/journal-entries")).then(r => r.json()),
+    queryFn: () => fetch(api("/api/journal-entries")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
 
   const filtered = entries.filter(e => filter === "all" || e.status === filter);

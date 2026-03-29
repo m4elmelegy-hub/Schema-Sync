@@ -206,15 +206,15 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
   const { data: allPurchases = [] } = useGetPurchases();
   const { data: receiptVouchers = [] } = useQuery<ReceiptVoucher[]>({
     queryKey: ["/api/receipt-vouchers"],
-    queryFn: () => fetch(api("/api/receipt-vouchers")).then(r => r.json()),
+    queryFn: () => fetch(api("/api/receipt-vouchers")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
   const { data: paymentVouchers = [] } = useQuery<PaymentVoucher[]>({
     queryKey: ["/api/payment-vouchers"],
-    queryFn: () => fetch(api("/api/payment-vouchers")).then(r => r.json()),
+    queryFn: () => fetch(api("/api/payment-vouchers")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
   const { data: salesReturns = [] } = useQuery<SaleReturn[]>({
     queryKey: ["/api/sales-returns"],
-    queryFn: () => fetch(api("/api/sales-returns")).then(r => r.json()),
+    queryFn: () => fetch(api("/api/sales-returns")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
 
   const sales = allSales.filter(s => s.customer_id === customerId || s.customer_name === customerName);

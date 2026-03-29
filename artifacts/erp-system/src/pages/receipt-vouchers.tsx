@@ -23,11 +23,11 @@ export default function ReceiptVouchers() {
   const { data: safes = [] } = useGetSettingsSafes();
   const { data: vouchers = [], isLoading } = useQuery<ReceiptVoucher[]>({
     queryKey: ["/api/receipt-vouchers"],
-    queryFn: () => fetch(api("/api/receipt-vouchers")).then(r => r.json()),
+    queryFn: () => fetch(api("/api/receipt-vouchers")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
   const { data: customers = [] } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],
-    queryFn: () => fetch(api("/api/customers")).then(r => r.json()),
+    queryFn: () => fetch(api("/api/customers")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
 
   const [showAdd, setShowAdd] = useState(false);

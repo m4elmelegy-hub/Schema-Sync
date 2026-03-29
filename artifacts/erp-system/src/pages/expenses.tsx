@@ -17,7 +17,7 @@ interface Expense {
 export default function Expenses() {
   const { data: expenses = [], isLoading } = useQuery<Expense[]>({
     queryKey: ["/api/expenses"],
-    queryFn: () => fetch(api("/api/expenses")).then(r => r.json()),
+    queryFn: () => fetch(api("/api/expenses")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
   const { data: safes = [] } = useGetSettingsSafes();
   const deleteMutation = useDeleteExpense();

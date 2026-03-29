@@ -24,7 +24,7 @@ function SalesReturnsPanel() {
 
   const { data: returns_ = [], isLoading } = useQuery<SalesReturn[]>({
     queryKey: ["/api/sales-returns"],
-    queryFn: () => fetch(api("/api/sales-returns")).then(r => r.json()),
+    queryFn: () => fetch(api("/api/sales-returns")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
   const { data: products = [] } = useGetProducts();
   const { data: customers = [] } = useGetCustomers();
@@ -508,7 +508,7 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
 
   const { data: warehouses = [] } = useQuery<{ id: number; name: string }[]>({
     queryKey: ["/api/settings/warehouses"],
-    queryFn: () => fetch(api("/api/settings/warehouses")).then(r => r.json()),
+    queryFn: () => fetch(api("/api/settings/warehouses")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
 
   const [search, setSearch] = useState("");

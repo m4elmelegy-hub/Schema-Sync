@@ -20,7 +20,7 @@ export default function SafeTransfers() {
 
   const { data: transfers = [], isLoading } = useQuery<Transfer[]>({
     queryKey: ["/api/safe-transfers"],
-    queryFn: () => fetch(api("/api/safe-transfers")).then(r => r.json()),
+    queryFn: () => fetch(api("/api/safe-transfers")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
 
   const [showAdd, setShowAdd] = useState(false);

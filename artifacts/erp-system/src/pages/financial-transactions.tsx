@@ -42,7 +42,7 @@ export default function FinancialTransactions() {
 
   const { data: transactions = [], isLoading } = useQuery<FinancialTransaction[]>({
     queryKey: ["/api/financial-transactions", qs],
-    queryFn: () => fetch(api(`/api/financial-transactions${qs ? "?" + qs : ""}`)).then(r => r.json()),
+    queryFn: () => fetch(api(`/api/financial-transactions${qs ? "?" + qs : ""}`)).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
 
   const totalIn = transactions.filter(t => t.direction === "in").reduce((s, t) => s + t.amount, 0);

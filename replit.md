@@ -125,6 +125,13 @@ artifacts-monorepo/
 - **income**: source, amount, description
 - **transactions**: type (sale/purchase/expense/income/receipt/payment), amount, description, related_id
 
+### Code Quality
+- All route handlers use `wrap()` from `lib/async-handler` — errors bubble to Express error middleware
+- All validation errors use `httpError(status, message)` — never raw `try/catch` in route handlers
+- `inventory.ts` raw SQL results typed via `AuditRow` interface — no `any[]` casts
+- All React Query `queryFn`s check `r.ok` before calling `.json()` — throw on non-2xx
+- `useFirstSafeId` hook includes `safeId` in `useEffect` dependency array — no missing-dep warnings
+
 ### API Routes
 - `GET/POST /api/products`, `PUT/DELETE /api/products/:id`
 - `GET/POST /api/customers`, `PUT/DELETE /api/customers/:id`, `POST /api/customers/:id/receipt`
