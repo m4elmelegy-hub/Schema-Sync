@@ -1,0 +1,59 @@
+You are now in STRICT PRODUCTION MODE.
+No shortcuts. No mock data. No placeholders.
+
+TASK: Add premium UX polish to the entire app.
+Do NOT change any business logic or API routes.
+
+Steps:
+1. Loading Skeletons (replace ALL spinners/blank states):
+   - Products list → skeleton cards
+   - Sales list → skeleton table rows
+   - Purchases list → skeleton table rows
+   - Dashboard stats → skeleton number blocks
+   - Any page that fetches data → skeleton while loading
+   Use consistent SkeletonCard and SkeletonRow components
+
+2. Toast Notifications (use existing Sonner):
+   Every action must show a toast:
+   ✅ Create: "تم الإنشاء بنجاح"
+   ✅ Update: "تم التحديث بنجاح"  
+   ✅ Delete: "تم الحذف بنجاح"
+   ❌ Error: show the Arabic error message from backend
+   All toasts: position bottom-right, duration 3000ms
+
+3. Hover Effects on all interactive elements:
+   - Table rows: subtle background highlight on hover
+   - Cards: translateY(-2px) + shadow increase
+   - Buttons: scale(1.02) on hover, scale(0.98) on click
+   - Sidebar items: smooth background transition
+   Use Tailwind transition-all duration-200
+
+4. Page Transitions:
+   - Every page mount: fade in (opacity 0→1, 200ms)
+   - Modal open/close: scale + fade animation
+   - Tab switching: slide transition
+   Use Framer Motion (already installed)
+
+5. Empty States (every list that can be empty):
+   - Icon (relevant to the section)
+   - Arabic title: "لا توجد [items] بعد"
+   - Arabic subtitle: helpful hint
+   - CTA button to add first item
+
+6. Button Loading States:
+   - Every submit button shows spinner while request is pending
+   - Button disabled during loading (prevent double submit)
+   - Text changes: "جاري الحفظ..." during load
+
+7. Confirm Delete Modals (replace all browser confirms):
+   - Modal with: warning icon + item name + Cancel + Delete buttons
+   - Delete button: red, requires single click (no countdown unless dangerous)
+   - Dangerous deletes (full reset): 5-second countdown
+
+Output required:
+- List of every component modified
+- Confirm every list page has skeleton
+- Confirm every action has toast
+- Confirm no browser alert() or confirm() remains
+
+FAIL if any list lacks skeleton or any action lacks toast.

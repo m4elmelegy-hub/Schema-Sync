@@ -28,10 +28,27 @@ export default function Dashboard() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-2 border-amber-500/60 border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm" style={{ color: "rgba(255,255,255,0.40)" }}>جاري تحميل البيانات...</p>
+      <div className="space-y-5 animate-pulse">
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="glass-panel rounded-2xl p-5 space-y-3 border border-white/5">
+              <div className="flex justify-between items-start">
+                <div className="h-4 w-24 rounded-lg bg-white/6" />
+                <div className="h-9 w-9 rounded-xl bg-white/6" />
+              </div>
+              <div className="h-8 w-32 rounded-xl bg-white/8" />
+              <div className="h-3 w-16 rounded-lg bg-white/4" />
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="glass-panel rounded-2xl p-5 h-20 bg-white/4 border border-white/5" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 glass-panel rounded-2xl h-64 bg-white/4 border border-white/5" />
+          <div className="glass-panel rounded-2xl h-64 bg-white/4 border border-white/5" />
         </div>
       </div>
     );

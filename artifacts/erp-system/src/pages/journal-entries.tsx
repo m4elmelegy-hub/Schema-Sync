@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { Plus, X, Trash2, CheckCircle, AlertCircle } from "lucide-react";
+import { Plus, X, Trash2, CheckCircle, AlertCircle, BookOpen } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TableSkeleton } from "@/components/skeletons";
+import { ConfirmModal } from "@/components/confirm-modal";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
@@ -25,6 +26,7 @@ function StatusBadge({ status }: { status: string }) {
 function EntryDetailModal({ entryId, onClose }: { entryId: number; onClose: () => void }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const { data: entry, isLoading } = useQuery<JournalEntryDetail>({
     queryKey: ["/api/journal-entries", entryId],
     queryFn: () => fetch(api(`/api/journal-entries/${entryId}`)).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
@@ -39,6 +41,16 @@ function EntryDetailModal({ entryId, onClose }: { entryId: number; onClose: () =
   });
 
   return (
+    <>
+    {showConfirmDelete && (
+      <ConfirmModal
+        title="حذف القيد"
+        description="سيتم حذف هذا القيد المحاسبي نهائياً. لا يمكن التراجع عن هذا الإجراء."
+        isPending={deleteMutation.isPending}
+        onConfirm={() => deleteMutation.mutate()}
+        onCancel={() => setShowConfirmDelete(false)}
+      />
+    )}
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm modal-overlay">
       <div className="glass-panel rounded-3xl p-0 w-full max-w-3xl border border-white/10 shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex justify-between items-center p-6 border-b border-white/10 bg-white/5">
@@ -52,7 +64,7 @@ function EntryDetailModal({ entryId, onClose }: { entryId: number; onClose: () =
                 <button onClick={() => postMutation.mutate()} disabled={postMutation.isPending} className="px-4 py-2 rounded-xl bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 text-sm font-bold border border-emerald-500/30 transition-colors">
                   {postMutation.isPending ? "..." : "ترحيل القيد"}
                 </button>
-                <button onClick={() => { if (confirm("حذف القيد؟")) deleteMutation.mutate(); }} className="p-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400">
+                <button onClick={() => setShowConfirmDelete(true)} className="p-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </>
@@ -113,6 +125,7 @@ function EntryDetailModal({ entryId, onClose }: { entryId: number; onClose: () =
         </div>
       </div>
     </div>
+    </>
   );
 }
 

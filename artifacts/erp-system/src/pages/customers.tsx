@@ -203,6 +203,7 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
   customerBalance: number;
   onClose: () => void;
 }) {
+  const { toast } = useToast();
   const { data: allSales = [] } = useGetSales();
   const { data: allPurchases = [] } = useGetPurchases();
   const { data: receiptVouchers = [] } = useQuery<ReceiptVoucher[]>({
@@ -272,7 +273,7 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
   };
 
   const handleWhatsApp = () => {
-    if (!customerPhone) { alert("لا يوجد رقم هاتف لهذا العميل"); return; }
+    if (!customerPhone) { toast({ title: "لا يوجد رقم هاتف لهذا العميل", variant: "destructive" }); return; }
     openWhatsApp(customerPhone, customerName, customerBalance, rowsWithBalance.length);
   };
 

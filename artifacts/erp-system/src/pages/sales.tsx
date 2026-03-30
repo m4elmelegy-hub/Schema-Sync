@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth";
 import { TableSkeleton } from "@/components/skeletons";
+import { ConfirmModal } from "@/components/confirm-modal";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
@@ -20,6 +21,7 @@ function SalesReturnsPanel() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const resetForm = () => setForm({ customer_id: "", reason: "", item_id: "", quantity: "1", unit_price: "", refund_type: "credit", safe_id: "", date: new Date().toISOString().split("T")[0] });
   const [form, setForm] = useState({ customer_id: "", reason: "", item_id: "", quantity: "1", unit_price: "", refund_type: "credit", safe_id: "", date: new Date().toISOString().split("T")[0] });
 
@@ -87,6 +89,15 @@ function SalesReturnsPanel() {
 
   return (
     <div className="space-y-4">
+      {confirmDeleteId !== null && (
+        <ConfirmModal
+          title="حذف مرتجع مبيعات"
+          description="سيتم حذف المرتجع وعكس تأثيره على رصيد العميل والمخزون نهائياً."
+          isPending={deleteMutation.isPending}
+          onConfirm={() => deleteMutation.mutate(confirmDeleteId, { onSuccess: () => setConfirmDeleteId(null) })}
+          onCancel={() => setConfirmDeleteId(null)}
+        />
+      )}
       <div className="flex gap-3 items-center justify-between">
         {totalReturns > 0 && (
           <div className="glass-panel rounded-2xl px-5 py-2 border border-orange-500/20 bg-orange-500/5 text-sm">
@@ -240,7 +251,7 @@ function SalesReturnsPanel() {
                   </td>
                   <td className="p-4 text-white/50">{r.reason || "—"}</td>
                   <td className="p-4 text-white/40 text-xs">{r.date || formatDate(r.created_at)}</td>
-                  <td className="p-4"><button onClick={() => { if (confirm("حذف المرتجع وعكس تأثيره على الرصيد والمخزون؟")) deleteMutation.mutate(r.id); }} className="p-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400"><Trash2 className="w-3.5 h-3.5" /></button></td>
+                  <td className="p-4"><button onClick={() => setConfirmDeleteId(r.id)} className="p-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400"><Trash2 className="w-3.5 h-3.5" /></button></td>
                 </tr>
               ))}
             </tbody>

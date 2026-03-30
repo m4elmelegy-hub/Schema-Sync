@@ -5,6 +5,7 @@ import { Search, Plus, Minus, Trash2, ShoppingBag, Package, User, Vault, AlertTr
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { TableSkeleton } from "@/components/skeletons";
+import { ConfirmModal } from "@/components/confirm-modal";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -306,6 +307,7 @@ function ProductsPanel() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [showAdd, setShowAdd] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState("");
   const [formData, setFormData] = useState({ name: "", sku: "", category: "", quantity: 0, cost_price: 0, sale_price: 0, low_stock_threshold: 5 });
@@ -336,6 +338,15 @@ function ProductsPanel() {
 
   return (
     <div className="space-y-4">
+      {confirmDeleteId !== null && (
+        <ConfirmModal
+          title="حذف منتج"
+          description="سيتم حذف المنتج نهائياً من قاعدة البيانات."
+          isPending={deleteMutation.isPending}
+          onConfirm={() => deleteMutation.mutate({ id: confirmDeleteId }, { onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/products"] }); setConfirmDeleteId(null); } })}
+          onCancel={() => setConfirmDeleteId(null)}
+        />
+      )}
       <div className="flex flex-wrap gap-3 items-center justify-between">
         <div className="flex gap-2 flex-wrap">
           <div className="relative">
@@ -419,7 +430,7 @@ function ProductsPanel() {
                           </span>
                         </td>
                         <td className="p-3">
-                          <button onClick={() => { if (confirm('حذف؟')) deleteMutation.mutate({ id: product.id }, { onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/products"] }) }); }} className="text-red-400 hover:text-red-300 p-1">
+                          <button onClick={() => setConfirmDeleteId(product.id)} className="text-red-400 hover:text-red-300 p-1">
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </td>

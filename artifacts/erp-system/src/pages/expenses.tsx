@@ -2,9 +2,10 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useDeleteExpense, useGetSettingsSafes } from "@workspace/api-client-react";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, ReceiptText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TableSkeleton } from "@/components/skeletons";
+import { ConfirmModal } from "@/components/confirm-modal";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
@@ -27,6 +28,7 @@ export default function Expenses() {
 
   const [showAdd, setShowAdd] = useState(false);
   const [formData, setFormData] = useState({ category: "", amount: "", description: "", safe_id: "" });
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
   const createMutation = useMutation({
     mutationFn: async (body: Record<string, unknown>) => {
@@ -54,20 +56,32 @@ export default function Expenses() {
   };
 
   const handleDelete = (id: number) => {
-    if (confirm("هل أنت متأكد من حذف هذا المصروف؟")) {
-      deleteMutation.mutate({ id }, {
-        onSuccess: () => {
-          toast({ title: "تم الحذف بنجاح" });
-          queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
-          queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
-          queryClient.invalidateQueries({ queryKey: ["/api/settings/safes"] });
-        }
-      });
-    }
+    deleteMutation.mutate({ id }, {
+      onSuccess: () => {
+        toast({ title: "تم حذف المصروف بنجاح" });
+        queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/settings/safes"] });
+        setConfirmDeleteId(null);
+      },
+      onError: (e: Error) => {
+        toast({ title: e.message, variant: "destructive" });
+        setConfirmDeleteId(null);
+      },
+    });
   };
 
   return (
     <div className="space-y-6">
+      {confirmDeleteId !== null && (
+        <ConfirmModal
+          title="حذف المصروف"
+          description="هل أنت متأكد من حذف هذا المصروف؟ سيتم عكس الحركة من الخزينة."
+          isPending={deleteMutation.isPending}
+          onConfirm={() => handleDelete(confirmDeleteId)}
+          onCancel={() => setConfirmDeleteId(null)}
+        />
+      )}
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-bold text-white">إدارة المصروفات</h2>
         <button onClick={() => setShowAdd(true)} className="btn-primary flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold">
@@ -133,7 +147,7 @@ export default function Expenses() {
                     <td className="p-4 text-white/70">{exp.description || '-'}</td>
                     <td className="p-4 text-sm text-white/60">{formatDate(exp.created_at)}</td>
                     <td className="p-4">
-                      <button onClick={() => handleDelete(exp.id)} className="btn-icon btn-icon-danger">
+                      <button onClick={() => setConfirmDeleteId(exp.id)} className="btn-icon btn-icon-danger">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </td>

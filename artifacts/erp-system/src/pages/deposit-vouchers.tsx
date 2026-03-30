@@ -5,6 +5,7 @@ import { formatCurrency } from "@/lib/format";
 import { Plus, Trash2, ArrowDownToLine } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TableSkeleton } from "@/components/skeletons";
+import { ConfirmModal } from "@/components/confirm-modal";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
@@ -32,6 +33,7 @@ export default function DepositVouchers() {
   });
 
   const [showAdd, setShowAdd] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState({
     customer_id: "", safe_id: "", amount: "", notes: "",
     date: new Date().toISOString().split("T")[0],
@@ -88,6 +90,15 @@ export default function DepositVouchers() {
 
   return (
     <div className="space-y-6">
+      {confirmDeleteId !== null && (
+        <ConfirmModal
+          title="حذف سند التوريد"
+          description="سيتم حذف السند وعكس المبلغ من الخزينة ورصيد العميل."
+          isPending={deleteMutation.isPending}
+          onConfirm={() => deleteMutation.mutate(confirmDeleteId, { onSuccess: () => setConfirmDeleteId(null) })}
+          onCancel={() => setConfirmDeleteId(null)}
+        />
+      )}
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-3">
           <ArrowDownToLine className="w-6 h-6 text-blue-400" />
@@ -169,7 +180,7 @@ export default function DepositVouchers() {
                   <td className="p-4 text-sm text-white/60">{v.date}</td>
                   <td className="p-4 text-white/50 text-sm">{v.notes || '-'}</td>
                   <td className="p-4">
-                    <button onClick={() => { if (confirm("حذف هذا السند؟")) deleteMutation.mutate(v.id); }}
+                    <button onClick={() => setConfirmDeleteId(v.id)}
                       className="btn-icon btn-icon-danger">
                       <Trash2 className="w-4 h-4" />
                     </button>

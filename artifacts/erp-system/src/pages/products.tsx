@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useGetProducts, useCreateProduct, useDeleteProduct } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
-import { Plus, Search, Trash2, AlertTriangle, Pencil, X, FileDown } from "lucide-react";
+import { Plus, Search, Trash2, AlertTriangle, Pencil, X, FileDown, Package } from "lucide-react";
 import { exportProductsExcel } from "@/lib/export-excel";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { TableSkeleton } from "@/components/skeletons";
+import { ConfirmModal } from "@/components/confirm-modal";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
@@ -130,6 +131,7 @@ export default function Products() {
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [editProduct, setEditProduct] = useState<(ProductForm & { id: number }) | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: ProductForm }) => {
@@ -168,14 +170,17 @@ export default function Products() {
   };
 
   const handleDelete = (id: number) => {
-    if (confirm("هل أنت متأكد من حذف المنتج؟")) {
-      deleteMutation.mutate({ id }, {
-        onSuccess: () => {
-          toast({ title: "تم الحذف بنجاح" });
-          queryClient.invalidateQueries({ queryKey: ["/api/products"] });
-        }
-      });
-    }
+    deleteMutation.mutate({ id }, {
+      onSuccess: () => {
+        toast({ title: "تم حذف المنتج بنجاح" });
+        queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+        setConfirmDeleteId(null);
+      },
+      onError: (e: Error) => {
+        toast({ title: e.message, variant: "destructive" });
+        setConfirmDeleteId(null);
+      },
+    });
   };
 
   const openEdit = (product: typeof products[0]) => {
@@ -222,6 +227,16 @@ export default function Products() {
         />
       )}
 
+      {confirmDeleteId !== null && (
+        <ConfirmModal
+          title="حذف المنتج"
+          description="هل أنت متأكد؟ سيتم حذف المنتج نهائياً ولا يمكن التراجع."
+          isPending={deleteMutation.isPending}
+          onConfirm={() => handleDelete(confirmDeleteId)}
+          onCancel={() => setConfirmDeleteId(null)}
+        />
+      )}
+
       {/* نافذة التعديل */}
       {editProduct && (
         <ProductModal
@@ -253,7 +268,13 @@ export default function Products() {
               {isLoading ? (
                 <TableSkeleton cols={8} rows={6} />
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={8} className="p-12 text-center text-white/40">لا توجد منتجات</td></tr>
+                <tr>
+                  <td colSpan={8} className="p-14 text-center">
+                    <Package className="w-10 h-10 text-white/20 mx-auto mb-3" />
+                    <p className="text-white/40 font-bold">لا توجد منتجات بعد</p>
+                    <p className="text-white/20 text-sm mt-1">{search ? "جرب كلمة بحث مختلفة" : "اضغط «إضافة منتج» لإضافة أول منتج"}</p>
+                  </td>
+                </tr>
               ) : (
                 filtered.map(product => {
                   const isLow = product.low_stock_threshold !== null && product.quantity <= (product.low_stock_threshold ?? 5);
@@ -298,7 +319,7 @@ export default function Products() {
                             تعديل
                           </button>
                           <button
-                            onClick={() => handleDelete(product.id)}
+                            onClick={() => setConfirmDeleteId(product.id)}
                             title="حذف المنتج"
                             className="p-2 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-400/10 transition-colors"
                           >
