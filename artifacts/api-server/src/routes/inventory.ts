@@ -59,7 +59,7 @@ router.get("/inventory/audit", wrap(async (_req, res) => {
     ORDER BY p.name
   `);
 
-  const products = (rows.rows as AuditRow[]).map(r => ({
+  const products = (rows.rows as unknown as AuditRow[]).map(r => ({
     id: Number(r.id),
     name: String(r.name),
     sku: r.sku ? String(r.sku) : null,

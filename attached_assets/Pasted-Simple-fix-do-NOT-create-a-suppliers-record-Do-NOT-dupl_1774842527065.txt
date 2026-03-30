@@ -1,0 +1,69 @@
+Simple fix — do NOT create a suppliers record.
+Do NOT duplicate any data.
+
+TASK: Add supplier capability to existing customers only.
+
+## 1. Database:
+Add ONE column to customers table:
+  is_supplier BOOLEAN DEFAULT false
+
+No new tables. No foreign keys. No linking.
+
+## 2. Customer Form:
+Add a single toggle at the bottom:
+  "يمكن الشراء منه أيضاً 🔄"
+  Default: OFF
+  
+When ON: customer can appear in purchase invoices
+When OFF: only appears in sales
+
+## 3. Purchases Form — Party Selector:
+Change supplier dropdown to search:
+  - All existing suppliers (suppliers table)
+  - All customers WHERE is_supplier = true
+  
+Show them in same dropdown with a small badge:
+  • محمد علي  [عميل-مورد]
+  • شركة النور [مورد]
+
+When a customer (is_supplier=true) is selected in purchase:
+  → save purchase with customer_id (not supplier_id)
+  → supplier_name = customer name
+  → mark transaction with party_type = 'customer'
+
+## 4. Customer Statement (existing /api/customers/:id/statement):
+If customer.is_supplier = true, ALSO include in statement:
+  - Their purchases (where customer_id = this customer)
+  - Running balance combining sales AND purchases
+
+Balance logic:
+  + sale amount → customer owes us
+  - purchase amount → we owe customer
+  = net balance (positive = they owe us, negative = we owe them)
+
+Show net balance clearly:
+  "له علينا 4,000 ج.م" (red) 
+  OR "عليه لنا 1,000 ج.م" (green)
+
+## 5. Customer List:
+- Normal customers: no badge
+- is_supplier=true customers: small badge "عميل-مورد" in blue
+
+## 6. Reports:
+- Customer reports: show ALL customers (including is_supplier ones)
+- Supplier reports: show ONLY suppliers table (unchanged)
+- is_supplier customers never appear in supplier reports
+
+## Rules:
+- No changes to suppliers table
+- No new pages
+- No duplicate records
+- Only modify: customer form, purchase form party selector,
+  customer statement API, customer list badge
+
+Show me:
+1. Migration (add is_supplier column)
+2. Updated customer form toggle
+3. Updated purchase party selector
+4. Updated statement API with combined balance
+5. Customer list badge

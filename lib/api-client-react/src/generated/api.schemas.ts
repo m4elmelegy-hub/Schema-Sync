@@ -41,6 +41,7 @@ export interface Customer {
   name: string;
   phone?: string | null;
   balance: number;
+  linked_supplier_id?: number | null;
   created_at: string;
 }
 
@@ -48,6 +49,7 @@ export interface CreateCustomerInput {
   name: string;
   phone?: string | null;
   balance?: number;
+  linked_supplier_id?: number | null;
 }
 
 export interface Supplier {
@@ -55,6 +57,7 @@ export interface Supplier {
   name: string;
   phone?: string | null;
   balance: number;
+  linked_customer_id?: number | null;
   created_at: string;
 }
 
@@ -62,6 +65,7 @@ export interface CreateSupplierInput {
   name: string;
   phone?: string | null;
   balance?: number;
+  linked_customer_id?: number | null;
 }
 
 export interface VoucherInput {

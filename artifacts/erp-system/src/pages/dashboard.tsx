@@ -192,7 +192,7 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="space-y-2">
-                {stats.low_stock_products.slice(0, 4).map((prod: { id: number; name: string; quantity: number; sku?: string }) => (
+                {stats.low_stock_products.slice(0, 4).map((prod) => (
                   <div key={prod.id} className="flex items-center justify-between py-1.5">
                     <div className="flex items-center gap-2 min-w-0">
                       <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#f59e0b" }} />
