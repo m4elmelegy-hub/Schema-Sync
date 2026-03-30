@@ -1,0 +1,243 @@
+Redesign the entire Settings page with a professional 
+SaaS-grade UI. The system uses React + Tailwind + Radix UI.
+
+Current pages to redesign (all under /settings):
+1. المستخدمون - Users Management
+2. الخزائن - Safes Management  
+3. المخازن - Warehouses
+4. أول المدة - Opening Balance
+5. العملة - Currency & Numbers
+6. نسخ احتياطي - Backup & Import
+7. البيانات - Data Management
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GLOBAL DESIGN SYSTEM (apply to ALL pages)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Color Palette:
+- Background: #0A0F1E (deep navy)
+- Surface cards: #111827 with border: 1px solid #1F2937
+- Elevated cards: #1A2235
+- Primary accent: #F59E0B (amber/gold)
+- Secondary accent: #3B82F6 (blue)
+- Success: #10B981
+- Danger: #EF4444
+- Text primary: #F9FAFB
+- Text muted: #6B7280
+
+Typography:
+- All Arabic text: font-family Cairo or Tajawal
+- Section titles: 18px bold
+- Labels: 13px medium, color #9CA3AF
+- Values: 15px semibold
+
+Cards:
+- border-radius: 16px
+- padding: 24px
+- box-shadow: 0 4px 24px rgba(0,0,0,0.4)
+- hover: border-color transitions to accent color
+
+Buttons:
+- Primary: amber gradient bg-gradient-to-r from-amber-500 to-amber-600
+  hover: scale(1.02) + glow shadow
+- Danger: bg-red-600 with confirmation modal (never inline)
+- Secondary: transparent with border
+- All buttons: rounded-xl, font-semibold, transition-all duration-200
+
+Tabs (Settings navigation):
+- Replace current tab bar with a LEFT sidebar navigation
+- Each tab: icon + Arabic label + active indicator (amber left border)
+- Sidebar width: 220px, background: #0D1424
+- Active tab: bg-amber-500/10, border-left: 3px solid #F59E0B
+- Icons: use Lucide icons matching each section
+
+Forms:
+- Inputs: bg-#1A2235, border: 1px solid #2D3748
+- Focus: border-amber-500 + subtle amber glow ring
+- Labels: above input, 12px uppercase tracking-wide
+- Selects: custom styled dropdown, not native
+
+Modals (for add/edit/delete):
+- Backdrop blur: backdrop-blur-sm bg-black/60
+- Modal card: bg-#111827, rounded-2xl, max-w-lg
+- Header: icon + title + close X button
+- Footer: Cancel (gray) + Confirm (primary/danger) buttons
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PAGE 1: إدارة المستخدمين
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Current: Basic table with orange add button, simple badges
+
+Redesign:
+- Page header: title + subtitle + "إضافة مستخدم" button (top right)
+- Users displayed as CARDS (not table rows):
+  Each card shows:
+  • Avatar circle with initials (colored by role)
+  • Name (large) + username (muted below)
+  • Role badge: مدير النظام=red, مندوب=blue, مشرف=purple
+  • Status toggle (active/inactive) - styled pill toggle
+  • Bottom: Edit icon button + Delete icon button (with confirm modal)
+- Add User Modal:
+  • Name, Username, PIN (with show/hide toggle + strength indicator)
+  • Role dropdown with icon per role
+  • Permissions section: grid of toggleable permission chips
+  • Active toggle
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PAGE 2: إدارة الخزائن
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Current: Two cards showing safe name + balance
+
+Redesign:
+- Summary bar at top: total balance across all safes (large amber number)
+- Safe cards in grid (2-3 per row):
+  Each card:
+  • Safe icon (🏛️) + name
+  • Balance: large number in amber
+  • Mini chart or progress bar showing % of total
+  • "تحويل" button per card
+  • Edit/Delete actions (hover reveal)
+- Transfer Modal:
+  • From safe (dropdown) → To safe (dropdown)
+  • Amount input with available balance shown below
+  • Notes field
+  • Animated arrow between the two safes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PAGE 3: إدارة المخازن
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Current: Empty state "لا توجد مخازن"
+
+Redesign empty state:
+- Centered illustration (warehouse SVG icon, large, muted)
+- Title: "لا توجد مخازن بعد"
+- Subtitle: "أضف مخزنك الأول لتنظيم المنتجات والمخزون"
+- Large CTA button: "+ إضافة أول مخزن"
+
+When warehouses exist — show as cards:
+- Warehouse icon + name + address
+- Product count badge
+- Edit/Delete actions
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PAGE 4: أول المدة - Opening Balance
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Current: Basic form with tabs (Safes/Products/Customers/Suppliers)
+
+Redesign:
+- Top info banner (amber): explain what opening balance is in simple words
+- 4 tab pills (not full-width tabs):
+  🏛️ الخزائن | 📦 المنتجات | 👥 العملاء | 🚚 الموردين
+- Each tab content in a card:
+
+  Safes tab:
+  • For each safe: show name + current balance (readonly)
+  • Input field next to each: "الرصيد الافتتاحي"
+  • Status badge: ✅ مسجل / ⏳ لم يُسجل بعد
+
+  Products tab:
+  • Search bar to filter products
+  • Table: Product | Current Qty | Opening Qty | Opening Cost | Action
+  • Inline edit per row (not modal)
+  • Bulk import button for multiple products
+
+  Customers/Suppliers tabs:
+  • Similar table with balance input per entity
+
+- Registered entries section at bottom:
+  • Timeline-style list of all recorded opening entries
+  • Date + type + amount + user who added it
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PAGE 5: العملة والأرقام
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Current: Two dropdowns + preview + save button (already decent)
+
+Enhance:
+- Make it a two-column layout (desktop)
+- Left: Currency selector as styled cards (not dropdown):
+  Each currency option = a selectable card with flag + code + name
+  Selected: amber border + checkmark
+- Right: Number format selector as two option cards:
+  • 1,234.56 (Western) 
+  • ١٬٢٣٤٫٥٦ (Arabic-Indic)
+- Live preview section (bottom):
+  Show 4 sample amounts formatted in selected style
+  Updates instantly on change
+- Save button: full-width amber gradient
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PAGE 6: النسخ الاحتياطية والاستيراد
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Current: Checkboxes grid + backup button + import section
+
+Redesign:
+- Two-column layout: Backup (right) | Import (left)
+
+Backup column:
+- Module selection as toggle cards (not checkboxes):
+  Each module: icon + name + description + toggle switch
+  Selected modules: amber border + checkmark overlay
+- Schedule bar: بدون | يومياً | أسبوعياً | شهرياً
+  (pill selector, amber = active)
+- Backup button: large, full-width, amber gradient
+  Shows: "إنشاء نسخة احتياطية شاملة (7 وحدات)"
+- Last backup info: small card showing date/time/size
+
+Import column:
+- Sub-tabs: 📦 أصناف | 🛒 مشتريات
+- Drop zone (dashed border, dashed amber on hover):
+  "اسحب ملف Excel هنا أو انقر للاختيار"
+  Accepted: .xlsx, .xls, .csv
+- After upload: preview table with validation highlights
+- Download template button: outlined, with Excel icon
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PAGE 7: إدارة البيانات
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Current: Checkboxes for selective delete + full reset with confirm
+
+This page is DANGEROUS — redesign to prevent accidents:
+
+- Add a red banner at top:
+  "⚠️ منطقة خطر — العمليات في هذه الصفحة لا يمكن التراجع عنها"
+
+- Selective delete section:
+  • Module cards with checkboxes — RED border when selected
+  • Counter: "تم تحديد 3 وحدات للحذف"
+  • Delete button: only appears after selecting at least 1
+  • Requires typing "تأكيد الحذف" in input
+  • Two-step confirm modal with countdown (5 seconds before button enables)
+
+- Full Reset section:
+  • Separated visually with a thick red divider
+  • Collapsed by default — click to expand
+  • Inside: explain exactly what will be deleted
+  • Requires typing "تأكيد الحذف الكامل" 
+  • 10-second countdown before button enables
+  • Button text: "مسح قاعدة البيانات نهائياً"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GLOBAL MICRO-INTERACTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- All cards: hover lift (translateY(-2px) + shadow increase)
+- Buttons: scale(0.98) on click
+- Success actions: green checkmark animation (using framer-motion)
+- Delete confirm modals: shake animation if wrong text entered
+- Page transitions: fade-in (opacity 0→1, duration 200ms)
+- Toast notifications: bottom-right, with icon + colored left border
+- Loading states: skeleton screens (not spinners) for tables/cards
+- Empty states: always show an icon + helpful message + CTA button
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IMPLEMENTATION ORDER:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. First: implement the global design system (colors, tokens, 
+   shared components: Card, Button, Modal, Input, Badge, Toggle)
+2. Then: replace Settings sidebar tabs
+3. Then: redesign each page in order 1→7
+4. Finally: add micro-interactions
+
+Do NOT change any backend logic or API routes.
+Only redesign the frontend components.
+Preserve all existing functionality — only improve the UI.

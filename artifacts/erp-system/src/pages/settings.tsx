@@ -19,6 +19,7 @@ import {
   ArrowLeftRight, Eye, EyeOff, Save, Palette, DollarSign, Database,
   Upload, Download, RefreshCcw, Building2, Image, Type, Loader2, CheckCircle2,
   HardDrive, History, BookOpen, Package, UserCircle, Truck, Banknote,
+  ChevronDown, ChevronRight, Shield,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -27,22 +28,42 @@ const api = (p: string) => `${BASE}${p}`;
 
 type Tab = "users" | "safes" | "warehouses" | "appearance" | "currency" | "backup" | "data" | "opening-balance";
 
-const TABS: { id: Tab; label: string; icon: React.FC<{ className?: string }> }[] = [
-  { id: "users",           label: "المستخدمون",     icon: Users },
-  { id: "safes",           label: "الخزائن",        icon: Landmark },
-  { id: "warehouses",      label: "المخازن",        icon: Warehouse },
-  { id: "opening-balance", label: "أول المدة",      icon: BookOpen },
-  { id: "appearance",      label: "الواجهة",        icon: Palette },
-  { id: "currency",        label: "العملة",         icon: DollarSign },
-  { id: "backup",          label: "نسخ احتياطي",    icon: HardDrive },
-  { id: "data",            label: "البيانات",       icon: Database },
+const TAB_SECTIONS: { section: string; tabs: { id: Tab; label: string; icon: React.FC<{ className?: string }> }[] }[] = [
+  {
+    section: "الإدارة",
+    tabs: [
+      { id: "users",      label: "المستخدمون", icon: Users },
+      { id: "safes",      label: "الخزائن",    icon: Landmark },
+      { id: "warehouses", label: "المخازن",    icon: Warehouse },
+    ],
+  },
+  {
+    section: "المالية",
+    tabs: [
+      { id: "opening-balance", label: "أول المدة", icon: BookOpen },
+    ],
+  },
+  {
+    section: "التخصيص",
+    tabs: [
+      { id: "appearance", label: "الواجهة",  icon: Palette },
+      { id: "currency",   label: "العملة",   icon: DollarSign },
+    ],
+  },
+  {
+    section: "النظام",
+    tabs: [
+      { id: "backup", label: "نسخ احتياطي", icon: HardDrive },
+      { id: "data",   label: "البيانات",    icon: Database },
+    ],
+  },
 ];
 
-const ROLES: Record<string, { label: string; color: string }> = {
-  admin:   { label: "مدير النظام", color: "text-red-400 bg-red-500/10 border-red-500/30" },
-  manager: { label: "مدير",        color: "text-amber-400 bg-amber-500/10 border-amber-500/30" },
-  cashier: { label: "كاشير",       color: "text-blue-400 bg-blue-500/10 border-blue-500/30" },
-  salesperson: { label: "مندوب",   color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/30" },
+const ROLES: Record<string, { label: string; badge: string; avatarBg: string; avatarText: string }> = {
+  admin:       { label: "مدير النظام", badge: "text-red-400 bg-red-500/15 border-red-500/30",          avatarBg: "bg-red-500/20",    avatarText: "text-red-300" },
+  manager:     { label: "مشرف",        badge: "text-purple-400 bg-purple-500/15 border-purple-500/30",  avatarBg: "bg-purple-500/20", avatarText: "text-purple-300" },
+  cashier:     { label: "كاشير",       badge: "text-blue-400 bg-blue-500/15 border-blue-500/30",        avatarBg: "bg-blue-500/20",   avatarText: "text-blue-300" },
+  salesperson: { label: "مندوب",       badge: "text-emerald-400 bg-emerald-500/15 border-emerald-500/30", avatarBg: "bg-emerald-500/20", avatarText: "text-emerald-300" },
 };
 
 const PERMISSIONS_LIST = [
@@ -52,60 +73,206 @@ const PERMISSIONS_LIST = [
   { key: "settings", label: "الإعدادات" },
 ];
 
-/* ─── Shared UI ─── */
-function SectionHeader({ title, sub }: { title: string; sub?: string }) {
+/* ─── Shared UI atoms ─── */
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return <label className="block text-[#9CA3AF] text-[11px] mb-1.5 font-semibold uppercase tracking-wider">{children}</label>;
+}
+
+function SInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
-    <div className="mb-5">
-      <h3 className="text-lg font-black text-white">{title}</h3>
-      {sub && <p className="text-white/40 text-sm mt-0.5">{sub}</p>}
+    <input
+      {...props}
+      className={`w-full bg-[#1A2235] border border-[#2D3748] text-white rounded-xl px-3 py-2.5 text-sm outline-none
+        focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all placeholder:text-white/20 ${props.className ?? ""}`}
+    />
+  );
+}
+
+function SSelect({ children, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <select
+      {...props}
+      className={`w-full bg-[#1A2235] border border-[#2D3748] text-white rounded-xl px-3 py-2.5 text-sm outline-none
+        focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all appearance-none cursor-pointer ${props.className ?? ""}`}
+    >
+      {children}
+    </select>
+  );
+}
+
+function PrimaryBtn({ children, className = "", ...p }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button {...p}
+      className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
+        bg-gradient-to-r from-amber-500 to-amber-600 text-black font-bold text-sm
+        transition-all hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(245,158,11,0.4)]
+        active:scale-[0.98] disabled:opacity-40 disabled:hover:scale-100 disabled:cursor-not-allowed ${className}`}
+    >{children}</button>
+  );
+}
+
+function DangerBtn({ children, className = "", ...p }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button {...p}
+      className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
+        bg-red-600 hover:bg-red-700 text-white font-bold text-sm
+        transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed ${className}`}
+    >{children}</button>
+  );
+}
+
+function GhostBtn({ children, className = "", ...p }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button {...p}
+      className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
+        border border-white/15 text-white/60 hover:text-white hover:border-white/30
+        font-semibold text-sm transition-all active:scale-[0.98] disabled:opacity-40 ${className}`}
+    >{children}</button>
+  );
+}
+
+/* ─── Modal Shell ─── */
+function Modal({
+  children, onClose, title, icon: Icon, maxWidth = "max-w-lg",
+}: {
+  children: React.ReactNode;
+  onClose: () => void;
+  title: string;
+  icon?: React.FC<{ className?: string }>;
+  maxWidth?: string;
+}) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backdropFilter: "blur(6px)", background: "rgba(0,0,0,0.65)" }}
+      onClick={onClose}
+    >
+      <div
+        className={`bg-[#111827] rounded-2xl w-full ${maxWidth} border border-white/10 shadow-2xl`}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/8">
+          <div className="flex items-center gap-3">
+            {Icon && (
+              <div className="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center">
+                <Icon className="w-4 h-4 text-amber-400" />
+              </div>
+            )}
+            <h3 className="font-bold text-white text-base">{title}</h3>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-white/30 hover:text-white hover:bg-white/8 transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        {children}
+      </div>
     </div>
   );
 }
 
-function Label({ children }: { children: React.ReactNode }) {
-  return <label className="block text-white/50 text-xs mb-1.5 font-medium">{children}</label>;
+/* ─── Page header ─── */
+function PageHeader({ title, sub, action }: { title: string; sub?: string; action?: React.ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-4 mb-6">
+      <div>
+        <h2 className="text-lg font-black text-white">{title}</h2>
+        {sub && <p className="text-white/40 text-sm mt-0.5">{sub}</p>}
+      </div>
+      {action}
+    </div>
+  );
 }
 
-/* ─── Settings Page ─── */
+/* ─── Skeleton loader ─── */
+function CardSkeleton() {
+  return (
+    <div className="bg-[#111827] border border-white/5 rounded-2xl p-5 animate-pulse space-y-3">
+      <div className="flex items-center gap-3">
+        <div className="w-12 h-12 rounded-xl bg-white/5" />
+        <div className="flex-1 space-y-2">
+          <div className="h-3 bg-white/5 rounded w-2/3" />
+          <div className="h-2.5 bg-white/5 rounded w-1/3" />
+        </div>
+      </div>
+      <div className="h-2 bg-white/5 rounded" />
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   SETTINGS ROOT
+   ══════════════════════════════════════════════════════════════════ */
 export default function Settings() {
   const [tab, setTab] = useState<Tab>("users");
-  return (
-    <div className="space-y-4">
-      {/* Tab bar */}
-      <div className="flex gap-1 flex-wrap glass-panel rounded-2xl p-1.5 border border-white/5">
-        {TABS.map(t => {
-          const Icon = t.icon;
-          const active = tab === t.id;
-          return (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all flex-1 justify-center
-                ${active ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" : "text-white/40 hover:text-white hover:bg-white/5"}`}
-            >
-              <Icon className="w-3.5 h-3.5 shrink-0" />
-              <span className="hidden sm:inline">{t.label}</span>
-            </button>
-          );
-        })}
-      </div>
 
-      {/* Tab content */}
-      <div>
-        {tab === "users" && <UsersTab />}
-        {tab === "safes" && <SafesTab />}
-        {tab === "warehouses" && <WarehousesTab />}
+  return (
+    <div className="flex gap-5" style={{ minHeight: 600 }}>
+      {/* ── Sidebar ── */}
+      <aside className="w-52 shrink-0">
+        <div className="rounded-2xl overflow-hidden border border-white/5" style={{ background: "#0D1424" }}>
+          <div className="px-4 pt-4 pb-3 border-b border-white/5">
+            <p className="text-white/25 text-[10px] font-bold uppercase tracking-widest">لوحة الإعدادات</p>
+          </div>
+          <nav className="p-2 space-y-3">
+            {TAB_SECTIONS.map(({ section, tabs }) => (
+              <div key={section}>
+                <p className="text-white/20 text-[9px] font-bold uppercase tracking-widest px-3 mb-1">{section}</p>
+                <div className="space-y-0.5">
+                  {tabs.map(t => {
+                    const Icon = t.icon;
+                    const active = tab === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => setTab(t.id)}
+                        className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-[13px] font-semibold transition-all border-r-[3px] ${
+                          active
+                            ? "bg-amber-500/10 text-amber-400 border-amber-500"
+                            : "text-white/40 hover:text-white hover:bg-white/5 border-transparent"
+                        }`}
+                      >
+                        <Icon className="w-3.5 h-3.5 shrink-0" />
+                        {t.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </nav>
+        </div>
+      </aside>
+
+      {/* ── Content ── */}
+      <main className="flex-1 min-w-0">
+        {tab === "users"           && <UsersTab />}
+        {tab === "safes"           && <SafesTab />}
+        {tab === "warehouses"      && <WarehousesTab />}
         {tab === "opening-balance" && <OpeningBalanceTab />}
-        {tab === "appearance" && <AppearanceTab />}
-        {tab === "currency" && <CurrencyTab />}
-        {tab === "backup" && <BackupImportTab />}
-        {tab === "data" && <DataTab />}
-      </div>
+        {tab === "appearance"      && <AppearanceTab />}
+        {tab === "currency"        && <CurrencyTab />}
+        {tab === "backup"          && <BackupImportTab />}
+        {tab === "data"            && <DataTab />}
+      </main>
     </div>
   );
 }
 
-/* ─── Users Tab ─── */
+/* ══════════════════════════════════════════════════════════════════
+   USERS TAB
+   ══════════════════════════════════════════════════════════════════ */
+function getInitials(name: string) {
+  const p = name.trim().split(" ");
+  if (p.length >= 2) return p[0][0] + p[1][0];
+  return name.slice(0, 2);
+}
+
 function UsersTab() {
   const { data: users = [], isLoading } = useGetSettingsUsers();
   const createUser = useCreateSettingsUser();
@@ -114,15 +281,23 @@ function UsersTab() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const [showForm, setShowForm] = useState(false);
-  const [editId, setEditId] = useState<number | null>(null);
-  const [showPin, setShowPin] = useState(false);
-  const [form, setForm] = useState({ name: "", username: "", pin: "0000", role: "cashier", permissions: {} as Record<string, boolean> });
+  const [showForm, setShowForm]   = useState(false);
+  const [editId, setEditId]       = useState<number | null>(null);
+  const [showPin, setShowPin]     = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
+  const [form, setForm] = useState({
+    name: "", username: "", pin: "0000", role: "cashier", permissions: {} as Record<string, boolean>,
+  });
 
-  const resetForm = () => { setForm({ name: "", username: "", pin: "0000", role: "cashier", permissions: {} }); setEditId(null); setShowForm(false); };
+  const resetForm = () => {
+    setForm({ name: "", username: "", pin: "0000", role: "cashier", permissions: {} });
+    setEditId(null); setShowForm(false); setShowPin(false);
+  };
 
   const handleSubmit = () => {
-    if (!form.name.trim() || !form.username.trim()) { toast({ title: "الاسم واسم المستخدم مطلوبان", variant: "destructive" }); return; }
+    if (!form.name.trim() || !form.username.trim()) {
+      toast({ title: "الاسم واسم المستخدم مطلوبان", variant: "destructive" }); return;
+    }
     const perms = JSON.stringify(form.permissions);
     if (editId) {
       updateUser.mutate({ id: editId, body: { name: form.name, username: form.username, pin: form.pin, role: form.role, permissions: perms } }, {
@@ -144,105 +319,209 @@ function UsersTab() {
     setEditId(u.id); setShowForm(true);
   };
 
-  const handleDelete = (id: number) => {
-    if (!confirm("هل تريد حذف هذا المستخدم؟")) return;
-    deleteUser.mutate(id, { onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/settings/users"] }); toast({ title: "تم حذف المستخدم" }); } });
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    deleteUser.mutate(deleteTarget.id, {
+      onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/settings/users"] }); toast({ title: "تم حذف المستخدم" }); setDeleteTarget(null); },
+      onError: () => toast({ title: "فشل الحذف", variant: "destructive" }),
+    });
   };
 
-  return (
-    <div className="space-y-5">
-      <div className="flex justify-between items-center">
-        <SectionHeader title="إدارة المستخدمين" sub="التحكم في حسابات المستخدمين وصلاحياتهم" />
-        <button onClick={() => { resetForm(); setShowForm(true); }} className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl text-sm shrink-0">
-          <Plus className="w-4 h-4" /> إضافة مستخدم
-        </button>
-      </div>
+  const pinStrength = (pin: string) => {
+    if (pin.length < 4) return { w: "25%", color: "bg-red-500",    label: "ضعيف" };
+    if (pin.length < 5) return { w: "50%", color: "bg-amber-500",  label: "مقبول" };
+    if (pin.length < 6) return { w: "75%", color: "bg-blue-500",   label: "جيد" };
+    return                     { w: "100%",color: "bg-emerald-500", label: "قوي" };
+  };
+  const ps = pinStrength(form.pin);
 
-      {showForm && (
-        <div className="glass-panel rounded-3xl p-6 border border-amber-500/20 space-y-4">
-          <div className="flex justify-between items-center">
-            <h4 className="font-bold text-amber-400">{editId ? "تعديل مستخدم" : "مستخدم جديد"}</h4>
-            <button onClick={resetForm}><X className="w-5 h-5 text-white/50" /></button>
+  return (
+    <div>
+      <PageHeader
+        title="إدارة المستخدمين"
+        sub="التحكم في حسابات المستخدمين وصلاحياتهم"
+        action={
+          <PrimaryBtn onClick={() => { resetForm(); setShowForm(true); }}>
+            <Plus className="w-4 h-4" /> إضافة مستخدم
+          </PrimaryBtn>
+        }
+      />
+
+      {/* User Cards */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1,2,3].map(i => <CardSkeleton key={i} />)}
+        </div>
+      ) : users.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center mb-4">
+            <Users className="w-8 h-8 text-white/20" />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div><Label>الاسم الكامل</Label><input className="glass-input w-full text-white text-sm" placeholder="أحمد محمد" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
-            <div><Label>اسم المستخدم</Label><input className="glass-input w-full text-white text-sm" placeholder="ahmed" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} /></div>
-            <div>
-              <Label>رقم سري (PIN)</Label>
-              <div className="relative">
-                <input className="glass-input w-full text-white text-sm pr-10" type={showPin ? "text" : "password"} placeholder="0000" maxLength={6} value={form.pin} onChange={e => setForm(f => ({ ...f, pin: e.target.value }))} />
-                <button className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" onClick={() => setShowPin(s => !s)}>
-                  {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+          <p className="text-white/40 font-semibold">لا يوجد مستخدمون</p>
+          <p className="text-white/20 text-sm mt-1">أضف أول مستخدم للنظام</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {users.map((u: any) => {
+            const role = ROLES[u.role] ?? ROLES.cashier;
+            return (
+              <div
+                key={u.id}
+                className="group bg-[#111827] border border-white/5 hover:border-amber-500/20 rounded-2xl p-5 transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(0,0,0,0.4)]"
+              >
+                {/* Avatar + name */}
+                <div className="flex items-start gap-3 mb-4">
+                  <div className={`w-12 h-12 rounded-xl ${role.avatarBg} flex items-center justify-center shrink-0`}>
+                    <span className={`font-black text-lg ${role.avatarText}`}>{getInitials(u.name)}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-white truncate">{u.name}</p>
+                    <p className="text-white/40 text-xs font-mono mt-0.5">@{u.username}</p>
+                  </div>
+                </div>
+
+                {/* Role badge + status */}
+                <div className="flex items-center gap-2 mb-4">
+                  <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border ${role.badge}`}>
+                    {role.label}
+                  </span>
+                  <span className={`px-2 py-1 rounded-lg text-[11px] font-bold border ${
+                    u.active
+                      ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                      : "bg-red-500/10 text-red-400 border-red-500/20"
+                  }`}>
+                    {u.active ? "نشط" : "موقوف"}
+                  </span>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2 pt-3 border-t border-white/5">
+                  <button
+                    onClick={() => handleEdit(u)}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-xs font-bold transition-all"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" /> تعديل
+                  </button>
+                  <button
+                    onClick={() => setDeleteTarget({ id: u.id, name: u.name })}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold transition-all"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> حذف
+                  </button>
+                </div>
               </div>
-            </div>
-            <div>
-              <Label>الدور</Label>
-              <select className="glass-input w-full text-white text-sm" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
-                <option value="admin">مدير النظام</option>
-                <option value="manager">مدير</option>
-                <option value="cashier">كاشير</option>
-                <option value="salesperson">مندوب مبيعات</option>
-              </select>
-            </div>
-          </div>
-          <div>
-            <Label>الصلاحيات</Label>
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-              {PERMISSIONS_LIST.map(p => (
-                <button key={p.key} onClick={() => setForm(f => ({ ...f, permissions: { ...f.permissions, [p.key]: !f.permissions[p.key] } }))}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs border transition-all ${form.permissions[p.key] ? "bg-amber-500/20 border-amber-500/40 text-amber-400" : "bg-white/5 border-white/10 text-white/50"}`}>
-                  {form.permissions[p.key] ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="flex gap-3">
-            <button onClick={handleSubmit} className="btn-primary flex items-center gap-2 px-5 py-2 rounded-xl text-sm"><Save className="w-4 h-4" /> {editId ? "حفظ التعديلات" : "إضافة"}</button>
-            <button onClick={resetForm} className="btn-secondary px-5 py-2 rounded-xl text-sm">إلغاء</button>
-          </div>
+            );
+          })}
         </div>
       )}
 
-      <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
-        {isLoading ? <div className="p-12 text-center text-white/40">جاري التحميل...</div>
-          : users.length === 0 ? <div className="p-12 text-center text-white/40">لا يوجد مستخدمون</div>
-          : (
-            <table className="w-full text-right text-sm">
-              <thead className="bg-white/5 border-b border-white/10">
-                <tr>
-                  <th className="p-3 text-white/50 text-xs">الاسم</th>
-                  <th className="p-3 text-white/50 text-xs">اسم المستخدم</th>
-                  <th className="p-3 text-white/50 text-xs">الدور</th>
-                  <th className="p-3 text-white/50 text-xs">الحالة</th>
-                  <th className="p-3 text-white/50 text-xs">إجراء</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((u: any) => (
-                  <tr key={u.id} className="border-b border-white/5 erp-table-row">
-                    <td className="p-3 font-bold text-white">{u.name}</td>
-                    <td className="p-3 text-white/50 font-mono text-xs">@{u.username}</td>
-                    <td className="p-3"><span className={`px-2 py-1 rounded-lg text-xs font-bold border ${ROLES[u.role]?.color}`}>{ROLES[u.role]?.label || u.role}</span></td>
-                    <td className="p-3"><span className={`px-2 py-1 rounded-lg text-xs font-bold border ${u.active ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "bg-red-500/20 text-red-400 border-red-500/30"}`}>{u.active ? "نشط" : "موقوف"}</span></td>
-                    <td className="p-3">
-                      <div className="flex gap-2">
-                        <button onClick={() => handleEdit(u)} className="p-1.5 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
-                        <button onClick={() => handleDelete(u.id)} className="p-1.5 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
-                      </div>
-                    </td>
-                  </tr>
+      {/* ── Add/Edit Modal ── */}
+      {showForm && (
+        <Modal
+          title={editId ? "تعديل مستخدم" : "إضافة مستخدم جديد"}
+          icon={Users}
+          onClose={resetForm}
+          maxWidth="max-w-xl"
+        >
+          <div className="p-6 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <FieldLabel>الاسم الكامل</FieldLabel>
+                <SInput placeholder="أحمد محمد" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+              </div>
+              <div>
+                <FieldLabel>اسم المستخدم</FieldLabel>
+                <SInput placeholder="ahmed" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} />
+              </div>
+              <div>
+                <FieldLabel>رقم سري (PIN)</FieldLabel>
+                <div className="relative">
+                  <SInput
+                    type={showPin ? "text" : "password"}
+                    placeholder="0000" maxLength={6}
+                    value={form.pin}
+                    onChange={e => setForm(f => ({ ...f, pin: e.target.value }))}
+                  />
+                  <button className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors" onClick={() => setShowPin(s => !s)}>
+                    {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <div className="mt-1.5 space-y-1">
+                  <div className="h-1 rounded-full bg-white/5 overflow-hidden">
+                    <div className={`h-full rounded-full transition-all ${ps.color}`} style={{ width: ps.w }} />
+                  </div>
+                  <p className="text-[11px] text-white/30">قوة الرقم السري: <span className="text-white/60 font-semibold">{ps.label}</span></p>
+                </div>
+              </div>
+              <div>
+                <FieldLabel>الدور</FieldLabel>
+                <SSelect value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
+                  <option value="admin">مدير النظام</option>
+                  <option value="manager">مشرف</option>
+                  <option value="cashier">كاشير</option>
+                  <option value="salesperson">مندوب مبيعات</option>
+                </SSelect>
+              </div>
+            </div>
+
+            <div>
+              <FieldLabel>الصلاحيات</FieldLabel>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {PERMISSIONS_LIST.map(p => (
+                  <button
+                    key={p.key}
+                    onClick={() => setForm(f => ({ ...f, permissions: { ...f.permissions, [p.key]: !f.permissions[p.key] } }))}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs border transition-all ${
+                      form.permissions[p.key]
+                        ? "bg-amber-500/15 border-amber-500/40 text-amber-400"
+                        : "bg-white/3 border-white/8 text-white/40 hover:border-white/20 hover:text-white/70"
+                    }`}
+                  >
+                    {form.permissions[p.key] ? <Check className="w-3 h-3 shrink-0" /> : <X className="w-3 h-3 shrink-0 opacity-40" />}
+                    {p.label}
+                  </button>
                 ))}
-              </tbody>
-            </table>
-          )}
-      </div>
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-3 px-6 py-4 border-t border-white/8">
+            <PrimaryBtn onClick={handleSubmit} className="flex-1" disabled={createUser.isPending || updateUser.isPending}>
+              {(createUser.isPending || updateUser.isPending) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              {editId ? "حفظ التعديلات" : "إضافة المستخدم"}
+            </PrimaryBtn>
+            <GhostBtn onClick={resetForm} className="flex-1">إلغاء</GhostBtn>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Delete Confirm Modal ── */}
+      {deleteTarget && (
+        <Modal title="تأكيد الحذف" icon={Trash2} onClose={() => setDeleteTarget(null)}>
+          <div className="p-6 text-center space-y-4">
+            <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto">
+              <Trash2 className="w-7 h-7 text-red-400" />
+            </div>
+            <div>
+              <p className="text-white font-bold">هل تريد حذف هذا المستخدم؟</p>
+              <p className="text-white/40 text-sm mt-1">سيتم حذف <span className="text-white font-semibold">{deleteTarget.name}</span> نهائياً</p>
+            </div>
+          </div>
+          <div className="flex gap-3 px-6 py-4 border-t border-white/8">
+            <DangerBtn onClick={confirmDelete} className="flex-1" disabled={deleteUser.isPending}>
+              {deleteUser.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              تأكيد الحذف
+            </DangerBtn>
+            <GhostBtn onClick={() => setDeleteTarget(null)} className="flex-1">إلغاء</GhostBtn>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
 
-/* ─── Safes Tab ─── */
+/* ══════════════════════════════════════════════════════════════════
+   SAFES TAB
+   ══════════════════════════════════════════════════════════════════ */
 function SafesTab() {
   const { data: safes = [], isLoading } = useGetSettingsSafes();
   const createSafe = useCreateSettingsSafe();
@@ -256,143 +535,371 @@ function SafesTab() {
       }),
   });
   const { toast } = useToast();
-  const [showAdd, setShowAdd] = useState(false);
+
+  const [showAdd, setShowAdd]         = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
-  const [form, setForm] = useState({ name: "", balance: "" });
-  const [tf, setTf] = useState({ from_safe_id: "", to_safe_id: "", amount: "", notes: "" });
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
+  const [form, setForm]   = useState({ name: "", balance: "" });
+  const [tf, setTf]       = useState({ from_safe_id: "", to_safe_id: "", amount: "", notes: "" });
+
   const totalBalance = safes.reduce((s, x) => s + Number(x.balance), 0);
 
-  const invalidate = () => { queryClient.invalidateQueries({ queryKey: ["/api/settings/safes"] }); queryClient.invalidateQueries({ queryKey: ["/api/safe-transfers"] }); };
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/settings/safes"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/safe-transfers"] });
+  };
 
   return (
-    <div className="space-y-5">
-      <div className="flex justify-between items-center flex-wrap gap-3">
+    <div>
+      <PageHeader
+        title="إدارة الخزائن"
+        sub="عرض وإدارة أرصدة الخزائن"
+        action={
+          <div className="flex gap-2">
+            <GhostBtn onClick={() => setShowTransfer(true)}>
+              <ArrowLeftRight className="w-4 h-4" /> تحويل
+            </GhostBtn>
+            <PrimaryBtn onClick={() => setShowAdd(true)}>
+              <Plus className="w-4 h-4" /> إضافة خزنة
+            </PrimaryBtn>
+          </div>
+        }
+      />
+
+      {/* Summary bar */}
+      <div className="bg-[#1A2235] border border-white/5 rounded-2xl p-5 mb-5 flex items-center justify-between">
         <div>
-          <SectionHeader title="إدارة الخزائن" sub={`إجمالي الأرصدة: ${formatCurrency(totalBalance)}`} />
+          <p className="text-white/40 text-xs mb-1">إجمالي الأرصدة</p>
+          <p className="text-amber-400 font-black text-2xl" style={{ textShadow: "0 0 20px rgba(245,158,11,0.35)" }}>
+            {formatCurrency(totalBalance)}
+          </p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={() => setShowTransfer(true)} className="btn-secondary flex items-center gap-2 px-3 py-2 rounded-xl text-sm"><ArrowLeftRight className="w-4 h-4" /> تحويل</button>
-          <button onClick={() => setShowAdd(true)} className="btn-primary flex items-center gap-2 px-3 py-2 rounded-xl text-sm"><Plus className="w-4 h-4" /> إضافة خزنة</button>
+        <div className="text-left">
+          <p className="text-white/30 text-xs">{safes.length} خزنة</p>
+          <Landmark className="w-8 h-8 text-amber-400/20 mt-1" />
         </div>
       </div>
 
-      {showAdd && (
-        <div className="glass-panel rounded-2xl p-5 border border-amber-500/20">
-          <div className="flex justify-between mb-3"><h4 className="font-bold text-amber-400">خزنة جديدة</h4><button onClick={() => setShowAdd(false)}><X className="w-4 h-4 text-white/40" /></button></div>
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <div><Label>اسم الخزنة</Label><input className="glass-input w-full text-white text-sm" placeholder="الخزنة الرئيسية" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
-            <div><Label>الرصيد الابتدائي</Label><input type="number" className="glass-input w-full text-white text-sm" placeholder="0" value={form.balance} onChange={e => setForm(f => ({ ...f, balance: e.target.value }))} /></div>
-          </div>
-          <div className="flex gap-2">
-            <button className="btn-primary px-4 py-2 rounded-xl text-sm" onClick={() => {
-              if (!form.name.trim()) { toast({ title: "الاسم مطلوب", variant: "destructive" }); return; }
-              createSafe.mutate({ name: form.name, balance: Number(form.balance) || 0 }, {
-                onSuccess: () => { invalidate(); toast({ title: "تم إضافة الخزنة" }); setForm({ name: "", balance: "" }); setShowAdd(false); },
-              });
-            }}>إضافة</button>
-            <button className="btn-secondary px-4 py-2 rounded-xl text-sm" onClick={() => setShowAdd(false)}>إلغاء</button>
-          </div>
+      {/* Safe cards */}
+      {isLoading ? (
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1,2].map(i => <CardSkeleton key={i} />)}
         </div>
-      )}
-
-      {showTransfer && (
-        <div className="glass-panel rounded-2xl p-5 border border-blue-500/20">
-          <div className="flex justify-between mb-3"><h4 className="font-bold text-blue-400">تحويل بين الخزائن</h4><button onClick={() => setShowTransfer(false)}><X className="w-4 h-4 text-white/40" /></button></div>
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <div><Label>من خزنة</Label><select className="glass-input w-full text-white text-sm" value={tf.from_safe_id} onChange={e => setTf(f => ({ ...f, from_safe_id: e.target.value }))}>
-              <option value="">اختر...</option>{safes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
-            <div><Label>إلى خزنة</Label><select className="glass-input w-full text-white text-sm" value={tf.to_safe_id} onChange={e => setTf(f => ({ ...f, to_safe_id: e.target.value }))}>
-              <option value="">اختر...</option>{safes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
-            <div><Label>المبلغ</Label><input type="number" className="glass-input w-full text-white text-sm" placeholder="0" value={tf.amount} onChange={e => setTf(f => ({ ...f, amount: e.target.value }))} /></div>
-            <div><Label>ملاحظات</Label><input className="glass-input w-full text-white text-sm" placeholder="اختياري" value={tf.notes} onChange={e => setTf(f => ({ ...f, notes: e.target.value }))} /></div>
-          </div>
-          <div className="flex gap-2">
-            <button className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl text-sm" onClick={() => {
-              if (!tf.from_safe_id || !tf.to_safe_id || !tf.amount) { toast({ title: "جميع الحقول مطلوبة", variant: "destructive" }); return; }
-              createTransfer.mutate({ from_safe_id: Number(tf.from_safe_id), to_safe_id: Number(tf.to_safe_id), amount: Number(tf.amount), notes: tf.notes || undefined }, {
-                onSuccess: () => { invalidate(); toast({ title: "تم التحويل" }); setTf({ from_safe_id: "", to_safe_id: "", amount: "", notes: "" }); setShowTransfer(false); },
-                onError: (e: any) => toast({ title: e?.message || "فشل التحويل", variant: "destructive" }),
-              });
-            }}><ArrowLeftRight className="w-4 h-4" /> تحويل</button>
-            <button className="btn-secondary px-4 py-2 rounded-xl text-sm" onClick={() => setShowTransfer(false)}>إلغاء</button>
-          </div>
+      ) : safes.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <Landmark className="w-12 h-12 text-white/10 mb-3" />
+          <p className="text-white/30">لا توجد خزائن</p>
         </div>
-      )}
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+          {safes.map(s => {
+            const pct = totalBalance > 0 ? (Number(s.balance) / totalBalance) * 100 : 0;
+            return (
+              <div
+                key={s.id}
+                className="group bg-[#111827] border border-white/5 hover:border-amber-500/20 rounded-2xl p-5 transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(0,0,0,0.4)]"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                    <Landmark className="w-5 h-5 text-amber-400" />
+                  </div>
+                  <button
+                    onClick={() => setDeleteTarget({ id: s.id as number, name: s.name })}
+                    className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <p className="text-white font-bold text-sm mb-1">{s.name}</p>
+                <p className="text-amber-400 font-black text-xl mb-3">{formatCurrency(Number(s.balance))}</p>
 
-      {isLoading ? <div className="p-12 text-center text-white/40">جاري التحميل...</div>
-        : safes.length === 0 ? <div className="p-12 text-center text-white/40">لا توجد خزائن</div>
-        : (
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-            {safes.map(s => (
-              <div key={s.id} className="glass-panel rounded-2xl p-4 border border-white/5 relative group">
-                <button onClick={() => { if (!confirm("حذف الخزنة؟")) return; deleteSafe.mutate(s.id, { onSuccess: () => { invalidate(); toast({ title: "تم الحذف" }); } }); }}
-                  className="absolute top-2 left-2 p-1.5 rounded-lg bg-red-500/20 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-3 h-3" /></button>
-                <Landmark className="w-7 h-7 text-amber-400 mb-2" />
-                <p className="text-white font-bold text-sm">{s.name}</p>
-                <p className="text-xl font-black text-amber-400 mt-1">{formatCurrency(Number(s.balance))}</p>
+                {/* Progress bar */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px] text-white/30">
+                    <span>نسبة من الإجمالي</span>
+                    <span>{pct.toFixed(1)}%</span>
+                  </div>
+                  <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-amber-500 to-amber-400 rounded-full transition-all"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
               </div>
-            ))}
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Add Safe Modal ── */}
+      {showAdd && (
+        <Modal title="إضافة خزنة جديدة" icon={Landmark} onClose={() => setShowAdd(false)}>
+          <div className="p-6 space-y-4">
+            <div>
+              <FieldLabel>اسم الخزنة</FieldLabel>
+              <SInput placeholder="الخزنة الرئيسية" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+            </div>
+            <div>
+              <FieldLabel>الرصيد الابتدائي</FieldLabel>
+              <SInput type="number" placeholder="0" value={form.balance} onChange={e => setForm(f => ({ ...f, balance: e.target.value }))} />
+            </div>
           </div>
-        )}
+          <div className="flex gap-3 px-6 py-4 border-t border-white/8">
+            <PrimaryBtn
+              className="flex-1"
+              disabled={createSafe.isPending}
+              onClick={() => {
+                if (!form.name.trim()) { toast({ title: "الاسم مطلوب", variant: "destructive" }); return; }
+                createSafe.mutate({ name: form.name, balance: Number(form.balance) || 0 }, {
+                  onSuccess: () => { invalidate(); toast({ title: "تم إضافة الخزنة" }); setForm({ name: "", balance: "" }); setShowAdd(false); },
+                });
+              }}
+            >
+              {createSafe.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              إضافة
+            </PrimaryBtn>
+            <GhostBtn className="flex-1" onClick={() => setShowAdd(false)}>إلغاء</GhostBtn>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Transfer Modal ── */}
+      {showTransfer && (
+        <Modal title="تحويل بين الخزائن" icon={ArrowLeftRight} onClose={() => setShowTransfer(false)}>
+          <div className="p-6 space-y-4">
+            {/* Animated arrow visual */}
+            <div className="flex items-center gap-3 p-4 bg-[#1A2235] rounded-xl border border-white/5">
+              <div className="flex-1 text-center">
+                <p className="text-white/40 text-xs mb-1">من</p>
+                <p className="text-white font-bold text-sm">
+                  {safes.find(s => String(s.id) === tf.from_safe_id)?.name || "— اختر خزنة —"}
+                </p>
+              </div>
+              <div className="flex flex-col items-center">
+                <ArrowLeftRight className="w-5 h-5 text-amber-400" />
+                {tf.amount && <span className="text-amber-400 font-black text-xs mt-1">{Number(tf.amount).toLocaleString("ar-EG")}</span>}
+              </div>
+              <div className="flex-1 text-center">
+                <p className="text-white/40 text-xs mb-1">إلى</p>
+                <p className="text-white font-bold text-sm">
+                  {safes.find(s => String(s.id) === tf.to_safe_id)?.name || "— اختر خزنة —"}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <FieldLabel>من خزنة</FieldLabel>
+                <SSelect value={tf.from_safe_id} onChange={e => setTf(f => ({ ...f, from_safe_id: e.target.value }))}>
+                  <option value="">اختر...</option>
+                  {safes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </SSelect>
+                {tf.from_safe_id && (
+                  <p className="text-white/30 text-xs mt-1">
+                    الرصيد: {formatCurrency(Number(safes.find(s => String(s.id) === tf.from_safe_id)?.balance || 0))}
+                  </p>
+                )}
+              </div>
+              <div>
+                <FieldLabel>إلى خزنة</FieldLabel>
+                <SSelect value={tf.to_safe_id} onChange={e => setTf(f => ({ ...f, to_safe_id: e.target.value }))}>
+                  <option value="">اختر...</option>
+                  {safes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </SSelect>
+              </div>
+            </div>
+            <div>
+              <FieldLabel>المبلغ</FieldLabel>
+              <SInput type="number" placeholder="0.00" value={tf.amount} onChange={e => setTf(f => ({ ...f, amount: e.target.value }))} />
+            </div>
+            <div>
+              <FieldLabel>ملاحظات (اختياري)</FieldLabel>
+              <SInput placeholder="سبب التحويل..." value={tf.notes} onChange={e => setTf(f => ({ ...f, notes: e.target.value }))} />
+            </div>
+          </div>
+          <div className="flex gap-3 px-6 py-4 border-t border-white/8">
+            <PrimaryBtn
+              className="flex-1"
+              disabled={createTransfer.isPending}
+              onClick={() => {
+                if (!tf.from_safe_id || !tf.to_safe_id || !tf.amount) { toast({ title: "جميع الحقول مطلوبة", variant: "destructive" }); return; }
+                createTransfer.mutate(
+                  { from_safe_id: Number(tf.from_safe_id), to_safe_id: Number(tf.to_safe_id), amount: Number(tf.amount), notes: tf.notes || undefined },
+                  {
+                    onSuccess: () => { invalidate(); toast({ title: "تم التحويل" }); setTf({ from_safe_id: "", to_safe_id: "", amount: "", notes: "" }); setShowTransfer(false); },
+                    onError: (e: any) => toast({ title: e?.message || "فشل التحويل", variant: "destructive" }),
+                  }
+                );
+              }}
+            >
+              {createTransfer.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowLeftRight className="w-4 h-4" />}
+              تنفيذ التحويل
+            </PrimaryBtn>
+            <GhostBtn className="flex-1" onClick={() => setShowTransfer(false)}>إلغاء</GhostBtn>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Delete Safe Modal ── */}
+      {deleteTarget && (
+        <Modal title="تأكيد الحذف" icon={Trash2} onClose={() => setDeleteTarget(null)}>
+          <div className="p-6 text-center space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto">
+              <Landmark className="w-6 h-6 text-red-400" />
+            </div>
+            <div>
+              <p className="text-white font-bold">حذف الخزنة</p>
+              <p className="text-white/40 text-sm mt-1">سيتم حذف <span className="text-white font-semibold">"{deleteTarget.name}"</span> نهائياً</p>
+            </div>
+          </div>
+          <div className="flex gap-3 px-6 py-4 border-t border-white/8">
+            <DangerBtn className="flex-1" disabled={deleteSafe.isPending}
+              onClick={() => deleteSafe.mutate(deleteTarget.id, {
+                onSuccess: () => { invalidate(); toast({ title: "تم الحذف" }); setDeleteTarget(null); },
+              })}
+            >
+              {deleteSafe.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              حذف
+            </DangerBtn>
+            <GhostBtn className="flex-1" onClick={() => setDeleteTarget(null)}>إلغاء</GhostBtn>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
 
-/* ─── Warehouses Tab ─── */
+/* ══════════════════════════════════════════════════════════════════
+   WAREHOUSES TAB
+   ══════════════════════════════════════════════════════════════════ */
 function WarehousesTab() {
   const { data: warehouses = [], isLoading } = useGetSettingsWarehouses();
   const createWarehouse = useCreateSettingsWarehouse();
   const deleteWarehouse = useDeleteSettingsWarehouse();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: "", address: "" });
+  const [showForm, setShowForm]         = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
+  const [form, setForm]                 = useState({ name: "", address: "" });
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["/api/settings/warehouses"] });
 
   return (
-    <div className="space-y-5">
-      <div className="flex justify-between items-center">
-        <SectionHeader title="إدارة المخازن" sub="أماكن تخزين البضاعة والمنتجات" />
-        <button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-2 px-3 py-2 rounded-xl text-sm"><Plus className="w-4 h-4" /> إضافة مخزن</button>
-      </div>
-      {showForm && (
-        <div className="glass-panel rounded-2xl p-5 border border-amber-500/20">
-          <div className="flex justify-between mb-3"><h4 className="font-bold text-amber-400">مخزن جديد</h4><button onClick={() => setShowForm(false)}><X className="w-4 h-4 text-white/40" /></button></div>
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <div><Label>اسم المخزن</Label><input className="glass-input w-full text-white text-sm" placeholder="المخزن الرئيسي" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
-            <div><Label>العنوان</Label><input className="glass-input w-full text-white text-sm" placeholder="القاهرة، مصر" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} /></div>
+    <div>
+      <PageHeader
+        title="إدارة المخازن"
+        sub="أماكن تخزين البضاعة والمنتجات"
+        action={
+          <PrimaryBtn onClick={() => setShowForm(true)}>
+            <Plus className="w-4 h-4" /> إضافة مخزن
+          </PrimaryBtn>
+        }
+      />
+
+      {isLoading ? (
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1,2].map(i => <CardSkeleton key={i} />)}
+        </div>
+      ) : warehouses.length === 0 ? (
+        /* ── Beautiful empty state ── */
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="w-24 h-24 rounded-3xl bg-[#1A2235] border border-white/5 flex items-center justify-center mb-5">
+            <svg viewBox="0 0 64 64" className="w-12 h-12 text-white/15 fill-current">
+              <path d="M32 4L4 20v4h56v-4L32 4zM8 28v24h4V28H8zm10 0v24h4V28h-4zm14 0v24h4V28h-4zm10 0v24h4V28h-4zm10 0v24h4V28h-4zM4 54h56v4H4v-4z"/>
+            </svg>
           </div>
-          <div className="flex gap-2">
-            <button className="btn-primary px-4 py-2 rounded-xl text-sm" onClick={() => {
-              if (!form.name.trim()) { toast({ title: "الاسم مطلوب", variant: "destructive" }); return; }
-              createWarehouse.mutate({ name: form.name, address: form.address || undefined }, {
-                onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/settings/warehouses"] }); toast({ title: "تم إضافة المخزن" }); setForm({ name: "", address: "" }); setShowForm(false); },
-              });
-            }}>إضافة</button>
-            <button className="btn-secondary px-4 py-2 rounded-xl text-sm" onClick={() => setShowForm(false)}>إلغاء</button>
-          </div>
+          <h3 className="text-white/50 font-bold text-lg mb-2">لا توجد مخازن بعد</h3>
+          <p className="text-white/25 text-sm mb-6 max-w-xs">أضف مخزنك الأول لتنظيم المنتجات والمخزون وتتبع الحركة بدقة</p>
+          <PrimaryBtn onClick={() => setShowForm(true)}>
+            <Plus className="w-4 h-4" /> إضافة أول مخزن
+          </PrimaryBtn>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+          {warehouses.map((w: any) => (
+            <div
+              key={w.id}
+              className="group bg-[#111827] border border-white/5 hover:border-blue-500/20 rounded-2xl p-5 transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(0,0,0,0.4)]"
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                  <Warehouse className="w-5 h-5 text-blue-400" />
+                </div>
+                <button
+                  onClick={() => setDeleteTarget({ id: w.id, name: w.name })}
+                  className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <p className="text-white font-bold text-sm mb-1">{w.name}</p>
+              {w.address && <p className="text-white/40 text-xs">{w.address}</p>}
+              <p className="text-white/20 text-xs mt-2">{formatDate(w.created_at)}</p>
+            </div>
+          ))}
         </div>
       )}
-      {isLoading ? <div className="p-12 text-center text-white/40">جاري التحميل...</div>
-        : warehouses.length === 0 ? <div className="p-12 text-center text-white/40">لا توجد مخازن</div>
-        : (
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-            {warehouses.map((w: any) => (
-              <div key={w.id} className="glass-panel rounded-2xl p-4 border border-white/5 relative group">
-                <button onClick={() => { if (!confirm("حذف المخزن؟")) return; deleteWarehouse.mutate(w.id, { onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/settings/warehouses"] }); toast({ title: "تم الحذف" }); } }); }}
-                  className="absolute top-2 left-2 p-1.5 rounded-lg bg-red-500/20 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-3 h-3" /></button>
-                <Warehouse className="w-7 h-7 text-blue-400 mb-2" />
-                <p className="text-white font-bold text-sm">{w.name}</p>
-                {w.address && <p className="text-white/40 text-xs mt-1">{w.address}</p>}
-                <p className="text-white/20 text-xs mt-2">{formatDate(w.created_at)}</p>
-              </div>
-            ))}
+
+      {/* ── Add Modal ── */}
+      {showForm && (
+        <Modal title="إضافة مخزن جديد" icon={Warehouse} onClose={() => setShowForm(false)}>
+          <div className="p-6 space-y-4">
+            <div>
+              <FieldLabel>اسم المخزن</FieldLabel>
+              <SInput placeholder="المخزن الرئيسي" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+            </div>
+            <div>
+              <FieldLabel>العنوان (اختياري)</FieldLabel>
+              <SInput placeholder="القاهرة، مصر" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
+            </div>
           </div>
-        )}
+          <div className="flex gap-3 px-6 py-4 border-t border-white/8">
+            <PrimaryBtn className="flex-1" disabled={createWarehouse.isPending}
+              onClick={() => {
+                if (!form.name.trim()) { toast({ title: "الاسم مطلوب", variant: "destructive" }); return; }
+                createWarehouse.mutate({ name: form.name, address: form.address || undefined }, {
+                  onSuccess: () => { invalidate(); toast({ title: "تم إضافة المخزن" }); setForm({ name: "", address: "" }); setShowForm(false); },
+                });
+              }}
+            >
+              {createWarehouse.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              إضافة
+            </PrimaryBtn>
+            <GhostBtn className="flex-1" onClick={() => setShowForm(false)}>إلغاء</GhostBtn>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Delete Modal ── */}
+      {deleteTarget && (
+        <Modal title="تأكيد الحذف" icon={Trash2} onClose={() => setDeleteTarget(null)}>
+          <div className="p-6 text-center space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto">
+              <Warehouse className="w-6 h-6 text-red-400" />
+            </div>
+            <p className="text-white font-bold">حذف مخزن <span className="text-red-400">"{deleteTarget.name}"</span>؟</p>
+          </div>
+          <div className="flex gap-3 px-6 py-4 border-t border-white/8">
+            <DangerBtn className="flex-1" disabled={deleteWarehouse.isPending}
+              onClick={() => deleteWarehouse.mutate(deleteTarget.id, {
+                onSuccess: () => { invalidate(); toast({ title: "تم الحذف" }); setDeleteTarget(null); },
+              })}
+            >
+              {deleteWarehouse.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              حذف
+            </DangerBtn>
+            <GhostBtn className="flex-1" onClick={() => setDeleteTarget(null)}>إلغاء</GhostBtn>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
 
-/* ─── Appearance Tab ─── */
+/* ══════════════════════════════════════════════════════════════════
+   APPEARANCE TAB  (kept as-is — already well designed)
+   ══════════════════════════════════════════════════════════════════ */
 const COLOR_SWATCHES: Record<AccentColor, string> = {
   amber: "#f59e0b", emerald: "#10b981", violet: "#8b5cf6",
   sky: "#0ea5e9", rose: "#f43f5e", orange: "#f97316",
@@ -401,8 +908,8 @@ const COLOR_SWATCHES: Record<AccentColor, string> = {
 function AppearanceTab() {
   const { settings, update } = useAppSettings();
   const { toast } = useToast();
-  const logoRef = useRef<HTMLInputElement>(null);
-  const loginBgRef = useRef<HTMLInputElement>(null);
+  const logoRef     = useRef<HTMLInputElement>(null);
+  const loginBgRef  = useRef<HTMLInputElement>(null);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -428,34 +935,20 @@ function AppearanceTab() {
 
   return (
     <div className="space-y-5">
-      <SectionHeader title="تخصيص الواجهة" sub="تغيير مظهر البرنامج حسب هويتك" />
+      <PageHeader title="تخصيص الواجهة" sub="تغيير مظهر البرنامج حسب هويتك" />
 
       {/* Company Info */}
       <div className="glass-panel rounded-2xl p-5 border border-white/10 space-y-4">
-        <div className="flex items-center gap-2 mb-1">
-          <Building2 className="w-4 h-4 text-amber-400" />
-          <h4 className="font-bold text-white text-sm">معلومات الشركة</h4>
-        </div>
+        <div className="flex items-center gap-2 mb-1"><Building2 className="w-4 h-4 text-amber-400" /><h4 className="font-bold text-white text-sm">معلومات الشركة</h4></div>
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label>اسم الشركة</Label>
-            <input className="glass-input w-full text-white text-sm" value={settings.companyName}
-              onChange={e => update({ companyName: e.target.value })} placeholder="Halal Tech" />
-          </div>
-          <div>
-            <Label>الشعار / Slogan</Label>
-            <input className="glass-input w-full text-white text-sm" value={settings.companySlogan}
-              onChange={e => update({ companySlogan: e.target.value })} placeholder="الحلال = البركة" />
-          </div>
+          <div><FieldLabel>اسم الشركة</FieldLabel><SInput value={settings.companyName} onChange={e => update({ companyName: e.target.value })} placeholder="Halal Tech" /></div>
+          <div><FieldLabel>الشعار / Slogan</FieldLabel><SInput value={settings.companySlogan} onChange={e => update({ companySlogan: e.target.value })} placeholder="الحلال = البركة" /></div>
         </div>
       </div>
 
       {/* Logo */}
       <div className="glass-panel rounded-2xl p-5 border border-white/10 space-y-3">
-        <div className="flex items-center gap-2 mb-1">
-          <Image className="w-4 h-4 text-amber-400" />
-          <h4 className="font-bold text-white text-sm">لوجو الشركة</h4>
-        </div>
+        <div className="flex items-center gap-2 mb-1"><Image className="w-4 h-4 text-amber-400" /><h4 className="font-bold text-white text-sm">لوجو الشركة</h4></div>
         <div className="flex items-center gap-4">
           <div className="w-20 h-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
             {settings.customLogo
@@ -479,19 +972,14 @@ function AppearanceTab() {
         <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
       </div>
 
-      {/* Font + Size row */}
+      {/* Font + Size */}
       <div className="glass-panel rounded-2xl p-5 border border-white/10 space-y-4">
-        <div className="flex items-center gap-2 mb-1">
-          <Type className="w-4 h-4 text-amber-400" />
-          <h4 className="font-bold text-white text-sm">الخط وحجمه</h4>
-        </div>
+        <div className="flex items-center gap-2 mb-1"><Type className="w-4 h-4 text-amber-400" /><h4 className="font-bold text-white text-sm">الخط وحجمه</h4></div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-          {/* Font family dropdown */}
           <div className="space-y-2">
-            <Label>نوع الخط</Label>
+            <FieldLabel>نوع الخط</FieldLabel>
             <div className="relative">
-              <select
-                value={settings.fontFamily}
+              <select value={settings.fontFamily}
                 onChange={e => { const v = e.target.value as FontFamily; update({ fontFamily: v }); toast({ title: `تم تغيير الخط إلى ${FONTS[v].label}` }); }}
                 className="glass-input w-full appearance-none pr-4 text-sm cursor-pointer"
                 style={{ fontFamily: `'${settings.fontFamily}', sans-serif` }}>
@@ -501,15 +989,12 @@ function AppearanceTab() {
               </select>
               <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/30">▾</div>
             </div>
-            <div className="p-3 rounded-xl bg-white/5 border border-white/10 text-center"
-              style={{ fontFamily: `'${settings.fontFamily}', sans-serif` }}>
+            <div className="p-3 rounded-xl bg-white/5 border border-white/10 text-center" style={{ fontFamily: `'${settings.fontFamily}', sans-serif` }}>
               <span className="text-white/70 text-sm">أبجد هوز حطي كلمن — نموذج خط {FONTS[settings.fontFamily].label}</span>
             </div>
           </div>
-
-          {/* Font size slider */}
           <div className="space-y-2">
-            <Label>حجم الخط</Label>
+            <FieldLabel>حجم الخط</FieldLabel>
             <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-white/50 text-xs">صغير</span>
@@ -520,7 +1005,7 @@ function AppearanceTab() {
                 onChange={e => { const sz = fontSizeKeys[Number(e.target.value)]; update({ fontSize: sz }); }}
                 className="w-full accent-amber-500 cursor-pointer" />
               <div className="flex justify-between">
-                {fontSizeKeys.map((k, i) => (
+                {fontSizeKeys.map((k) => (
                   <button key={k} onClick={() => update({ fontSize: k })}
                     className={`text-xs font-bold px-2 py-0.5 rounded-lg transition-all ${(settings.fontSize ?? "md") === k ? "text-amber-400" : "text-white/30 hover:text-white/60"}`}>
                     {FONT_SIZES[k].label}
@@ -535,12 +1020,9 @@ function AppearanceTab() {
         </div>
       </div>
 
-      {/* Accent Color dropdown */}
+      {/* Accent Color */}
       <div className="glass-panel rounded-2xl p-5 border border-white/10 space-y-3">
-        <div className="flex items-center gap-2 mb-1">
-          <Palette className="w-4 h-4 text-amber-400" />
-          <h4 className="font-bold text-white text-sm">لون الواجهة</h4>
-        </div>
+        <div className="flex items-center gap-2 mb-1"><Palette className="w-4 h-4 text-amber-400" /><h4 className="font-bold text-white text-sm">لون الواجهة</h4></div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {(Object.keys(ACCENT_COLORS) as AccentColor[]).map(color => {
             const isActive = settings.accentColor === color;
@@ -556,66 +1038,40 @@ function AppearanceTab() {
         </div>
       </div>
 
-      {/* ─── لون مخصص (Hex) ─── */}
+      {/* Custom Hex */}
       <div className="glass-panel rounded-2xl p-5 border border-white/10 space-y-4">
-        <div className="flex items-center gap-2 mb-1">
-          <Palette className="w-4 h-4 text-amber-400" />
-          <h4 className="font-bold text-white text-sm">لون مخصص (Hex) — يتجاوز الألوان أعلاه</h4>
-        </div>
+        <div className="flex items-center gap-2 mb-1"><Palette className="w-4 h-4 text-amber-400" /><h4 className="font-bold text-white text-sm">لون مخصص (Hex) — يتجاوز الألوان أعلاه</h4></div>
         <div className="flex items-center gap-4">
-          <input
-            type="color"
-            value={settings.customAccentHex || "#f59e0b"}
-            onChange={e => update({ customAccentHex: e.target.value })}
-            className="w-16 h-12 rounded-xl cursor-pointer border-0 bg-transparent"
-            style={{ padding: "2px" }}
-          />
+          <input type="color" value={settings.customAccentHex || "#f59e0b"} onChange={e => update({ customAccentHex: e.target.value })}
+            className="w-16 h-12 rounded-xl cursor-pointer border-0 bg-transparent" style={{ padding: "2px" }} />
           <div className="flex-1">
-            <p className="text-white/60 text-xs mb-2">اختر أي لون تريده — سيطبّق فوراً على كل التطبيق</p>
+            <p className="text-white/60 text-xs mb-2">اختر أي لون تريده — سيطبّق فوراً</p>
             <div className="flex gap-2">
-              <code className="text-amber-400 text-xs font-mono bg-black/30 px-2 py-1 rounded-lg">
-                {settings.customAccentHex || "#f59e0b"}
-              </code>
+              <code className="text-amber-400 text-xs font-mono bg-black/30 px-2 py-1 rounded-lg">{settings.customAccentHex || "#f59e0b"}</code>
               {settings.customAccentHex && (
-                <button
-                  onClick={() => update({ customAccentHex: "" })}
-                  className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded-lg bg-red-500/10 border border-red-500/20 transition-colors"
-                >
-                  إلغاء المخصص
-                </button>
+                <button onClick={() => update({ customAccentHex: "" })}
+                  className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded-lg bg-red-500/10 border border-red-500/20 transition-colors">إلغاء المخصص</button>
               )}
             </div>
           </div>
-          <div className="w-10 h-10 rounded-full border-2 border-white/20 shadow-lg shrink-0"
-            style={{ backgroundColor: settings.customAccentHex || "#f59e0b" }} />
+          <div className="w-10 h-10 rounded-full border-2 border-white/20 shadow-lg shrink-0" style={{ backgroundColor: settings.customAccentHex || "#f59e0b" }} />
         </div>
       </div>
 
-      {/* ─── سماكة الحدود + سماكة النص + حجم الأيقونات ─── */}
+      {/* Advanced */}
       <div className="glass-panel rounded-2xl p-5 border border-white/10 space-y-5">
-        <div className="flex items-center gap-2 mb-1">
-          <Type className="w-4 h-4 text-amber-400" />
-          <h4 className="font-bold text-white text-sm">إعدادات المظهر المتقدمة</h4>
-        </div>
-
-        {/* سماكة الحدود */}
+        <div className="flex items-center gap-2 mb-1"><Type className="w-4 h-4 text-amber-400" /><h4 className="font-bold text-white text-sm">إعدادات المظهر المتقدمة</h4></div>
         <div className="space-y-2">
           <div className="flex justify-between items-center">
-            <Label>سماكة الحدود</Label>
+            <FieldLabel>سماكة الحدود</FieldLabel>
             <span className="text-amber-400 font-bold text-xs font-mono">{settings.borderWidth ?? 1}px</span>
           </div>
-          <input type="range" min={0.5} max={4} step={0.5}
-            value={settings.borderWidth ?? 1}
+          <input type="range" min={0.5} max={4} step={0.5} value={settings.borderWidth ?? 1}
             onChange={e => update({ borderWidth: parseFloat(e.target.value) })}
             className="w-full accent-amber-500 cursor-pointer h-2 rounded-full" />
-          <div className="flex justify-between text-white/30 text-xs">
-            <span>رفيع جداً</span><span>سميك</span>
-          </div>
         </div>
-
-        {/* سماكة النص */}
         <div className="space-y-2">
-          <Label>سماكة النص</Label>
+          <FieldLabel>سماكة النص</FieldLabel>
           <div className="grid grid-cols-4 gap-2">
             {([400, 500, 600, 700] as const).map(w => (
               <button key={w} onClick={() => update({ fontWeightNormal: w })}
@@ -625,34 +1081,21 @@ function AppearanceTab() {
               </button>
             ))}
           </div>
-          <p className="text-white/40 text-xs text-center" style={{ fontWeight: settings.fontWeightNormal ?? 400 }}>
-            نموذج النص بهذه السماكة — أبجد هوز حطي كلمن
-          </p>
         </div>
-
-        {/* حجم الأيقونات */}
         <div className="space-y-2">
           <div className="flex justify-between items-center">
-            <Label>حجم أيقونات القائمة</Label>
+            <FieldLabel>حجم أيقونات القائمة</FieldLabel>
             <span className="text-amber-400 font-bold text-xs font-mono">{settings.iconSize ?? 20}px</span>
           </div>
-          <input type="range" min={14} max={36} step={2}
-            value={settings.iconSize ?? 20}
+          <input type="range" min={14} max={36} step={2} value={settings.iconSize ?? 20}
             onChange={e => update({ iconSize: parseInt(e.target.value) })}
             className="w-full accent-amber-500 cursor-pointer h-2 rounded-full" />
-          <div className="flex justify-between text-white/30 text-xs">
-            <span>صغير</span><span>كبير</span>
-          </div>
         </div>
       </div>
 
-      {/* Login background */}
+      {/* Login BG */}
       <div className="glass-panel rounded-2xl p-5 border border-white/10 space-y-4">
-        <div className="flex items-center gap-2 mb-1">
-          <Image className="w-4 h-4 text-amber-400" />
-          <h4 className="font-bold text-white text-sm">خلفية صفحة تسجيل الدخول</h4>
-        </div>
-        {/* Image preview + upload */}
+        <div className="flex items-center gap-2 mb-1"><Image className="w-4 h-4 text-amber-400" /><h4 className="font-bold text-white text-sm">خلفية صفحة تسجيل الدخول</h4></div>
         <div className="flex items-center gap-4">
           <div className="w-32 h-20 rounded-xl overflow-hidden shrink-0 border border-white/10 bg-white/5 flex items-center justify-center">
             {settings.loginBgImage
@@ -674,14 +1117,13 @@ function AppearanceTab() {
           </div>
         </div>
         <input ref={loginBgRef} type="file" accept="image/*" className="hidden" onChange={handleLoginBgUpload} />
-        {/* Gradient presets (when no image) */}
         {!settings.loginBgImage && (
           <div>
             <p className="text-white/40 text-xs mb-2">أو اختر تدرجاً:</p>
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
               {LOGIN_BG_OPTIONS.map(opt => (
                 <button key={opt.key}
-                  onClick={() => { update({ loginBg: opt.key }); toast({ title: "تم تغيير خلفية تسجيل الدخول" }); }}
+                  onClick={() => { update({ loginBg: opt.key }); toast({ title: "تم تغيير الخلفية" }); }}
                   className={`p-2.5 rounded-xl border transition-all text-center text-xs ${settings.loginBg === opt.key ? "bg-amber-500/20 border-amber-500/40 text-amber-400" : "glass-panel border-white/10 text-white/50 hover:border-white/20 hover:text-white"}`}>
                   {settings.loginBg === opt.key && <Check className="w-3 h-3 mx-auto mb-0.5" />}
                   {opt.label}
@@ -695,7 +1137,9 @@ function AppearanceTab() {
   );
 }
 
-/* ─── Currency Tab ─── */
+/* ══════════════════════════════════════════════════════════════════
+   CURRENCY TAB  (card selectors)
+   ══════════════════════════════════════════════════════════════════ */
 const CURRENCY_OPTIONS: { code: CurrencyCode; flag: string; label: string; symbol: string }[] = [
   { code: "EGP", flag: "🇪🇬", label: "جنيه مصري",    symbol: "ج.م" },
   { code: "SAR", flag: "🇸🇦", label: "ريال سعودي",   symbol: "ر.س" },
@@ -705,222 +1149,128 @@ const CURRENCY_OPTIONS: { code: CurrencyCode; flag: string; label: string; symbo
   { code: "BHD", flag: "🇧🇭", label: "دينار بحريني", symbol: "د.ب" },
 ];
 
-const NUMBER_FORMAT_OPTIONS: { value: NumberFormat; label: string; preview: string }[] = [
-  { value: "western",      label: "أرقام غربية",       preview: "1, 2, 3 … 1234" },
-  { value: "arabic-indic", label: "أرقام عربية-هندية", preview: "١، ٢، ٣ … ١٢٣٤" },
+const NUMBER_FORMAT_OPTIONS: { value: NumberFormat; label: string; preview: string; example: string }[] = [
+  { value: "western",      label: "أرقام غربية",       preview: "1,234.56",   example: "1 2 3 … 9" },
+  { value: "arabic-indic", label: "أرقام عربية-هندية", preview: "١٬٢٣٤٫٥٦", example: "١ ٢ ٣ … ٩" },
 ];
 
 function CurrencyTab() {
   const { settings, update } = useAppSettings();
   const { toast } = useToast();
+  const [localCurrency, setLocalCurrency] = useState<CurrencyCode>(settings.currency);
+  const [localNumFmt,   setLocalNumFmt]   = useState<NumberFormat>(settings.numberFormat ?? "western");
+  const [saved,         setSaved]         = useState(false);
 
-  const [localCurrency,    setLocalCurrency]    = useState<CurrencyCode>(settings.currency);
-  const [localNumFmt,      setLocalNumFmt]      = useState<NumberFormat>(settings.numberFormat ?? "western");
-  const [saved,            setSaved]            = useState(false);
-
-  const selectedCurr = CURRENCY_OPTIONS.find(o => o.code === localCurrency)!;
-  const previewAmount = 1234.56;
-  const previewFormatted = formatCurrencyPreview(previewAmount, localCurrency, localNumFmt);
+  const previewAmounts = [100, 1234.56, 50000, 999999];
 
   const handleSave = () => {
     update({ currency: localCurrency, numberFormat: localNumFmt });
     setSaved(true);
     toast({ title: "تم حفظ الإعدادات ✓", description: "تم تطبيق العملة وصيغة الأرقام على كامل النظام" });
-    setTimeout(() => setSaved(false), 2000);
-  };
-
-  const selectBase = {
-    WebkitAppearance: "none" as const,
-    MozAppearance: "none" as const,
-    appearance: "none" as const,
-    background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(255,255,255,0.10)",
-    color: "#fff",
-    borderRadius: "14px",
-    padding: "12px 42px 12px 16px",
-    width: "100%",
-    fontSize: "14px",
-    fontWeight: 600,
-    cursor: "pointer",
-    outline: "none",
-    direction: "rtl" as const,
-    transition: "border-color 0.2s, box-shadow 0.2s",
+    setTimeout(() => setSaved(false), 2500);
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <SectionHeader
-        title="العملة والأرقام"
-        sub="اختر العملة وصيغة عرض الأرقام المستخدمة في جميع أنحاء النظام"
-      />
+    <div className="space-y-6">
+      <PageHeader title="العملة والأرقام" sub="اختر العملة وصيغة عرض الأرقام المستخدمة في النظام" />
 
-      <div className="glass-panel rounded-2xl p-6 border border-white/8 space-y-6">
-
-        {/* ── Two dropdowns side by side ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-
-          {/* Currency dropdown */}
-          <div>
-            <Label>العملة</Label>
-            <div style={{ position: "relative" }}>
-              <select
-                value={localCurrency}
-                onChange={(e) => setLocalCurrency(e.target.value as CurrencyCode)}
-                style={selectBase}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = "rgba(245,158,11,0.5)";
-                  e.currentTarget.style.boxShadow  = "0 0 0 3px rgba(245,158,11,0.12)";
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)";
-                  e.currentTarget.style.boxShadow  = "none";
-                }}
+      {/* Currency Cards */}
+      <div className="bg-[#111827] border border-white/5 rounded-2xl p-5">
+        <p className="text-white/50 text-xs font-bold uppercase tracking-wider mb-4">اختر العملة</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {CURRENCY_OPTIONS.map(o => {
+            const active = localCurrency === o.code;
+            return (
+              <button
+                key={o.code}
+                onClick={() => setLocalCurrency(o.code)}
+                className={`flex items-center gap-3 p-3.5 rounded-xl border text-right transition-all hover:-translate-y-0.5 ${
+                  active
+                    ? "bg-amber-500/10 border-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.2)]"
+                    : "bg-[#1A2235] border-[#2D3748] hover:border-amber-500/30"
+                }`}
               >
-                {CURRENCY_OPTIONS.map(o => (
-                  <option key={o.code} value={o.code} style={{ background: "#111118", color: "#fff" }}>
-                    {o.flag}  {o.label} — {o.code}
-                  </option>
-                ))}
-              </select>
-
-              {/* chevron icon */}
-              <span style={{
-                position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)",
-                color: "rgba(255,255,255,0.35)", pointerEvents: "none", fontSize: "10px",
-              }}>▼</span>
-
-              {/* currency symbol badge */}
-              <span style={{
-                position: "absolute", right: "14px", top: "50%", transform: "translateY(-50%)",
-                background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.3)",
-                color: "#F59E0B", borderRadius: "8px", padding: "2px 8px",
-                fontSize: "12px", fontWeight: 800, pointerEvents: "none",
-              }}>
-                {selectedCurr.symbol}
-              </span>
-            </div>
-            <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.3)", marginTop: "6px" }}>
-              {selectedCurr.flag} {selectedCurr.label}
-            </p>
-          </div>
-
-          {/* Number format dropdown */}
-          <div>
-            <Label>صيغة الأرقام</Label>
-            <div style={{ position: "relative" }}>
-              <select
-                value={localNumFmt}
-                onChange={(e) => setLocalNumFmt(e.target.value as NumberFormat)}
-                style={selectBase}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = "rgba(245,158,11,0.5)";
-                  e.currentTarget.style.boxShadow  = "0 0 0 3px rgba(245,158,11,0.12)";
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)";
-                  e.currentTarget.style.boxShadow  = "none";
-                }}
-              >
-                {NUMBER_FORMAT_OPTIONS.map(o => (
-                  <option key={o.value} value={o.value} style={{ background: "#111118", color: "#fff" }}>
-                    {o.label} — {o.preview}
-                  </option>
-                ))}
-              </select>
-              <span style={{
-                position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)",
-                color: "rgba(255,255,255,0.35)", pointerEvents: "none", fontSize: "10px",
-              }}>▼</span>
-            </div>
-            <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.3)", marginTop: "6px" }}>
-              {NUMBER_FORMAT_OPTIONS.find(o => o.value === localNumFmt)?.preview}
-            </p>
-          </div>
+                <span className="text-2xl">{o.flag}</span>
+                <div className="flex-1">
+                  <p className={`font-bold text-sm ${active ? "text-amber-400" : "text-white/80"}`}>{o.label}</p>
+                  <p className="text-white/30 text-xs mt-0.5">{o.code} · {o.symbol}</p>
+                </div>
+                {active && <Check className="w-4 h-4 text-amber-400 shrink-0" />}
+              </button>
+            );
+          })}
         </div>
-
-        {/* ── Live preview ── */}
-        <div style={{
-          borderRadius: "14px",
-          border: "1px solid rgba(255,255,255,0.07)",
-          background: "rgba(255,255,255,0.02)",
-          padding: "18px 20px",
-        }}>
-          <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.35)", marginBottom: "12px", letterSpacing: "0.06em" }}>
-            معاينة مباشرة
-          </p>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: "13px", color: "rgba(255,255,255,0.4)" }}>المبلغ التجريبي</span>
-            <span style={{
-              fontSize: "26px", fontWeight: 900, color: "#F59E0B",
-              textShadow: "0 0 20px rgba(245,158,11,0.35)",
-              letterSpacing: "-0.5px",
-            }}>
-              {previewFormatted}
-            </span>
-          </div>
-          <div style={{
-            marginTop: "10px", display: "flex", gap: "6px", flexWrap: "wrap" as const,
-          }}>
-            {[100, 999, 50000].map(n => (
-              <span key={n} style={{
-                fontSize: "12px", color: "rgba(255,255,255,0.3)",
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.06)",
-                borderRadius: "8px", padding: "3px 10px",
-              }}>
-                {formatCurrencyPreview(n, localCurrency, localNumFmt)}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {/* ── Save button ── */}
-        <button
-          onClick={handleSave}
-          style={{
-            width: "100%", padding: "13px", borderRadius: "14px",
-            fontWeight: 800, fontSize: "15px", cursor: "pointer",
-            background: saved ? "rgba(52,211,153,0.9)" : "#F59E0B",
-            color: saved ? "#fff" : "#000",
-            border: "none", transition: "all 0.25s",
-            boxShadow: saved
-              ? "0 4px 20px rgba(52,211,153,0.3)"
-              : "0 4px 20px rgba(245,158,11,0.25)",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
-          }}
-        >
-          {saved ? (
-            <>
-              <CheckCircle2 style={{ width: "18px", height: "18px" }} />
-              تم الحفظ
-            </>
-          ) : (
-            <>
-              <Save style={{ width: "18px", height: "18px" }} />
-              حفظ الإعدادات
-            </>
-          )}
-        </button>
-
-        {/* ── Info note ── */}
-        <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.25)", textAlign: "center" }}>
-          سيتم تطبيق التغييرات فوراً على جميع الشاشات والتقارير والفواتير
-        </p>
       </div>
+
+      {/* Number Format Cards */}
+      <div className="bg-[#111827] border border-white/5 rounded-2xl p-5">
+        <p className="text-white/50 text-xs font-bold uppercase tracking-wider mb-4">صيغة عرض الأرقام</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {NUMBER_FORMAT_OPTIONS.map(o => {
+            const active = localNumFmt === o.value;
+            return (
+              <button
+                key={o.value}
+                onClick={() => setLocalNumFmt(o.value)}
+                className={`flex items-center gap-4 p-4 rounded-xl border text-right transition-all ${
+                  active
+                    ? "bg-amber-500/10 border-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.2)]"
+                    : "bg-[#1A2235] border-[#2D3748] hover:border-amber-500/30"
+                }`}
+              >
+                <div className="flex-1">
+                  <p className={`font-bold text-sm ${active ? "text-amber-400" : "text-white/80"}`}>{o.label}</p>
+                  <p className="text-white/30 text-xs mt-0.5">{o.example}</p>
+                </div>
+                <span className={`text-lg font-black ${active ? "text-amber-400" : "text-white/30"}`}>{o.preview}</span>
+                {active && <Check className="w-4 h-4 text-amber-400 shrink-0" />}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Live Preview */}
+      <div className="bg-[#1A2235] border border-white/5 rounded-2xl p-5">
+        <p className="text-white/40 text-xs font-bold uppercase tracking-wider mb-4">معاينة مباشرة</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {previewAmounts.map(n => (
+            <div key={n} className="bg-[#0D1424] rounded-xl p-3 text-center border border-white/5">
+              <p className="text-white/30 text-xs mb-1">{n.toLocaleString("ar-EG")}</p>
+              <p className="text-amber-400 font-black text-sm">{formatCurrencyPreview(n, localCurrency, localNumFmt)}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Save */}
+      <button
+        onClick={handleSave}
+        className="w-full py-3.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2"
+        style={{
+          background: saved ? "rgba(52,211,153,0.9)" : "linear-gradient(to right, #F59E0B, #D97706)",
+          color: "#000",
+          boxShadow: saved ? "0 4px 20px rgba(52,211,153,0.3)" : "0 4px 20px rgba(245,158,11,0.25)",
+        }}
+      >
+        {saved ? <><CheckCircle2 className="w-4 h-4" /> تم الحفظ</> : <><Save className="w-4 h-4" /> حفظ الإعدادات</>}
+      </button>
+      <p className="text-white/25 text-xs text-center">سيتم تطبيق التغييرات فوراً على جميع الشاشات والتقارير والفواتير</p>
     </div>
   );
 }
 
-/* ─── Backup & Import Tab ─── */
-
+/* ══════════════════════════════════════════════════════════════════
+   BACKUP & IMPORT TAB
+   ══════════════════════════════════════════════════════════════════ */
 const BACKUP_MODULES_LIST = [
-  { key: "sales",        icon: "🛍️", label: "المبيعات",          sub: "الفواتير، العملاء، المرتجعات",         url: "/api/sales" },
-  { key: "purchases",    icon: "🛒", label: "المشتريات",          sub: "فواتير الموردين، المرتجعات",           url: "/api/purchases" },
-  { key: "products",     icon: "📦", label: "المخزن",             sub: "الأصناف، الكميات، الحركات",            url: "/api/products" },
-  { key: "treasury",     icon: "💰", label: "الخزينة",            sub: "الإيرادات، المصروفات، السندات",        url: "/api/financial-transactions" },
-  { key: "customers",    icon: "👥", label: "العملاء والموردين",  sub: "الأرصدة والبيانات",                    url: "/api/customers" },
-  { key: "settings",     icon: "⚙️", label: "الإعدادات",          sub: "العملة والتفضيلات",                    url: null },
-  { key: "reports",      icon: "📊", label: "التقارير المحفوظة",  sub: "الإحصائيات والبيانات التاريخية",       url: null },
+  { key: "sales",     icon: "🛍️", label: "المبيعات",         sub: "الفواتير، العملاء، المرتجعات",       url: "/api/sales" },
+  { key: "purchases", icon: "🛒", label: "المشتريات",         sub: "فواتير الموردين، المرتجعات",         url: "/api/purchases" },
+  { key: "products",  icon: "📦", label: "المخزن",            sub: "الأصناف، الكميات، الحركات",          url: "/api/products" },
+  { key: "treasury",  icon: "💰", label: "الخزينة",           sub: "الإيرادات، المصروفات، السندات",      url: "/api/financial-transactions" },
+  { key: "customers", icon: "👥", label: "العملاء والموردين", sub: "الأرصدة والبيانات",                  url: "/api/customers" },
+  { key: "settings",  icon: "⚙️", label: "الإعدادات",         sub: "العملة والتفضيلات",                  url: null },
+  { key: "reports",   icon: "📊", label: "التقارير المحفوظة", sub: "الإحصائيات والبيانات التاريخية",     url: null },
 ] as const;
 
 const ACTIVITY_KEY  = "halal_erp_activity_log";
@@ -928,12 +1278,8 @@ const LAST_BK_KEY   = "halal_erp_last_backup";
 const SCHEDULE_KEY2 = "halal_erp_schedule";
 
 interface ActivityEntry {
-  id:     string;
-  date:   string;
-  type:   "backup" | "import-products" | "import-purchases";
-  file:   string;
-  status: string;
-  user:   string;
+  id: string; date: string; type: "backup" | "import-products" | "import-purchases";
+  file: string; status: string; user: string;
 }
 
 function loadActivityLog(): ActivityEntry[] {
@@ -946,25 +1292,15 @@ function pushActivity(e: Omit<ActivityEntry, "id">) {
 }
 
 interface PurchaseRow {
-  idx:       number;
-  sku:       string;
-  name:      string;
-  quantity:  string;
-  unitPrice: string;
-  supplier:  string;
-  invoiceNo: string;
-  date:      string;
-  tax:       string;
-  discount:  string;
-  productId: number | null;
-  errors:    string[];
+  idx: number; sku: string; name: string; quantity: string; unitPrice: string;
+  supplier: string; invoiceNo: string; date: string; tax: string; discount: string;
+  productId: number | null; errors: string[];
 }
 
 function BackupImportTab() {
   const { toast } = useToast();
   const [importSubTab, setImportSubTab] = useState<"products" | "purchases">("products");
 
-  /* ── Backup state ── */
   const [bkModules,  setBkModules]  = useState<Set<string>>(new Set(BACKUP_MODULES_LIST.map(m => m.key)));
   const [bkLoading,  setBkLoading]  = useState(false);
   const [bkProgress, setBkProgress] = useState(0);
@@ -972,13 +1308,11 @@ function BackupImportTab() {
   const [lastBackup, setLastBackup] = useState<string | null>(() => localStorage.getItem(LAST_BK_KEY));
   const [schedule,   setSchedule]   = useState(() => localStorage.getItem(SCHEDULE_KEY2) || "none");
 
-  /* ── Products import state ── */
   const [prodImporting, setProdImporting] = useState(false);
   const [prodExporting, setProdExporting] = useState(false);
   const [prodResult,    setProdResult]    = useState<{ success: number; failed: number } | null>(null);
   const prodFileRef = useRef<HTMLInputElement>(null);
 
-  /* ── Purchase import state ── */
   const [purRows,       setPurRows]       = useState<PurchaseRow[]>([]);
   const [purParsed,     setPurParsed]     = useState(false);
   const [purLoading,    setPurLoading]    = useState(false);
@@ -988,11 +1322,9 @@ function BackupImportTab() {
   const [purPayType,    setPurPayType]    = useState<"cash" | "credit">("cash");
   const purFileRef = useRef<HTMLInputElement>(null);
 
-  /* ── Activity log ── */
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>(() => loadActivityLog());
   const refreshLog = () => setActivityLog(loadActivityLog());
 
-  /* ─── BACKUP ─── */
   const toggleModule = (key: string) => setBkModules(prev => {
     const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s;
   });
@@ -1026,16 +1358,13 @@ function BackupImportTab() {
       const dt    = new Date().toISOString().replace("T", "_").replace(/:/g, "-").slice(0, 19);
       const fname = `backup_${dt}.json`;
       const link  = document.createElement("a");
-      link.href     = URL.createObjectURL(blob);
-      link.download = fname;
-      link.click();
+      link.href = URL.createObjectURL(blob); link.download = fname; link.click();
       URL.revokeObjectURL(link.href);
       const sizekb = (blob.size / 1024).toFixed(1);
       setBkResult({ name: fname, size: `${sizekb} KB`, count: selected.length });
       setBkProgress(100);
       const now = new Date().toISOString();
-      localStorage.setItem(LAST_BK_KEY, now);
-      setLastBackup(now);
+      localStorage.setItem(LAST_BK_KEY, now); setLastBackup(now);
       pushActivity({ date: now, type: "backup", file: fname, status: `✅ ${selected.length} وحدات`, user: "Admin" });
       refreshLog();
       toast({ title: `✅ تم إنشاء النسخة الاحتياطية — ${fname}` });
@@ -1052,11 +1381,10 @@ function BackupImportTab() {
     return new Date(lastBackup).toLocaleDateString("ar-EG");
   };
 
-  /* ─── PRODUCTS IMPORT ─── */
   const handleProductsExport = async () => {
     setProdExporting(true);
     try {
-      const res  = await fetch(api("/api/products"));
+      const res = await fetch(api("/api/products"));
       const prods = await res.json();
       const rows = prods.map((p: any) => ({
         "اسم الصنف": p.name, "كود الصنف (SKU)": p.sku || "", "التصنيف": p.category || "",
@@ -1133,7 +1461,6 @@ function BackupImportTab() {
     XLSX.writeFile(wb, "template-products.xlsx");
   };
 
-  /* ─── PURCHASE IMPORT ─── */
   const handlePurchaseFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
     setPurLoading(true); setPurParsed(false); setPurRows([]); setPurResult(null);
@@ -1159,9 +1486,9 @@ function BackupImportTab() {
         const tax       = String(row["الضريبة%"]         || row["tax"]        || "0");
         const discount  = String(row["الخصم%"]           || row["discount"]   || "0");
         const errors: string[] = [];
-        if (!sku)                                                             errors.push("كود الصنف مفقود");
-        else if (!skuMap.has(sku.toUpperCase()))                             errors.push(`كود غير موجود: ${sku}`);
-        if (!quantity  || isNaN(Number(quantity))  || Number(quantity) <= 0) errors.push("الكمية غير صالحة");
+        if (!sku)                                                              errors.push("كود الصنف مفقود");
+        else if (!skuMap.has(sku.toUpperCase()))                              errors.push(`كود غير موجود: ${sku}`);
+        if (!quantity  || isNaN(Number(quantity))  || Number(quantity) <= 0)  errors.push("الكمية غير صالحة");
         if (!unitPrice || isNaN(Number(unitPrice)) || Number(unitPrice) <= 0) errors.push("السعر غير صالح");
         const resolved = skuMap.get(sku.toUpperCase());
         return { idx, sku, name: name || resolved?.name || "", quantity, unitPrice, supplier, invoiceNo, date, tax, discount, productId: resolved?.id ?? null, errors };
@@ -1177,9 +1504,9 @@ function BackupImportTab() {
       if (r.idx !== idx) return r;
       const u = { ...r, [field]: value };
       const errors: string[] = [];
-      if (!u.sku)                                                              errors.push("كود الصنف مفقود");
-      else if (!u.productId)                                                   errors.push("كود غير موجود في النظام");
-      if (!u.quantity  || isNaN(Number(u.quantity))  || Number(u.quantity) <= 0) errors.push("الكمية غير صالحة");
+      if (!u.sku)                                                               errors.push("كود الصنف مفقود");
+      else if (!u.productId)                                                    errors.push("كود غير موجود");
+      if (!u.quantity  || isNaN(Number(u.quantity))  || Number(u.quantity) <= 0)  errors.push("الكمية غير صالحة");
       if (!u.unitPrice || isNaN(Number(u.unitPrice)) || Number(u.unitPrice) <= 0) errors.push("السعر غير صالح");
       u.errors = errors;
       return u;
@@ -1225,179 +1552,131 @@ function BackupImportTab() {
   const downloadPurchaseTemplate = () => {
     const rows = [
       { "كود الصنف (SKU)": "SCR001", "اسم الصنف": "شاشة LCD", "الكمية": 10, "سعر الشراء": 150, "المورد": "مورد الشاشات", "تاريخ الفاتورة": "2024-01-15", "رقم الفاتورة": "INV-001", "الضريبة%": 14, "الخصم%": 0 },
-      { "كود الصنف (SKU)": "BAT002", "اسم الصنف": "بطارية أيفون", "الكمية": 20, "سعر الشراء": 80, "المورد": "مورد الشاشات", "تاريخ الفاتورة": "2024-01-15", "رقم الفاتورة": "INV-001", "الضريبة%": 14, "الخصم%": 5 },
     ];
     const ws = XLSX.utils.json_to_sheet(rows);
-    ws["!cols"] = [{ wch: 15 }, { wch: 20 }, { wch: 10 }, { wch: 12 }, { wch: 18 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 10 }];
-    const instRows = [
-      { "الحقل": "كود الصنف (SKU)",  "الوصف": "رمز الصنف الموجود في النظام (إلزامي)",         "مثال": "SCR001" },
-      { "الحقل": "اسم الصنف",        "الوصف": "اسم الصنف للعرض فقط (اختياري)",                "مثال": "شاشة LCD" },
-      { "الحقل": "الكمية",           "الوصف": "الكمية المشتراة (إلزامي، أكبر من صفر)",         "مثال": "10" },
-      { "الحقل": "سعر الشراء",       "الوصف": "سعر الوحدة قبل الضريبة (إلزامي)",               "مثال": "150" },
-      { "الحقل": "المورد",           "الوصف": "اسم المورد (اختياري)",                           "مثال": "مورد الشاشات" },
-      { "الحقل": "تاريخ الفاتورة",   "الوصف": "تاريخ الفاتورة بصيغة YYYY-MM-DD (اختياري)",   "مثال": "2024-01-15" },
-      { "الحقل": "رقم الفاتورة",     "الوصف": "رقم فاتورة المورد الأصلية (اختياري)",           "مثال": "INV-001" },
-      { "الحقل": "الضريبة%",         "الوصف": "نسبة ضريبة القيمة المضافة (اختياري، افتراضي 0)","مثال": "14" },
-      { "الحقل": "الخصم%",           "الوصف": "نسبة الخصم على سعر الوحدة (اختياري، افتراضي 0)","مثال": "0" },
-    ];
-    const wsInst = XLSX.utils.json_to_sheet(instRows);
-    wsInst["!cols"] = [{ wch: 18 }, { wch: 45 }, { wch: 15 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "فاتورة المشتريات");
-    XLSX.utils.book_append_sheet(wb, wsInst, "التعليمات");
     XLSX.writeFile(wb, "template-purchase-invoice.xlsx");
   };
 
-  /* ─── RENDER ─── */
   return (
     <div className="space-y-6">
-      <SectionHeader title="النسخ الاحتياطية والاستيراد" sub="احتفظ ببيانات نظامك واستورد البيانات بأمان" />
+      <PageHeader title="النسخ الاحتياطية والاستيراد" sub="احتفظ ببيانات نظامك واستورد البيانات بأمان" />
 
-      {/* ══════════ SECTION 1: BACKUP ══════════ */}
-      <div className="glass-panel rounded-2xl border border-white/8 overflow-hidden">
-        <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between">
+      {/* ── BACKUP ── */}
+      <div className="bg-[#111827] border border-white/5 rounded-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-500/15 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-blue-500/10 flex items-center justify-center">
               <HardDrive className="w-4 h-4 text-blue-400" />
             </div>
             <div>
-              <h4 className="font-bold text-white text-sm">النسخ الاحتياطية</h4>
-              <p className="text-white/40 text-xs">آخر نسخة: {lastBackupLabel()}</p>
+              <p className="font-bold text-white text-sm">النسخ الاحتياطية</p>
+              <p className="text-white/30 text-xs">آخر نسخة: {lastBackupLabel()}</p>
             </div>
           </div>
           <button onClick={toggleAllModules} className="text-xs text-amber-400 hover:text-amber-300 transition-colors">
-            {bkModules.size === BACKUP_MODULES_LIST.length ? "إلغاء تحديد الكل" : "تحديد الكل"}
+            {bkModules.size === BACKUP_MODULES_LIST.length ? "إلغاء الكل" : "تحديد الكل"}
           </button>
         </div>
-
-        <div className="p-6 space-y-5">
-          {/* Module checklist */}
+        <div className="p-5 space-y-4">
+          {/* Toggle cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {BACKUP_MODULES_LIST.map(m => {
               const active = bkModules.has(m.key);
               return (
-                <button key={m.key} onClick={() => toggleModule(m.key)}
+                <button
+                  key={m.key}
+                  onClick={() => toggleModule(m.key)}
                   className={`flex items-center gap-3 p-3 rounded-xl border text-right transition-all ${
-                    active ? "bg-blue-500/10 border-blue-500/25" : "glass-panel border-white/6 hover:border-white/15"
-                  }`}>
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
-                    active ? "bg-blue-500/20" : "bg-white/5"
-                  }`}>
-                    {active
-                      ? <Check className="w-4 h-4 text-blue-400" />
-                      : <span className="text-base leading-none">{m.icon}</span>
-                    }
+                    active
+                      ? "bg-blue-500/10 border-blue-500/30 shadow-[0_0_8px_rgba(59,130,246,0.1)]"
+                      : "bg-[#1A2235] border-[#2D3748] hover:border-blue-500/20"
+                  }`}
+                >
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 text-xl transition-colors ${active ? "bg-blue-500/20" : "bg-white/5"}`}>
+                    {active ? <Check className="w-4 h-4 text-blue-400" /> : m.icon}
                   </div>
-                  <div className="flex-1 text-right">
+                  <div className="flex-1">
                     <p className={`text-sm font-bold ${active ? "text-blue-300" : "text-white/70"}`}>{m.label}</p>
-                    <p className="text-white/30 text-xs">{m.sub}</p>
+                    <p className="text-white/25 text-xs">{m.sub}</p>
                   </div>
-                  <span className="text-lg leading-none">{m.icon}</span>
+                  {!active && <span className="text-xl">{m.icon}</span>}
                 </button>
               );
             })}
           </div>
 
-          {/* Schedule */}
-          <div className="flex flex-wrap items-center gap-3 p-3 rounded-xl bg-white/3 border border-white/5">
-            <span className="text-white/40 text-xs whitespace-nowrap">جدولة تلقائية:</span>
-            <div className="flex gap-2 flex-wrap">
-              {[
-                { v: "none", l: "بدون" }, { v: "daily", l: "يومياً" },
-                { v: "weekly", l: "أسبوعياً" }, { v: "monthly", l: "شهرياً" },
-              ].map(s => (
-                <button key={s.v}
-                  onClick={() => { setSchedule(s.v); localStorage.setItem(SCHEDULE_KEY2, s.v); }}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all border ${
-                    schedule === s.v
-                      ? "bg-amber-500/20 border-amber-500/30 text-amber-400"
-                      : "border-white/10 text-white/35 hover:border-white/20 hover:text-white/60"
-                  }`}>
-                  {s.l}
-                </button>
-              ))}
-            </div>
+          {/* Schedule pills */}
+          <div className="flex flex-wrap items-center gap-2 p-3 rounded-xl bg-white/3 border border-white/5">
+            <span className="text-white/35 text-xs">جدولة تلقائية:</span>
+            {[{ v: "none", l: "بدون" }, { v: "daily", l: "يومياً" }, { v: "weekly", l: "أسبوعياً" }, { v: "monthly", l: "شهرياً" }].map(s => (
+              <button key={s.v}
+                onClick={() => { setSchedule(s.v); localStorage.setItem(SCHEDULE_KEY2, s.v); }}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all border ${
+                  schedule === s.v
+                    ? "bg-amber-500/20 border-amber-500/30 text-amber-400"
+                    : "border-white/10 text-white/30 hover:border-white/20 hover:text-white/60"
+                }`}>
+                {s.l}
+              </button>
+            ))}
           </div>
 
-          {/* Progress bar */}
+          {/* Progress */}
           {bkLoading && (
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <div className="flex justify-between text-xs text-white/40">
                 <span>جاري إنشاء النسخة الاحتياطية...</span>
                 <span>{bkProgress}%</span>
               </div>
-              <div className="w-full h-2 rounded-full bg-white/5 overflow-hidden">
+              <div className="h-2 rounded-full bg-white/5 overflow-hidden">
                 <div className="h-full bg-blue-400 rounded-full transition-all duration-300" style={{ width: `${bkProgress}%` }} />
               </div>
             </div>
           )}
 
-          {/* Success card */}
+          {/* Success */}
           {bkResult && !bkLoading && (
-            <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 space-y-3">
-              <div className="flex items-center gap-2">
+            <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+              <div className="flex items-center gap-2 mb-3">
                 <CheckCircle2 className="w-5 h-5 text-emerald-400" />
                 <span className="text-emerald-400 font-bold text-sm">تم إنشاء النسخة الاحتياطية بنجاح</span>
               </div>
               <div className="grid grid-cols-3 gap-3 text-center">
-                <div>
-                  <p className="text-white/35 text-xs mb-0.5">الملف</p>
-                  <p className="text-white text-xs font-bold truncate">{bkResult.name.slice(0, 20)}…</p>
-                </div>
-                <div>
-                  <p className="text-white/35 text-xs mb-0.5">الحجم</p>
-                  <p className="text-white text-sm font-bold">{bkResult.size}</p>
-                </div>
-                <div>
-                  <p className="text-white/35 text-xs mb-0.5">الوحدات</p>
-                  <p className="text-white text-sm font-bold">{bkResult.count}</p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={handleBackup}
-                  className="flex-1 flex items-center justify-center gap-2 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/25 rounded-lg text-emerald-400 text-xs font-bold transition-all">
-                  <Download className="w-3.5 h-3.5" /> تحميل مرة أخرى
-                </button>
-                <button disabled
-                  className="flex-1 flex items-center justify-center gap-2 py-2 bg-white/3 border border-white/8 rounded-lg text-white/20 text-xs font-bold cursor-not-allowed">
-                  ☁️ نسخ إلى السحابة (قريباً)
-                </button>
+                <div><p className="text-white/30 text-xs mb-0.5">الملف</p><p className="text-white text-xs font-bold truncate">{bkResult.name.slice(0, 20)}…</p></div>
+                <div><p className="text-white/30 text-xs mb-0.5">الحجم</p><p className="text-white text-sm font-bold">{bkResult.size}</p></div>
+                <div><p className="text-white/30 text-xs mb-0.5">الوحدات</p><p className="text-white text-sm font-bold">{bkResult.count}</p></div>
               </div>
             </div>
           )}
 
-          {/* Backup button */}
-          <button onClick={handleBackup} disabled={bkLoading || bkModules.size === 0}
-            className="w-full flex items-center justify-center gap-2 py-3.5 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-xl text-blue-300 font-bold text-sm transition-all disabled:opacity-40">
+          <PrimaryBtn onClick={handleBackup} disabled={bkLoading || bkModules.size === 0} className="w-full">
             {bkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <HardDrive className="w-4 h-4" />}
-            {bkLoading ? `جاري الإنشاء... ${bkProgress}%` : `💾 إنشاء نسخة احتياطية (${bkModules.size} وحدات)`}
-          </button>
+            {bkLoading ? `جاري الإنشاء... ${bkProgress}%` : `إنشاء نسخة احتياطية (${bkModules.size} وحدات)`}
+          </PrimaryBtn>
         </div>
       </div>
 
-      {/* ══════════ SECTION 2: IMPORT ══════════ */}
-      <div className="glass-panel rounded-2xl border border-white/8 overflow-hidden">
-        <div className="px-6 py-4 border-b border-white/5 space-y-3">
+      {/* ── IMPORT ── */}
+      <div className="bg-[#111827] border border-white/5 rounded-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-white/5 space-y-3">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-500/15 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/10 flex items-center justify-center">
               <Upload className="w-4 h-4 text-amber-400" />
             </div>
             <div>
-              <h4 className="font-bold text-white text-sm">الاستيراد</h4>
-              <p className="text-white/40 text-xs">استيراد الأصناف وفواتير المشتريات من ملفات Excel</p>
+              <p className="font-bold text-white text-sm">الاستيراد</p>
+              <p className="text-white/30 text-xs">استيراد الأصناف وفواتير المشتريات من ملفات Excel</p>
             </div>
           </div>
-          {/* Sub-tabs */}
-          <div className="flex gap-1.5">
-            {[
-              { id: "products"  as const, label: "📦 استيراد الأصناف" },
-              { id: "purchases" as const, label: "🛒 استيراد فاتورة مشتريات" },
-            ].map(t => (
+          <div className="flex gap-2">
+            {[{ id: "products" as const, label: "📦 استيراد الأصناف" }, { id: "purchases" as const, label: "🛒 استيراد فاتورة مشتريات" }].map(t => (
               <button key={t.id} onClick={() => setImportSubTab(t.id)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
                   importSubTab === t.id
                     ? "bg-amber-500/20 border-amber-500/30 text-amber-400"
-                    : "border-white/8 text-white/40 hover:text-white/60 hover:border-white/15"
+                    : "border-white/8 text-white/35 hover:text-white/60 hover:border-white/15"
                 }`}>
                 {t.label}
               </button>
@@ -1405,11 +1684,9 @@ function BackupImportTab() {
           </div>
         </div>
 
-        <div className="p-6">
-          {/* ── Products sub-tab ── */}
+        <div className="p-5">
           {importSubTab === "products" && (
             <div className="space-y-4">
-              {/* Export existing products */}
               <div className="flex items-center justify-between p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5">
                 <div>
                   <p className="text-emerald-400 font-bold text-sm">تصدير الأصناف الحالية</p>
@@ -1421,8 +1698,6 @@ function BackupImportTab() {
                   {prodExporting ? "جاري التصدير..." : "تصدير Excel"}
                 </button>
               </div>
-
-              {/* Import products */}
               <div className="p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 space-y-3">
                 <div>
                   <p className="text-amber-400 font-bold text-sm">استيراد أصناف جديدة</p>
@@ -1447,21 +1722,17 @@ function BackupImportTab() {
                     {prodResult.failed > 0 && <span className="text-red-400"> — فشل {prodResult.failed}</span>}
                   </div>
                 )}
-                <div className="p-3 rounded-xl bg-white/3 border border-white/5 text-xs text-white/25">
-                  الأعمدة: اسم الصنف، كود الصنف (SKU)، التصنيف، الكمية، سعر التكلفة، سعر البيع، حد التنبيه — الصيغ: xlsx, xls, csv
-                </div>
               </div>
             </div>
           )}
 
-          {/* ── Purchases sub-tab ── */}
           {importSubTab === "purchases" && (
             <div className="space-y-4">
               {!purParsed ? (
                 <div className="p-4 rounded-xl border border-violet-500/20 bg-violet-500/5 space-y-3">
                   <div>
                     <p className="text-violet-400 font-bold text-sm">استيراد فاتورة مشتريات</p>
-                    <p className="text-white/30 text-xs">رفع ملف Excel يحتوي على بنود الفاتورة لإنشائها تلقائياً وتحديث المخزن</p>
+                    <p className="text-white/30 text-xs">رفع ملف Excel يحتوي على بنود الفاتورة لإنشائها تلقائياً</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button onClick={() => purFileRef.current?.click()} disabled={purLoading}
@@ -1475,52 +1746,39 @@ function BackupImportTab() {
                     </button>
                   </div>
                   <input ref={purFileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handlePurchaseFile} />
-                  <div className="p-3 rounded-xl bg-white/3 border border-white/5 text-xs text-white/25 space-y-0.5">
-                    <p><span className="text-white/40">إلزامي:</span> كود الصنف (SKU)، الكمية، سعر الشراء</p>
-                    <p><span className="text-white/40">اختياري:</span> اسم الصنف، المورد، تاريخ الفاتورة، رقم الفاتورة، الضريبة%، الخصم%</p>
-                  </div>
                 </div>
               ) : (
                 <>
-                  {/* Summary bar */}
                   <div className="flex items-center justify-between p-3 rounded-xl bg-white/3 border border-white/8">
                     <div className="flex gap-4">
                       <span className="text-emerald-400 text-sm font-bold">{validRows.length} صنف صحيح ✓</span>
                       {errorRows.length > 0 && <span className="text-red-400 text-sm font-bold">{errorRows.length} صنف به أخطاء ✗</span>}
                     </div>
                     <button onClick={() => { setPurParsed(false); setPurRows([]); setPurResult(null); }}
-                      className="text-white/30 hover:text-white/60 text-xs transition-colors">
-                      تغيير الملف
-                    </button>
+                      className="text-xs text-white/40 hover:text-white transition-colors">إلغاء</button>
                   </div>
-
-                  {/* Invoice meta */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-white/40 text-xs mb-1.5">اسم المورد</label>
-                      <input value={purSupplier} onChange={e => setPurSupplier(e.target.value)}
-                        className="glass-input w-full text-white text-sm" placeholder="اسم المورد (اختياري)" />
+                      <FieldLabel>المورد (اختياري)</FieldLabel>
+                      <SInput placeholder="اسم المورد" value={purSupplier} onChange={e => setPurSupplier(e.target.value)} />
                     </div>
                     <div>
-                      <label className="block text-white/40 text-xs mb-1.5">نوع الدفع</label>
-                      <select value={purPayType} onChange={e => setPurPayType(e.target.value as "cash" | "credit")}
-                        className="glass-input w-full text-white text-sm">
-                        <option value="cash">نقدي (كاش)</option>
-                        <option value="credit">آجل (دين)</option>
-                      </select>
+                      <FieldLabel>طريقة الدفع</FieldLabel>
+                      <SSelect value={purPayType} onChange={e => setPurPayType(e.target.value as "cash" | "credit")}>
+                        <option value="cash">نقدي</option>
+                        <option value="credit">آجل</option>
+                      </SSelect>
                     </div>
                   </div>
-
-                  {/* Preview table */}
                   <div className="overflow-x-auto rounded-xl border border-white/8">
-                    <table className="w-full text-xs min-w-[560px]">
+                    <table className="w-full text-xs min-w-[500px]">
                       <thead>
-                        <tr className="border-b border-white/8 bg-white/3">
-                          <th className="px-3 py-2.5 text-right text-white/40 font-medium whitespace-nowrap">SKU</th>
+                        <tr className="bg-white/3 border-b border-white/8">
+                          <th className="px-3 py-2.5 text-right text-white/40 font-medium">SKU</th>
                           <th className="px-3 py-2.5 text-right text-white/40 font-medium">الصنف</th>
-                          <th className="px-3 py-2.5 text-right text-white/40 font-medium whitespace-nowrap">الكمية</th>
-                          <th className="px-3 py-2.5 text-right text-white/40 font-medium whitespace-nowrap">السعر</th>
-                          <th className="px-3 py-2.5 text-right text-white/40 font-medium whitespace-nowrap">الإجمالي</th>
+                          <th className="px-3 py-2.5 text-right text-white/40 font-medium">الكمية</th>
+                          <th className="px-3 py-2.5 text-right text-white/40 font-medium">السعر</th>
+                          <th className="px-3 py-2.5 text-right text-white/40 font-medium">الإجمالي</th>
                           <th className="px-3 py-2.5 text-right text-white/40 font-medium">الحالة</th>
                         </tr>
                       </thead>
@@ -1529,27 +1787,20 @@ function BackupImportTab() {
                           const hasError = r.errors.length > 0;
                           const total    = (Number(r.quantity) || 0) * (Number(r.unitPrice) || 0);
                           return (
-                            <tr key={r.idx}
-                              className={`border-b border-white/4 transition-colors ${hasError ? "bg-red-500/5" : "hover:bg-white/2"}`}>
-                              <td className="px-3 py-2 text-white/50 font-mono whitespace-nowrap">{r.sku || "—"}</td>
-                              <td className="px-3 py-2 text-white/70 max-w-[120px] truncate">{r.name || "—"}</td>
+                            <tr key={r.idx} className={`border-b border-white/4 ${hasError ? "bg-red-500/5" : "hover:bg-white/2"}`}>
+                              <td className="px-3 py-2 text-white/50 font-mono">{r.sku || "—"}</td>
+                              <td className="px-3 py-2 text-white/70 max-w-[100px] truncate">{r.name || "—"}</td>
                               <td className="px-3 py-2">
                                 <input type="number" value={r.quantity}
                                   onChange={e => updatePurRow(r.idx, "quantity", e.target.value)}
-                                  className={`w-16 px-2 py-1 rounded-lg bg-white/5 border text-white text-center text-xs outline-none focus:ring-1 focus:ring-amber-500/30 ${
-                                    !r.quantity || Number(r.quantity) <= 0 ? "border-red-500/50" : "border-white/10 focus:border-amber-500/40"
-                                  }`} />
+                                  className={`w-16 px-2 py-1 rounded-lg bg-white/5 border text-white text-center text-xs outline-none focus:ring-1 focus:ring-amber-500/30 ${!r.quantity || Number(r.quantity) <= 0 ? "border-red-500/50" : "border-white/10"}`} />
                               </td>
                               <td className="px-3 py-2">
                                 <input type="number" value={r.unitPrice}
                                   onChange={e => updatePurRow(r.idx, "unitPrice", e.target.value)}
-                                  className={`w-20 px-2 py-1 rounded-lg bg-white/5 border text-white text-center text-xs outline-none focus:ring-1 focus:ring-amber-500/30 ${
-                                    !r.unitPrice || Number(r.unitPrice) <= 0 ? "border-red-500/50" : "border-white/10 focus:border-amber-500/40"
-                                  }`} />
+                                  className={`w-20 px-2 py-1 rounded-lg bg-white/5 border text-white text-center text-xs outline-none focus:ring-1 focus:ring-amber-500/30 ${!r.unitPrice || Number(r.unitPrice) <= 0 ? "border-red-500/50" : "border-white/10"}`} />
                               </td>
-                              <td className="px-3 py-2 text-white/55 font-mono whitespace-nowrap">
-                                {isNaN(total) ? "—" : total.toFixed(2)}
-                              </td>
+                              <td className="px-3 py-2 text-white/55 font-mono">{isNaN(total) ? "—" : total.toFixed(2)}</td>
                               <td className="px-3 py-2">
                                 {hasError
                                   ? <span className="text-red-400 text-xs" title={r.errors.join(" | ")}>✗ {r.errors[0]}</span>
@@ -1562,25 +1813,19 @@ function BackupImportTab() {
                       </tbody>
                     </table>
                   </div>
-
-                  {/* Grand total */}
                   {validRows.length > 0 && (
                     <div className="flex justify-between items-center p-3 rounded-xl bg-white/3 border border-white/8">
                       <span className="text-white/50 text-sm">إجمالي الفاتورة</span>
                       <span className="text-amber-400 font-black text-lg">
-                        {validRows.reduce((s, r) => s + (Number(r.quantity) || 0) * (Number(r.unitPrice) || 0), 0).toFixed(2)}
+                        {validRows.reduce((s, r) => s + (Number(r.quantity)||0) * (Number(r.unitPrice)||0), 0).toFixed(2)}
                       </span>
                     </div>
                   )}
-
-                  {/* Import result */}
                   {purResult && (
                     <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm">
                       <CheckCircle2 className="w-4 h-4 inline ml-2" />{purResult}
                     </div>
                   )}
-
-                  {/* Confirm button */}
                   <button onClick={handlePurchaseConfirm} disabled={purConfirming || validRows.length === 0}
                     className="w-full flex items-center justify-center gap-2 py-3.5 bg-violet-500/20 hover:bg-violet-500/30 border border-violet-500/30 rounded-xl text-violet-400 font-bold text-sm transition-all disabled:opacity-40">
                     {purConfirming ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
@@ -1593,57 +1838,53 @@ function BackupImportTab() {
         </div>
       </div>
 
-      {/* ══════════ SECTION 3: ACTIVITY LOG ══════════ */}
-      <div className="glass-panel rounded-2xl border border-white/8 overflow-hidden">
-        <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between">
+      {/* ── Activity Log ── */}
+      <div className="bg-[#111827] border border-white/5 rounded-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-white/8 flex items-center justify-center">
-              <History className="w-4 h-4 text-white/50" />
+            <div className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center">
+              <History className="w-4 h-4 text-white/40" />
             </div>
             <div>
-              <h4 className="font-bold text-white text-sm">سجل العمليات</h4>
-              <p className="text-white/40 text-xs">آخر {activityLog.length} عملية</p>
+              <p className="font-bold text-white text-sm">سجل العمليات</p>
+              <p className="text-white/30 text-xs">آخر {activityLog.length} عملية</p>
             </div>
           </div>
           {activityLog.length > 0 && (
             <button onClick={() => { localStorage.removeItem(ACTIVITY_KEY); setActivityLog([]); }}
-              className="text-xs text-white/30 hover:text-red-400 transition-colors">
-              مسح السجل
-            </button>
+              className="text-xs text-white/25 hover:text-red-400 transition-colors">مسح السجل</button>
           )}
         </div>
         <div className="overflow-x-auto">
           {activityLog.length === 0 ? (
-            <div className="p-8 text-center text-white/25 text-sm">لا توجد عمليات مسجلة بعد</div>
+            <div className="p-8 text-center text-white/20 text-sm">لا توجد عمليات مسجلة بعد</div>
           ) : (
             <table className="w-full text-xs min-w-[500px]">
               <thead>
                 <tr className="border-b border-white/5 bg-white/2">
-                  <th className="px-4 py-3 text-right text-white/35 font-medium">التاريخ</th>
-                  <th className="px-4 py-3 text-right text-white/35 font-medium">النوع</th>
-                  <th className="px-4 py-3 text-right text-white/35 font-medium">الملف</th>
-                  <th className="px-4 py-3 text-right text-white/35 font-medium">الحالة</th>
-                  <th className="px-4 py-3 text-right text-white/35 font-medium">المستخدم</th>
+                  <th className="px-4 py-3 text-right text-white/30 font-medium">التاريخ</th>
+                  <th className="px-4 py-3 text-right text-white/30 font-medium">النوع</th>
+                  <th className="px-4 py-3 text-right text-white/30 font-medium">الملف</th>
+                  <th className="px-4 py-3 text-right text-white/30 font-medium">الحالة</th>
                 </tr>
               </thead>
               <tbody>
                 {activityLog.map(e => (
                   <tr key={e.id} className="border-b border-white/4 hover:bg-white/2 transition-colors">
-                    <td className="px-4 py-3 text-white/45 font-mono whitespace-nowrap">
+                    <td className="px-4 py-3 text-white/40 font-mono">
                       {new Date(e.date).toLocaleDateString("ar-EG")} {new Date(e.date).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" })}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded-md text-xs font-bold whitespace-nowrap ${
-                        e.type === "backup"            ? "bg-blue-500/15 text-blue-400"   :
-                        e.type === "import-products"   ? "bg-amber-500/15 text-amber-400" :
-                                                         "bg-violet-500/15 text-violet-400"
+                      <span className={`px-2 py-0.5 rounded-md text-xs font-bold ${
+                        e.type === "backup" ? "bg-blue-500/15 text-blue-400" :
+                        e.type === "import-products" ? "bg-amber-500/15 text-amber-400" :
+                        "bg-violet-500/15 text-violet-400"
                       }`}>
                         {e.type === "backup" ? "نسخ احتياطي" : e.type === "import-products" ? "استيراد أصناف" : "استيراد مشتريات"}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-white/45 font-mono max-w-[120px] truncate">{e.file}</td>
-                    <td className="px-4 py-3 text-white/65">{e.status}</td>
-                    <td className="px-4 py-3 text-white/45">{e.user}</td>
+                    <td className="px-4 py-3 text-white/40 font-mono max-w-[120px] truncate">{e.file}</td>
+                    <td className="px-4 py-3 text-white/55">{e.status}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1655,42 +1896,59 @@ function BackupImportTab() {
   );
 }
 
-/* ─── Data Management Tab ─── */
+/* ══════════════════════════════════════════════════════════════════
+   DATA MANAGEMENT TAB  (danger zone with countdown)
+   ══════════════════════════════════════════════════════════════════ */
 const DATA_GROUPS = [
-  { key: "sales", label: "المبيعات", sub: "فواتير البيع والمدفوعات", color: "emerald" },
-  { key: "purchases", label: "المشتريات", sub: "فواتير الشراء وتكاليفها", color: "amber" },
-  { key: "expenses", label: "المصروفات", sub: "جميع سجلات المصروفات", color: "red" },
-  { key: "income", label: "الإيرادات", sub: "جميع سجلات الإيرادات", color: "teal" },
-  { key: "receipt_vouchers", label: "سندات القبض", sub: "مدفوعات العملاء", color: "violet" },
-  { key: "deposit_vouchers", label: "سندات التوريد", sub: "توريدات العملاء النقدية", color: "indigo" },
-  { key: "transactions", label: "الحركات المالية", sub: "السجل المركزي للمعاملات", color: "cyan" },
-  { key: "products", label: "الأصناف", sub: "بيانات المنتجات والمخزون", color: "orange" },
-  { key: "customers", label: "العملاء", sub: "بيانات العملاء وأرصدتهم", color: "blue" },
+  { key: "sales",            label: "المبيعات",        sub: "فواتير البيع والمدفوعات" },
+  { key: "purchases",        label: "المشتريات",        sub: "فواتير الشراء وتكاليفها" },
+  { key: "expenses",         label: "المصروفات",        sub: "جميع سجلات المصروفات" },
+  { key: "income",           label: "الإيرادات",        sub: "جميع سجلات الإيرادات" },
+  { key: "receipt_vouchers", label: "سندات القبض",      sub: "مدفوعات العملاء" },
+  { key: "deposit_vouchers", label: "سندات التوريد",    sub: "توريدات العملاء النقدية" },
+  { key: "transactions",     label: "الحركات المالية",  sub: "السجل المركزي للمعاملات" },
+  { key: "products",         label: "الأصناف",          sub: "بيانات المنتجات والمخزون" },
+  { key: "customers",        label: "العملاء",          sub: "بيانات العملاء وأرصدتهم" },
 ];
 
 function DataTab() {
   const { toast } = useToast();
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [confirmText, setConfirmText] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [selected,     setSelected]     = useState<Set<string>>(new Set());
+  const [confirmText,  setConfirmText]  = useState("");
+  const [loading,      setLoading]      = useState(false);
+  const [countdown,    setCountdown]    = useState(5);
+  const [canDelete,    setCanDelete]    = useState(false);
 
-  const toggleAll = () => {
-    if (selected.size === DATA_GROUPS.length) setSelected(new Set());
-    else setSelected(new Set(DATA_GROUPS.map(g => g.key)));
-  };
+  const readyToDelete = confirmText === "تأكيد الحذف" && selected.size > 0;
+
+  useEffect(() => {
+    if (!readyToDelete) { setCanDelete(false); setCountdown(5); return; }
+    setCountdown(5); setCanDelete(false);
+    const iv = setInterval(() => {
+      setCountdown(c => {
+        if (c <= 1) { clearInterval(iv); setCanDelete(true); return 0; }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(iv);
+  }, [readyToDelete]);
 
   const toggle = (key: string) => {
     setSelected(prev => { const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s; });
+    setConfirmText(""); setCanDelete(false);
+  };
+  const toggleAll = () => {
+    if (selected.size === DATA_GROUPS.length) setSelected(new Set());
+    else setSelected(new Set(DATA_GROUPS.map(g => g.key)));
+    setConfirmText(""); setCanDelete(false);
   };
 
   const handleClear = async () => {
-    if (confirmText !== "مسح البيانات") { toast({ title: 'اكتب "مسح البيانات" بالضبط للتأكيد', variant: "destructive" }); return; }
-    if (selected.size === 0) { toast({ title: "اختر البيانات المطلوب مسحها", variant: "destructive" }); return; }
+    if (!canDelete) return;
     setLoading(true);
     try {
       const res = await fetch(api("/api/admin/clear"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tables: Array.from(selected) }),
       });
       const data = await res.json();
@@ -1704,19 +1962,30 @@ function DataTab() {
 
   return (
     <div className="space-y-5">
-      <SectionHeader title="إدارة البيانات" sub="مسح جداول محددة من قاعدة البيانات" />
+      <PageHeader title="إدارة البيانات" sub="مسح جداول محددة من قاعدة البيانات" />
 
-      <div className="glass-panel rounded-2xl p-5 border border-red-500/20 bg-red-500/4 space-y-4">
-        <div className="flex items-center gap-3">
-          <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />
-          <p className="text-red-400 font-bold text-sm">تحذير: هذه العملية لا يمكن التراجع عنها</p>
+      {/* ── Danger Banner ── */}
+      <div className="flex items-start gap-3 p-4 rounded-2xl bg-red-500/10 border border-red-500/30">
+        <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+        <div>
+          <p className="text-red-400 font-bold text-sm">منطقة خطر — العمليات في هذه الصفحة لا يمكن التراجع عنها</p>
+          <p className="text-red-400/60 text-xs mt-0.5">تأكد من عمل نسخة احتياطية قبل حذف أي بيانات</p>
         </div>
+      </div>
 
-        {/* Select all */}
-        <div className="flex justify-between items-center">
-          <p className="text-white/50 text-sm">اختر البيانات المطلوب مسحها:</p>
+      {/* ── Selective Delete ── */}
+      <div className="bg-[#111827] border border-red-500/20 rounded-2xl p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <p className="text-white/70 text-sm font-semibold">
+            الحذف الانتقائي
+            {selected.size > 0 && (
+              <span className="mr-2 px-2 py-0.5 rounded-md bg-red-500/20 text-red-400 text-xs font-bold">
+                {selected.size} محدد
+              </span>
+            )}
+          </p>
           <button onClick={toggleAll} className="text-xs text-amber-400 hover:text-amber-300 transition-colors">
-            {selected.size === DATA_GROUPS.length ? "إلغاء تحديد الكل" : "تحديد الكل"}
+            {selected.size === DATA_GROUPS.length ? "إلغاء الكل" : "تحديد الكل"}
           </button>
         </div>
 
@@ -1724,35 +1993,60 @@ function DataTab() {
           {DATA_GROUPS.map(g => {
             const active = selected.has(g.key);
             return (
-              <button key={g.key} onClick={() => toggle(g.key)}
-                className={`p-3 rounded-xl text-right border transition-all ${active ? "bg-red-500/20 border-red-500/40" : "glass-panel border-white/8 hover:border-white/15"}`}>
+              <button
+                key={g.key}
+                onClick={() => toggle(g.key)}
+                className={`p-3 rounded-xl text-right border transition-all ${
+                  active
+                    ? "bg-red-500/15 border-red-500/40 shadow-[0_0_8px_rgba(239,68,68,0.1)]"
+                    : "bg-[#1A2235] border-[#2D3748] hover:border-red-500/20"
+                }`}
+              >
                 <div className="flex items-center justify-between mb-1">
                   <span className={`text-sm font-bold ${active ? "text-red-300" : "text-white/70"}`}>{g.label}</span>
-                  {active ? <Check className="w-3.5 h-3.5 text-red-400" /> : <div className="w-3.5 h-3.5 rounded border border-white/20" />}
+                  {active
+                    ? <Check className="w-3.5 h-3.5 text-red-400" />
+                    : <div className="w-3.5 h-3.5 rounded border border-white/15" />
+                  }
                 </div>
-                <p className="text-white/30 text-xs">{g.sub}</p>
+                <p className="text-white/25 text-xs">{g.sub}</p>
               </button>
             );
           })}
         </div>
 
         {selected.size > 0 && (
-          <div>
-            <label className="text-white/60 text-sm font-medium block mb-2">
-              اكتب <span className="text-red-400 font-black">"مسح البيانات"</span> للتأكيد:
-            </label>
-            <input className="glass-input w-full text-white text-sm mb-3"
-              placeholder="مسح البيانات" value={confirmText} onChange={e => setConfirmText(e.target.value)} />
-            <button onClick={handleClear} disabled={loading || confirmText !== "مسح البيانات"}
-              className="flex items-center gap-2 px-5 py-2.5 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded-xl text-red-400 font-bold text-sm transition-all disabled:opacity-40">
+          <div className="space-y-3 pt-2 border-t border-red-500/10">
+            <div>
+              <label className="text-white/50 text-sm font-medium block mb-2">
+                اكتب <span className="text-red-400 font-black">"تأكيد الحذف"</span> لتفعيل الحذف:
+              </label>
+              <SInput
+                placeholder="تأكيد الحذف"
+                value={confirmText}
+                onChange={e => setConfirmText(e.target.value)}
+                className="border-red-500/20 focus:border-red-500"
+              />
+            </div>
+            {readyToDelete && !canDelete && (
+              <div className="flex items-center gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+                <Loader2 className="w-4 h-4 text-red-400 animate-spin" />
+                <p className="text-red-400 text-sm">يمكنك الحذف بعد <span className="font-black">{countdown}</span> ثانية...</p>
+              </div>
+            )}
+            <DangerBtn
+              onClick={handleClear}
+              disabled={loading || !canDelete}
+              className="w-full"
+            >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-              {loading ? "جاري المسح..." : `مسح ${selected.size} جدول`}
-            </button>
+              {loading ? "جاري المسح..." : canDelete ? `مسح ${selected.size} جدول نهائياً` : `انتظر ${countdown}s`}
+            </DangerBtn>
           </div>
         )}
       </div>
 
-      {/* Full system reset */}
+      {/* ── Full Reset ── */}
       <FullResetSection />
     </div>
   );
@@ -1762,58 +2056,118 @@ function FullResetSection() {
   const resetDb = useResetDatabase();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [confirmText, setConfirmText] = useState("");
-  const [done, setDone] = useState(false);
+  const [expanded,     setExpanded]     = useState(false);
+  const [confirmText,  setConfirmText]  = useState("");
+  const [done,         setDone]         = useState(false);
+  const [countdown,    setCountdown]    = useState(10);
+  const [canReset,     setCanReset]     = useState(false);
+
+  const readyToReset = confirmText === "تأكيد الحذف الكامل";
+
+  useEffect(() => {
+    if (!readyToReset) { setCanReset(false); setCountdown(10); return; }
+    setCountdown(10); setCanReset(false);
+    const iv = setInterval(() => {
+      setCountdown(c => {
+        if (c <= 1) { clearInterval(iv); setCanReset(true); return 0; }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(iv);
+  }, [readyToReset]);
 
   return (
-    <div className="glass-panel rounded-2xl p-5 border border-red-500/30 space-y-4">
-      <h4 className="font-bold text-red-400 text-sm">تصفير قاعدة البيانات الكاملة</h4>
-      <p className="text-white/40 text-xs">يمسح جميع الفواتير والحركات المالية مع الاحتفاظ بالمنتجات والعملاء</p>
-      {done && <p className="text-emerald-400 text-sm">✅ تم التصفير بنجاح</p>}
-      <input className="glass-input w-full text-white text-sm" placeholder='اكتب "تأكيد الحذف"'
-        value={confirmText} onChange={e => setConfirmText(e.target.value)} />
+    <div className="bg-[#111827] rounded-2xl overflow-hidden border border-red-500/30">
+      {/* Collapsed header */}
       <button
-        disabled={confirmText !== "تأكيد الحذف" || resetDb.isPending}
-        onClick={() => resetDb.mutate({ confirm: "تأكيد الحذف" }, {
-          onSuccess: () => { queryClient.clear(); setDone(true); setConfirmText(""); toast({ title: "✅ تم التصفير" }); },
-          onError: () => toast({ title: "فشل التصفير", variant: "destructive" }),
-        })}
-        className="flex items-center gap-2 px-5 py-2.5 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded-xl text-red-400 font-bold text-sm transition-all disabled:opacity-40">
-        {resetDb.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCcw className="w-4 h-4" />}
-        تصفير الكل
+        onClick={() => setExpanded(e => !e)}
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-red-500/5 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-red-500/10 flex items-center justify-center">
+            <RefreshCcw className="w-4 h-4 text-red-400" />
+          </div>
+          <div className="text-right">
+            <p className="font-bold text-red-400 text-sm">تصفير قاعدة البيانات الكاملة</p>
+            <p className="text-white/30 text-xs">مسح كامل — اضغط للتوسعة</p>
+          </div>
+        </div>
+        {expanded ? <ChevronDown className="w-4 h-4 text-white/30" /> : <ChevronRight className="w-4 h-4 text-white/30" />}
       </button>
+
+      {expanded && (
+        <div className="border-t border-red-500/20 p-5 space-y-4">
+          {/* What gets deleted */}
+          <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/15 space-y-2">
+            <p className="text-red-400 font-bold text-xs uppercase tracking-wide mb-2">ما سيتم مسحه:</p>
+            {["جميع فواتير البيع والمشتريات", "جميع الحركات المالية", "المصروفات والإيرادات", "السندات والتحويلات", "سجل المخزون"].map(item => (
+              <div key={item} className="flex items-center gap-2 text-xs text-red-300/70">
+                <X className="w-3 h-3 text-red-500 shrink-0" /> {item}
+              </div>
+            ))}
+            <div className="mt-2 pt-2 border-t border-red-500/10">
+              <p className="text-white/40 text-xs">يتم الاحتفاظ بـ: المنتجات، العملاء، الموردين، الإعدادات</p>
+            </div>
+          </div>
+
+          {done && <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm"><CheckCircle2 className="w-4 h-4" /> تم التصفير بنجاح</div>}
+
+          <div>
+            <label className="text-white/50 text-sm font-medium block mb-2">
+              اكتب <span className="text-red-400 font-black">"تأكيد الحذف الكامل"</span> لتفعيل التصفير:
+            </label>
+            <SInput
+              placeholder="تأكيد الحذف الكامل"
+              value={confirmText}
+              onChange={e => setConfirmText(e.target.value)}
+              className="border-red-500/20 focus:border-red-500"
+            />
+          </div>
+
+          {readyToReset && !canReset && (
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+              <Loader2 className="w-4 h-4 text-red-400 animate-spin" />
+              <p className="text-red-400 text-sm">يمكنك التصفير بعد <span className="font-black">{countdown}</span> ثانية...</p>
+            </div>
+          )}
+
+          <DangerBtn
+            disabled={!canReset || resetDb.isPending}
+            className="w-full"
+            onClick={() => resetDb.mutate({ confirm: "تأكيد الحذف" }, {
+              onSuccess: () => { queryClient.clear(); setDone(true); setConfirmText(""); toast({ title: "✅ تم التصفير" }); },
+              onError: () => toast({ title: "فشل التصفير", variant: "destructive" }),
+            })}
+          >
+            {resetDb.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCcw className="w-4 h-4" />}
+            {resetDb.isPending ? "جاري التصفير..." : canReset ? "مسح قاعدة البيانات نهائياً" : `انتظر ${countdown}s`}
+          </DangerBtn>
+        </div>
+      )}
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Opening Balance Tab
-// ─────────────────────────────────────────────────────────────────────────────
-
+/* ══════════════════════════════════════════════════════════════════
+   OPENING BALANCE TAB  (unchanged logic, improved UI)
+   ══════════════════════════════════════════════════════════════════ */
 type OBSubTab = "treasury" | "products" | "customers" | "suppliers";
 
-const OB_SUB_TABS: { id: OBSubTab; label: string; icon: React.FC<{ className?: string }> }[] = [
-  { id: "treasury",  label: "الخزائن",   icon: Banknote },
-  { id: "products",  label: "المنتجات",  icon: Package },
-  { id: "customers", label: "العملاء",   icon: UserCircle },
-  { id: "suppliers", label: "الموردون",  icon: Truck },
+const OB_SUB_TABS: { id: OBSubTab; label: string; icon: string }[] = [
+  { id: "treasury",  label: "الخزائن",   icon: "🏛️" },
+  { id: "products",  label: "المنتجات",  icon: "📦" },
+  { id: "customers", label: "العملاء",   icon: "👥" },
+  { id: "suppliers", label: "الموردون",  icon: "🚚" },
 ];
 
 interface OBEntry {
-  id: number;
-  amount?: number;
-  quantity?: number;
-  unit_cost?: number;
-  description?: string;
-  customer_name?: string;
-  safe_name?: string;
-  product_name?: string;
-  date?: string;
-  created_at: string;
+  id: number; amount?: number; quantity?: number; unit_cost?: number; description?: string;
+  customer_name?: string; safe_name?: string; product_name?: string; date?: string; created_at: string;
+  notes?: string;
 }
 
 function useOBData(path: string) {
-  const [data, setData] = useState<OBEntry[]>([]);
+  const [data, setData]     = useState<OBEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
@@ -1821,9 +2175,7 @@ function useOBData(path: string) {
     try {
       const res = await authFetch(`${BASE}/api${path}`);
       if (res.ok) setData(await res.json());
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }, [path]);
 
   useEffect(() => { reload(); }, [reload]);
@@ -1837,27 +2189,26 @@ function OBEntryTable({ entries, loading, columns }: {
 }) {
   if (loading) return (
     <div className="p-8 text-center text-white/40 text-sm">
-      <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
-      جاري التحميل...
+      <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />جاري التحميل...
     </div>
   );
   if (entries.length === 0) return (
-    <div className="p-8 text-center text-white/30 text-sm">لا توجد قيود مسجلة</div>
+    <div className="p-8 text-center text-white/25 text-sm">لا توجد قيود مسجلة</div>
   );
   return (
     <table className="w-full text-right text-sm">
-      <thead className="bg-white/5 border-b border-white/10">
+      <thead className="bg-white/3 border-b border-white/8">
         <tr>
           {columns.map(c => (
-            <th key={c.label} className="p-3 text-white/50 text-xs font-medium">{c.label}</th>
+            <th key={c.label} className="p-3 text-white/40 text-xs font-medium">{c.label}</th>
           ))}
         </tr>
       </thead>
       <tbody>
         {entries.map(e => (
-          <tr key={e.id} className="border-b border-white/5 erp-table-row">
+          <tr key={e.id} className="border-b border-white/5 hover:bg-white/2 transition-colors">
             {columns.map(c => (
-              <td key={c.label} className="p-3 text-white/80 text-sm">{c.render(e)}</td>
+              <td key={c.label} className="p-3 text-white/70 text-sm">{c.render(e)}</td>
             ))}
           </tr>
         ))}
@@ -1866,12 +2217,12 @@ function OBEntryTable({ entries, loading, columns }: {
   );
 }
 
-/* ── Treasury sub-tab ──────────────────────────────────── */
+/* ── Treasury sub-tab ── */
 function OBTreasuryTab() {
   const { data: entries, loading, reload } = useOBData("/opening-balance/treasury");
   const { data: safes = [] } = useGetSettingsSafes();
   const { toast } = useToast();
-  const [form, setForm] = useState({ safe_id: "", amount: "", date: new Date().toISOString().split("T")[0], notes: "" });
+  const [form, setForm]   = useState({ safe_id: "", amount: "", date: new Date().toISOString().split("T")[0], notes: "" });
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async () => {
@@ -1887,216 +2238,175 @@ function OBTreasuryTab() {
       toast({ title: "✅ تم تسجيل رصيد أول المدة للخزينة" });
       setForm(f => ({ ...f, safe_id: "", amount: "", notes: "" }));
       reload();
-    } catch {
-      toast({ title: "خطأ في الاتصال", variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
+    } catch { toast({ title: "خطأ في الاتصال", variant: "destructive" }); }
+    finally { setSaving(false); }
   };
 
   return (
     <div className="space-y-5">
-      <SectionHeader title="رصيد أول المدة — الخزائن" sub="أضف الرصيد الافتتاحي لكل خزينة عند بداية تشغيل النظام" />
-
-      {/* Form */}
-      <div className="glass-panel rounded-3xl p-6 border border-amber-500/20 space-y-4">
-        <h4 className="font-bold text-amber-400 text-sm flex items-center gap-2">
-          <Banknote className="w-4 h-4" /> إضافة رصيد افتتاحي
-        </h4>
+      <div className="bg-[#1A2235] border border-amber-500/20 rounded-2xl p-5 space-y-4">
+        <h4 className="font-bold text-amber-400 text-sm flex items-center gap-2"><Banknote className="w-4 h-4" /> إضافة رصيد افتتاحي للخزينة</h4>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
-            <Label>الخزينة</Label>
-            <select className="glass-input w-full text-white text-sm" value={form.safe_id} onChange={e => setForm(f => ({ ...f, safe_id: e.target.value }))}>
+            <FieldLabel>الخزينة</FieldLabel>
+            <SSelect value={form.safe_id} onChange={e => setForm(f => ({ ...f, safe_id: e.target.value }))}>
               <option value="">— اختر الخزينة —</option>
               {(safes as any[]).map((s: any) => (
-                <option key={s.id} value={s.id}>{s.name} (رصيد حالي: {Number(s.balance).toLocaleString("ar-EG")} ج.م)</option>
+                <option key={s.id} value={s.id}>{s.name} (رصيد: {Number(s.balance).toLocaleString("ar-EG")} ج.م)</option>
               ))}
-            </select>
+            </SSelect>
           </div>
           <div>
-            <Label>المبلغ الافتتاحي (ج.م)</Label>
-            <input type="number" min="0.01" step="0.01" className="glass-input w-full text-white text-sm" placeholder="0.00" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
+            <FieldLabel>المبلغ الافتتاحي (ج.م)</FieldLabel>
+            <SInput type="number" min="0.01" step="0.01" placeholder="0.00" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
           </div>
           <div>
-            <Label>تاريخ أول المدة</Label>
-            <input type="date" className="glass-input w-full text-white text-sm" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+            <FieldLabel>تاريخ أول المدة</FieldLabel>
+            <SInput type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
           </div>
           <div>
-            <Label>ملاحظات (اختياري)</Label>
-            <input className="glass-input w-full text-white text-sm" placeholder="رصيد أول المدة" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+            <FieldLabel>ملاحظات (اختياري)</FieldLabel>
+            <SInput placeholder="رصيد أول المدة" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
           </div>
         </div>
-        <button onClick={handleSubmit} disabled={saving}
-          className="btn-primary flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm">
+        <PrimaryBtn onClick={handleSubmit} disabled={saving}>
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
           تسجيل الرصيد الافتتاحي
-        </button>
+        </PrimaryBtn>
       </div>
 
-      {/* Existing entries */}
-      <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
-        <div className="p-4 border-b border-white/8">
-          <h4 className="font-bold text-white/70 text-sm">القيود المسجلة ({entries.length})</h4>
+      <div className="bg-[#111827] rounded-2xl overflow-hidden border border-white/5">
+        <div className="p-4 border-b border-white/8 flex items-center justify-between">
+          <h4 className="font-bold text-white/60 text-sm">القيود المسجلة</h4>
+          <span className="text-white/30 text-xs bg-white/5 px-2 py-0.5 rounded-lg">{entries.length}</span>
         </div>
         <OBEntryTable entries={entries} loading={loading} columns={[
-          { label: "الخزينة", render: e => <span className="font-bold text-amber-400">{e.safe_name}</span> },
-          { label: "المبلغ", render: e => <span className="text-emerald-400 font-mono">{Number(e.amount).toLocaleString("ar-EG", { minimumFractionDigits: 2 })} ج.م</span> },
-          { label: "التاريخ", render: e => <span className="text-white/50 text-xs">{e.date}</span> },
-          { label: "البيان", render: e => <span className="text-white/40 text-xs">{e.description}</span> },
+          { label: "الخزينة",  render: e => <span className="font-bold text-amber-400">{e.safe_name}</span> },
+          { label: "المبلغ",   render: e => <span className="text-emerald-400 font-mono">{Number(e.amount).toLocaleString("ar-EG", { minimumFractionDigits: 2 })} ج.م</span> },
+          { label: "التاريخ",  render: e => <span className="text-white/40 text-xs">{e.date}</span> },
+          { label: "البيان",   render: e => <span className="text-white/30 text-xs">{e.description}</span> },
         ]} />
       </div>
     </div>
   );
 }
 
-/* ── Products sub-tab ──────────────────────────────────── */
+/* ── Products sub-tab ── */
 function OBProductsTab() {
   const { data: entries, loading, reload } = useOBData("/opening-balance/product");
   const { data: products = [] } = useGetProducts();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
-  const [form, setForm] = useState({ product_id: "", quantity: "", cost_price: "", date: new Date().toISOString().split("T")[0], notes: "" });
+  const [form, setForm]     = useState({ product_id: "", quantity: "", cost_price: "", date: new Date().toISOString().split("T")[0], notes: "" });
   const [saving, setSaving] = useState(false);
 
   const registeredProductIds = new Set(entries.map(e => e.id));
   const filteredProducts = (products as any[]).filter((p: any) =>
-    !registeredProductIds.has(p.id) &&
-    (p.name.includes(search) || (p.sku ?? "").includes(search))
+    !registeredProductIds.has(p.id) && (p.name.includes(search) || (p.sku ?? "").includes(search))
   );
 
-  const handleSelectProduct = (p: any) => {
-    setForm(f => ({ ...f, product_id: String(p.id), cost_price: String(Number(p.cost_price)) }));
-    setSearch(p.name);
-  };
-
+  const handleSelectProduct = (p: any) => { setForm(f => ({ ...f, product_id: String(p.id), cost_price: String(Number(p.cost_price)) })); setSearch(p.name); };
   const selectedProduct = (products as any[]).find((p: any) => String(p.id) === form.product_id);
 
   const handleSubmit = async () => {
-    if (!form.product_id || !form.quantity || !form.cost_price) {
-      toast({ title: "المنتج والكمية والتكلفة مطلوبة", variant: "destructive" }); return;
-    }
+    if (!form.product_id || !form.quantity || !form.cost_price) { toast({ title: "المنتج والكمية والتكلفة مطلوبة", variant: "destructive" }); return; }
     setSaving(true);
     try {
       const res = await authFetch(`${BASE}/api/inventory/opening-balance`, {
         method: "POST",
-        body: JSON.stringify({
-          product_id: parseInt(form.product_id),
-          quantity: parseFloat(form.quantity),
-          cost_price: parseFloat(form.cost_price),
-          date: form.date,
-          notes: form.notes || undefined,
-        }),
+        body: JSON.stringify({ product_id: parseInt(form.product_id), quantity: parseFloat(form.quantity), cost_price: parseFloat(form.cost_price), date: form.date, notes: form.notes || undefined }),
       });
       const data = await res.json();
       if (!res.ok) { toast({ title: data.error ?? "فشل الحفظ", variant: "destructive" }); return; }
       toast({ title: `✅ تم تسجيل رصيد أول المدة لـ ${selectedProduct?.name ?? "المنتج"}` });
-      setForm(f => ({ ...f, product_id: "", quantity: "", cost_price: "", notes: "" }));
-      setSearch("");
-      reload();
-    } catch {
-      toast({ title: "خطأ في الاتصال", variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
+      setForm(f => ({ ...f, product_id: "", quantity: "", cost_price: "", notes: "" })); setSearch(""); reload();
+    } catch { toast({ title: "خطأ في الاتصال", variant: "destructive" }); }
+    finally { setSaving(false); }
   };
 
   return (
     <div className="space-y-5">
-      <SectionHeader title="رصيد أول المدة — المنتجات" sub="أضف الكمية الافتتاحية وتكلفة الوحدة لكل منتج عند بدء تشغيل النظام" />
-
-      <div className="glass-panel rounded-3xl p-6 border border-amber-500/20 space-y-4">
-        <h4 className="font-bold text-amber-400 text-sm flex items-center gap-2">
-          <Package className="w-4 h-4" /> إضافة رصيد مخزن افتتاحي
-        </h4>
-        {/* Product search */}
+      <div className="bg-[#1A2235] border border-amber-500/20 rounded-2xl p-5 space-y-4">
+        <h4 className="font-bold text-amber-400 text-sm flex items-center gap-2"><Package className="w-4 h-4" /> إضافة رصيد مخزن افتتاحي</h4>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div className="relative">
-            <Label>البحث عن منتج</Label>
-            <input className="glass-input w-full text-white text-sm" placeholder="ابحث بالاسم أو الكود..." value={search} onChange={e => { setSearch(e.target.value); setForm(f => ({ ...f, product_id: "" })); }} />
+            <FieldLabel>البحث عن منتج</FieldLabel>
+            <SInput placeholder="ابحث بالاسم أو الكود..." value={search} onChange={e => { setSearch(e.target.value); setForm(f => ({ ...f, product_id: "" })); }} />
             {search && !form.product_id && filteredProducts.length > 0 && (
-              <div className="absolute top-full mt-1 right-0 left-0 z-20 glass-panel rounded-xl border border-white/10 max-h-48 overflow-y-auto">
+              <div className="absolute top-full mt-1 right-0 left-0 z-20 bg-[#111827] border border-white/10 rounded-xl max-h-48 overflow-y-auto shadow-2xl">
                 {filteredProducts.slice(0, 12).map((p: any) => (
                   <button key={p.id} onClick={() => handleSelectProduct(p)}
-                    className="w-full text-right px-3 py-2.5 text-sm text-white/80 hover:bg-white/10 transition-colors border-b border-white/5 last:border-0 flex items-center justify-between gap-2">
+                    className="w-full text-right px-3 py-2.5 text-sm text-white/80 hover:bg-white/8 transition-colors border-b border-white/5 last:border-0 flex items-center justify-between gap-2">
                     <span className="font-medium">{p.name}</span>
-                    <span className="text-xs text-white/40 font-mono shrink-0">{p.sku}</span>
+                    <span className="text-xs text-white/35 font-mono shrink-0">{p.sku}</span>
                   </button>
                 ))}
               </div>
             )}
-            {selectedProduct && (
-              <p className="mt-1 text-emerald-400 text-xs">✓ {selectedProduct.name} — رصيد حالي: {Number(selectedProduct.quantity)} وحدة</p>
-            )}
+            {selectedProduct && <p className="mt-1 text-emerald-400 text-xs">✓ {selectedProduct.name} — رصيد حالي: {Number(selectedProduct.quantity)} وحدة</p>}
           </div>
           <div>
-            <Label>الكمية الافتتاحية</Label>
-            <input type="number" min="0.001" step="any" className="glass-input w-full text-white text-sm" placeholder="0" value={form.quantity} onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))} />
+            <FieldLabel>الكمية الافتتاحية</FieldLabel>
+            <SInput type="number" min="0.001" step="any" placeholder="0" value={form.quantity} onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))} />
           </div>
           <div>
-            <Label>تكلفة الوحدة (ج.م)</Label>
-            <input type="number" min="0" step="0.01" className="glass-input w-full text-white text-sm" placeholder="0.00" value={form.cost_price} onChange={e => setForm(f => ({ ...f, cost_price: e.target.value }))} />
+            <FieldLabel>تكلفة الوحدة (ج.م)</FieldLabel>
+            <SInput type="number" min="0" step="0.01" placeholder="0.00" value={form.cost_price} onChange={e => setForm(f => ({ ...f, cost_price: e.target.value }))} />
           </div>
           <div>
-            <Label>تاريخ أول المدة</Label>
-            <input type="date" className="glass-input w-full text-white text-sm" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+            <FieldLabel>تاريخ أول المدة</FieldLabel>
+            <SInput type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
           </div>
           <div>
-            <Label>ملاحظات (اختياري)</Label>
-            <input className="glass-input w-full text-white text-sm" placeholder="رصيد أول المدة" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+            <FieldLabel>ملاحظات (اختياري)</FieldLabel>
+            <SInput placeholder="رصيد أول المدة" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
           </div>
           <div className="flex items-end">
-            <button onClick={handleSubmit} disabled={saving || !form.product_id}
-              className="btn-primary w-full flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm disabled:opacity-40">
+            <PrimaryBtn onClick={handleSubmit} disabled={saving || !form.product_id} className="w-full">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
               تسجيل
-            </button>
+            </PrimaryBtn>
           </div>
         </div>
         {form.product_id && form.quantity && form.cost_price && (
           <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
             <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
             <p className="text-amber-300 text-xs">
-              سيُضاف <strong>{parseFloat(form.quantity) || 0}</strong> وحدة بتكلفة <strong>{parseFloat(form.cost_price) || 0} ج.م</strong> للمنتج
-              {selectedProduct ? ` "${selectedProduct.name}"` : ""}
-              — ويُحسب متوسط التكلفة المرجّح تلقائياً
+              سيُضاف <strong>{parseFloat(form.quantity)||0}</strong> وحدة بتكلفة <strong>{parseFloat(form.cost_price)||0} ج.م</strong>
+              {selectedProduct ? ` للمنتج "${selectedProduct.name}"` : ""}
             </p>
           </div>
         )}
       </div>
 
-      {/* Registered entries */}
-      <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
-        <div className="p-4 border-b border-white/8 flex justify-between items-center">
-          <h4 className="font-bold text-white/70 text-sm">أرصدة المنتجات المسجلة ({entries.length})</h4>
-          <p className="text-white/30 text-xs">كل منتج يُسجل مرة واحدة فقط</p>
+      <div className="bg-[#111827] rounded-2xl overflow-hidden border border-white/5">
+        <div className="p-4 border-b border-white/8 flex items-center justify-between">
+          <h4 className="font-bold text-white/60 text-sm">أرصدة المنتجات المسجلة</h4>
+          <span className="text-white/30 text-xs bg-white/5 px-2 py-0.5 rounded-lg">{entries.length}</span>
         </div>
         <OBEntryTable entries={entries} loading={loading} columns={[
-          { label: "المنتج", render: e => <span className="font-bold text-white">{e.product_name}</span> },
-          { label: "الكمية", render: e => <span className="text-blue-400 font-mono">{Number(e.quantity).toLocaleString("ar-EG")}</span> },
+          { label: "المنتج",       render: e => <span className="font-bold text-white">{e.product_name}</span> },
+          { label: "الكمية",       render: e => <span className="text-blue-400 font-mono">{Number(e.quantity).toLocaleString("ar-EG")}</span> },
           { label: "تكلفة الوحدة", render: e => <span className="text-amber-400 font-mono">{Number(e.unit_cost).toLocaleString("ar-EG", { minimumFractionDigits: 2 })} ج.م</span> },
-          { label: "التاريخ", render: e => <span className="text-white/50 text-xs">{e.date}</span> },
-          { label: "البيان", render: e => <span className="text-white/40 text-xs">{e.notes ?? "رصيد أول المدة"}</span> },
+          { label: "التاريخ",      render: e => <span className="text-white/40 text-xs">{e.date}</span> },
         ]} />
       </div>
     </div>
   );
 }
 
-/* ── Customers sub-tab ─────────────────────────────────── */
+/* ── Customers sub-tab ── */
 function OBCustomersTab() {
   const { data: entries, loading, reload } = useOBData("/opening-balance/customer");
   const { data: customers = [] } = useGetCustomers();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
-  const [form, setForm] = useState({ customer_id: "", amount: "", date: new Date().toISOString().split("T")[0], notes: "" });
+  const [form, setForm]     = useState({ customer_id: "", amount: "", date: new Date().toISOString().split("T")[0], notes: "" });
   const [saving, setSaving] = useState(false);
 
   const registeredIds = new Set(entries.map(e => e.id));
-  const filteredCustomers = (customers as any[]).filter((c: any) =>
-    !registeredIds.has(c.id) && c.name.includes(search)
-  );
-  const selectedCustomer = (customers as any[]).find((c: any) => String(c.id) === form.customer_id);
-
+  const filteredCustomers = (customers as any[]).filter((c: any) => !registeredIds.has(c.id) && c.name.includes(search));
+  const selectedCustomer  = (customers as any[]).find((c: any) => String(c.id) === form.customer_id);
   const handleSelect = (c: any) => { setForm(f => ({ ...f, customer_id: String(c.id) })); setSearch(c.name); };
 
   const handleSubmit = async () => {
@@ -2110,89 +2420,76 @@ function OBCustomersTab() {
       const data = await res.json();
       if (!res.ok) { toast({ title: data.error ?? "فشل الحفظ", variant: "destructive" }); return; }
       toast({ title: `✅ تم تسجيل رصيد أول المدة لـ ${selectedCustomer?.name ?? "العميل"}` });
-      setForm(f => ({ ...f, customer_id: "", amount: "", notes: "" }));
-      setSearch("");
-      reload();
-    } catch {
-      toast({ title: "خطأ في الاتصال", variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
+      setForm(f => ({ ...f, customer_id: "", amount: "", notes: "" })); setSearch(""); reload();
+    } catch { toast({ title: "خطأ في الاتصال", variant: "destructive" }); }
+    finally { setSaving(false); }
   };
 
   return (
     <div className="space-y-5">
-      <SectionHeader title="رصيد أول المدة — العملاء" sub="سجّل الأرصدة المدينة للعملاء عند بدء تشغيل النظام" />
-
-      <div className="glass-panel rounded-3xl p-6 border border-amber-500/20 space-y-4">
-        <h4 className="font-bold text-amber-400 text-sm flex items-center gap-2">
-          <UserCircle className="w-4 h-4" /> إضافة رصيد افتتاحي لعميل
-        </h4>
+      <div className="bg-[#1A2235] border border-amber-500/20 rounded-2xl p-5 space-y-4">
+        <h4 className="font-bold text-amber-400 text-sm flex items-center gap-2"><UserCircle className="w-4 h-4" /> إضافة رصيد افتتاحي لعميل</h4>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="relative">
-            <Label>العميل</Label>
-            <input className="glass-input w-full text-white text-sm" placeholder="ابحث عن عميل..." value={search} onChange={e => { setSearch(e.target.value); setForm(f => ({ ...f, customer_id: "" })); }} />
+            <FieldLabel>العميل</FieldLabel>
+            <SInput placeholder="ابحث عن عميل..." value={search} onChange={e => { setSearch(e.target.value); setForm(f => ({ ...f, customer_id: "" })); }} />
             {search && !form.customer_id && filteredCustomers.length > 0 && (
-              <div className="absolute top-full mt-1 right-0 left-0 z-20 glass-panel rounded-xl border border-white/10 max-h-48 overflow-y-auto">
+              <div className="absolute top-full mt-1 right-0 left-0 z-20 bg-[#111827] border border-white/10 rounded-xl max-h-48 overflow-y-auto shadow-2xl">
                 {filteredCustomers.slice(0, 10).map((c: any) => (
-                  <button key={c.id} onClick={() => handleSelect(c)} className="w-full text-right px-3 py-2.5 text-sm text-white/80 hover:bg-white/10 transition-colors border-b border-white/5 last:border-0">
-                    {c.name}
-                  </button>
+                  <button key={c.id} onClick={() => handleSelect(c)}
+                    className="w-full text-right px-3 py-2.5 text-sm text-white/80 hover:bg-white/8 transition-colors border-b border-white/5 last:border-0">{c.name}</button>
                 ))}
               </div>
             )}
             {selectedCustomer && <p className="mt-1 text-emerald-400 text-xs">✓ {selectedCustomer.name}</p>}
           </div>
           <div>
-            <Label>مبلغ الدين الافتتاحي (ج.م)</Label>
-            <input type="number" min="0.01" step="0.01" className="glass-input w-full text-white text-sm" placeholder="0.00" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
+            <FieldLabel>مبلغ الدين الافتتاحي (ج.م)</FieldLabel>
+            <SInput type="number" min="0.01" step="0.01" placeholder="0.00" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
           </div>
           <div>
-            <Label>تاريخ أول المدة</Label>
-            <input type="date" className="glass-input w-full text-white text-sm" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+            <FieldLabel>تاريخ أول المدة</FieldLabel>
+            <SInput type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
           </div>
           <div>
-            <Label>ملاحظات (اختياري)</Label>
-            <input className="glass-input w-full text-white text-sm" placeholder="رصيد أول المدة" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+            <FieldLabel>ملاحظات (اختياري)</FieldLabel>
+            <SInput placeholder="رصيد أول المدة" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
           </div>
         </div>
-        <button onClick={handleSubmit} disabled={saving || !form.customer_id}
-          className="btn-primary flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm disabled:opacity-40">
+        <PrimaryBtn onClick={handleSubmit} disabled={saving || !form.customer_id}>
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
           تسجيل الرصيد الافتتاحي
-        </button>
+        </PrimaryBtn>
       </div>
 
-      <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
-        <div className="p-4 border-b border-white/8">
-          <h4 className="font-bold text-white/70 text-sm">أرصدة العملاء المسجلة ({entries.length})</h4>
+      <div className="bg-[#111827] rounded-2xl overflow-hidden border border-white/5">
+        <div className="p-4 border-b border-white/8 flex items-center justify-between">
+          <h4 className="font-bold text-white/60 text-sm">أرصدة العملاء المسجلة</h4>
+          <span className="text-white/30 text-xs bg-white/5 px-2 py-0.5 rounded-lg">{entries.length}</span>
         </div>
         <OBEntryTable entries={entries} loading={loading} columns={[
-          { label: "العميل", render: e => <span className="font-bold text-white">{e.customer_name}</span> },
-          { label: "المبلغ", render: e => <span className="text-red-400 font-mono">{Number(e.amount).toLocaleString("ar-EG", { minimumFractionDigits: 2 })} ج.م</span> },
-          { label: "التاريخ", render: e => <span className="text-white/50 text-xs">{e.date}</span> },
-          { label: "البيان", render: e => <span className="text-white/40 text-xs">{e.description}</span> },
+          { label: "العميل",  render: e => <span className="font-bold text-white">{e.customer_name}</span> },
+          { label: "المبلغ",  render: e => <span className="text-red-400 font-mono">{Number(e.amount).toLocaleString("ar-EG", { minimumFractionDigits: 2 })} ج.م</span> },
+          { label: "التاريخ", render: e => <span className="text-white/40 text-xs">{e.date}</span> },
+          { label: "البيان",  render: e => <span className="text-white/30 text-xs">{e.description}</span> },
         ]} />
       </div>
     </div>
   );
 }
 
-/* ── Suppliers sub-tab ─────────────────────────────────── */
+/* ── Suppliers sub-tab ── */
 function OBSuppliersTab() {
   const { data: entries, loading, reload } = useOBData("/opening-balance/supplier");
   const { data: suppliers = [] } = useGetSuppliers();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
-  const [form, setForm] = useState({ supplier_id: "", amount: "", date: new Date().toISOString().split("T")[0], notes: "" });
+  const [form, setForm]     = useState({ supplier_id: "", amount: "", date: new Date().toISOString().split("T")[0], notes: "" });
   const [saving, setSaving] = useState(false);
 
   const registeredIds = new Set(entries.map(e => e.id));
-  const filteredSuppliers = (suppliers as any[]).filter((s: any) =>
-    !registeredIds.has(s.id) && s.name.includes(search)
-  );
-  const selectedSupplier = (suppliers as any[]).find((s: any) => String(s.id) === form.supplier_id);
-
+  const filteredSuppliers = (suppliers as any[]).filter((s: any) => !registeredIds.has(s.id) && s.name.includes(search));
+  const selectedSupplier  = (suppliers as any[]).find((s: any) => String(s.id) === form.supplier_id);
   const handleSelect = (s: any) => { setForm(f => ({ ...f, supplier_id: String(s.id) })); setSearch(s.name); };
 
   const handleSubmit = async () => {
@@ -2206,86 +2503,78 @@ function OBSuppliersTab() {
       const data = await res.json();
       if (!res.ok) { toast({ title: data.error ?? "فشل الحفظ", variant: "destructive" }); return; }
       toast({ title: `✅ تم تسجيل رصيد أول المدة لـ ${selectedSupplier?.name ?? "المورد"}` });
-      setForm(f => ({ ...f, supplier_id: "", amount: "", notes: "" }));
-      setSearch("");
-      reload();
-    } catch {
-      toast({ title: "خطأ في الاتصال", variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
+      setForm(f => ({ ...f, supplier_id: "", amount: "", notes: "" })); setSearch(""); reload();
+    } catch { toast({ title: "خطأ في الاتصال", variant: "destructive" }); }
+    finally { setSaving(false); }
   };
 
   return (
     <div className="space-y-5">
-      <SectionHeader title="رصيد أول المدة — الموردون" sub="سجّل الأرصدة المستحقة للموردين عند بدء تشغيل النظام" />
-
-      <div className="glass-panel rounded-3xl p-6 border border-amber-500/20 space-y-4">
-        <h4 className="font-bold text-amber-400 text-sm flex items-center gap-2">
-          <Truck className="w-4 h-4" /> إضافة رصيد افتتاحي لمورد
-        </h4>
+      <div className="bg-[#1A2235] border border-amber-500/20 rounded-2xl p-5 space-y-4">
+        <h4 className="font-bold text-amber-400 text-sm flex items-center gap-2"><Truck className="w-4 h-4" /> إضافة رصيد افتتاحي لمورد</h4>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="relative">
-            <Label>المورد</Label>
-            <input className="glass-input w-full text-white text-sm" placeholder="ابحث عن مورد..." value={search} onChange={e => { setSearch(e.target.value); setForm(f => ({ ...f, supplier_id: "" })); }} />
+            <FieldLabel>المورد</FieldLabel>
+            <SInput placeholder="ابحث عن مورد..." value={search} onChange={e => { setSearch(e.target.value); setForm(f => ({ ...f, supplier_id: "" })); }} />
             {search && !form.supplier_id && filteredSuppliers.length > 0 && (
-              <div className="absolute top-full mt-1 right-0 left-0 z-20 glass-panel rounded-xl border border-white/10 max-h-48 overflow-y-auto">
+              <div className="absolute top-full mt-1 right-0 left-0 z-20 bg-[#111827] border border-white/10 rounded-xl max-h-48 overflow-y-auto shadow-2xl">
                 {filteredSuppliers.slice(0, 10).map((s: any) => (
-                  <button key={s.id} onClick={() => handleSelect(s)} className="w-full text-right px-3 py-2.5 text-sm text-white/80 hover:bg-white/10 transition-colors border-b border-white/5 last:border-0">
-                    {s.name}
-                  </button>
+                  <button key={s.id} onClick={() => handleSelect(s)}
+                    className="w-full text-right px-3 py-2.5 text-sm text-white/80 hover:bg-white/8 transition-colors border-b border-white/5 last:border-0">{s.name}</button>
                 ))}
               </div>
             )}
             {selectedSupplier && <p className="mt-1 text-emerald-400 text-xs">✓ {selectedSupplier.name}</p>}
           </div>
           <div>
-            <Label>مبلغ الرصيد المستحق (ج.م)</Label>
-            <input type="number" min="0.01" step="0.01" className="glass-input w-full text-white text-sm" placeholder="0.00" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
+            <FieldLabel>مبلغ الرصيد المستحق (ج.م)</FieldLabel>
+            <SInput type="number" min="0.01" step="0.01" placeholder="0.00" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
           </div>
           <div>
-            <Label>تاريخ أول المدة</Label>
-            <input type="date" className="glass-input w-full text-white text-sm" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+            <FieldLabel>تاريخ أول المدة</FieldLabel>
+            <SInput type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
           </div>
           <div>
-            <Label>ملاحظات (اختياري)</Label>
-            <input className="glass-input w-full text-white text-sm" placeholder="رصيد أول المدة" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+            <FieldLabel>ملاحظات (اختياري)</FieldLabel>
+            <SInput placeholder="رصيد أول المدة" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
           </div>
         </div>
-        <button onClick={handleSubmit} disabled={saving || !form.supplier_id}
-          className="btn-primary flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm disabled:opacity-40">
+        <PrimaryBtn onClick={handleSubmit} disabled={saving || !form.supplier_id}>
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
           تسجيل الرصيد الافتتاحي
-        </button>
+        </PrimaryBtn>
       </div>
 
-      <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
-        <div className="p-4 border-b border-white/8">
-          <h4 className="font-bold text-white/70 text-sm">أرصدة الموردين المسجلة ({entries.length})</h4>
+      <div className="bg-[#111827] rounded-2xl overflow-hidden border border-white/5">
+        <div className="p-4 border-b border-white/8 flex items-center justify-between">
+          <h4 className="font-bold text-white/60 text-sm">أرصدة الموردين المسجلة</h4>
+          <span className="text-white/30 text-xs bg-white/5 px-2 py-0.5 rounded-lg">{entries.length}</span>
         </div>
         <OBEntryTable entries={entries} loading={loading} columns={[
-          { label: "المورد", render: e => <span className="font-bold text-white">{e.description?.split("—")[1]?.trim() ?? `مورد #${e.id}`}</span> },
-          { label: "المبلغ", render: e => <span className="text-orange-400 font-mono">{Number(e.amount).toLocaleString("ar-EG", { minimumFractionDigits: 2 })} ج.م</span> },
-          { label: "التاريخ", render: e => <span className="text-white/50 text-xs">{e.date}</span> },
-          { label: "البيان", render: e => <span className="text-white/40 text-xs">{e.description}</span> },
+          { label: "المورد",  render: e => <span className="font-bold text-white">{e.description?.split("—")[1]?.trim() ?? `مورد #${e.id}`}</span> },
+          { label: "المبلغ",  render: e => <span className="text-orange-400 font-mono">{Number(e.amount).toLocaleString("ar-EG", { minimumFractionDigits: 2 })} ج.م</span> },
+          { label: "التاريخ", render: e => <span className="text-white/40 text-xs">{e.date}</span> },
+          { label: "البيان",  render: e => <span className="text-white/30 text-xs">{e.description}</span> },
         ]} />
       </div>
     </div>
   );
 }
 
-/* ── Main OpeningBalanceTab ─────────────────────────────── */
+/* ── Main OpeningBalanceTab ── */
 function OpeningBalanceTab() {
   const [subTab, setSubTab] = useState<OBSubTab>("treasury");
 
   return (
-    <div className="space-y-4">
-      {/* Info banner */}
-      <div className="flex items-start gap-3 p-4 rounded-2xl bg-blue-500/10 border border-blue-500/20">
-        <BookOpen className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+    <div className="space-y-5">
+      <PageHeader title="أول المدة" sub="قيود الأرصدة الافتتاحية عند بدء استخدام النظام" />
+
+      {/* Amber info banner */}
+      <div className="flex items-start gap-3 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20">
+        <BookOpen className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
         <div>
-          <p className="text-blue-300 font-bold text-sm">قيود أول المدة</p>
-          <p className="text-blue-300/60 text-xs mt-0.5">
+          <p className="text-amber-400 font-bold text-sm">قيود أول المدة</p>
+          <p className="text-amber-300/60 text-xs mt-0.5 leading-relaxed">
             سجّل هنا الأرصدة الافتتاحية عند بدء استخدام النظام لأول مرة.
             قيود الخزائن والعملاء والموردين تُضاف للأرصدة الحالية مباشرة.
             قيود المنتجات تُسجَّل مرة واحدة فقط لكل منتج وتُحسب التكلفة المرجّحة تلقائياً.
@@ -2293,32 +2582,32 @@ function OpeningBalanceTab() {
         </div>
       </div>
 
-      {/* Sub-tab bar */}
-      <div className="flex gap-1 glass-panel rounded-2xl p-1.5 border border-white/5">
+      {/* Pill sub-tabs */}
+      <div className="flex gap-2 flex-wrap">
         {OB_SUB_TABS.map(t => {
-          const Icon = t.icon;
           const active = subTab === t.id;
           return (
             <button
               key={t.id}
               onClick={() => setSubTab(t.id)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all flex-1 justify-center
-                ${active ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" : "text-white/40 hover:text-white hover:bg-white/5"}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${
+                active
+                  ? "bg-amber-500/15 border-amber-500/50 text-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.15)]"
+                  : "bg-[#1A2235] border-[#2D3748] text-white/40 hover:text-white hover:border-amber-500/20"
+              }`}
             >
-              <Icon className="w-4 h-4 shrink-0" />
-              <span>{t.label}</span>
+              <span>{t.icon}</span>
+              {t.label}
             </button>
           );
         })}
       </div>
 
-      {/* Sub-tab content */}
-      <div>
-        {subTab === "treasury"  && <OBTreasuryTab />}
-        {subTab === "products"  && <OBProductsTab />}
-        {subTab === "customers" && <OBCustomersTab />}
-        {subTab === "suppliers" && <OBSuppliersTab />}
-      </div>
+      {/* Content */}
+      {subTab === "treasury"  && <OBTreasuryTab />}
+      {subTab === "products"  && <OBProductsTab />}
+      {subTab === "customers" && <OBCustomersTab />}
+      {subTab === "suppliers" && <OBSuppliersTab />}
     </div>
   );
 }
