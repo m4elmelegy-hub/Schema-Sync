@@ -4,7 +4,7 @@ import { formatCurrency } from "@/lib/format";
 import {
   Plus, Search, DollarSign, FileText, X,
   TrendingUp, TrendingDown, RotateCcw, ArrowUpFromLine, ArrowDownToLine,
-  Printer, MessageCircle, Vault, FileDown,
+  Printer, MessageCircle, Vault, FileDown, Pencil, Trash2, CreditCard,
 } from "lucide-react";
 import { TableSkeleton } from "@/components/skeletons";
 import { exportCustomersExcel } from "@/lib/export-excel";
@@ -18,6 +18,7 @@ const api = (p: string) => `${BASE}${p}`;
 interface ReceiptVoucher { id: number; voucher_no: string; customer_id: number | null; amount: number; safe_name: string; date: string; notes: string | null; created_at: string; }
 interface PaymentVoucher { id: number; voucher_no: string; customer_id: number | null; amount: number; safe_name: string; date: string; notes: string | null; created_at: string; }
 interface SaleReturn { id: number; return_no: string; customer_id: number | null; customer_name: string | null; total_amount: number; refund_type: string | null; safe_name: string | null; date: string | null; reason: string | null; created_at: string; }
+interface FinancialTransaction { id: number; type: string; customer_id: number | null; amount: number; direction: string; description: string | null; date: string | null; created_at: string; }
 
 /* ─── دالة طباعة كشف الحساب كـ PDF ─── */
 function printCustomerStatement(opts: {
@@ -196,11 +197,12 @@ function openWhatsApp(phone: string, customerName: string, balance: number, rowC
 }
 
 /* ─── كشف الحساب ─── */
-function CustomerStatementModal({ customerId, customerName, customerPhone, customerBalance, onClose }: {
+function CustomerStatementModal({ customerId, customerName, customerPhone, customerBalance, isSupplier, onClose }: {
   customerId: number;
   customerName: string;
   customerPhone: string;
   customerBalance: number;
+  isSupplier: boolean;
   onClose: () => void;
 }) {
   const { toast } = useToast();
@@ -218,9 +220,15 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
     queryKey: ["/api/sales-returns"],
     queryFn: () => fetch(api("/api/sales-returns")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
+  const { data: allTransactions = [] } = useQuery<FinancialTransaction[]>({
+    queryKey: ["/api/transactions"],
+    queryFn: () => fetch(api("/api/transactions")).then(r => { if (!r.ok) throw new Error("خطأ"); return r.json(); }),
+    enabled: isSupplier,
+  });
 
   const sales = allSales.filter(s => s.customer_id === customerId || s.customer_name === customerName);
   const purchases = allPurchases.filter(p => p.customer_id === customerId || p.customer_name === customerName);
+  const supplierPayments = allTransactions.filter(t => t.type === "supplier_payment" && t.customer_id === customerId);
   const receipts = receiptVouchers.filter(v => v.customer_id === customerId);
   const payments = paymentVouchers.filter(v => v.customer_id === customerId);
   const returns_ = salesReturns.filter(r => r.customer_id === customerId);
@@ -230,6 +238,7 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
   const totalReceipts = receipts.reduce((s, v) => s + Number(v.amount), 0);
   const totalPayments = payments.reduce((s, v) => s + Number(v.amount), 0);
   const totalReturns = returns_.reduce((s, v) => s + Number(v.total_amount), 0);
+  const totalSupplierPayments = supplierPayments.reduce((s, v) => s + Number(v.amount), 0);
 
   type TxRow = { date: string; type: string; label: string; ref: string; debit: number; credit: number; };
   const rows: TxRow[] = [];
@@ -238,6 +247,7 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
   purchases.forEach(p => rows.push({ date: p.created_at, type: "purchase", label: "فاتورة مشتريات", ref: p.invoice_no ?? `P-${p.id}`, debit: 0, credit: Number(p.remaining_amount ?? p.total_amount) }));
   receipts.forEach(v => rows.push({ date: v.date ?? v.created_at, type: "receipt", label: "سند قبض", ref: v.voucher_no, debit: 0, credit: Number(v.amount) }));
   payments.forEach(v => rows.push({ date: v.date ?? v.created_at, type: "payment", label: "سند توريد", ref: v.voucher_no, debit: Number(v.amount), credit: 0 }));
+  supplierPayments.forEach(v => rows.push({ date: v.date ?? v.created_at, type: "supplier_payment", label: "تسديد للمورد", ref: `SP-${v.id}`, debit: Number(v.amount), credit: 0 }));
   returns_.filter(r => r.refund_type !== "cash").forEach(r => rows.push({ date: r.date ?? r.created_at, type: "return_credit", label: "مرتجع (خصم رصيد)", ref: r.return_no, debit: 0, credit: Number(r.total_amount) }));
   returns_.filter(r => r.refund_type === "cash").forEach(r => rows.push({ date: r.date ?? r.created_at, type: "return_cash", label: "مرتجع (نقدي)", ref: r.return_no, debit: 0, credit: 0 }));
 
@@ -247,20 +257,22 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
   const rowsWithBalance = rows.map(r => { running += r.debit - r.credit; return { ...r, balance: running }; });
 
   const typeConfig: Record<string, { color: string; bg: string; icon: string }> = {
-    sale:          { color: "text-amber-400",   bg: "bg-amber-500/10 border-amber-500/20",   icon: "↑" },
-    purchase:      { color: "text-purple-400",  bg: "bg-purple-500/10 border-purple-500/20", icon: "↓" },
-    receipt:       { color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", icon: "→" },
-    payment:       { color: "text-orange-400",  bg: "bg-orange-500/10 border-orange-500/20", icon: "←" },
-    return_credit: { color: "text-blue-400",    bg: "bg-blue-500/10 border-blue-500/20",     icon: "↩" },
-    return_cash:   { color: "text-pink-400",    bg: "bg-pink-500/10 border-pink-500/20",     icon: "↩" },
+    sale:             { color: "text-amber-400",   bg: "bg-amber-500/10 border-amber-500/20",   icon: "↑" },
+    purchase:         { color: "text-purple-400",  bg: "bg-purple-500/10 border-purple-500/20", icon: "↓" },
+    receipt:          { color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", icon: "→" },
+    payment:          { color: "text-orange-400",  bg: "bg-orange-500/10 border-orange-500/20", icon: "←" },
+    supplier_payment: { color: "text-cyan-400",    bg: "bg-cyan-500/10 border-cyan-500/20",     icon: "⬆" },
+    return_credit:    { color: "text-blue-400",    bg: "bg-blue-500/10 border-blue-500/20",     icon: "↩" },
+    return_cash:      { color: "text-pink-400",    bg: "bg-pink-500/10 border-pink-500/20",     icon: "↩" },
   };
 
   const summaryCards = [
     { label: "المبيعات",  value: totalSales,     count: sales.length },
     { label: "القبض",     value: totalReceipts,  count: receipts.length },
-    ...(totalPurchases > 0 ? [{ label: "المشتريات", value: totalPurchases, count: purchases.length }] : []),
-    ...(totalPayments > 0  ? [{ label: "التوريد",   value: totalPayments,  count: payments.length  }] : []),
-    ...(totalReturns > 0   ? [{ label: "المرتجعات", value: totalReturns,   count: returns_.length  }] : []),
+    ...(totalPurchases > 0       ? [{ label: "المشتريات",       value: totalPurchases,       count: purchases.length       }] : []),
+    ...(totalPayments > 0        ? [{ label: "التوريد",         value: totalPayments,        count: payments.length        }] : []),
+    ...(totalSupplierPayments > 0 ? [{ label: "تسديد للمورد",  value: totalSupplierPayments, count: supplierPayments.length }] : []),
+    ...(totalReturns > 0         ? [{ label: "المرتجعات",       value: totalReturns,         count: returns_.length        }] : []),
   ];
 
   // قراءة اسم الشركة من الإعدادات المحلية
@@ -284,15 +296,32 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
         {/* ─── رأس الكشف ─── */}
         <div className="flex justify-between items-center p-6 border-b border-white/10 bg-white/5 flex-shrink-0">
           <div>
-            <h3 className="text-2xl font-black text-white">كشف حساب</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-2xl font-black text-white">كشف حساب</h3>
+              {isSupplier && <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-blue-500/15 text-blue-400 border border-blue-500/25">عميل-مورد</span>}
+            </div>
             <p className="text-amber-400 font-bold text-lg mt-0.5">{customerName}</p>
             {customerPhone && <p className="text-white/40 text-xs mt-0.5">📞 {customerPhone}</p>}
-            <p className={`text-sm mt-1 font-semibold ${customerBalance > 0 ? 'text-yellow-400' : customerBalance < 0 ? 'text-orange-400' : 'text-white/40'}`}>
-              الرصيد:{" "}
-              {customerBalance > 0 ? `${formatCurrency(customerBalance)} — العميل مدين`
-                : customerBalance < 0 ? `${formatCurrency(Math.abs(customerBalance))} — دائن للعميل`
-                : "متسوّى"}
-            </p>
+            {isSupplier ? (
+              <div className="mt-2 space-y-0.5 text-xs">
+                <p className="text-white/50">إجمالي المبيعات له: <span className="text-amber-400 font-bold">{formatCurrency(totalSales)}</span></p>
+                <p className="text-white/50">إجمالي المشتريات منه: <span className="text-purple-400 font-bold">{formatCurrency(totalPurchases)}</span></p>
+                <p className="text-white/50">المدفوعات والمقبوضات: <span className="text-emerald-400 font-bold">{formatCurrency(totalReceipts + totalSupplierPayments + totalPayments)}</span></p>
+                <p className={`font-bold text-sm mt-1 ${customerBalance > 0 ? 'text-green-400' : customerBalance < 0 ? 'text-red-400' : 'text-white/40'}`}>
+                  الرصيد الصافي:{" "}
+                  {customerBalance > 0 ? `عليه لنا ${formatCurrency(customerBalance)}`
+                    : customerBalance < 0 ? `له علينا ${formatCurrency(Math.abs(customerBalance))}`
+                    : "متسوّى"}
+                </p>
+              </div>
+            ) : (
+              <p className={`text-sm mt-1 font-semibold ${customerBalance > 0 ? 'text-yellow-400' : customerBalance < 0 ? 'text-orange-400' : 'text-white/40'}`}>
+                الرصيد:{" "}
+                {customerBalance > 0 ? `${formatCurrency(customerBalance)} — العميل مدين`
+                  : customerBalance < 0 ? `${formatCurrency(Math.abs(customerBalance))} — دائن للعميل`
+                  : "متسوّى"}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {/* ─── زر واتساب ─── */}
@@ -364,7 +393,7 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
           <div className="flex flex-wrap gap-2 text-xs">
             {Object.entries(typeConfig).map(([key, cfg]) => (
               <span key={key} className={`px-2 py-0.5 rounded-lg border ${cfg.bg} ${cfg.color}`}>
-                {cfg.icon} {key === "sale" ? "مبيعات" : key === "purchase" ? "مشتريات" : key === "receipt" ? "قبض" : key === "payment" ? "توريد" : key === "return_credit" ? "مرتجع رصيد" : "مرتجع نقدي"}
+                {cfg.icon} {key === "sale" ? "مبيعات" : key === "purchase" ? "مشتريات" : key === "receipt" ? "قبض" : key === "payment" ? "توريد" : key === "supplier_payment" ? "تسديد للمورد" : key === "return_credit" ? "مرتجع رصيد" : "مرتجع نقدي"}
               </span>
             ))}
           </div>
@@ -442,9 +471,17 @@ export default function Customers() {
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [showReceipt, setShowReceipt] = useState<{ id: number; name: string; balance: number } | null>(null);
-  const [showStatement, setShowStatement] = useState<{ id: number; name: string; phone: string; balance: number } | null>(null);
+  const [showStatement, setShowStatement] = useState<{ id: number; name: string; phone: string; balance: number; isSupplier: boolean } | null>(null);
   const [formData, setFormData] = useState({ name: "", phone: "", balance: 0, is_supplier: false });
   const [receiptData, setReceiptData] = useState({ amount: "", notes: "", safe_id: "" });
+
+  const [showSupplierPayment, setShowSupplierPayment] = useState<{ id: number; name: string; balance: number } | null>(null);
+  const [supplierPaymentData, setSupplierPaymentData] = useState({ amount: "", notes: "", safe_id: "" });
+
+  const [showEdit, setShowEdit] = useState<{ id: number; name: string; phone: string; is_supplier: boolean } | null>(null);
+  const [editFormData, setEditFormData] = useState({ name: "", phone: "", is_supplier: false });
+
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
   const filtered = customers.filter(c => c.name.includes(search) || (c.phone && c.phone.includes(search)));
 
@@ -506,6 +543,94 @@ export default function Customers() {
     });
   };
 
+  // ─── تسديد دفعة للمورد ───
+  const supplierPaymentMutation = useMutation({
+    mutationFn: async (data: { customer_id: number; safe_id: string; amount: string; notes: string }) => {
+      const r = await fetch(api(`/api/customers/${data.customer_id}/supplier-payment`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ safe_id: parseInt(data.safe_id), amount: parseFloat(data.amount), notes: data.notes || null }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "خطأ في تسديد الدفعة");
+      return j;
+    },
+    onSuccess: () => {
+      toast({ title: "تم تسديد الدفعة بنجاح ✓" });
+      queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/safes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      setShowSupplierPayment(null);
+      setSupplierPaymentData({ amount: "", notes: "", safe_id: "" });
+    },
+    onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
+  });
+
+  const handleSupplierPayment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!showSupplierPayment) return;
+    if (!supplierPaymentData.safe_id) { toast({ title: "اختر الخزينة", variant: "destructive" }); return; }
+    const amt = parseFloat(supplierPaymentData.amount);
+    if (!amt || amt <= 0) { toast({ title: "أدخل مبلغاً صحيحاً", variant: "destructive" }); return; }
+    supplierPaymentMutation.mutate({ customer_id: showSupplierPayment.id, safe_id: supplierPaymentData.safe_id, amount: supplierPaymentData.amount, notes: supplierPaymentData.notes });
+  };
+
+  // ─── تعديل عميل ───
+  const updateMutation = useMutation({
+    mutationFn: async (data: { id: number; name: string; phone: string; is_supplier: boolean }) => {
+      const r = await fetch(api(`/api/customers/${data.id}`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: data.name, phone: data.phone || null, is_supplier: data.is_supplier }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "خطأ في التعديل");
+      return j;
+    },
+    onSuccess: () => {
+      toast({ title: "✅ تم تعديل بيانات العميل" });
+      queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+      setShowEdit(null);
+    },
+    onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
+  });
+
+  const handleEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!showEdit) return;
+    if (!editFormData.name.trim()) { toast({ title: "أدخل اسم العميل", variant: "destructive" }); return; }
+    updateMutation.mutate({ id: showEdit.id, name: editFormData.name, phone: editFormData.phone, is_supplier: editFormData.is_supplier });
+  };
+
+  // ─── حذف عميل ───
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const r = await fetch(api(`/api/customers/${id}`), { method: "DELETE" });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "خطأ في الحذف");
+      return j;
+    },
+    onSuccess: () => {
+      toast({ title: "✅ تم حذف العميل" });
+      queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+      setDeleteConfirmId(null);
+    },
+    onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
+  });
+
+  const handleDelete = () => {
+    if (deleteConfirmId === null) return;
+    const customer = customers.find(c => c.id === deleteConfirmId);
+    if (!customer) return;
+    if (Number(customer.balance) !== 0) {
+      toast({ title: "لا يمكن الحذف، يوجد رصيد غير مسوّى", variant: "destructive" });
+      setDeleteConfirmId(null);
+      return;
+    }
+    deleteMutation.mutate(deleteConfirmId);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -532,6 +657,7 @@ export default function Customers() {
           customerName={showStatement.name}
           customerPhone={showStatement.phone}
           customerBalance={showStatement.balance}
+          isSupplier={showStatement.isSupplier}
           onClose={() => setShowStatement(null)}
         />
       )}
@@ -654,6 +780,141 @@ export default function Customers() {
         </div>
       )}
 
+      {/* ─── تسديد دفعة للمورد ─── */}
+      {showSupplierPayment !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm modal-overlay">
+          <form onSubmit={handleSupplierPayment} className="glass-panel rounded-3xl p-8 w-full max-w-md border border-white/10 space-y-5">
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="text-2xl font-bold text-white">تسديد دفعة للمورد</h3>
+                <p className="text-white/50 text-sm mt-1">سداد مستحقات <span className="text-cyan-400 font-bold">{showSupplierPayment.name}</span></p>
+              </div>
+              <button type="button" onClick={() => setShowSupplierPayment(null)} className="p-2 rounded-xl bg-white/10 hover:bg-white/20">
+                <X className="w-4 h-4 text-white/60" />
+              </button>
+            </div>
+
+            <div className={`rounded-xl px-4 py-2.5 border text-sm font-bold flex items-center justify-between ${showSupplierPayment.balance < 0 ? 'bg-red-500/10 border-red-500/30 text-red-400' : showSupplierPayment.balance > 0 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-white/5 border-white/10 text-white/40'}`}>
+              <span>الرصيد الحالي:</span>
+              <span>
+                {showSupplierPayment.balance < 0 ? `له علينا ${formatCurrency(Math.abs(showSupplierPayment.balance))}`
+                  : showSupplierPayment.balance > 0 ? `عليه لنا ${formatCurrency(showSupplierPayment.balance)}`
+                  : "متسوّى"}
+              </span>
+            </div>
+
+            <div>
+              <label className="block text-white/70 text-sm mb-1">الخزينة المدفوعة منها *</label>
+              <select required className="glass-input w-full appearance-none" value={supplierPaymentData.safe_id}
+                onChange={e => setSupplierPaymentData(d => ({ ...d, safe_id: e.target.value }))}>
+                <option value="" className="bg-gray-900">-- اختر خزينة --</option>
+                {safes.map(s => (
+                  <option key={s.id} value={s.id} className="bg-gray-900">
+                    {s.name} ({formatCurrency(Number(s.balance))})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-white/70 text-sm mb-1">المبلغ المسدَّد *</label>
+              <input required type="number" step="0.01" min="0.01" className="glass-input text-xl font-bold"
+                value={supplierPaymentData.amount} onChange={e => setSupplierPaymentData(d => ({ ...d, amount: e.target.value }))}
+                placeholder="0.00" />
+              {supplierPaymentData.amount && (
+                <p className="text-xs text-white/40 mt-1">
+                  الرصيد بعد التسديد:{" "}
+                  {(() => {
+                    const newBal = showSupplierPayment.balance + parseFloat(supplierPaymentData.amount);
+                    return <span className={newBal < 0 ? 'text-red-400 font-bold' : newBal > 0 ? 'text-green-400 font-bold' : 'text-white/40 font-bold'}>
+                      {newBal < 0 ? `له علينا ${formatCurrency(Math.abs(newBal))}` : newBal > 0 ? `عليه لنا ${formatCurrency(newBal)}` : "متسوّى"}
+                    </span>;
+                  })()}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-white/70 text-sm mb-1">ملاحظات (اختياري)</label>
+              <input type="text" className="glass-input" placeholder="دفعة مقابل مشتريات..."
+                value={supplierPaymentData.notes} onChange={e => setSupplierPaymentData(d => ({ ...d, notes: e.target.value }))} />
+            </div>
+
+            <div className="flex gap-4">
+              <button type="submit" disabled={supplierPaymentMutation.isPending}
+                className="flex-1 bg-cyan-500 text-white py-3 rounded-xl font-bold hover:bg-cyan-600 transition-colors flex items-center justify-center gap-2">
+                <CreditCard className="w-4 h-4" />
+                {supplierPaymentMutation.isPending ? "جاري الحفظ..." : "تأكيد التسديد"}
+              </button>
+              <button type="button" onClick={() => setShowSupplierPayment(null)} className="flex-1 btn-secondary py-3">إلغاء</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ─── تعديل عميل ─── */}
+      {showEdit !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm modal-overlay">
+          <form onSubmit={handleEdit} className="glass-panel rounded-3xl p-8 w-full max-w-md border border-white/10">
+            <h3 className="text-2xl font-bold text-white mb-6">تعديل بيانات العميل</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-white/70 text-sm mb-1">اسم العميل *</label>
+                <input required type="text" className="glass-input" value={editFormData.name}
+                  onChange={e => setEditFormData(f => ({ ...f, name: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-white/70 text-sm mb-1">رقم الهاتف</label>
+                <input type="text" className="glass-input" value={editFormData.phone}
+                  onChange={e => setEditFormData(f => ({ ...f, phone: e.target.value }))} placeholder="01xxxxxxxxx" />
+              </div>
+              <div className="border border-white/10 rounded-2xl p-4 bg-white/3">
+                <button type="button" onClick={() => setEditFormData(f => ({ ...f, is_supplier: !f.is_supplier }))}
+                  className={`flex items-center gap-2 w-full text-sm font-bold transition-colors ${editFormData.is_supplier ? "text-blue-400" : "text-white/50 hover:text-white/70"}`}>
+                  <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all shrink-0 ${editFormData.is_supplier ? "bg-blue-500 border-blue-500" : "border-white/30"}`}>
+                    {editFormData.is_supplier && <span className="text-white text-xs font-black">✓</span>}
+                  </div>
+                  🔄 يمكن الشراء منه أيضاً (عميل-مورد)
+                </button>
+              </div>
+            </div>
+            <div className="flex gap-4 mt-8">
+              <button type="submit" disabled={updateMutation.isPending} className="flex-1 btn-primary py-3">
+                {updateMutation.isPending ? "جاري الحفظ..." : "حفظ التعديلات"}
+              </button>
+              <button type="button" onClick={() => setShowEdit(null)} className="flex-1 btn-secondary py-3">إلغاء</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ─── تأكيد الحذف ─── */}
+      {deleteConfirmId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm modal-overlay">
+          <div className="glass-panel rounded-3xl p-8 w-full max-w-sm border border-white/10 text-center space-y-5">
+            <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto">
+              <Trash2 className="w-7 h-7 text-red-400" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-white">حذف العميل</h3>
+              <p className="text-white/50 text-sm mt-2">
+                هل تريد حذف العميل <span className="text-white font-bold">{customers.find(c => c.id === deleteConfirmId)?.name}</span>؟
+              </p>
+              {Number(customers.find(c => c.id === deleteConfirmId)?.balance) !== 0 && (
+                <p className="text-red-400 text-xs mt-2 font-bold">⚠ لا يمكن الحذف، يوجد رصيد غير مسوّى</p>
+              )}
+            </div>
+            <div className="flex gap-3">
+              <button onClick={handleDelete} disabled={deleteMutation.isPending}
+                className="flex-1 bg-red-500/80 hover:bg-red-500 text-white py-2.5 rounded-xl font-bold transition-colors">
+                {deleteMutation.isPending ? "جاري الحذف..." : "حذف"}
+              </button>
+              <button onClick={() => setDeleteConfirmId(null)} className="flex-1 btn-secondary py-2.5">إلغاء</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* جدول العملاء */}
       <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
         <div className="overflow-x-auto">
@@ -699,9 +960,9 @@ export default function Customers() {
                       )}
                     </td>
                     <td className="p-4">
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <button
-                          onClick={() => setShowStatement({ id: customer.id, name: customer.name, phone: customer.phone || "", balance: Number(customer.balance) })}
+                          onClick={() => setShowStatement({ id: customer.id, name: customer.name, phone: customer.phone || "", balance: Number(customer.balance), isSupplier: customer.is_supplier ?? false })}
                           className="flex items-center gap-1.5 bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors border border-blue-500/30"
                         >
                           <FileText className="w-3.5 h-3.5" /> كشف حساب
@@ -714,6 +975,34 @@ export default function Customers() {
                           className="flex items-center gap-1.5 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors border border-emerald-500/30"
                         >
                           <DollarSign className="w-3.5 h-3.5" /> قبض دفعة
+                        </button>
+                        {customer.is_supplier && (
+                          <button
+                            onClick={() => {
+                              setSupplierPaymentData({ amount: "", notes: "", safe_id: "" });
+                              setShowSupplierPayment({ id: customer.id, name: customer.name, balance: Number(customer.balance) });
+                            }}
+                            className="flex items-center gap-1.5 bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors border border-cyan-500/30"
+                          >
+                            <CreditCard className="w-3.5 h-3.5" /> تسديد دفعة
+                          </button>
+                        )}
+                        <button
+                          onClick={() => {
+                            setShowEdit({ id: customer.id, name: customer.name, phone: customer.phone || "", is_supplier: customer.is_supplier ?? false });
+                            setEditFormData({ name: customer.name, phone: customer.phone || "", is_supplier: customer.is_supplier ?? false });
+                          }}
+                          className="p-1.5 rounded-lg bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/80 transition-colors border border-white/10"
+                          title="تعديل"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirmId(customer.id)}
+                          className="p-1.5 rounded-lg bg-red-500/5 text-red-400/50 hover:bg-red-500/15 hover:text-red-400 transition-colors border border-red-500/10"
+                          title="حذف"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </td>

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, customersTable, transactionsTable } from "@workspace/db";
+import { db, customersTable, transactionsTable, safesTable } from "@workspace/db";
 import {
   GetCustomersResponse,
   CreateCustomerBody,
@@ -13,7 +13,7 @@ import {
   CreateCustomerReceiptBody,
   CreateCustomerReceiptResponse,
 } from "@workspace/api-zod";
-import { wrap } from "../lib/async-handler";
+import { wrap, httpError } from "../lib/async-handler";
 
 const router: IRouter = Router();
 
@@ -109,6 +109,55 @@ router.post("/customers/:id/receipt", wrap(async (req, res) => {
   });
 
   res.json(CreateCustomerReceiptResponse.parse(formatCustomer(updated)));
+}));
+
+router.post("/customers/:id/supplier-payment", wrap(async (req, res) => {
+  const id = parseInt(req.params.id as string);
+  if (isNaN(id)) throw httpError(400, "معرّف غير صحيح");
+
+  const { amount, safe_id, notes } = req.body;
+  const amt = parseFloat(amount);
+  if (!amt || amt <= 0) throw httpError(400, "أدخل مبلغاً صحيحاً");
+  const safeId = parseInt(safe_id);
+  if (isNaN(safeId)) throw httpError(400, "اختر الخزينة");
+
+  let resultCustomer: typeof customersTable.$inferSelect | undefined;
+
+  await db.transaction(async (tx) => {
+    const [customer] = await tx.select().from(customersTable).where(eq(customersTable.id, id));
+    if (!customer) throw httpError(404, "العميل غير موجود");
+    if (!customer.is_supplier) throw httpError(400, "هذا العميل ليس مورداً");
+
+    const [safe] = await tx.select().from(safesTable).where(eq(safesTable.id, safeId));
+    if (!safe) throw httpError(404, "الخزينة غير موجودة");
+    if (Number(safe.balance) < amt) throw httpError(400, "رصيد الخزينة غير كافٍ");
+
+    await tx.update(safesTable)
+      .set({ balance: String(Number(safe.balance) - amt) })
+      .where(eq(safesTable.id, safe.id));
+
+    const newBalance = Number(customer.balance) + amt;
+    const [updated] = await tx.update(customersTable)
+      .set({ balance: String(newBalance) })
+      .where(eq(customersTable.id, id))
+      .returning();
+
+    await tx.insert(transactionsTable).values({
+      type: "supplier_payment",
+      direction: "out",
+      customer_id: id,
+      customer_name: customer.name,
+      safe_id: safe.id,
+      safe_name: safe.name,
+      amount: String(amt),
+      description: notes || `تسديد دفعة للمورد - ${customer.name}`,
+      date: new Date().toISOString().split("T")[0],
+    });
+
+    resultCustomer = updated;
+  });
+
+  res.json({ success: true, customer: formatCustomer(resultCustomer!) });
 }));
 
 export default router;
