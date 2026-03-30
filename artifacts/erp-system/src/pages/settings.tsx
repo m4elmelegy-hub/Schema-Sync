@@ -219,32 +219,25 @@ export default function Settings() {
           <div className="px-4 pt-4 pb-3 border-b border-white/5">
             <p className="text-white/25 text-[10px] font-bold uppercase tracking-widest">لوحة الإعدادات</p>
           </div>
-          <nav className="p-2 space-y-3">
-            {TAB_SECTIONS.map(({ section, tabs }) => (
-              <div key={section}>
-                <p className="text-white/20 text-[9px] font-bold uppercase tracking-widest px-3 mb-1">{section}</p>
-                <div className="space-y-0.5">
-                  {tabs.map(t => {
-                    const Icon = t.icon;
-                    const active = tab === t.id;
-                    return (
-                      <button
-                        key={t.id}
-                        onClick={() => setTab(t.id)}
-                        className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-[13px] font-semibold transition-all border-r-[3px] ${
-                          active
-                            ? "bg-amber-500/10 text-amber-400 border-amber-500"
-                            : "text-white/40 hover:text-white hover:bg-white/5 border-transparent"
-                        }`}
-                      >
-                        <Icon className="w-3.5 h-3.5 shrink-0" />
-                        {t.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
+          <nav className="p-2 space-y-0.5">
+            {TAB_SECTIONS.flatMap(({ tabs }) => tabs).map(t => {
+              const Icon = t.icon;
+              const active = tab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-[13px] font-semibold transition-all border-r-[3px] ${
+                    active
+                      ? "bg-amber-500/10 text-amber-400 border-amber-500"
+                      : "text-white/40 hover:text-white hover:bg-white/5 border-transparent"
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5 shrink-0" />
+                  {t.label}
+                </button>
+              );
+            })}
           </nav>
         </div>
       </aside>
