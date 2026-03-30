@@ -104,7 +104,25 @@ router.get("/profits", wrap(async (req, res) => {
     }
   }
 
-  // ── طرح مرتجعات المبيعات من الأرباح ─────────────────────────────────────
+  // ── تجميع شهري بحقل date (يُبنى قبل خصم المرتجعات) ─────────────────────
+  const byMonth = new Map<string, { month: string; revenue: number; cost: number; profit: number }>();
+  for (const item of items) {
+    const sale = sales.find(s => s.id === item.sale_id);
+    if (!sale) continue;
+    const monthKey = (sale.date ?? sale.created_at.toISOString().split("T")[0]).slice(0, 7);
+    const itemRevenue = Number(item.total_price);
+    const itemCost = Number(item.cost_total);
+    const existingM = byMonth.get(monthKey);
+    if (existingM) {
+      existingM.revenue += itemRevenue;
+      existingM.cost += itemCost;
+      existingM.profit += itemRevenue - itemCost;
+    } else {
+      byMonth.set(monthKey, { month: monthKey, revenue: itemRevenue, cost: itemCost, profit: itemRevenue - itemCost });
+    }
+  }
+
+  // ── طرح مرتجعات المبيعات من الأرباح وتفاصيل المنتجات والشهور ──────────
   const allReturns = await db.select().from(salesReturnsTable);
   const returnsInPeriod = saleConditions.length > 0
     ? allReturns.filter(r => {
@@ -117,24 +135,45 @@ router.get("/profits", wrap(async (req, res) => {
 
   for (const ret of returnsInPeriod) {
     const retItems = await db.select().from(saleReturnItemsTable).where(eq(saleReturnItemsTable.return_id, ret.id));
+    const retDate = ret.date ?? ret.created_at.toISOString().split("T")[0];
+    const retMonthKey = retDate.slice(0, 7);
+
     for (const ri of retItems) {
       const refundAmt = Number(ri.total_price);
-      totalRevenue -= refundAmt;
+      const retQtyNum = Number(ri.quantity);
 
-      // استرجاع التكلفة الأصلية من بند الفاتورة (إن وُجدت)
+      // ── حساب تكلفة الوحدة المُرتجَعة ────────────────────────────────────
+      let unitRetCost = Number(ri.unit_price); // fallback
       if (ret.sale_id) {
         const origItems = await db.select().from(saleItemsTable)
           .where(and(eq(saleItemsTable.sale_id, ret.sale_id), eq(saleItemsTable.product_id, ri.product_id)));
         if (origItems.length > 0) {
           const origItem = origItems[0];
-          const unitCost = Number(origItem.cost_total) / Math.max(Number(origItem.quantity), 1);
-          totalCost -= unitCost * Number(ri.quantity);
-        } else {
-          // fallback: استخدم unit_price كتكلفة (تقدير)
-          totalCost -= Number(ri.unit_price) * Number(ri.quantity);
+          unitRetCost = Number(origItem.cost_total) / Math.max(Number(origItem.quantity), 1);
         }
-      } else {
-        totalCost -= Number(ri.unit_price) * Number(ri.quantity);
+      }
+      const retCostAmt = unitRetCost * retQtyNum;
+
+      // ── تعديل الإجماليات الكلية ──────────────────────────────────────────
+      totalRevenue -= refundAmt;
+      totalCost    -= retCostAmt;
+
+      // ── تعديل تفصيل المنتجات (by_product) ──────────────────────────────
+      const pKey = String(ri.product_id);
+      const existingP = byProduct.get(pKey);
+      if (existingP) {
+        existingP.qty_sold -= retQtyNum;
+        existingP.revenue  -= refundAmt;
+        existingP.cost     -= retCostAmt;
+        existingP.profit   -= (refundAmt - retCostAmt);
+      }
+
+      // ── تعديل التجميع الشهري (by_month) ──────────────────────────────────
+      const existingMonth = byMonth.get(retMonthKey);
+      if (existingMonth) {
+        existingMonth.revenue -= refundAmt;
+        existingMonth.cost    -= retCostAmt;
+        existingMonth.profit  -= (refundAmt - retCostAmt);
       }
     }
   }
@@ -142,25 +181,6 @@ router.get("/profits", wrap(async (req, res) => {
   const grossProfit = totalRevenue - totalCost;
   const netProfit = grossProfit - totalExpenses;
   const profitMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
-
-  // ── تجميع شهري بحقل date ──────────────────────────────────────────────────
-  const byMonth = new Map<string, { month: string; revenue: number; cost: number; profit: number }>();
-  for (const item of items) {
-    const sale = sales.find(s => s.id === item.sale_id);
-    if (!sale) continue;
-    // استخدم date النصي — إن كان فارغاً فاستخدم created_at
-    const monthKey = (sale.date ?? sale.created_at.toISOString().split("T")[0]).slice(0, 7);
-    const itemRevenue = Number(item.total_price);
-    const itemCost = Number(item.cost_total);
-    const existing = byMonth.get(monthKey);
-    if (existing) {
-      existing.revenue += itemRevenue;
-      existing.cost += itemCost;
-      existing.profit += itemRevenue - itemCost;
-    } else {
-      byMonth.set(monthKey, { month: monthKey, revenue: itemRevenue, cost: itemCost, profit: itemRevenue - itemCost });
-    }
-  }
 
   const byProductArr = Array.from(byProduct.values())
     .map(p => ({

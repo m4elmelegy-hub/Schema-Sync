@@ -294,19 +294,32 @@ router.post("/purchase-returns", wrap(async (req, res) => {
       const [prod] = await tx.select().from(productsTable).where(eq(productsTable.id, item.product_id));
       if (prod) {
         const oldQty = Number(prod.quantity);
-        const newQty = Math.max(0, oldQty - Number(item.quantity));
+        const retQty = Number(item.quantity);
+        const newQty = Math.max(0, oldQty - retQty);
+
+        // ── إعادة حساب المتوسط المرجّح بعد مرتجع المشتريات ─────────────────
+        const oldWAC = Number(prod.cost_price);
+        const retUnitPrice = Number(item.unit_price);
+        let newWAC = oldWAC;
+        if (newQty > 0) {
+          const oldTotalValue = oldQty * oldWAC;
+          const returnedValue = retQty * retUnitPrice;
+          newWAC = Math.max(0, (oldTotalValue - returnedValue) / newQty);
+          newWAC = Math.round(newWAC * 100) / 100;
+        }
+
         await tx.update(productsTable)
-          .set({ quantity: String(newQty) })
+          .set({ quantity: String(newQty), cost_price: String(newWAC) })
           .where(eq(productsTable.id, item.product_id));
 
         await tx.insert(stockMovementsTable).values({
           product_id: item.product_id,
           product_name: item.product_name,
           movement_type: "purchase_return",
-          quantity: String(-Number(item.quantity)),
+          quantity: String(-retQty),
           quantity_before: String(oldQty),
           quantity_after: String(newQty),
-          unit_cost: String(Number(item.unit_price)),
+          unit_cost: String(retUnitPrice),
           reference_type: "purchase_return",
           reference_id: ret.id,
           reference_no: return_no,
