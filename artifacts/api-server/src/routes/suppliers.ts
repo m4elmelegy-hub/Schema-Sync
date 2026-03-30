@@ -21,6 +21,7 @@ function formatSupplier(s: typeof suppliersTable.$inferSelect) {
   return {
     ...s,
     balance: Number(s.balance),
+    linked_customer_id: s.linked_customer_id ?? null,
     created_at: s.created_at.toISOString(),
   };
 }
@@ -40,6 +41,7 @@ router.post("/suppliers", wrap(async (req, res) => {
     name: parsed.data.name,
     phone: parsed.data.phone ?? null,
     balance: String(parsed.data.balance ?? 0),
+    linked_customer_id: parsed.data.linked_customer_id ?? null,
   }).returning();
   res.status(201).json(formatSupplier(supplier));
 }));
@@ -59,6 +61,7 @@ router.put("/suppliers/:id", wrap(async (req, res) => {
     name: parsed.data.name,
     phone: parsed.data.phone ?? null,
     balance: parsed.data.balance !== undefined ? String(parsed.data.balance) : undefined,
+    linked_customer_id: parsed.data.linked_customer_id !== undefined ? (parsed.data.linked_customer_id ?? null) : undefined,
   }).where(eq(suppliersTable.id, params.data.id)).returning();
   if (!supplier) {
     res.status(404).json({ error: "Supplier not found" });
@@ -77,7 +80,7 @@ router.delete("/suppliers/:id", wrap(async (req, res) => {
   res.json(DeleteSupplierResponse.parse({ success: true, message: "Supplier deleted" }));
 }));
 
-// ─── سداد مستحقات المورد — FIX 2: يخصم من الخزينة ────────────────────────────
+// ─── سداد مستحقات المورد ────────────────────────────────────────────────────
 router.post("/suppliers/:id/payment", wrap(async (req, res) => {
   const params = CreateSupplierPaymentParams.safeParse(req.params);
   if (!params.success) {
@@ -131,7 +134,7 @@ router.post("/suppliers/:id/payment", wrap(async (req, res) => {
   res.json(CreateSupplierPaymentResponse.parse(formatSupplier(updated)));
 }));
 
-// ─── كشف حساب المورد — FIX 8 ──────────────────────────────────────────────────
+// ─── كشف حساب المورد ──────────────────────────────────────────────────────────
 router.get("/suppliers/:id/statement", wrap(async (req, res) => {
   const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
@@ -169,45 +172,16 @@ router.get("/suppliers/:id/statement", wrap(async (req, res) => {
   const rows: StatRow[] = [];
 
   for (const p of supplierOpening) {
-    rows.push({
-      date: p.date ?? p.created_at.toISOString().split("T")[0],
-      type: "opening_balance",
-      description: "رصيد أول المدة",
-      debit: 0,
-      credit: Number(p.amount),
-    });
+    rows.push({ date: p.date ?? p.created_at.toISOString().split("T")[0], type: "opening_balance", description: "رصيد أول المدة", debit: 0, credit: Number(p.amount) });
   }
-
   for (const p of purchases) {
-    rows.push({
-      date: p.date ?? p.created_at.toISOString().split("T")[0],
-      type: "purchase",
-      description: `فاتورة شراء ${p.invoice_no ?? ""}`,
-      debit: 0,
-      credit: Number(p.total_amount),
-      reference_no: p.invoice_no,
-    });
+    rows.push({ date: p.date ?? p.created_at.toISOString().split("T")[0], type: "purchase", description: `فاتورة شراء ${p.invoice_no ?? ""}`, debit: 0, credit: Number(p.total_amount), reference_no: p.invoice_no });
   }
-
   for (const r of purchaseReturns) {
-    rows.push({
-      date: r.date ?? r.created_at.toISOString().split("T")[0],
-      type: "purchase_return",
-      description: `مرتجع مشتريات ${r.return_no}`,
-      debit: Number(r.total_amount),
-      credit: 0,
-      reference_no: r.return_no,
-    });
+    rows.push({ date: r.date ?? r.created_at.toISOString().split("T")[0], type: "purchase_return", description: `مرتجع مشتريات ${r.return_no}`, debit: Number(r.total_amount), credit: 0, reference_no: r.return_no });
   }
-
   for (const p of supplierPayments) {
-    rows.push({
-      date: p.date ?? p.created_at.toISOString().split("T")[0],
-      type: "payment",
-      description: p.description ?? `سداد للمورد`,
-      debit: Number(p.amount),
-      credit: 0,
-    });
+    rows.push({ date: p.date ?? p.created_at.toISOString().split("T")[0], type: "payment", description: p.description ?? `سداد للمورد`, debit: Number(p.amount), credit: 0 });
   }
 
   rows.sort((a, b) => a.date.localeCompare(b.date));
@@ -218,11 +192,7 @@ router.get("/suppliers/:id/statement", wrap(async (req, res) => {
     return { ...row, balance: Math.round(runningBalance * 100) / 100 };
   });
 
-  res.json({
-    supplier: formatSupplier(supplier),
-    statement,
-    closing_balance: Math.round(runningBalance * 100) / 100,
-  });
+  res.json({ supplier: formatSupplier(supplier), statement, closing_balance: Math.round(runningBalance * 100) / 100 });
 }));
 
 export default router;

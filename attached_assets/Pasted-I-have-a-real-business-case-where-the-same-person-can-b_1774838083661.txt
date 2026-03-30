@@ -1,0 +1,101 @@
+I have a real business case where the same person can be 
+both a customer (buys from me) AND a supplier (I buy from them).
+
+Current system problem:
+- customers table: tracks people who buy from me
+- suppliers table: tracks people I buy from
+- They are completely separate — no link between them
+- This causes wrong account statements when same person 
+  appears in both tables
+
+## Required Feature: Linked Customer-Supplier Account
+
+### 1. Database Changes:
+Add a column to both tables:
+- customers: linked_supplier_id (nullable, foreign key → suppliers.id)
+- suppliers: linked_customer_id (nullable, foreign key → customers.id)
+
+This creates a bidirectional link between the same person
+in both tables.
+
+### 2. UI Changes — Customer Form:
+When adding/editing a customer, add:
+- Toggle: "هل يبيع لك أيضاً؟" (Is this also a supplier?)
+- If YES: show supplier selector dropdown
+  "اربط بمورد موجود" OR "إنشاء مورد جديد تلقائياً"
+- If creating new: auto-fill supplier name from customer name
+
+Same toggle on Supplier form:
+- "هل يشتري منك أيضاً؟"
+- Link to existing customer or create new
+
+### 3. Combined Account Statement:
+Create GET /api/contacts/:id/full-statement
+Where contact can be customer_id or supplier_id.
+
+This endpoint must return ALL transactions merged and 
+sorted by date:
+
+| التاريخ | النوع | البيان | مدين (له) | دائن (عليه) | الرصيد |
+|---------|-------|--------|-----------|-------------|--------|
+
+Transaction types to include:
+- مبيعات له (sale to customer) → دائن (he owes us)
+- مشتريات منه (purchase from supplier) → مدين (we owe him)
+- سند قبض (receipt voucher) → يقلل ما عليه
+- سند صرف (payment voucher) → يقلل ما نحن مدينون به
+- مرتجع مبيعات → عكس المبيعات
+- مرتجع مشتريات → عكس المشتريات
+- رصيد أول المدة → يظهر أول سطر
+
+Running balance calculation:
++ sales amount (customer owes us)
+- purchases amount (we owe supplier)
++ receipts (reduces what customer owes)
+- payments (reduces what we owe supplier)
+
+Final balance:
+- Positive = customer owes US money
+- Negative = WE owe supplier money
+- Show clearly: "له علينا 4,000 ج.م" or "عليه لنا 1,000 ج.م"
+
+### 4. Purchases Page Fix:
+In the purchase invoice form:
+- Change party selector to search BOTH customers and suppliers
+- Label: "المورد / الطرف الآخر"
+- Search returns: all suppliers + all customers who are linked 
+  to a supplier
+- When a linked customer is selected:
+  → automatically use their linked supplier_id for the purchase
+  → show note: "هذا العميل مرتبط بحساب مورد"
+
+### 5. Statement Page UI:
+Create a new "كشف الحساب الموحد" view accessible from:
+- Customer detail page → button "كشف الحساب الكامل"
+- Supplier detail page → same button
+
+The statement shows:
+- Contact info header (name, phone, type: عميل/مورد/كلاهما)
+- Balance summary box:
+  • إجمالي المبيعات له: xx,xxx
+  • إجمالي المشتريات منه: xx,xxx  
+  • صافي الرصيد: xx,xxx (colored: green=he owes us, red=we owe him)
+- Full transactions table (all types merged, sorted by date)
+- Filter by date range
+- Export to PDF button
+
+### 6. Validation Rules:
+- Cannot link a customer to themselves as supplier
+- Cannot create circular links
+- When deleting a customer who is linked to supplier:
+  → warn: "هذا العميل مرتبط بمورد، هل تريد حذف الارتباط أيضاً؟"
+
+## Show me:
+1. Database migration (add linked columns)
+2. Updated customer/supplier forms with link toggle
+3. Full statement API endpoint
+4. Updated purchases party selector
+5. Combined statement UI component
+
+Do NOT break existing customer or supplier functionality.
+All existing statements must still work correctly.

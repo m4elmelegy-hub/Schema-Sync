@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useCreatePurchase, useGetProducts, useGetCustomers, useCreateProduct, useDeleteProduct, useGetSettingsSafes, useGetSettingsWarehouses } from "@workspace/api-client-react";
+import { useCreatePurchase, useGetProducts, useGetCustomers, useGetSuppliers, useCreateProduct, useDeleteProduct, useGetSettingsSafes, useGetSettingsWarehouses } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
 import { Search, Plus, Minus, Trash2, ShoppingBag, Package, User, Vault, AlertTriangle } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -23,6 +23,7 @@ interface CartItem {
 function NewPurchasePanel({ onDone }: { onDone: () => void }) {
   const { data: products = [] } = useGetProducts();
   const { data: customers = [] } = useGetCustomers();
+  const { data: suppliers = [] } = useGetSuppliers();
   const { data: safes = [] } = useGetSettingsSafes();
   const { data: warehouses = [] } = useGetSettingsWarehouses();
   const createMutation = useCreatePurchase();
@@ -33,6 +34,8 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [paymentType, setPaymentType] = useState<"cash" | "credit" | "partial">("cash");
   const [paidAmount, setPaidAmount] = useState<string>("");
+  // partyKey = "c:{id}" for customer, "s:{id}" for supplier
+  const [partyKey, setPartyKey] = useState<string>("");
   const [customerId, setCustomerId] = useState<string>("");
   const [safeId, setSafeId] = useState<string>("");
   const [warehouseId, setWarehouseId] = useState<string>("");
@@ -50,15 +53,37 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
   });
 
   const cartTotal = useMemo(() => cart.reduce((s, i) => s + i.total_price, 0), [cart]);
-  const selectedCustomer = customers.find(c => c.id === parseInt(customerId));
+
+  // تحليل الطرف المختار
+  const selectedParty = useMemo(() => {
+    if (!partyKey) return null;
+    if (partyKey.startsWith("s:")) {
+      const id = parseInt(partyKey.slice(2));
+      const s = suppliers.find(x => x.id === id);
+      return s ? { type: "supplier" as const, id: s.id, name: s.name, balance: s.balance, linked_customer_id: s.linked_customer_id ?? null } : null;
+    }
+    if (partyKey.startsWith("c:")) {
+      const id = parseInt(partyKey.slice(2));
+      const c = customers.find(x => x.id === id);
+      return c ? { type: "customer" as const, id: c.id, name: c.name, balance: Number(c.balance), linked_supplier_id: c.linked_supplier_id ?? null } : null;
+    }
+    return null;
+  }, [partyKey, suppliers, customers]);
+
+  const selectedCustomer = useMemo(() => {
+    if (customerId) return customers.find(c => c.id === parseInt(customerId)) ?? null;
+    if (selectedParty?.type === "customer") return customers.find(c => c.id === selectedParty.id) ?? null;
+    return null;
+  }, [customerId, selectedParty, customers]);
 
   // أثر على حساب العميل: نقدي=صفر، آجل=كامل المبلغ علينا، جزئي=المتبقي علينا
   const customerImpact = useMemo(() => {
-    if (!customerId) return 0;
+    const cid = selectedParty?.type === "customer" ? selectedParty.id : parseInt(customerId);
+    if (!cid) return 0;
     if (paymentType === "cash") return 0;
     if (paymentType === "credit") return -cartTotal;
     return -(cartTotal - (parseFloat(paidAmount) || 0));
-  }, [customerId, paymentType, paidAmount, cartTotal]);
+  }, [selectedParty, customerId, paymentType, paidAmount, cartTotal]);
 
   const addToCart = (product: typeof products[0]) => {
     setCart(prev => {
@@ -80,20 +105,40 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
 
   const handleCheckout = () => {
     if (cart.length === 0) { toast({ title: "السلة فارغة", variant: "destructive" }); return; }
-    if ((paymentType === "credit" || paymentType === "partial") && !customerId) {
-      toast({ title: "يجب اختيار عميل للآجل أو الجزئي", variant: "destructive" }); return;
+    if ((paymentType === "credit" || paymentType === "partial") && !partyKey) {
+      toast({ title: "يجب اختيار الطرف الآخر للآجل أو الجزئي", variant: "destructive" }); return;
     }
     if ((paymentType === "cash" || paymentType === "partial") && !safeId) {
       toast({ title: "يجب اختيار الخزينة للدفع النقدي", variant: "destructive" }); return;
     }
     const actualPaid = paymentType === "cash" ? cartTotal : paymentType === "credit" ? 0 : parseFloat(paidAmount) || 0;
 
+    // تحديد supplier_id و customer_id بناءً على الطرف المختار
+    let finalSupplierId: number | null = null;
+    let finalSupplierName: string | null = null;
+    let finalCustomerId: number | null = null;
+    let finalCustomerName: string | null = null;
+
+    if (selectedParty?.type === "supplier") {
+      finalSupplierId = selectedParty.id;
+      finalSupplierName = selectedParty.name;
+    } else if (selectedParty?.type === "customer") {
+      finalCustomerId = selectedParty.id;
+      finalCustomerName = selectedParty.name;
+      // إذا كان مرتبطاً بمورد، مرّر supplier_id أيضاً
+      if (selectedParty.linked_supplier_id) {
+        finalSupplierId = selectedParty.linked_supplier_id;
+        const linkedSupplier = suppliers.find(s => s.id === selectedParty.linked_supplier_id);
+        finalSupplierName = linkedSupplier?.name ?? null;
+      }
+    }
+
     createMutation.mutate({
       data: {
-        supplier_id: null,
-        supplier_name: null,
-        customer_id: selectedCustomer?.id ?? null,
-        customer_name: selectedCustomer?.name ?? null,
+        supplier_id: finalSupplierId,
+        supplier_name: finalSupplierName,
+        customer_id: finalCustomerId,
+        customer_name: finalCustomerName,
         safe_id: safeId ? parseInt(safeId) : null,
         payment_type: paymentType,
         total_amount: cartTotal,
@@ -106,9 +151,10 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
         queryClient.invalidateQueries({ queryKey: ["/api/purchases"] });
         queryClient.invalidateQueries({ queryKey: ["/api/products"] });
         queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
         queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
         queryClient.invalidateQueries({ queryKey: ["/api/settings/safes"] });
-        setCart([]); setPaidAmount(""); setCustomerId(""); setSafeId(""); setPaymentType("cash");
+        setCart([]); setPaidAmount(""); setPartyKey(""); setCustomerId(""); setSafeId(""); setPaymentType("cash");
         onDone();
       },
       onError: (e: Error) => toast({ title: e.message, variant: "destructive" })
@@ -214,19 +260,29 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
 
         {/* Footer */}
         <div className="p-3 border-t border-white/10 bg-black/40 space-y-2">
-          {/* العميل والخزينة */}
+          {/* المورد / الطرف الآخر */}
           <div className="grid grid-cols-1 gap-1.5">
-            {selectRow("العميل", <User className="w-3.5 h-3.5" />,
-              <select className="bg-transparent text-white outline-none w-full appearance-none text-xs" value={customerId} onChange={e => setCustomerId(e.target.value)}>
-                <option value="" className="bg-slate-900">-- بدون عميل --</option>
-                {customers.map(c => {
-                  const bal = Number(c.balance);
-                  const balText = bal > 0 ? ` (يدين لنا: ${bal.toFixed(0)})`
-                    : bal < 0 ? ` (نديّن له: ${Math.abs(bal).toFixed(0)})`
-                    : '';
-                  return <option key={c.id} value={c.id} className="bg-slate-900">{c.name}{balText}</option>;
-                })}
+            {selectRow("المورد / الطرف", <User className="w-3.5 h-3.5" />,
+              <select className="bg-transparent text-white outline-none w-full appearance-none text-xs" value={partyKey} onChange={e => setPartyKey(e.target.value)}>
+                <option value="" className="bg-slate-900">-- اختر الطرف --</option>
+                <optgroup label="─── الموردون ───" className="bg-slate-900 text-white/60">
+                  {suppliers.map(s => (
+                    <option key={`s:${s.id}`} value={`s:${s.id}`} className="bg-slate-900">{s.name}{s.balance > 0 ? ` (مستحق: ${Number(s.balance).toFixed(0)})` : ""}</option>
+                  ))}
+                </optgroup>
+                {customers.filter(c => c.linked_supplier_id).length > 0 && (
+                  <optgroup label="─── عملاء مرتبطون بمورد ───" className="bg-slate-900 text-white/60">
+                    {customers.filter(c => c.linked_supplier_id).map(c => (
+                      <option key={`c:${c.id}`} value={`c:${c.id}`} className="bg-slate-900">{c.name} ⟷ مورد</option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
+            )}
+            {selectedParty?.type === "customer" && selectedParty.linked_supplier_id && (
+              <div className="text-xs text-violet-400/80 bg-violet-500/5 border border-violet-500/20 rounded-lg px-2 py-1.5 flex items-center gap-1.5">
+                🔗 هذا العميل مرتبط بحساب مورد — ستُسجَّل الفاتورة في حساب المورد المرتبط
+              </div>
             )}
             {(paymentType === "cash" || paymentType === "partial") && (
               selectRow("الخزينة", <Vault className="w-3.5 h-3.5 text-amber-400/70" />,
@@ -276,15 +332,15 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
                 </div>
               </>
             )}
-            {customerId && customerImpact !== 0 && (
+            {partyKey && customerImpact !== 0 && (
               <div className="flex justify-between text-xs border-t border-white/10 pt-1.5">
-                <span className="text-white/60">رصيد {selectedCustomer?.name}</span>
-                <span className="text-orange-400 font-bold">{formatCurrency(customerImpact)} (علينا)</span>
+                <span className="text-white/60">أثر على حساب {selectedParty?.name}</span>
+                <span className="text-orange-400 font-bold">{formatCurrency(Math.abs(customerImpact))} (علينا)</span>
               </div>
             )}
-            {paymentType === "credit" && customerId && (
+            {paymentType === "credit" && partyKey && (
               <p className="text-xs text-orange-400/80 bg-orange-500/5 border border-orange-500/20 rounded-lg px-2 py-1.5">
-                ⚠ الفاتورة ستُرحَّل على حساب العميل — نحن المدينون
+                ⚠ الفاتورة ستُرحَّل على حساب الطرف الآخر — نحن المدينون
               </p>
             )}
           </div>

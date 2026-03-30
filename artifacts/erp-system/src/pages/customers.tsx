@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { useGetCustomers, useCreateCustomer, useGetSales, useGetPurchases, useGetSettingsSafes } from "@workspace/api-client-react";
+import { useGetCustomers, useCreateCustomer, useGetSales, useGetPurchases, useGetSettingsSafes, useGetSuppliers } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
 import {
   Plus, Search, DollarSign, FileText, X,
   TrendingUp, TrendingDown, RotateCcw, ArrowUpFromLine, ArrowDownToLine,
-  Printer, MessageCircle, Vault, FileDown,
+  Printer, MessageCircle, Vault, FileDown, Link,
 } from "lucide-react";
+import { CombinedStatementModal } from "@/components/combined-statement-modal";
 import { TableSkeleton } from "@/components/skeletons";
 import { exportCustomersExcel } from "@/lib/export-excel";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
@@ -434,6 +435,7 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
 /* ─── الصفحة الرئيسية للعملاء ─── */
 export default function Customers() {
   const { data: customers = [], isLoading } = useGetCustomers();
+  const { data: suppliers = [] } = useGetSuppliers();
   const createMutation = useCreateCustomer();
   const { data: safes = [] } = useGetSettingsSafes();
   const queryClient = useQueryClient();
@@ -443,19 +445,22 @@ export default function Customers() {
   const [showAdd, setShowAdd] = useState(false);
   const [showReceipt, setShowReceipt] = useState<{ id: number; name: string; balance: number } | null>(null);
   const [showStatement, setShowStatement] = useState<{ id: number; name: string; phone: string; balance: number } | null>(null);
-  const [formData, setFormData] = useState({ name: "", phone: "", balance: 0 });
+  const [showCombinedStatement, setShowCombinedStatement] = useState<{ id: number } | null>(null);
+  const [isSupplierToo, setIsSupplierToo] = useState(false);
+  const [formData, setFormData] = useState({ name: "", phone: "", balance: 0, linked_supplier_id: null as number | null });
   const [receiptData, setReceiptData] = useState({ amount: "", notes: "", safe_id: "" });
 
   const filtered = customers.filter(c => c.name.includes(search) || (c.phone && c.phone.includes(search)));
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
-    createMutation.mutate({ data: formData }, {
+    createMutation.mutate({ data: formData as never }, {
       onSuccess: () => {
         toast({ title: "✅ تم إضافة العميل بنجاح" });
         queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
         setShowAdd(false);
-        setFormData({ name: "", phone: "", balance: 0 });
+        setFormData({ name: "", phone: "", balance: 0, linked_supplier_id: null });
+        setIsSupplierToo(false);
       }
     });
   };
@@ -525,6 +530,15 @@ export default function Customers() {
         </div>
       </div>
 
+      {/* كشف الحساب الموحد */}
+      {showCombinedStatement && (
+        <CombinedStatementModal
+          contactId={showCombinedStatement.id}
+          contactType="customer"
+          onClose={() => setShowCombinedStatement(null)}
+        />
+      )}
+
       {/* كشف الحساب */}
       {showStatement && (
         <CustomerStatementModal
@@ -554,10 +568,34 @@ export default function Customers() {
                 <label className="block text-white/70 text-sm mb-1">رصيد ابتدائي (عليه)</label>
                 <input type="number" step="0.01" className="glass-input" value={formData.balance || ''} onChange={e => setFormData({...formData, balance: parseFloat(e.target.value) || 0})} />
               </div>
+
+              {/* ربط بمورد */}
+              <div className="border border-white/10 rounded-2xl p-4 space-y-3 bg-white/3">
+                <button type="button" onClick={() => { setIsSupplierToo(!isSupplierToo); setFormData(f => ({ ...f, linked_supplier_id: null })); }}
+                  className={`flex items-center gap-2 w-full text-sm font-bold transition-colors ${isSupplierToo ? "text-violet-400" : "text-white/50 hover:text-white/70"}`}>
+                  <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${isSupplierToo ? "bg-violet-500 border-violet-500" : "border-white/30"}`}>
+                    {isSupplierToo && <span className="text-white text-xs">✓</span>}
+                  </div>
+                  <Link className="w-3.5 h-3.5" /> هل يبيع لك أيضاً؟ (ربط بحساب مورد)
+                </button>
+                {isSupplierToo && (
+                  <div>
+                    <label className="block text-white/60 text-xs mb-1">اختر المورد المرتبط</label>
+                    <select className="glass-input text-sm" value={formData.linked_supplier_id ?? ""}
+                      onChange={e => setFormData(f => ({ ...f, linked_supplier_id: e.target.value ? parseInt(e.target.value) : null }))}>
+                      <option value="">— اختر مورداً موجوداً —</option>
+                      {suppliers.map(s => (
+                        <option key={s.id} value={s.id} className="bg-gray-900">{s.name}</option>
+                      ))}
+                    </select>
+                    <p className="text-white/40 text-xs mt-1">سيتم دمج معاملاته في كشف الحساب الموحد</p>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="flex gap-4 mt-8">
               <button type="submit" disabled={createMutation.isPending} className="flex-1 btn-primary py-3">حفظ</button>
-              <button type="button" onClick={() => setShowAdd(false)} className="flex-1 btn-secondary py-3">إلغاء</button>
+              <button type="button" onClick={() => { setShowAdd(false); setIsSupplierToo(false); setFormData({ name: "", phone: "", balance: 0, linked_supplier_id: null }); }} className="flex-1 btn-secondary py-3">إلغاء</button>
             </div>
           </form>
         </div>
@@ -678,13 +716,21 @@ export default function Customers() {
                       )}
                     </td>
                     <td className="p-4">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <button
                           onClick={() => setShowStatement({ id: customer.id, name: customer.name, phone: customer.phone || "", balance: Number(customer.balance) })}
                           className="flex items-center gap-1.5 bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors border border-blue-500/30"
                         >
                           <FileText className="w-3.5 h-3.5" /> كشف حساب
                         </button>
+                        {customer.linked_supplier_id && (
+                          <button
+                            onClick={() => setShowCombinedStatement({ id: customer.id })}
+                            className="flex items-center gap-1.5 bg-violet-500/20 text-violet-400 hover:bg-violet-500/30 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors border border-violet-500/30"
+                          >
+                            <Link className="w-3.5 h-3.5" /> كشف موحد
+                          </button>
+                        )}
                         <button
                           onClick={() => {
                             setReceiptData({ amount: "", notes: "", safe_id: "" });

@@ -23,6 +23,7 @@ import profitsRouter from "./profits";
 import inventoryRouter from "./inventory";
 import authRouter from "./auth";
 import openingBalanceRouter from "./opening-balance";
+import contactsRouter from "./contacts";
 
 const router: IRouter = Router();
 
@@ -50,5 +51,6 @@ router.use(adminRouter);
 router.use(profitsRouter);
 router.use(inventoryRouter);
 router.use(openingBalanceRouter);
+router.use(contactsRouter);
 
 export default router;

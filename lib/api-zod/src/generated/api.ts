@@ -92,6 +92,7 @@ export const GetCustomersResponseItem = zod.object({
   name: zod.string(),
   phone: zod.string().nullish(),
   balance: zod.number(),
+  linked_supplier_id: zod.number().nullish(),
   created_at: zod.string(),
 });
 export const GetCustomersResponse = zod.array(GetCustomersResponseItem);
@@ -103,6 +104,7 @@ export const CreateCustomerBody = zod.object({
   name: zod.string(),
   phone: zod.string().nullish(),
   balance: zod.number().optional(),
+  linked_supplier_id: zod.number().nullish(),
 });
 
 /**
@@ -116,6 +118,7 @@ export const UpdateCustomerBody = zod.object({
   name: zod.string(),
   phone: zod.string().nullish(),
   balance: zod.number().optional(),
+  linked_supplier_id: zod.number().nullish(),
 });
 
 export const UpdateCustomerResponse = zod.object({
@@ -123,6 +126,7 @@ export const UpdateCustomerResponse = zod.object({
   name: zod.string(),
   phone: zod.string().nullish(),
   balance: zod.number(),
+  linked_supplier_id: zod.number().nullish(),
   created_at: zod.string(),
 });
 
@@ -166,6 +170,7 @@ export const GetSuppliersResponseItem = zod.object({
   name: zod.string(),
   phone: zod.string().nullish(),
   balance: zod.number(),
+  linked_customer_id: zod.number().nullish(),
   created_at: zod.string(),
 });
 export const GetSuppliersResponse = zod.array(GetSuppliersResponseItem);
@@ -177,6 +182,7 @@ export const CreateSupplierBody = zod.object({
   name: zod.string(),
   phone: zod.string().nullish(),
   balance: zod.number().optional(),
+  linked_customer_id: zod.number().nullish(),
 });
 
 /**
@@ -190,6 +196,7 @@ export const UpdateSupplierBody = zod.object({
   name: zod.string(),
   phone: zod.string().nullish(),
   balance: zod.number().optional(),
+  linked_customer_id: zod.number().nullish(),
 });
 
 export const UpdateSupplierResponse = zod.object({
@@ -197,6 +204,7 @@ export const UpdateSupplierResponse = zod.object({
   name: zod.string(),
   phone: zod.string().nullish(),
   balance: zod.number(),
+  linked_customer_id: zod.number().nullish(),
   created_at: zod.string(),
 });
 
