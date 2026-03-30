@@ -11,6 +11,5 @@ export interface Supplier {
   name: string;
   phone?: string | null;
   balance: number;
-  linked_customer_id?: number | null;
   created_at: string;
 }

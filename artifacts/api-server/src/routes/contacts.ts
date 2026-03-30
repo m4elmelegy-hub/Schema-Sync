@@ -53,7 +53,7 @@ router.get("/contacts/:id/full-statement", wrap(async (req, res) => {
     const ob = openings.filter(o => o.reference_id === customerId);
     openingCredit = ob.reduce((s, o) => s + Number(o.amount), 0);
 
-    if (c.linked_supplier_id) supplierId = c.linked_supplier_id;
+    if (c.is_supplier) supplierId = null; // is_supplier customers use customer_id in purchases
   } else {
     const [s] = await db.select().from(suppliersTable).where(eq(suppliersTable.id, id));
     if (!s) { res.status(404).json({ error: "المورد غير موجود" }); return; }
@@ -67,7 +67,7 @@ router.get("/contacts/:id/full-statement", wrap(async (req, res) => {
     // مورد → رصيد أول مدة يعني علينا له = دائن (credit)
     openingCredit = ob.reduce((s, o) => s + Number(o.amount), 0);
 
-    if (s.linked_customer_id) customerId = s.linked_customer_id;
+    // linked_customer_id removed; suppliers are standalone
   }
 
   const rows: StatRow[] = [];

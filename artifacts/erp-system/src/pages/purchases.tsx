@@ -60,12 +60,12 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
     if (partyKey.startsWith("s:")) {
       const id = parseInt(partyKey.slice(2));
       const s = suppliers.find(x => x.id === id);
-      return s ? { type: "supplier" as const, id: s.id, name: s.name, balance: s.balance, linked_customer_id: s.linked_customer_id ?? null } : null;
+      return s ? { type: "supplier" as const, id: s.id, name: s.name, balance: s.balance } : null;
     }
     if (partyKey.startsWith("c:")) {
       const id = parseInt(partyKey.slice(2));
       const c = customers.find(x => x.id === id);
-      return c ? { type: "customer" as const, id: c.id, name: c.name, balance: Number(c.balance), linked_supplier_id: c.linked_supplier_id ?? null } : null;
+      return c ? { type: "customer" as const, id: c.id, name: c.name, balance: Number(c.balance) } : null;
     }
     return null;
   }, [partyKey, suppliers, customers]);
@@ -123,14 +123,9 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
       finalSupplierId = selectedParty.id;
       finalSupplierName = selectedParty.name;
     } else if (selectedParty?.type === "customer") {
+      // عميل-مورد: تُسجَّل الفاتورة بـ customer_id فقط
       finalCustomerId = selectedParty.id;
       finalCustomerName = selectedParty.name;
-      // إذا كان مرتبطاً بمورد، مرّر supplier_id أيضاً
-      if (selectedParty.linked_supplier_id) {
-        finalSupplierId = selectedParty.linked_supplier_id;
-        const linkedSupplier = suppliers.find(s => s.id === selectedParty.linked_supplier_id);
-        finalSupplierName = linkedSupplier?.name ?? null;
-      }
     }
 
     createMutation.mutate({
@@ -267,21 +262,21 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
                 <option value="" className="bg-slate-900">-- اختر الطرف --</option>
                 <optgroup label="─── الموردون ───" className="bg-slate-900 text-white/60">
                   {suppliers.map(s => (
-                    <option key={`s:${s.id}`} value={`s:${s.id}`} className="bg-slate-900">{s.name}{s.balance > 0 ? ` (مستحق: ${Number(s.balance).toFixed(0)})` : ""}</option>
+                    <option key={`s:${s.id}`} value={`s:${s.id}`} className="bg-slate-900">{s.name}{s.balance > 0 ? ` (مستحق: ${Number(s.balance).toFixed(0)})` : ""} [مورد]</option>
                   ))}
                 </optgroup>
-                {customers.filter(c => c.linked_supplier_id).length > 0 && (
-                  <optgroup label="─── عملاء مرتبطون بمورد ───" className="bg-slate-900 text-white/60">
-                    {customers.filter(c => c.linked_supplier_id).map(c => (
-                      <option key={`c:${c.id}`} value={`c:${c.id}`} className="bg-slate-900">{c.name} ⟷ مورد</option>
+                {customers.filter(c => c.is_supplier).length > 0 && (
+                  <optgroup label="─── عملاء-موردون ───" className="bg-slate-900 text-white/60">
+                    {customers.filter(c => c.is_supplier).map(c => (
+                      <option key={`c:${c.id}`} value={`c:${c.id}`} className="bg-slate-900">{c.name} [عميل-مورد]</option>
                     ))}
                   </optgroup>
                 )}
               </select>
             )}
-            {selectedParty?.type === "customer" && selectedParty.linked_supplier_id && (
-              <div className="text-xs text-violet-400/80 bg-violet-500/5 border border-violet-500/20 rounded-lg px-2 py-1.5 flex items-center gap-1.5">
-                🔗 هذا العميل مرتبط بحساب مورد — ستُسجَّل الفاتورة في حساب المورد المرتبط
+            {selectedParty?.type === "customer" && (
+              <div className="text-xs text-blue-400/80 bg-blue-500/5 border border-blue-500/20 rounded-lg px-2 py-1.5 flex items-center gap-1.5">
+                🔄 عميل-مورد — الفاتورة ستُسجَّل في حساب هذا العميل مباشرةً
               </div>
             )}
             {(paymentType === "cash" || paymentType === "partial") && (

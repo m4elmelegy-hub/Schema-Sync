@@ -21,7 +21,7 @@ function formatCustomer(c: typeof customersTable.$inferSelect) {
   return {
     ...c,
     balance: Number(c.balance),
-    linked_supplier_id: c.linked_supplier_id ?? null,
+    is_supplier: c.is_supplier ?? false,
     created_at: c.created_at.toISOString(),
   };
 }
@@ -41,7 +41,7 @@ router.post("/customers", wrap(async (req, res) => {
     name: parsed.data.name,
     phone: parsed.data.phone ?? null,
     balance: String(parsed.data.balance ?? 0),
-    linked_supplier_id: parsed.data.linked_supplier_id ?? null,
+    is_supplier: parsed.data.is_supplier ?? false,
   }).returning();
   res.status(201).json(formatCustomer(customer));
 }));
@@ -61,7 +61,7 @@ router.put("/customers/:id", wrap(async (req, res) => {
     name: parsed.data.name,
     phone: parsed.data.phone ?? null,
     balance: parsed.data.balance !== undefined ? String(parsed.data.balance) : undefined,
-    linked_supplier_id: parsed.data.linked_supplier_id !== undefined ? (parsed.data.linked_supplier_id ?? null) : undefined,
+    is_supplier: parsed.data.is_supplier !== undefined ? parsed.data.is_supplier : undefined,
   }).where(eq(customersTable.id, params.data.id)).returning();
   if (!customer) {
     res.status(404).json({ error: "Customer not found" });

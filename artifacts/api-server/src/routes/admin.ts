@@ -42,13 +42,9 @@ const TABLES: Record<string, () => Promise<void>> = {
     await db.delete(productsTable);
   },
   customers: async () => {
-    // null out FK from suppliers → customers before deleting
-    await db.execute(sql`UPDATE suppliers SET linked_customer_id = NULL WHERE linked_customer_id IS NOT NULL`);
     await db.delete(customersTable);
   },
   suppliers: async () => {
-    // null out FK from customers → suppliers before deleting
-    await db.execute(sql`UPDATE customers SET linked_supplier_id = NULL WHERE linked_supplier_id IS NOT NULL`);
     await db.delete(suppliersTable);
   },
 };

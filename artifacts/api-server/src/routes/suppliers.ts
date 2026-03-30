@@ -21,7 +21,6 @@ function formatSupplier(s: typeof suppliersTable.$inferSelect) {
   return {
     ...s,
     balance: Number(s.balance),
-    linked_customer_id: s.linked_customer_id ?? null,
     created_at: s.created_at.toISOString(),
   };
 }
@@ -41,7 +40,6 @@ router.post("/suppliers", wrap(async (req, res) => {
     name: parsed.data.name,
     phone: parsed.data.phone ?? null,
     balance: String(parsed.data.balance ?? 0),
-    linked_customer_id: parsed.data.linked_customer_id ?? null,
   }).returning();
   res.status(201).json(formatSupplier(supplier));
 }));
@@ -61,7 +59,6 @@ router.put("/suppliers/:id", wrap(async (req, res) => {
     name: parsed.data.name,
     phone: parsed.data.phone ?? null,
     balance: parsed.data.balance !== undefined ? String(parsed.data.balance) : undefined,
-    linked_customer_id: parsed.data.linked_customer_id !== undefined ? (parsed.data.linked_customer_id ?? null) : undefined,
   }).where(eq(suppliersTable.id, params.data.id)).returning();
   if (!supplier) {
     res.status(404).json({ error: "Supplier not found" });

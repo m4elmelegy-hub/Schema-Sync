@@ -1,4 +1,4 @@
-import { pgTable, serial, text, numeric, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -7,7 +7,7 @@ export const customersTable = pgTable("customers", {
   name: text("name").notNull(),
   phone: text("phone"),
   balance: numeric("balance", { precision: 12, scale: 2 }).notNull().default("0"),
-  linked_supplier_id: integer("linked_supplier_id"),
+  is_supplier: boolean("is_supplier").notNull().default(false),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
