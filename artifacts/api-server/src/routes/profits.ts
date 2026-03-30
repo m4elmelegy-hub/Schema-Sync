@@ -6,9 +6,10 @@
  */
 
 import { Router, type IRouter } from "express";
-import { gte, lte, and } from "drizzle-orm";
+import { gte, lte, and, eq } from "drizzle-orm";
 import {
   db, salesTable, saleItemsTable, expensesTable,
+  salesReturnsTable, saleReturnItemsTable,
 } from "@workspace/db";
 import { wrap } from "../lib/async-handler";
 
@@ -100,6 +101,41 @@ router.get("/profits", wrap(async (req, res) => {
         cost: itemCost,
         profit: itemRevenue - itemCost,
       });
+    }
+  }
+
+  // ── طرح مرتجعات المبيعات من الأرباح ─────────────────────────────────────
+  const allReturns = await db.select().from(salesReturnsTable);
+  const returnsInPeriod = saleConditions.length > 0
+    ? allReturns.filter(r => {
+        const rDate = r.date ?? r.created_at.toISOString().split("T")[0];
+        if (date_from && rDate < date_from) return false;
+        if (date_to   && rDate > date_to)   return false;
+        return true;
+      })
+    : allReturns;
+
+  for (const ret of returnsInPeriod) {
+    const retItems = await db.select().from(saleReturnItemsTable).where(eq(saleReturnItemsTable.return_id, ret.id));
+    for (const ri of retItems) {
+      const refundAmt = Number(ri.total_price);
+      totalRevenue -= refundAmt;
+
+      // استرجاع التكلفة الأصلية من بند الفاتورة (إن وُجدت)
+      if (ret.sale_id) {
+        const origItems = await db.select().from(saleItemsTable)
+          .where(and(eq(saleItemsTable.sale_id, ret.sale_id), eq(saleItemsTable.product_id, ri.product_id)));
+        if (origItems.length > 0) {
+          const origItem = origItems[0];
+          const unitCost = Number(origItem.cost_total) / Math.max(Number(origItem.quantity), 1);
+          totalCost -= unitCost * Number(ri.quantity);
+        } else {
+          // fallback: استخدم unit_price كتكلفة (تقدير)
+          totalCost -= Number(ri.unit_price) * Number(ri.quantity);
+        }
+      } else {
+        totalCost -= Number(ri.unit_price) * Number(ri.quantity);
+      }
     }
   }
 
