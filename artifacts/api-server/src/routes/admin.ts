@@ -1,23 +1,56 @@
 import { Router, type IRouter } from "express";
-import { db, salesTable, purchasesTable, expensesTable, incomeTable,
+import { db,
+  salesTable, saleItemsTable,
+  purchasesTable, purchaseItemsTable,
+  salesReturnsTable, saleReturnItemsTable,
+  purchaseReturnsTable, purchaseReturnItemsTable,
+  expensesTable, incomeTable,
   receiptVouchersTable, depositVouchersTable, transactionsTable,
-  productsTable, customersTable, suppliersTable } from "@workspace/db";
+  productsTable, stockMovementsTable,
+  customersTable, suppliersTable,
+} from "@workspace/db";
+import { sql } from "drizzle-orm";
 import { wrap } from "../lib/async-handler";
 import { authenticate, requireRole } from "../middleware/auth";
 
 const router: IRouter = Router();
 
 const TABLES: Record<string, () => Promise<void>> = {
-  sales: async () => { await db.delete(salesTable); },
-  purchases: async () => { await db.delete(purchasesTable); },
-  expenses: async () => { await db.delete(expensesTable); },
-  income: async () => { await db.delete(incomeTable); },
+  sales: async () => {
+    await db.delete(saleReturnItemsTable);
+    await db.delete(salesReturnsTable);
+    await db.delete(saleItemsTable);
+    await db.delete(salesTable);
+  },
+  purchases: async () => {
+    await db.delete(purchaseReturnItemsTable);
+    await db.delete(purchaseReturnsTable);
+    await db.delete(purchaseItemsTable);
+    await db.delete(purchasesTable);
+  },
+  expenses:         async () => { await db.delete(expensesTable); },
+  income:           async () => { await db.delete(incomeTable); },
   receipt_vouchers: async () => { await db.delete(receiptVouchersTable); },
   deposit_vouchers: async () => { await db.delete(depositVouchersTable); },
-  transactions: async () => { await db.delete(transactionsTable); },
-  products: async () => { await db.delete(productsTable); },
-  customers: async () => { await db.delete(customersTable); },
-  suppliers: async () => { await db.delete(suppliersTable); },
+  transactions:     async () => { await db.delete(transactionsTable); },
+  products: async () => {
+    await db.delete(stockMovementsTable);
+    await db.delete(saleReturnItemsTable);
+    await db.delete(purchaseReturnItemsTable);
+    await db.delete(saleItemsTable);
+    await db.delete(purchaseItemsTable);
+    await db.delete(productsTable);
+  },
+  customers: async () => {
+    // null out FK from suppliers → customers before deleting
+    await db.execute(sql`UPDATE suppliers SET linked_customer_id = NULL WHERE linked_customer_id IS NOT NULL`);
+    await db.delete(customersTable);
+  },
+  suppliers: async () => {
+    // null out FK from customers → suppliers before deleting
+    await db.execute(sql`UPDATE customers SET linked_supplier_id = NULL WHERE linked_supplier_id IS NOT NULL`);
+    await db.delete(suppliersTable);
+  },
 };
 
 router.post("/admin/clear", authenticate, requireRole("admin"), wrap(async (req, res) => {
@@ -33,8 +66,12 @@ router.post("/admin/clear", authenticate, requireRole("admin"), wrap(async (req,
     return;
   }
 
-  for (const t of tables) await TABLES[t]();
-  res.json({ success: true, cleared: tables });
+  // ترتيب الحذف الآمن: المبيعات والمشتريات أولاً (تحذف items)، ثم المنتجات، ثم العملاء والموردون
+  const ORDER = ["sales", "purchases", "expenses", "income", "receipt_vouchers", "deposit_vouchers", "transactions", "products", "customers", "suppliers"];
+  const sorted = ORDER.filter(t => tables.includes(t));
+
+  for (const t of sorted) await TABLES[t]();
+  res.json({ success: true, cleared: sorted });
 }));
 
 export default router;

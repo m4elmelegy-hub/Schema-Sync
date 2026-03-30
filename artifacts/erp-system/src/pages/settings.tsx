@@ -1947,7 +1947,7 @@ function DataTab() {
     if (!canDelete) return;
     setLoading(true);
     try {
-      const res = await fetch(api("/api/admin/clear"), {
+      const res = await authFetch(api("/api/admin/clear"), {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tables: Array.from(selected) }),
       });
