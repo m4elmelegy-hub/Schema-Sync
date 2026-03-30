@@ -1,0 +1,184 @@
+Redesign the Profit & Loss page and Inventory Report page.
+Make them world-class, unlike any typical ERP.
+Stack: React + Tailwind + Recharts + Framer Motion
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PAGE 1: قائمة الأرباح والخسائر
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+REMOVE: 
+- "قائمة الأرباح والخسائر" side panel (not useful visually)
+- Current bar chart (too basic)
+- Current line chart (dots only, no data)
+
+REPLACE WITH this layout (top to bottom):
+
+## SECTION 1 — Date Filter Bar (sticky top):
+Compact single row:
+[اليوم] [أمس] [هذا الأسبوع] [هذا الشهر] [هذه السنة] [مخصص 📅]
+Active pill: amber gradient, others: outlined
+
+## SECTION 2 — 4 Hero KPI Cards:
+Large, animated cards in a row using Framer Motion 
+(count-up animation on load):
+
+Card 1 — إجمالي المبيعات:
+- bg: dark card with GREEN left border (4px)
+- Icon: trending up arrow (animated)
+- Number: large amber
+- Below: "مقارنة بالفترة السابقة" + % change arrow
+
+Card 2 — تكلفة البضاعة COGS:
+- RED left border
+- Number in red
+- Below: "% من المبيعات"
+
+Card 3 — مجمل الربح:
+- AMBER left border  
+- Number + هامش الربح % badge (green if >20%, red if <20%)
+- Animated progress bar showing margin %
+
+Card 4 — صافي الربح:
+- BLUE left border if positive, RED if negative
+- If negative: card has subtle red glow
+- Below: بعد خصم المصروفات
+
+## SECTION 3 — Visual P&L Waterfall:
+Replace bar chart with an ANIMATED WATERFALL CHART:
+
+المبيعات [████████████] 850
+COGS     [████████    ] -330
+         ↓
+مجمل الربح [██████    ] 519
+مصروفات  [████████████] -800
+         ↓  
+صافي الربح [██        ] -280 ← red
+
+Each bar animates in from left on page load.
+Positive bars: green gradient
+Negative bars: red gradient
+Net result bar: amber if positive, red if negative
+
+Use Recharts BarChart with custom waterfall logic.
+
+## SECTION 4 — Performance Chart (REDESIGNED):
+Two tabs: 
+[📅 يومي] [📆 شهري]
+
+Chart type: Area chart (not line) with gradient fill
+- مبيعات: green area with 20% opacity fill
+- تكلفة: red area with 20% opacity fill  
+- ربح: amber area with 20% opacity fill
+- Tooltip: custom dark tooltip showing all 3 values
+- Chart height: 220px
+- X axis: Arabic month names (يناير، فبراير...)
+
+## SECTION 5 — أعلى المنتجات ربحية (REDESIGNED):
+Move to BOTTOM of page (full width).
+
+Not a simple table — make it a RANKED LIST with visuals:
+
+Each product row:
+┌─────────────────────────────────────────────┐
+│ 🥇  شاشة موبايل              هامش: 66.7%   │
+│     ████████████████░░░░░░   progress bar   │
+│     إيراد: 600 | تكلفة: 200 | ربح: 400 ج.م│
+└─────────────────────────────────────────────┘
+
+- Rank 1: gold medal 🥇 + amber glow border
+- Rank 2: silver 🥈
+- Rank 3: bronze 🥉
+- Progress bar width = profit margin %
+- Color: green >50%, amber 30-50%, red <30%
+- Animate in with stagger (each row 100ms delay)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PAGE 2: تقرير المخزن (Enhanced)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## SECTION 1 — Smart Search & Filter Bar:
+One row containing:
+- 🔍 Search input: "ابحث عن منتج أو صنف..."
+  → Filters table in real-time as user types
+  → Highlights matching text in results
+- 📂 Category tabs (dynamic from DB):
+  [الكل] [بطاريات] [شاشات] [...]
+  Amber underline on active tab
+- ⚠️ Filter toggle: "منتجات نافدة فقط" 
+  (shows only low stock when on)
+- Sort dropdown: الأعلى قيمة | الأعلى ربحاً | الأقل مخزوناً
+
+## SECTION 2 — Summary Cards (4):
+- إجمالي الأصناف
+- قيمة المخزون بالتكلفة  
+- قيمة المخزون بالبيع
+- الربح المتوقع من المخزن
+
+## SECTION 3 — Products Table (enhanced):
+Columns: المنتج | التصنيف | الكمية | سعر التكلفة | 
+         سعر البيع | قيمة المخزون | هامش% | الحالة | تفاصيل
+
+- الكمية: colored badge:
+  • > min threshold: green
+  • = min threshold: yellow ⚠️
+  • < min threshold: red 🔴 pulse animation
+  
+- هامش%: small colored badge
+
+- الحالة: 
+  • "جيد" green
+  • "تحذير" yellow  
+  • "نافد" red with pulse
+
+- تفاصيل button: opens side DRAWER
+
+## SECTION 4 — Product Detail Drawer:
+Slides in from RIGHT with smooth animation.
+
+Drawer header:
+- Product name (large) + category badge
+- Close X button
+
+Drawer body (3 mini sections):
+
+1. Stats grid (2x2):
+   الكمية الحالية | متوسط التكلفة
+   قيمة المخزون  | الربح المتوقع
+
+2. Stock Movement Timeline:
+   Vertical timeline style (not table):
+   
+   ● رصيد أول المدة    +50 وحدة    [تاريخ]
+   │
+   ● مشتريات PUR-xxx   +31 وحدة    [تاريخ]
+   │  سعر الشراء: 85.93
+   │
+   ● مبيعة INV-xxx     -10 وحدة    [تاريخ]  
+   │  سعر البيع: 150.00
+   │
+   ● مرتجع SR-xxx      +5  وحدة    [تاريخ]
+   │
+   ◉ الرصيد الحالي:    76  وحدة
+
+   Color coding:
+   - مشتريات/إضافة: green dot
+   - مبيعات/خصم: red dot
+   - مرتجع: orange dot
+   - رصيد أول المدة: amber dot
+
+3. Mini chart (last 30 days stock level):
+   Area chart showing quantity over time
+   Height: 100px
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GLOBAL DESIGN RULES:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- All numbers: count-up animation on load (Framer Motion)
+- All cards: hover lift effect translateY(-3px)
+- All charts: animate on mount
+- Empty states: helpful Arabic message + icon
+- Loading: skeleton screens (no spinners)
+- Font: Tajawal for all Arabic text
+- Negative numbers: always red with minus sign
+- Positive numbers: green or amber
+- RTL throughout

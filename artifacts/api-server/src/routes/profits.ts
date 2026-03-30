@@ -104,12 +104,14 @@ router.get("/profits", wrap(async (req, res) => {
     }
   }
 
-  // ── تجميع شهري بحقل date (يُبنى قبل خصم المرتجعات) ─────────────────────
+  // ── تجميع شهري ويومي بحقل date ────────────────────────────────────────────
   const byMonth = new Map<string, { month: string; revenue: number; cost: number; profit: number }>();
+  const byDay   = new Map<string, { day: string;   revenue: number; cost: number; profit: number }>();
   for (const item of items) {
     const sale = sales.find(s => s.id === item.sale_id);
     if (!sale) continue;
-    const monthKey = (sale.date ?? sale.created_at.toISOString().split("T")[0]).slice(0, 7);
+    const dayKey   = (sale.date ?? sale.created_at.toISOString().split("T")[0]).slice(0, 10);
+    const monthKey = dayKey.slice(0, 7);
     const itemRevenue = Number(item.total_price);
     const itemCost = Number(item.cost_total);
     const existingM = byMonth.get(monthKey);
@@ -119,6 +121,14 @@ router.get("/profits", wrap(async (req, res) => {
       existingM.profit += itemRevenue - itemCost;
     } else {
       byMonth.set(monthKey, { month: monthKey, revenue: itemRevenue, cost: itemCost, profit: itemRevenue - itemCost });
+    }
+    const existingD = byDay.get(dayKey);
+    if (existingD) {
+      existingD.revenue += itemRevenue;
+      existingD.cost    += itemCost;
+      existingD.profit  += itemRevenue - itemCost;
+    } else {
+      byDay.set(dayKey, { day: dayKey, revenue: itemRevenue, cost: itemCost, profit: itemRevenue - itemCost });
     }
   }
 
@@ -168,12 +178,18 @@ router.get("/profits", wrap(async (req, res) => {
         existingP.profit   -= (refundAmt - retCostAmt);
       }
 
-      // ── تعديل التجميع الشهري (by_month) ──────────────────────────────────
+      // ── تعديل التجميع الشهري واليومي ──────────────────────────────────────
       const existingMonth = byMonth.get(retMonthKey);
       if (existingMonth) {
         existingMonth.revenue -= refundAmt;
         existingMonth.cost    -= retCostAmt;
         existingMonth.profit  -= (refundAmt - retCostAmt);
+      }
+      const existingDay = byDay.get(retDate);
+      if (existingDay) {
+        existingDay.revenue -= refundAmt;
+        existingDay.cost    -= retCostAmt;
+        existingDay.profit  -= (refundAmt - retCostAmt);
       }
     }
   }
@@ -192,6 +208,7 @@ router.get("/profits", wrap(async (req, res) => {
     .sort((a, b) => b.profit - a.profit);
 
   const byMonthArr = Array.from(byMonth.values()).sort((a, b) => a.month.localeCompare(b.month));
+  const byDayArr   = Array.from(byDay.values()).sort((a, b) => a.day.localeCompare(b.day));
 
   const invoiceCount = product_id
     ? new Set(items.map(i => i.sale_id)).size
@@ -208,6 +225,7 @@ router.get("/profits", wrap(async (req, res) => {
     item_count: items.reduce((s, i) => s + Number(i.quantity), 0),
     by_product: byProductArr,
     by_month: byMonthArr,
+    by_day: byDayArr,
   });
 }));
 
