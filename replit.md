@@ -30,6 +30,12 @@ The system is built as a monorepo using pnpm workspaces. The architecture separa
 
 **Feature Specifications:**
 - **Navigation Pages:** Dashboard, Sales (POS + Returns), Purchases (+ Returns), Customers, Profits, Expenses, Income, Receipt Vouchers, Deposit Vouchers, Safe Transfers, Unified Activity Log, Financial Transactions Ledger, Chart of Accounts, Journal Entries, Reports, Settings, Inventory Audit.
+- **Reports Page (4 tabs):**
+  1. **الأرباح والخسائر** — P&L with date filter pills (اليوم/أسبوع/شهر/سنة/مخصص), 4 KPI cards, accounting-format P&L statement, Recharts bar chart (P&L breakdown) + line chart (by-month trend), top-5 products by profit, PDF export.
+  2. **تقرير المخزن** — Inventory table with low-stock/out-of-stock alerts, category filter pills, 4 summary cards. Clicking any product row opens a slide-in product detail drawer showing movement history (via `/api/inventory/product/:id`).
+  3. **فواتير المشتريات** — Purchases table with search, payment-type filter, per-row PDF invoice button (fetches `/api/purchases/:id`), bulk Excel + PDF export.
+  4. **فواتير المبيعات** — Sales table with search, payment-type filter, per-row PDF invoice button (fetches `/api/sales/:id`), bulk Excel + PDF export.
+- **export-pdf.ts** — Added `printSaleInvoice()`, `printPurchaseInvoice()`, and `printPLReport()` functions using browser print-window approach for correct Arabic RTL rendering.
 - **POS Enhancements:** Auto-selection of warehouse, salesperson auto-set to logged-in user, and professional invoice printing.
 
 ## External Dependencies

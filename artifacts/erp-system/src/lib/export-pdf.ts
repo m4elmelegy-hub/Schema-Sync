@@ -410,3 +410,329 @@ export function printCustomerStatement(
 
   buildWindow(`كشف حساب — ${customer.name}`, body);
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ *  INVOICE PDF — shared styles
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+const INVOICE_STYLES = `
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Cairo','Arial',sans-serif; direction:rtl; background:#fff; color:#111827; font-size:13px; }
+  .inv { max-width:820px; margin:0 auto; padding:30px 36px; }
+  .inv-head { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; }
+  .co-name { font-size:22px; font-weight:900; color:#111; }
+  .co-sub { font-size:11px; color:#6b7280; margin-top:3px; }
+  .inv-meta { text-align:left; }
+  .inv-title { font-size:18px; font-weight:900; color:#d97706; }
+  .inv-no { font-size:14px; font-weight:700; color:#374151; margin-top:3px; }
+  .inv-date { font-size:11px; color:#6b7280; margin-top:2px; }
+  hr.gold { border:none; border-top:2px solid #d97706; margin:14px 0; }
+  .party-box { background:#fafafa; border:1px solid #e5e7eb; border-radius:8px; padding:12px 16px; margin-bottom:16px; }
+  .party-title { font-size:11px; color:#6b7280; font-weight:700; margin-bottom:6px; text-transform:uppercase; }
+  .party-name { font-size:14px; font-weight:900; color:#111; }
+  .party-phone { font-size:12px; color:#6b7280; margin-top:2px; }
+  table.items { width:100%; border-collapse:collapse; margin:14px 0; }
+  table.items thead th { background:#1f2937; color:#fff; padding:9px 12px; text-align:right; font-size:12px; font-weight:700; }
+  table.items tbody td { padding:9px 12px; text-align:right; border-bottom:1px solid #f3f4f6; font-size:13px; }
+  table.items tbody tr:nth-child(even) { background:#fafafa; }
+  table.items tfoot td { background:#f9fafb; padding:10px 12px; font-weight:700; border-top:2px solid #e5e7eb; font-size:13px; }
+  .totals { display:flex; justify-content:flex-start; margin-top:14px; }
+  .totals-inner { min-width:260px; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; }
+  .t-row { display:flex; justify-content:space-between; align-items:center; padding:8px 14px; border-bottom:1px solid #f3f4f6; font-size:13px; }
+  .t-row.grand { background:#fef3c7; font-size:15px; font-weight:900; border-bottom:none; }
+  .t-row.paid { color:#059669; font-weight:700; border-bottom:none; }
+  .t-row.remaining { color:#dc2626; font-weight:700; }
+  .foot-row { display:flex; justify-content:space-between; margin-top:18px; padding-top:14px; border-top:1px solid #e5e7eb; font-size:12px; color:#374151; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:700; }
+  .badge-cash { background:#d1fae5; color:#065f46; }
+  .badge-credit { background:#fee2e2; color:#991b1b; }
+  .badge-partial { background:#fef3c7; color:#92400e; }
+  .thank { text-align:center; margin-top:20px; padding:12px; font-size:13px; color:#6b7280; border-top:1px dashed #e5e7eb; }
+  @media print {
+    body { -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; }
+    @page { margin:10mm 12mm; size:A4; }
+  }
+`;
+
+function invoiceWindow(title: string, body: string): void {
+  const win = window.open("", "_blank", "width=900,height=750");
+  if (!win) { alert("يرجى السماح بالنوافذ المنبثقة في المتصفح"); return; }
+  win.document.open();
+  win.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${title}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>${INVOICE_STYLES}</style>
+</head><body>${body}
+<script>document.fonts.ready.then(function(){setTimeout(function(){window.print();},700);});<\/script>
+</body></html>`);
+  win.document.close();
+}
+
+/* ─── Sale Invoice ──────────────────────────────────────────────────────────── */
+
+export interface FullSaleItem {
+  id: number;
+  product_name: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+}
+
+export interface FullSaleData {
+  invoice_no: string;
+  customer_name: string | null;
+  phone?: string | null;
+  date: string | null;
+  created_at: string;
+  total_amount: number;
+  paid_amount: number;
+  remaining_amount: number;
+  payment_type: string;
+  status?: string;
+  safe_name?: string | null;
+  notes?: string | null;
+  items: FullSaleItem[];
+}
+
+export function printSaleInvoice(sale: FullSaleData): void {
+  const s  = getSettings();
+  const sym = getCurrencySymbol();
+  const dateStr = sale.date
+    ? new Date(sale.date + "T12:00:00").toLocaleDateString("ar-EG", { year: "numeric", month: "long", day: "numeric" })
+    : fmtDate(sale.created_at);
+
+  const rows = sale.items.map((it, i) => `<tr>
+    <td>${i + 1}</td>
+    <td style="font-weight:700">${it.product_name}</td>
+    <td>${Number(it.quantity)}</td>
+    <td>${Number(it.unit_price).toFixed(2)} ${sym}</td>
+    <td style="font-weight:700;color:#d97706">${Number(it.total_price).toFixed(2)} ${sym}</td>
+  </tr>`).join("");
+
+  const subtotal = sale.items.reduce((s, i) => s + Number(i.total_price), 0);
+
+  const body = `<div class="inv">
+  <div class="inv-head">
+    <div>
+      <div class="co-name">${s.companyName}</div>
+      ${s.phone ? `<div class="co-sub">📞 ${s.phone}</div>` : ""}
+      ${s.address ? `<div class="co-sub">📍 ${s.address}</div>` : ""}
+    </div>
+    <div class="inv-meta">
+      <div class="inv-title">فاتورة مبيعات</div>
+      <div class="inv-no">رقم: ${sale.invoice_no}</div>
+      <div class="inv-date">التاريخ: ${dateStr}</div>
+    </div>
+  </div>
+  <hr class="gold">
+  ${sale.customer_name ? `<div class="party-box">
+    <div class="party-title">بيانات العميل</div>
+    <div class="party-name">${sale.customer_name}</div>
+    ${sale.phone ? `<div class="party-phone">📞 ${sale.phone}</div>` : ""}
+  </div>` : ""}
+  <table class="items">
+    <thead><tr><th>#</th><th>المنتج</th><th>الكمية</th><th>سعر الوحدة</th><th>الإجمالي</th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr>
+      <td colspan="4" style="text-align:right;color:#6b7280">الإجمالي الفرعي (${sale.items.length} صنف)</td>
+      <td style="color:#d97706">${subtotal.toFixed(2)} ${sym}</td>
+    </tr></tfoot>
+  </table>
+  <div class="totals">
+    <div class="totals-inner">
+      <div class="t-row grand"><span>الإجمالي الكلي</span><span>${Number(sale.total_amount).toFixed(2)} ${sym}</span></div>
+      <div class="t-row paid"><span>المدفوع ✓</span><span>${Number(sale.paid_amount).toFixed(2)} ${sym}</span></div>
+      ${Number(sale.remaining_amount) > 0 ? `<div class="t-row remaining"><span>المتبقي ⚠</span><span>${Number(sale.remaining_amount).toFixed(2)} ${sym}</span></div>` : ""}
+    </div>
+  </div>
+  <div class="foot-row">
+    <div>
+      <div><strong>طريقة الدفع:</strong> <span class="badge badge-${sale.payment_type}">${payLabel(sale.payment_type)}</span></div>
+      ${sale.safe_name ? `<div style="margin-top:4px"><strong>الخزينة:</strong> ${sale.safe_name}</div>` : ""}
+      ${sale.notes ? `<div style="margin-top:4px"><strong>ملاحظات:</strong> ${sale.notes}</div>` : ""}
+    </div>
+    <div style="text-align:left;color:#9ca3af;font-size:11px">
+      ${s.companyName}<br>تم الإنشاء: ${fmtDate(sale.created_at)}
+    </div>
+  </div>
+  <div class="thank">🙏 شكراً لتعاملكم معنا — ${s.companyName}</div>
+</div>`;
+
+  invoiceWindow(sale.invoice_no, body);
+}
+
+/* ─── Purchase Invoice ──────────────────────────────────────────────────────── */
+
+export interface FullPurchaseItem {
+  id: number;
+  product_name: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+}
+
+export interface FullPurchaseData {
+  invoice_no: string;
+  supplier_name?: string | null;
+  customer_name?: string | null;
+  date?: string | null;
+  created_at: string;
+  total_amount: number;
+  paid_amount: number;
+  remaining_amount: number;
+  payment_type: string;
+  safe_name?: string | null;
+  notes?: string | null;
+  items: FullPurchaseItem[];
+}
+
+export function printPurchaseInvoice(purchase: FullPurchaseData): void {
+  const s   = getSettings();
+  const sym  = getCurrencySymbol();
+  const party = purchase.supplier_name ?? purchase.customer_name ?? "—";
+  const dateStr = purchase.date
+    ? new Date(purchase.date + "T12:00:00").toLocaleDateString("ar-EG", { year: "numeric", month: "long", day: "numeric" })
+    : fmtDate(purchase.created_at);
+
+  const rows = purchase.items.map((it, i) => `<tr>
+    <td>${i + 1}</td>
+    <td style="font-weight:700">${it.product_name}</td>
+    <td>${Number(it.quantity)}</td>
+    <td>${Number(it.unit_price).toFixed(2)} ${sym}</td>
+    <td style="font-weight:700;color:#2563eb">${Number(it.total_price).toFixed(2)} ${sym}</td>
+  </tr>`).join("");
+
+  const subtotal = purchase.items.reduce((s, i) => s + Number(i.total_price), 0);
+
+  const body = `<div class="inv">
+  <div class="inv-head">
+    <div>
+      <div class="co-name">${s.companyName}</div>
+      ${s.phone ? `<div class="co-sub">📞 ${s.phone}</div>` : ""}
+      ${s.address ? `<div class="co-sub">📍 ${s.address}</div>` : ""}
+    </div>
+    <div class="inv-meta">
+      <div class="inv-title" style="color:#2563eb">فاتورة مشتريات</div>
+      <div class="inv-no">رقم: ${purchase.invoice_no}</div>
+      <div class="inv-date">التاريخ: ${dateStr}</div>
+    </div>
+  </div>
+  <hr style="border:none;border-top:2px solid #2563eb;margin:14px 0">
+  ${party !== "—" ? `<div class="party-box">
+    <div class="party-title">بيانات المورد</div>
+    <div class="party-name">${party}</div>
+  </div>` : ""}
+  <table class="items">
+    <thead><tr><th>#</th><th>المنتج</th><th>الكمية</th><th>سعر الشراء</th><th>الإجمالي</th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr>
+      <td colspan="4" style="text-align:right;color:#6b7280">إجمالي المشتريات (${purchase.items.length} صنف)</td>
+      <td style="color:#2563eb">${subtotal.toFixed(2)} ${sym}</td>
+    </tr></tfoot>
+  </table>
+  <div class="totals">
+    <div class="totals-inner">
+      <div class="t-row grand" style="background:#dbeafe"><span>إجمالي قيمة المشتريات</span><span>${Number(purchase.total_amount).toFixed(2)} ${sym}</span></div>
+      <div class="t-row" style="color:#059669;font-weight:700"><span>المبلغ المدفوع ✓</span><span>${Number(purchase.paid_amount).toFixed(2)} ${sym}</span></div>
+      ${Number(purchase.remaining_amount) > 0 ? `<div class="t-row remaining"><span>المتبقي للمورد ⚠</span><span>${Number(purchase.remaining_amount).toFixed(2)} ${sym}</span></div>` : ""}
+    </div>
+  </div>
+  <div class="foot-row">
+    <div>
+      <div><strong>طريقة الدفع:</strong> <span class="badge badge-${purchase.payment_type}">${payLabel(purchase.payment_type)}</span></div>
+      ${purchase.safe_name ? `<div style="margin-top:4px"><strong>الخزينة:</strong> ${purchase.safe_name}</div>` : ""}
+      ${purchase.notes ? `<div style="margin-top:4px"><strong>ملاحظات:</strong> ${purchase.notes}</div>` : ""}
+    </div>
+    <div style="text-align:left;color:#9ca3af;font-size:11px">
+      ${s.companyName}<br>تم التسجيل: ${fmtDate(purchase.created_at)}
+    </div>
+  </div>
+  <div class="thank">📦 تم استلام البضاعة بنجاح — ${s.companyName}</div>
+</div>`;
+
+  invoiceWindow(purchase.invoice_no, body);
+}
+
+/* ─── P&L Report PDF ────────────────────────────────────────────────────────── */
+
+export interface PLReportData {
+  dateFrom: string;
+  dateTo: string;
+  total_revenue: number;
+  total_cost: number;
+  gross_profit: number;
+  profit_margin: number;
+  net_profit: number;
+  total_expenses: number;
+  invoice_count: number;
+  by_product: Array<{ product_name: string; qty_sold: number; revenue: number; cost: number; profit: number }>;
+}
+
+export function printPLReport(data: PLReportData): void {
+  const s   = getSettings();
+  const sym  = getCurrencySymbol();
+  const pct  = (n: number) => `${n.toFixed(1)}%`;
+
+  const topProducts = [...data.by_product]
+    .sort((a, b) => b.profit - a.profit)
+    .slice(0, 10);
+
+  const productRows = topProducts.map((p, i) => {
+    const margin = p.revenue > 0 ? (p.profit / p.revenue) * 100 : 0;
+    return `<tr>
+      <td>${i + 1}</td>
+      <td style="font-weight:700">${p.product_name}</td>
+      <td>${p.qty_sold}</td>
+      <td style="color:#059669">${p.revenue.toFixed(2)} ${sym}</td>
+      <td style="color:#dc2626">${p.cost.toFixed(2)} ${sym}</td>
+      <td style="font-weight:700;color:${p.profit >= 0 ? "#d97706" : "#dc2626"}">${p.profit.toFixed(2)} ${sym}</td>
+      <td style="color:${margin >= 0 ? "#059669" : "#dc2626"}">${pct(margin)}</td>
+    </tr>`;
+  }).join("");
+
+  const body = `<div class="page">
+  <div class="header">
+    <div>
+      <div class="company-name">${s.companyName}</div>
+      ${s.phone ? `<div class="company-info">📞 ${s.phone}</div>` : ""}
+    </div>
+    <div class="report-info">
+      <div class="report-title">قائمة الأرباح والخسائر</div>
+      <div class="report-date">الفترة: ${data.dateFrom} — ${data.dateTo}</div>
+    </div>
+  </div>
+
+  <div class="summary">
+    <div class="card"><div class="card-label">إجمالي المبيعات</div><div class="card-value green">${data.total_revenue.toFixed(2)} ${sym}</div></div>
+    <div class="card"><div class="card-label">تكلفة البضاعة (COGS)</div><div class="card-value red">${data.total_cost.toFixed(2)} ${sym}</div></div>
+    <div class="card"><div class="card-label">مجمل الربح</div><div class="card-value amber">${data.gross_profit.toFixed(2)} ${sym}</div></div>
+    <div class="card"><div class="card-label">إجمالي المصروفات</div><div class="card-value red">${data.total_expenses.toFixed(2)} ${sym}</div></div>
+    <div class="card"><div class="card-label">صافي الربح</div><div class="card-value ${data.net_profit >= 0 ? "green" : "red"}">${data.net_profit.toFixed(2)} ${sym}</div></div>
+    <div class="card"><div class="card-label">هامش الربح الإجمالي</div><div class="card-value amber">${pct(data.profit_margin)}</div></div>
+  </div>
+
+  <div class="section-title">قائمة الأرباح والخسائر — التفصيل المحاسبي</div>
+  <table>
+    <tbody>
+      <tr><td style="font-weight:700">إجمالي المبيعات</td><td style="text-align:left;color:#059669;font-weight:700">${data.total_revenue.toFixed(2)} ${sym}</td></tr>
+      <tr><td style="padding-right:20px;color:#6b7280">(-) تكلفة البضاعة المباعة (COGS)</td><td style="text-align:left;color:#dc2626">(${data.total_cost.toFixed(2)} ${sym})</td></tr>
+      <tr style="background:#fef3c7;font-weight:900"><td>= مجمل الربح</td><td style="text-align:left;color:#d97706">${data.gross_profit.toFixed(2)} ${sym}</td></tr>
+      <tr><td style="padding-right:20px;color:#6b7280">(-) إجمالي المصروفات</td><td style="text-align:left;color:#dc2626">(${data.total_expenses.toFixed(2)} ${sym})</td></tr>
+      <tr style="background:${data.net_profit >= 0 ? "#d1fae5" : "#fee2e2"};font-weight:900"><td>= صافي الربح / الخسارة</td><td style="text-align:left;color:${data.net_profit >= 0 ? "#059669" : "#dc2626"}">${data.net_profit.toFixed(2)} ${sym}</td></tr>
+    </tbody>
+  </table>
+
+  ${topProducts.length > 0 ? `
+  <div class="section-title">أعلى المنتجات ربحية (أول ${topProducts.length})</div>
+  <table>
+    <thead><tr><th>#</th><th>المنتج</th><th>كمية مباعة</th><th>الإيراد</th><th>التكلفة</th><th>الربح</th><th>الهامش%</th></tr></thead>
+    <tbody>${productRows}</tbody>
+  </table>` : ""}
+
+  <div class="footer">عدد الفواتير: ${data.invoice_count} — قائمة الأرباح والخسائر — ${s.companyName}</div>
+</div>`;
+
+  buildWindow("قائمة الأرباح والخسائر", body);
+}

@@ -1,0 +1,164 @@
+Redesign and fix the Reports page completely.
+Stack: React + Tailwind + Framer Motion + jsPDF
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 1: Remove useless tabs
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Remove "حسابات العملاء" tab from reports page entirely.
+Customer statements already exist in /customers page.
+Remove "الملخص المالي" tab — replace with better version below.
+
+Keep only these tabs:
+1. 📊 الأرباح والخسائر (NEW - replaces الملخص المالي)
+2. 📦 تقرير المخزن (enhanced)
+3. 🛒 فواتير المشتريات (enhanced PDF)
+4. 🧾 فواتير المبيعات (enhanced PDF)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 2: الأرباح والخسائر (Profit & Loss)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Fix the -800 profit bug:
+Current wrong formula: profit = sales - expenses (ignoring COGS)
+Correct formula:
+  مجمل الربح = إجمالي المبيعات - تكلفة البضاعة المباعة (COGS)
+  صافي الربح = مجمل الربح - المصروفات + الإيرادات الأخرى
+
+COGS = SUM(sale_items.cost_total) for sold items in period
+NOT the purchase amount.
+
+Page layout:
+- Date range filter (top): اليوم|أمس|أسبوع|شهر|سنة|مخصص
+- 4 KPI cards:
+  • إجمالي المبيعات (green)
+  • تكلفة البضاعة COGS (red)  
+  • مجمل الربح + هامش% (amber)
+  • صافي الربح (blue or red if negative)
+
+- P&L Statement card (clean accounting format):
+  ┌─────────────────────────────┐
+  │ إجمالي المبيعات    1,550.00 │
+  │ (-) تكلفة البضاعة   800.00  │
+  │ ─────────────────────────  │
+  │ = مجمل الربح        750.00  │
+  │ (-) المصروفات       800.00  │
+  │ (+) الإيرادات         0.00  │
+  │ ─────────────────────────  │
+  │ = صافي الربح        -50.00  │
+  └─────────────────────────────┘
+
+- Charts section:
+  Left: Line chart (مبيعات vs تكلفة vs ربح) by day
+  Right: Donut chart (توزيع المصروفات بالفئة)
+
+- Top 5 products by profit table:
+  المنتج | كمية مباعة | إيراد | تكلفة | ربح | هامش%
+
+- Export: PDF button → generates full P&L report
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 3: تقرير المخزن (Enhanced)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Keep existing summary cards + table.
+
+ADD: Product Detail Drill-down
+- Each product row: clickable
+- Click → opens side drawer (not new page):
+  
+  Drawer content:
+  ┌─ بطارية iPhone ──────────────┐
+  │ الكمية الحالية: 31           │
+  │ متوسط التكلفة: 85.93         │
+  │ قيمة المخزون: 2,663.83       │
+  │ سعر البيع: 150.00            │
+  │ هامش الربح: 42.7%            │
+  ├──────────────────────────────┤
+  │ حركات المخزن (آخر 30 يوم)   │
+  │ التاريخ | النوع | الكمية |   │
+  │         | الرصيد بعد         │
+  ├──────────────────────────────┤
+  │ رصيد أول المدة    +50        │
+  │ مشترى PUR-xxx     +31        │
+  │ مبيعة INV-xxx     -10        │
+  │ مرتجع SR-xxx      +5         │
+  │ الرصيد الحالي:    76         │
+  └──────────────────────────────┘
+
+ADD: Category filter tabs
+- الكل | بطاريات | شاشات | (dynamic from DB)
+
+ADD: Low stock alert section
+- Products below min threshold shown in red banner at top
+- "3 منتجات وصلت للحد الأدنى"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 4: Professional PDF for Sales Invoice
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+When clicking PDF on any sale invoice, generate:
+
+Page layout (A4, RTL, Arabic):
+┌────────────────────────────────────┐
+│  [LOGO]        فاتورة مبيعات       │
+│  Halal Tech    رقم: INV-xxx        │
+│                التاريخ: xx/xx/xxxx │
+├────────────────────────────────────┤
+│ بيانات العميل:                     │
+│ الاسم: محمد                        │
+│ الهاتف: 01012345678                │
+├────────────────────────────────────┤
+│ # | المنتج | الكمية | السعر | الإجمالي│
+│ 1 | بطارية | 2      | 150  | 300  │
+│ 2 | شاشة   | 1      | 200  | 200  │
+├────────────────────────────────────┤
+│              المجموع: 500.00       │
+│              الخصم:    0.00        │
+│              الإجمالي: 500.00      │
+│              المدفوع:  500.00      │
+│              المتبقي:   0.00       │
+├────────────────────────────────────┤
+│ طريقة الدفع: نقدي                  │
+│ الخزينة: الخزينة الرئيسية          │
+│ ملاحظات: —                         │
+├────────────────────────────────────┤
+│ شكراً لتعاملكم معنا                │
+│ تم الإنشاء بواسطة: محمد المليحي   │
+└────────────────────────────────────┘
+
+Use jsPDF + jsPDF-AutoTable (already installed)
+Font: Arabic support using embedded font
+RTL text alignment throughout
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 5: Professional PDF for Purchase Invoice
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Same structure as sales PDF but:
+- Title: فاتورة مشتريات
+- Show: المورد instead of العميل
+- Show: سعر الشراء per item
+- Show: إجمالي قيمة المشتريات
+- Show: المبلغ المدفوع + المتبقي للمورد
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 6: All type labels in Arabic
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+In الملخص المالي (old page being replaced):
+sale_cash → مبيعة نقدية
+sale_credit → مبيعة آجلة
+receipt_voucher → سند قبض
+purchase_cash → مشترى نقدي
+purchase_credit → مشترى آجل
+sale_return → مرتجع مبيعات
+purchase_return → مرتجع مشتريات
+supplier_payment → تسديد مورد
+expense → مصروف
+income → إيراد
+
+Apply this map to ALL places in the reports page.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VALIDATION AFTER IMPLEMENTATION:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. P&L profit must equal: sales revenue - COGS - expenses
+2. Inventory drawer shows correct movement history
+3. PDF opens correctly with Arabic text (not garbled)
+4. No English type strings visible anywhere
+5. Category filter works on inventory table
