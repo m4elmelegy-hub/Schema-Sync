@@ -5,9 +5,8 @@ import { useGetSettingsSafes } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
 import {
   Activity, ArrowUpCircle, ArrowDownCircle, Scale,
-  ArrowUp, ArrowDown, Minus, Search, X, Download,
-  ChevronDown, ChevronUp, ExternalLink, RotateCcw,
-  Calendar, Filter,
+  ArrowUp, ArrowDown, Search, X, Download,
+  ChevronDown, ExternalLink, RotateCcw,
 } from "lucide-react";
 import { TableSkeleton } from "@/components/skeletons";
 
@@ -162,6 +161,14 @@ const DATE_PILLS = [
     range: () => {
       const d = new Date();
       const start = new Date(d.getFullYear(), d.getMonth(), 1);
+      return { from: toDateStr(start), to: toDateStr(d) };
+    },
+  },
+  {
+    label: "هذه السنة",
+    range: () => {
+      const d = new Date();
+      const start = new Date(d.getFullYear(), 0, 1);
       return { from: toDateStr(start), to: toDateStr(d) };
     },
   },
@@ -339,99 +346,116 @@ export default function FinancialTransactions() {
         </div>
       </div>
 
-      {/* ═══ FILTERS BAR ═══ */}
-      <div className="glass-panel rounded-2xl p-4 space-y-3 sticky top-2 z-20 backdrop-blur-xl">
-        {/* Row 1: all dropdowns + date inputs + search */}
-        <div className="flex flex-wrap gap-2 items-center">
-          {/* Safe selector */}
-          <div className="relative">
-            <select
-              className="glass-input rounded-xl px-3 py-2 text-sm text-white pr-8 min-w-[130px] appearance-none cursor-pointer"
-              value={filters.safe_id}
-              onChange={e => setFilter("safe_id", e.target.value)}
-            >
-              <option value="">🏦 كل الخزائن</option>
-              {safes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </div>
+      {/* ═══ FILTERS TOOLBAR ═══ */}
+      <div
+        style={{
+          background: "linear-gradient(to right, #0D1424, #111827)",
+          border: "1px solid #1F2937",
+          borderRadius: 16,
+          padding: "14px 18px",
+        }}
+      >
+        {/* ── Row 1: all controls in one tight line ── */}
+        <div className="flex items-center gap-2 flex-wrap">
+
+          {/* Safe */}
+          <select
+            value={filters.safe_id}
+            onChange={e => setFilter("safe_id", e.target.value)}
+            style={{ background: "#1A2235", border: "1px solid #2D3748", height: 40, borderRadius: 10, color: "white", fontSize: 13, paddingLeft: 10, paddingRight: 10 }}
+            className="cursor-pointer focus:outline-none focus:border-amber-500 transition-colors"
+          >
+            <option value="">🏦 الخزينة</option>
+            {safes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
 
           {/* Direction */}
           <select
-            className="glass-input rounded-xl px-3 py-2 text-sm text-white min-w-[110px] cursor-pointer"
             value={filters.direction}
             onChange={e => setFilter("direction", e.target.value)}
+            style={{ background: "#1A2235", border: "1px solid #2D3748", height: 40, borderRadius: 10, color: "white", fontSize: 13, paddingLeft: 10, paddingRight: 10 }}
+            className="cursor-pointer focus:outline-none focus:border-amber-500 transition-colors"
           >
-            <option value="">🔄 الكل</option>
-            <option value="in">وارد ↑</option>
-            <option value="out">صادر ↓</option>
-            <option value="none">بدون خزينة</option>
+            <option value="">🔄 الاتجاه</option>
+            <option value="in">↑ وارد</option>
+            <option value="out">↓ صادر</option>
           </select>
 
           {/* Type */}
           <select
-            className="glass-input rounded-xl px-3 py-2 text-sm text-white min-w-[140px] cursor-pointer"
             value={filters.type}
             onChange={e => setFilter("type", e.target.value)}
+            style={{ background: "#1A2235", border: "1px solid #2D3748", height: 40, borderRadius: 10, color: "white", fontSize: 13, paddingLeft: 10, paddingRight: 10, minWidth: 130 }}
+            className="cursor-pointer focus:outline-none focus:border-amber-500 transition-colors"
           >
-            <option value="">🏷️ كل الأنواع</option>
+            <option value="">🏷️ النوع</option>
             {UNIQUE_FILTER_TYPES.map(t => (
               <option key={t.value} value={t.value}>{t.label}</option>
             ))}
           </select>
 
-          {/* Date from */}
-          <div className="flex items-center gap-1">
-            <Calendar className="w-4 h-4 text-white/30 flex-shrink-0" />
-            <input
-              type="date"
-              className="glass-input rounded-xl px-3 py-2 text-sm text-white"
-              value={filters.from}
-              onChange={e => setFilter("from", e.target.value)}
-            />
-          </div>
+          {/* Divider */}
+          <div style={{ width: 1, height: 28, background: "#1F2937", flexShrink: 0 }} />
 
-          {/* Date to */}
-          <span className="text-white/30 text-xs">←</span>
+          {/* Date from */}
           <input
             type="date"
-            className="glass-input rounded-xl px-3 py-2 text-sm text-white"
-            value={filters.to}
-            onChange={e => setFilter("to", e.target.value)}
+            value={filters.from}
+            onChange={e => setFilter("from", e.target.value)}
+            style={{ background: "#1A2235", border: "1px solid #2D3748", height: 40, borderRadius: 10, color: filters.from ? "white" : "#6B7280", fontSize: 13, paddingLeft: 10, paddingRight: 10 }}
+            className="focus:outline-none focus:border-amber-500 transition-colors"
           />
 
+          <span style={{ color: "#4B5563", fontSize: 13, flexShrink: 0 }}>←</span>
+
+          {/* Date to */}
+          <input
+            type="date"
+            value={filters.to}
+            onChange={e => setFilter("to", e.target.value)}
+            style={{ background: "#1A2235", border: "1px solid #2D3748", height: 40, borderRadius: 10, color: filters.to ? "white" : "#6B7280", fontSize: 13, paddingLeft: 10, paddingRight: 10 }}
+            className="focus:outline-none focus:border-amber-500 transition-colors"
+          />
+
+          {/* Divider */}
+          <div style={{ width: 1, height: 28, background: "#1F2937", flexShrink: 0 }} />
+
           {/* Search */}
-          <div className="flex items-center gap-2 glass-input rounded-xl px-3 py-2 flex-1 min-w-[160px]">
-            <Search className="w-4 h-4 text-white/30 flex-shrink-0" />
+          <div
+            style={{ background: "#1A2235", border: "1px solid #2D3748", height: 40, borderRadius: 10, display: "flex", alignItems: "center", gap: 8, paddingLeft: 12, paddingRight: 8, flex: 1, minWidth: 160 }}
+          >
+            <Search style={{ width: 14, height: 14, color: "#6B7280", flexShrink: 0 }} />
             <input
               type="text"
-              className="bg-transparent outline-none text-sm text-white placeholder:text-white/30 w-full"
-              placeholder="بحث في البيان / الطرف..."
+              placeholder="بحث في البيان أو الطرف..."
               value={filters.search}
               onChange={e => setFilter("search", e.target.value)}
+              style={{ background: "transparent", border: "none", outline: "none", color: "white", fontSize: 13, width: "100%" }}
+              className="placeholder:text-[#4B5563]"
             />
             {filters.search && (
-              <button onClick={() => setFilter("search", "")} className="text-white/40 hover:text-white transition-colors">
-                <X className="w-3 h-3" />
+              <button onClick={() => setFilter("search", "")} style={{ color: "#6B7280", flexShrink: 0 }} className="hover:text-white transition-colors">
+                <X style={{ width: 13, height: 13 }} />
               </button>
             )}
           </div>
 
-          {/* Reset */}
+          {/* Reset — only when active */}
           {hasFilters && (
             <button
               onClick={resetFilters}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 text-xs transition-all"
+              title="مسح كل الفلاتر"
+              style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", height: 40, width: 40, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", color: "#F87171", flexShrink: 0 }}
+              className="hover:bg-red-500/20 transition-colors"
             >
-              <RotateCcw className="w-3 h-3" />
-              مسح الفلاتر
+              <X style={{ width: 15, height: 15 }} />
             </button>
           )}
         </div>
 
-        {/* Row 2: quick date pills */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <Filter className="w-3.5 h-3.5 text-white/30" />
-          <span className="text-xs text-white/30">سريع:</span>
+        {/* ── Row 2: quick date pills ── */}
+        <div className="flex items-center gap-1.5 mt-3 flex-wrap">
+          <span style={{ fontSize: 11, color: "#4B5563" }}>سريع:</span>
           {DATE_PILLS.map(pill => {
             const r = pill.range();
             const isActive = filters.from === r.from && filters.to === r.to;
@@ -439,11 +463,11 @@ export default function FinancialTransactions() {
               <button
                 key={pill.label}
                 onClick={() => applyDatePill(pill.range)}
-                className={`px-3 py-1 rounded-full text-xs transition-all border ${
-                  isActive
-                    ? "bg-amber-500/20 border-amber-500/30 text-amber-300"
-                    : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"
-                }`}
+                style={isActive
+                  ? { background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.35)", color: "#FCD34D", borderRadius: 20, padding: "3px 12px", fontSize: 12 }
+                  : { background: "transparent", border: "1px solid #1F2937", color: "#6B7280", borderRadius: 20, padding: "3px 12px", fontSize: 12 }
+                }
+                className="transition-all hover:border-white/20 hover:text-white/70"
               >
                 {pill.label}
               </button>
