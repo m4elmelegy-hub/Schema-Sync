@@ -23,24 +23,6 @@ const ROLE_COLORS: Record<string, string> = {
   salesperson: "bg-violet-500/20 text-violet-400 border-violet-500/30",
 };
 
-const NAV_SECTIONS = [
-  {
-    label: "الرئيسية",
-    paths: ["/", "/tasks"],
-  },
-  {
-    label: "العمليات",
-    paths: ["/sales", "/purchases", "/suppliers", "/products", "/inventory", "/customers"],
-  },
-  {
-    label: "المالية",
-    paths: ["/profits", "/financial-transactions", "/reports", "/expenses", "/income", "/receipt-vouchers", "/deposit-vouchers", "/payment-vouchers", "/safe-transfers"],
-  },
-  {
-    label: "النظام",
-    paths: ["/settings"],
-  },
-];
 
 function getInitials(name: string) {
   const parts = name.trim().split(" ");
@@ -148,28 +130,19 @@ export function AppLayout({ children }: LayoutProps) {
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-3 pb-3 mt-1">
-          {NAV_SECTIONS.map(section => {
-            const sectionItems = visibleNav.filter(item => section.paths.includes(item.href));
-            if (sectionItems.length === 0) return null;
+          {visibleNav.map(item => {
+            const isActive = location === item.href;
             return (
-              <div key={section.label}>
-                <p className="nav-section-label">{section.label}</p>
-                {sectionItems.map(item => {
-                  const isActive = location === item.href;
-                  return (
-                    <Link key={item.href} href={item.href}>
-                      <div className={`nav-item ${isActive ? "active" : ""}`}>
-                        <item.icon className="erp-nav-icon shrink-0"
-                          style={{ color: isActive ? "#f59e0b" : "inherit", opacity: isActive ? 1 : 0.7 }} />
-                        <span>{item.name}</span>
-                        {isActive && (
-                          <ChevronLeft className="w-3 h-3 mr-auto opacity-50" />
-                        )}
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
+              <Link key={item.href} href={item.href}>
+                <div className={`nav-item ${isActive ? "active" : ""}`}>
+                  <item.icon className="erp-nav-icon shrink-0"
+                    style={{ color: isActive ? "#f59e0b" : "inherit", opacity: isActive ? 1 : 0.7 }} />
+                  <span>{item.name}</span>
+                  {isActive && (
+                    <ChevronLeft className="w-3 h-3 mr-auto opacity-50" />
+                  )}
+                </div>
+              </Link>
             );
           })}
         </nav>
