@@ -7,8 +7,8 @@ import { formatCurrency } from "@/lib/format";
 import {
   Activity, ArrowUpCircle, ArrowDownCircle, Scale,
   ArrowUp, ArrowDown, Search, X, Download,
-  ChevronDown, ExternalLink, RotateCcw, Filter,
-  FileSpreadsheet, TrendingUp, TrendingDown,
+  ChevronDown, ExternalLink, RotateCcw,
+  FileSpreadsheet, Calendar, Building2,
 } from "lucide-react";
 import { TableSkeleton } from "@/components/skeletons";
 
@@ -186,6 +186,99 @@ function exportToCSV(transactions: FinancialTransaction[]) {
   URL.revokeObjectURL(url);
 }
 
+/* ─── Custom Dropdown ────────────────────────────────────────────────────── */
+
+interface DropdownOption { value: string; label: string; dot?: string }
+
+function CustomDropdown({
+  value, onChange, options, placeholder, icon,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: DropdownOption[];
+  placeholder: string;
+  icon?: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  const selected = options.find(o => o.value === value);
+
+  return (
+    <div ref={ref} className="relative w-full">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center gap-2 px-3 h-10 rounded-xl text-sm text-right transition-all outline-none"
+        style={{
+          background: "#1A2235",
+          border: open ? "1px solid #F59E0B" : "1px solid #2D3748",
+          color: selected ? "white" : "rgba(255,255,255,0.35)",
+          boxShadow: open ? "0 0 0 3px rgba(245,158,11,0.12)" : "none",
+        }}
+      >
+        {icon && <span className="text-white/40 flex-shrink-0">{icon}</span>}
+        {selected?.dot && (
+          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${selected.dot}`} />
+        )}
+        <span className="flex-1 text-right truncate">{selected?.label ?? placeholder}</span>
+        <ChevronDown
+          className="w-3.5 h-3.5 flex-shrink-0 text-white/30 transition-transform"
+          style={{ transform: open ? "rotate(180deg)" : "rotate(0)" }}
+        />
+      </button>
+
+      {open && (
+        <div
+          className="absolute top-full mt-1.5 w-full rounded-xl overflow-hidden z-50 shadow-2xl"
+          style={{ background: "#111827", border: "1px solid #1F2937", maxHeight: 240, overflowY: "auto" }}
+        >
+          {/* "All" option */}
+          <button
+            type="button"
+            onClick={() => { onChange(""); setOpen(false); }}
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-right transition-colors"
+            style={{
+              background: !value ? "rgba(245,158,11,0.08)" : "transparent",
+              color: !value ? "#FCD34D" : "rgba(255,255,255,0.5)",
+            }}
+          >
+            <span className="w-2 h-2 rounded-full bg-white/20 flex-shrink-0" />
+            {placeholder}
+          </button>
+          <div style={{ height: 1, background: "#1F2937" }} />
+          {options.map(o => (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => { onChange(o.value); setOpen(false); }}
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-right transition-colors hover:bg-white/5"
+              style={{
+                background: value === o.value ? "rgba(245,158,11,0.08)" : "transparent",
+                color: value === o.value ? "#FCD34D" : "rgba(255,255,255,0.7)",
+              }}
+            >
+              {o.dot && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${o.dot}`} />}
+              {o.label}
+              {value === o.value && (
+                <span className="mr-auto text-amber-400 text-xs">✓</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    Component
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -267,7 +360,7 @@ export default function FinancialTransactions() {
 
   /* ── Render ── */
   return (
-    <div className="space-y-5 pb-10">
+    <div className="space-y-5 pb-10 px-6 py-4">
 
       {/* ═══════════════════════════════════════
           HEADER
@@ -321,218 +414,270 @@ export default function FinancialTransactions() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
 
         {/* Incoming */}
-        <div className="relative glass-panel rounded-2xl p-5 border border-emerald-500/20 overflow-hidden group">
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent pointer-events-none" />
-          <div className="flex items-center gap-4 relative">
-            <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0">
-              <ArrowUpCircle className="w-6 h-6 text-emerald-400" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-white/50 text-xs mb-1.5 flex items-center gap-1.5">
-                <span>📥</span> إجمالي الوارد
-              </p>
-              <p className="text-2xl font-black text-emerald-400 leading-none truncate tabular-nums">
-                {formatCurrency(totalIn)}
-              </p>
-              <p className="text-white/25 text-xs mt-1.5">خلال الفترة المحددة</p>
-            </div>
-            <TrendingUp className="w-8 h-8 text-emerald-500/10 flex-shrink-0" />
+        <div
+          className="group rounded-2xl p-5 flex items-center gap-4 transition-all cursor-default"
+          style={{ background: "#1A2235", border: "1px solid #2D3748" }}
+          onMouseEnter={e => (e.currentTarget.style.border = "1px solid rgba(52,211,153,0.4)")}
+          onMouseLeave={e => (e.currentTarget.style.border = "1px solid #2D3748")}
+        >
+          <div
+            className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 transition-all"
+            style={{ background: "linear-gradient(135deg,#059669,#10b981)" }}
+          >
+            <ArrowUpCircle className="w-6 h-6 text-white" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-white/45 text-xs font-medium mb-1 flex items-center gap-1.5">
+              <span>📥</span> إجمالي الوارد
+            </p>
+            <p className="text-[1.6rem] font-black text-emerald-400 leading-none truncate tabular-nums">
+              {formatCurrency(totalIn)}
+            </p>
+            <p className="text-white/25 text-[11px] mt-1.5">خلال الفترة المحددة</p>
           </div>
         </div>
 
         {/* Outgoing */}
-        <div className="relative glass-panel rounded-2xl p-5 border border-red-500/20 overflow-hidden group">
-          <div className="absolute inset-0 bg-gradient-to-br from-red-500/5 to-transparent pointer-events-none" />
-          <div className="flex items-center gap-4 relative">
-            <div className="w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center flex-shrink-0">
-              <ArrowDownCircle className="w-6 h-6 text-red-400" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-white/50 text-xs mb-1.5 flex items-center gap-1.5">
-                <span>📤</span> إجمالي الصادر
-              </p>
-              <p className="text-2xl font-black text-red-400 leading-none truncate tabular-nums">
-                {formatCurrency(totalOut)}
-              </p>
-              <p className="text-white/25 text-xs mt-1.5">خلال الفترة المحددة</p>
-            </div>
-            <TrendingDown className="w-8 h-8 text-red-500/10 flex-shrink-0" />
+        <div
+          className="group rounded-2xl p-5 flex items-center gap-4 transition-all cursor-default"
+          style={{ background: "#1A2235", border: "1px solid #2D3748" }}
+          onMouseEnter={e => (e.currentTarget.style.border = "1px solid rgba(248,113,113,0.4)")}
+          onMouseLeave={e => (e.currentTarget.style.border = "1px solid #2D3748")}
+        >
+          <div
+            className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: "linear-gradient(135deg,#dc2626,#ef4444)" }}
+          >
+            <ArrowDownCircle className="w-6 h-6 text-white" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-white/45 text-xs font-medium mb-1 flex items-center gap-1.5">
+              <span>📤</span> إجمالي الصادر
+            </p>
+            <p className="text-[1.6rem] font-black text-red-400 leading-none truncate tabular-nums">
+              {formatCurrency(totalOut)}
+            </p>
+            <p className="text-white/25 text-[11px] mt-1.5">خلال الفترة المحددة</p>
           </div>
         </div>
 
         {/* Net balance */}
-        <div className={`relative glass-panel rounded-2xl p-5 border overflow-hidden group ${net >= 0 ? "border-amber-500/20" : "border-rose-500/20"}`}>
-          <div className={`absolute inset-0 bg-gradient-to-br to-transparent pointer-events-none ${net >= 0 ? "from-amber-500/5" : "from-rose-500/5"}`} />
-          <div className="flex items-center gap-4 relative">
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${net >= 0 ? "bg-amber-500/10 border border-amber-500/20" : "bg-rose-500/10 border border-rose-500/20"}`}>
-              <Scale className={`w-6 h-6 ${net >= 0 ? "text-amber-400" : "text-rose-400"}`} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-white/50 text-xs mb-1.5 flex items-center gap-1.5">
-                <span>⚖️</span> الصافي
-                {net < 0 && <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-rose-500/15 border border-rose-500/20 text-rose-300">عجز</span>}
-              </p>
-              <p className={`text-2xl font-black leading-none truncate tabular-nums ${net >= 0 ? "text-amber-400" : "text-rose-400"}`}>
-                {net < 0 && "−"}{formatCurrency(Math.abs(net))}
-              </p>
-              <p className="text-white/25 text-xs mt-1.5">خلال الفترة المحددة</p>
-            </div>
+        <div
+          className="group rounded-2xl p-5 flex items-center gap-4 transition-all cursor-default"
+          style={{ background: "#1A2235", border: "1px solid #2D3748" }}
+          onMouseEnter={e => (e.currentTarget.style.border = net >= 0 ? "1px solid rgba(251,191,36,0.4)" : "1px solid rgba(251,113,133,0.4)")}
+          onMouseLeave={e => (e.currentTarget.style.border = "1px solid #2D3748")}
+        >
+          <div
+            className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: net >= 0 ? "linear-gradient(135deg,#d97706,#f59e0b)" : "linear-gradient(135deg,#be123c,#f43f5e)" }}
+          >
+            <Scale className="w-6 h-6 text-white" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-white/45 text-xs font-medium mb-1 flex items-center gap-1.5">
+              <span>⚖️</span> الصافي
+              {net < 0 && (
+                <span
+                  className="text-[10px] px-1.5 py-0.5 rounded-full"
+                  style={{ background: "rgba(244,63,94,0.15)", border: "1px solid rgba(244,63,94,0.25)", color: "#fb7185" }}
+                >
+                  عجز
+                </span>
+              )}
+            </p>
+            <p
+              className="text-[1.6rem] font-black leading-none truncate tabular-nums"
+              style={{ color: net >= 0 ? "#fbbf24" : "#fb7185" }}
+            >
+              {net < 0 && "−"}{formatCurrency(Math.abs(net))}
+            </p>
+            <p className="text-white/25 text-[11px] mt-1.5">خلال الفترة المحددة</p>
           </div>
         </div>
       </div>
 
       {/* ═══════════════════════════════════════
-          FILTERS TOOLBAR — sticky
+          FILTERS PANEL
           ═══════════════════════════════════════ */}
       <div
-        className="sticky top-0 z-30 rounded-2xl"
-        style={{
-          background: "linear-gradient(135deg, #0C1525 0%, #0F1E35 100%)",
-          border: "1px solid rgba(255,255,255,0.07)",
-          padding: "14px 16px",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
-        }}
+        className="rounded-2xl p-4"
+        style={{ background: "#111827", border: "1px solid #1F2937" }}
       >
-        {/* ── Filter icon + controls row ── */}
-        <div className="flex items-center gap-2 flex-wrap">
-
-          {/* Icon label */}
-          <div className="flex items-center gap-1.5 text-white/30 text-xs flex-shrink-0">
-            <Filter className="w-3.5 h-3.5" />
-            <span>فلاتر</span>
-          </div>
-
-          <div className="w-px h-5 bg-white/10 flex-shrink-0" />
-
-          {/* Safe dropdown */}
-          <select
+        {/* ── Row 1: Dropdowns (3-col grid) ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Safe */}
+          <CustomDropdown
             value={filters.safe_id}
-            onChange={e => setFilter("safe_id", e.target.value)}
-            className="cursor-pointer focus:outline-none focus:border-amber-500/50 transition-colors text-sm"
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", height: 38, borderRadius: 10, color: filters.safe_id ? "white" : "rgba(255,255,255,0.4)", paddingInline: 12 }}
-          >
-            <option value="">🏦 كل الخزائن</option>
-            {(safes as { id: number; name: string }[]).map(s => <option key={s.id} value={s.id} style={{ color: "white", background: "#111827" }}>{s.name}</option>)}
-          </select>
-
-          {/* Direction dropdown */}
-          <select
+            onChange={v => setFilter("safe_id", v)}
+            placeholder="كل الخزائن"
+            icon={<Building2 className="w-4 h-4" />}
+            options={(safes as { id: number; name: string }[]).map(s => ({
+              value: String(s.id),
+              label: s.name,
+              dot: "bg-blue-400",
+            }))}
+          />
+          {/* Direction */}
+          <CustomDropdown
             value={filters.direction}
-            onChange={e => setFilter("direction", e.target.value)}
-            className="cursor-pointer focus:outline-none focus:border-amber-500/50 transition-colors text-sm"
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", height: 38, borderRadius: 10, color: filters.direction ? "white" : "rgba(255,255,255,0.4)", paddingInline: 12 }}
-          >
-            <option value="">🔄 كل الاتجاهات</option>
-            <option value="in"  style={{ color: "white", background: "#111827" }}>↑ وارد</option>
-            <option value="out" style={{ color: "white", background: "#111827" }}>↓ صادر</option>
-          </select>
-
-          {/* Type dropdown */}
-          <select
+            onChange={v => setFilter("direction", v)}
+            placeholder="كل الاتجاهات"
+            options={[
+              { value: "in",  label: "↑ وارد",  dot: "bg-emerald-400" },
+              { value: "out", label: "↓ صادر",  dot: "bg-red-400" },
+            ]}
+          />
+          {/* Type */}
+          <CustomDropdown
             value={filters.type}
-            onChange={e => setFilter("type", e.target.value)}
-            className="cursor-pointer focus:outline-none focus:border-amber-500/50 transition-colors text-sm"
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", height: 38, borderRadius: 10, color: filters.type ? "white" : "rgba(255,255,255,0.4)", paddingInline: 12, minWidth: 140 }}
-          >
-            <option value="">🏷️ كل الأنواع</option>
-            {FILTER_TYPES.map(t => (
-              <option key={t.value} value={t.value} style={{ color: "white", background: "#111827" }}>{t.label}</option>
-            ))}
-          </select>
+            onChange={v => setFilter("type", v)}
+            placeholder="كل الأنواع"
+            options={FILTER_TYPES.map(t => ({
+              value: t.value,
+              label: t.label,
+              dot: (TYPE_BADGE[t.value] ?? DEFAULT_BADGE).dot,
+            }))}
+          />
+        </div>
 
-          <div className="w-px h-5 bg-white/10 flex-shrink-0" />
-
+        {/* ── Row 2: Dates + Search (3-col grid) ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
           {/* Date from */}
-          <div className="relative flex items-center">
-            <span className="absolute right-3 text-white/30 text-xs pointer-events-none select-none">من</span>
+          <div className="relative">
+            <Calendar
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
+              style={{ color: filters.from ? "#F59E0B" : "rgba(255,255,255,0.25)" }}
+            />
             <input
               type="date"
               value={filters.from}
               onChange={e => setFilter("from", e.target.value)}
-              className="focus:outline-none focus:border-amber-500/50 transition-colors text-sm"
-              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", height: 38, borderRadius: 10, color: filters.from ? "white" : "rgba(255,255,255,0.4)", paddingInline: "32px 12px" }}
+              placeholder="من تاريخ"
+              className="w-full h-10 rounded-xl text-sm transition-all outline-none pr-10 pl-3"
+              style={{
+                background: "#1A2235",
+                border: filters.from ? "1px solid #F59E0B" : "1px solid #2D3748",
+                color: filters.from ? "white" : "rgba(255,255,255,0.3)",
+                boxShadow: filters.from ? "0 0 0 3px rgba(245,158,11,0.1)" : "none",
+              }}
+              onFocus={e => {
+                e.currentTarget.style.border = "1px solid #F59E0B";
+                e.currentTarget.style.boxShadow = "0 0 0 3px rgba(245,158,11,0.12)";
+              }}
+              onBlur={e => {
+                e.currentTarget.style.border = filters.from ? "1px solid #F59E0B" : "1px solid #2D3748";
+                e.currentTarget.style.boxShadow = filters.from ? "0 0 0 3px rgba(245,158,11,0.1)" : "none";
+              }}
             />
+            {!filters.from && (
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs pointer-events-none" style={{ color: "rgba(255,255,255,0.25)" }}>
+                من تاريخ
+              </span>
+            )}
           </div>
 
-          <span className="text-white/20 text-xs flex-shrink-0">─</span>
-
           {/* Date to */}
-          <div className="relative flex items-center">
-            <span className="absolute right-3 text-white/30 text-xs pointer-events-none select-none">إلى</span>
+          <div className="relative">
+            <Calendar
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
+              style={{ color: filters.to ? "#F59E0B" : "rgba(255,255,255,0.25)" }}
+            />
             <input
               type="date"
               value={filters.to}
               onChange={e => setFilter("to", e.target.value)}
-              className="focus:outline-none focus:border-amber-500/50 transition-colors text-sm"
-              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", height: 38, borderRadius: 10, color: filters.to ? "white" : "rgba(255,255,255,0.4)", paddingInline: "32px 12px" }}
+              className="w-full h-10 rounded-xl text-sm transition-all outline-none pr-10 pl-3"
+              style={{
+                background: "#1A2235",
+                border: filters.to ? "1px solid #F59E0B" : "1px solid #2D3748",
+                color: filters.to ? "white" : "rgba(255,255,255,0.3)",
+                boxShadow: filters.to ? "0 0 0 3px rgba(245,158,11,0.1)" : "none",
+              }}
+              onFocus={e => {
+                e.currentTarget.style.border = "1px solid #F59E0B";
+                e.currentTarget.style.boxShadow = "0 0 0 3px rgba(245,158,11,0.12)";
+              }}
+              onBlur={e => {
+                e.currentTarget.style.border = filters.to ? "1px solid #F59E0B" : "1px solid #2D3748";
+                e.currentTarget.style.boxShadow = filters.to ? "0 0 0 3px rgba(245,158,11,0.1)" : "none";
+              }}
             />
-          </div>
-
-          <div className="w-px h-5 bg-white/10 flex-shrink-0" />
-
-          {/* Search */}
-          <div
-            className="flex items-center gap-2 flex-1 min-w-[180px]"
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", height: 38, borderRadius: 10, paddingInline: 12 }}
-          >
-            <Search style={{ width: 14, height: 14, color: "rgba(255,255,255,0.3)", flexShrink: 0 }} />
-            <input
-              type="text"
-              placeholder="بحث في البيان أو اسم الطرف..."
-              value={filters.search}
-              onChange={e => setFilter("search", e.target.value)}
-              style={{ background: "transparent", border: "none", outline: "none", color: "white", fontSize: 13, width: "100%" }}
-              className="placeholder:text-white/25"
-            />
-            {filters.search && (
-              <button onClick={() => setFilter("search", "")} className="text-white/30 hover:text-white transition-colors flex-shrink-0">
-                <X style={{ width: 13, height: 13 }} />
-              </button>
+            {!filters.to && (
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs pointer-events-none" style={{ color: "rgba(255,255,255,0.25)" }}>
+                إلى تاريخ
+              </span>
             )}
           </div>
 
-          {/* Reset */}
-          {hasFilters && (
+          {/* Search */}
+          <div
+            className="flex items-center gap-2 h-10 rounded-xl px-3 transition-all"
+            style={{ background: "#1A2235", border: "1px solid #2D3748" }}
+            onFocusCapture={e => (e.currentTarget.style.border = "1px solid #F59E0B")}
+            onBlurCapture={e => (e.currentTarget.style.border = filters.search ? "1px solid #F59E0B" : "1px solid #2D3748")}
+          >
+            <Search className="w-4 h-4 flex-shrink-0" style={{ color: "rgba(255,255,255,0.3)" }} />
+            <input
+              type="text"
+              placeholder="بحث في البيان أو الطرف..."
+              value={filters.search}
+              onChange={e => setFilter("search", e.target.value)}
+              className="flex-1 bg-transparent outline-none text-sm placeholder:text-white/20"
+              style={{ color: "white" }}
+            />
+            {filters.search && (
+              <button
+                onClick={() => setFilter("search", "")}
+                className="flex-shrink-0 text-white/30 hover:text-white transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ── Row 3: Quick pills + Reset ── */}
+        <div className="flex items-center justify-between gap-3 mt-3 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-white/25 text-xs ml-1">سريع:</span>
+            {DATE_PILLS.map(pill => {
+              const r = pill.range();
+              const isActive = filters.from === r.from && filters.to === r.to;
+              return (
+                <button
+                  key={pill.label}
+                  onClick={() => applyDatePill(pill.range)}
+                  className="text-xs rounded-full px-3 py-1 transition-all"
+                  style={
+                    isActive
+                      ? { background: "rgba(245,158,11,0.2)", border: "1px solid #F59E0B", color: "#FCD34D" }
+                      : { background: "transparent", border: "1px solid #374151", color: "rgba(255,255,255,0.4)" }
+                  }
+                  onMouseEnter={e => { if (!isActive) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)"; e.currentTarget.style.color = "rgba(255,255,255,0.7)"; }}}
+                  onMouseLeave={e => { if (!isActive) { e.currentTarget.style.borderColor = "#374151"; e.currentTarget.style.color = "rgba(255,255,255,0.4)"; }}}
+                >
+                  {pill.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Reset — right aligned, always show if has filters */}
+          {hasFilters ? (
             <button
               onClick={resetFilters}
-              title="مسح كل الفلاتر"
-              className="flex items-center gap-1.5 px-3 h-[38px] rounded-xl text-xs transition-all flex-shrink-0"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs transition-all flex-shrink-0"
               style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "#F87171" }}
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              إعادة تعيين
+              إعادة تعيين الفلاتر
             </button>
-          )}
-        </div>
-
-        {/* ── Quick date pills row ── */}
-        <div className="flex items-center gap-1.5 mt-3 flex-wrap">
-          <span className="text-white/25 text-xs flex-shrink-0 ml-1">سريع:</span>
-          {DATE_PILLS.map(pill => {
-            const r = pill.range();
-            const isActive = filters.from === r.from && filters.to === r.to;
-            return (
-              <button
-                key={pill.label}
-                onClick={() => applyDatePill(pill.range)}
-                className="text-xs transition-all hover:border-white/25 hover:text-white/70"
-                style={
-                  isActive
-                    ? { background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.35)", color: "#FCD34D", borderRadius: 20, padding: "3px 12px" }
-                    : { background: "transparent", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.35)", borderRadius: 20, padding: "3px 12px" }
-                }
-              >
-                {pill.label}
-              </button>
-            );
-          })}
-
-          {/* Active filters indicator */}
-          {hasFilters && (
-            <span className="mr-auto flex items-center gap-1.5 text-xs text-amber-400/70">
-              <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-              الفلاتر نشطة
-            </span>
+          ) : (
+            <div className="flex items-center gap-1.5 text-xs text-white/20">
+              <div className="w-1.5 h-1.5 rounded-full bg-white/15" />
+              لا توجد فلاتر نشطة
+            </div>
           )}
         </div>
       </div>
@@ -546,12 +691,12 @@ export default function FinancialTransactions() {
             <thead>
               <tr style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
                 <th className="px-4 py-3.5 font-medium text-xs text-white/30 text-right w-14">#</th>
-                <th className="px-4 py-3.5 font-medium text-xs text-white/30 text-right">النوع</th>
+                <th className="px-4 py-3.5 font-medium text-xs text-white/30 text-right" style={{ minWidth: 120 }}>النوع</th>
                 <th className="px-4 py-3.5 font-medium text-xs text-white/30 text-right">الخزينة</th>
-                <th className="px-4 py-3.5 font-medium text-xs text-white/30 text-right">الطرف</th>
+                <th className="px-4 py-3.5 font-medium text-xs text-white/30 text-right" style={{ maxWidth: 150 }}>الطرف</th>
                 <th className="px-4 py-3.5 font-medium text-xs text-white/30 text-right">المبلغ</th>
                 <th className="px-4 py-3.5 font-medium text-xs text-white/30 text-right">الاتجاه</th>
-                <th className="px-4 py-3.5 font-medium text-xs text-white/30 text-right max-w-xs">البيان</th>
+                <th className="px-4 py-3.5 font-medium text-xs text-white/30 text-right" style={{ maxWidth: 200 }}>البيان</th>
                 <th className="px-4 py-3.5 font-medium text-xs text-white/30 text-right">التاريخ</th>
                 <th className="px-4 py-3.5 w-10" />
               </tr>
@@ -630,9 +775,9 @@ export default function FinancialTransactions() {
                         </td>
 
                         {/* Party */}
-                        <td className="px-4 py-3.5">
+                        <td className="px-4 py-3.5" style={{ maxWidth: 150 }}>
                           {t.customer_name
-                            ? <span className="text-white/70 text-sm">{t.customer_name}</span>
+                            ? <span className="text-white/70 text-sm block truncate" title={t.customer_name} style={{ maxWidth: 140 }}>{t.customer_name}</span>
                             : <span className="text-white/15 text-sm">—</span>
                           }
                         </td>
@@ -673,10 +818,10 @@ export default function FinancialTransactions() {
                           )}
                         </td>
 
-                        {/* Description (truncated) */}
-                        <td className="px-4 py-3.5 max-w-[220px]">
+                        {/* Description (truncated with tooltip) */}
+                        <td className="px-4 py-3.5" style={{ maxWidth: 200 }}>
                           {t.description
-                            ? <span className="text-white/50 text-sm truncate block max-w-[220px]">{t.description}</span>
+                            ? <span className="text-white/50 text-sm truncate block" title={t.description} style={{ maxWidth: 190 }}>{t.description}</span>
                             : <span className="text-white/15 text-sm">—</span>
                           }
                         </td>
