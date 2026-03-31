@@ -15,6 +15,7 @@ args = ["pnpm", "store", "prune"]
 env = { "CI" = "true" }
 
 [workflows]
+runButton = "Project"
 
 [[workflows.workflow]]
 name = "Project"
@@ -29,13 +30,13 @@ args = "Start application"
 name = "Start application"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "PORT=8080 BASE_PATH=/api pnpm --filter @workspace/api-server run dev & PORT=19692 BASE_PATH=/ pnpm --filter @workspace/erp-system run dev"
-waitForPort = 19692
-
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=8080 BASE_PATH=/api pnpm --filter @workspace/api-server run dev & PORT=19692 BASE_PATH=/ pnpm --filter @workspace/erp-system run dev & wait"
+waitForPort = 19692
 
 [agent]
 stack = "PNPM_WORKSPACE"
