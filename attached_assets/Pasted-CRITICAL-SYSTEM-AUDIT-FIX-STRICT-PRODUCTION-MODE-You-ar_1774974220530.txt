@@ -1,0 +1,172 @@
+CRITICAL SYSTEM AUDIT & FIX - STRICT PRODUCTION MODE
+
+You are performing a complete system overhaul.
+Work through each phase completely before moving to the next.
+Zero tolerance for incomplete fixes.
+
+════════════════════════════════════
+PHASE 1: FULL CODE AUDIT
+════════════════════════════════════
+Scan entire codebase. Report ALL:
+- TypeScript errors and type mismatches
+- Unhandled promise rejections
+- Missing error boundaries
+- Console.log statements (remove all)
+- Dead/unused code, imports, functions
+- Infinite re-render risks in useEffect
+- Missing loading/error states
+- Any TODO or placeholder logic
+
+Fix every single issue found.
+Show: filename + line + what was fixed.
+
+════════════════════════════════════
+PHASE 2: LIGHT MODE TEXT FIX
+════════════════════════════════════
+Problem: Light mode has washed-out, unreadable text.
+Dark mode is perfect — do NOT touch it.
+
+Add to global CSS:
+
+[data-theme="light"] {
+  --text-primary: #0A0F1A;
+  --text-secondary: #1E293B;
+  --text-muted: #475569;
+  --text-label: #334155;
+  --bg-base: #F0F4F8;
+  --bg-surface: #FFFFFF;
+  --bg-input: #F8FAFC;
+  --card-border: #E2E8F0;
+  --table-header-bg: #F1F5F9;
+  --table-header-text: #1E293B;
+  --table-row-hover: #F8FAFC;
+  --table-border: #E2E8F0;
+}
+
+Font rules for light mode (apply globally):
+- font-family: 'Cairo', sans-serif (ALL text)
+- Minimum font-size: 13px (never below)
+- Body text: 14px / weight 500 (not 400)
+- Labels: 13px / weight 600
+- Table headers: 13px / weight 700 / uppercase
+- Card titles: 16px / weight 700
+- Page titles: 22px / weight 800
+- Numbers: font-variant-numeric: tabular-nums
+           font-weight: 600 minimum
+
+In light mode specifically:
+- NEVER use text-gray-400 or text-gray-300
+- Replace all washed colors with:
+  text-gray-400 → text-slate-700
+  text-gray-300 → text-slate-600
+  text-gray-500 → text-slate-600
+  text-white → text-slate-900
+
+Apply to: ALL components, tables, modals,
+forms, badges, cards, sidebar labels.
+
+Sidebar stays dark in light mode:
+  sidebar bg: #1E293B (unchanged)
+  sidebar text: #F1F5F9 (bright white)
+  sidebar active: amber as always
+
+Smooth theme transition:
+*, *::before, *::after {
+  transition: background-color 250ms ease,
+              color 250ms ease,
+              border-color 250ms ease;
+}
+
+════════════════════════════════════
+PHASE 3: SECURITY HARDENING
+════════════════════════════════════
+Scan and fix ALL security vulnerabilities:
+
+AUTHENTICATION:
+- JWT secret must be in env vars (never hardcoded)
+- JWT expiry must be set (max 24h)
+- Refresh token rotation implemented
+- Failed login attempts: max 5 then lockout 15min
+- All protected routes verify JWT server-side
+
+INPUT VALIDATION:
+- Every POST/PUT endpoint: validate with Zod
+- Sanitize all string inputs (trim, escape)
+- Reject requests with unexpected extra fields
+- SQL injection: use parameterized queries only
+  (Drizzle ORM handles this — verify no raw SQL)
+- XSS: never use dangerouslySetInnerHTML
+- File uploads: validate type + size server-side
+
+API SECURITY:
+- Add rate limiting to ALL endpoints:
+  General: 100 req/min per IP
+  Auth: 10 req/min per IP
+  Use express-rate-limit package
+- Add helmet.js for security headers:
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Content-Security-Policy: strict
+  Strict-Transport-Security: max-age=31536000
+- CORS: whitelist only your domain
+  Never use origin: '*' in production
+- Remove all stack traces from error responses
+  Return only: { error: "Arabic message" }
+
+AUTHORIZATION:
+- Every route checks role server-side
+- User cannot modify their own role
+- Admin actions require re-verification
+- Sensitive operations log to audit trail
+
+DATA PROTECTION:
+- No sensitive data in localStorage
+  (JWT in httpOnly cookie preferred)
+- No passwords/PINs in API responses
+- Mask PIN in logs: replace with ****
+- Add CSRF protection for state-changing ops
+
+AUDIT LOG:
+Create security_logs table:
+(id, user_id, action, ip_address, 
+ user_agent, status, timestamp)
+
+Log these events:
+- Login success/failure
+- Role changes
+- Data deletion
+- Settings changes
+- Failed authorization attempts
+
+════════════════════════════════════
+PHASE 4: PERFORMANCE
+════════════════════════════════════
+- Add React.memo to expensive list components
+- Add useMemo for filtered/sorted data
+- Add useCallback for event handlers in lists
+- TanStack Query: set staleTime: 30000 globally
+- Lazy load all page components (React.lazy)
+- Add pagination to ALL list endpoints
+  Default: 50 items per page
+  Add: ?page=1&limit=50 params
+
+════════════════════════════════════
+VALIDATION
+════════════════════════════════════
+After all phases complete:
+
+1. Run TypeScript compiler — ZERO errors
+2. Switch to light mode — ALL text clearly readable
+3. Check Cairo font loading on all pages
+4. Test login with wrong PIN 6 times — must lock
+5. Test SQL injection in search fields — must block
+6. Test unauthorized route access — must return 403
+7. Check Network tab — no sensitive data exposed
+
+FAIL IF:
+- Any TS error remains
+- Light mode has any gray-300/400 text
+- Any endpoint missing authentication check
+- Rate limiting not applied to auth routes
+- Security headers missing from responses
+- Any console.log in production code

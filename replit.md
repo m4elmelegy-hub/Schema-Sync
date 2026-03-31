@@ -38,6 +38,19 @@ The system is built as a monorepo using pnpm workspaces. The architecture separa
 - **export-pdf.ts** — Added `printSaleInvoice()`, `printPurchaseInvoice()`, and `printPLReport()` functions using browser print-window approach for correct Arabic RTL rendering.
 - **POS Enhancements:** Auto-selection of warehouse, salesperson auto-set to logged-in user, and professional invoice printing.
 
+## Security & Performance Improvements (March 2026)
+
+- **TypeScript**: Built `lib/db` and `lib/api-zod` declaration files — 0 TypeScript errors across entire codebase
+- **Helmet.js**: Added security headers (X-Frame-Options: DENY, noSniff, HSTS, CSP) to all API responses
+- **Rate Limiting**: General 100 req/min per IP; Auth endpoints limited to 10 req/min per IP
+- **Login Lockout**: Max 5 failed PIN attempts → 15-minute account lockout (in-memory per userId)
+- **JWT_SECRET**: Moved to environment variable (no hardcoded fallback in production)
+- **CORS**: Configurable via `ALLOWED_ORIGINS` env var; safe for Replit proxy (trust proxy: 1)
+- **PIN Masking**: Admin `/settings/users` endpoint returns `****` instead of raw PIN
+- **Light Mode CSS**: Added CSS custom properties for light mode, smooth theme transitions (250ms), typography improvements (Cairo font, tabular numbers, readable contrast)
+- **React.lazy**: All pages are now lazy-loaded with Suspense — reduces initial bundle size
+- **staleTime**: TanStack Query globally set to 30 seconds — reduces redundant API calls
+
 ## External Dependencies
 
 - **Node.js**: Version 24

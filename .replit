@@ -26,3 +26,8 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+JWT_SECRET = "halal-tech-erp-f8561b273ce0b52c89552ca3ae69e90deebe340b88e4992d344eff46fdd9806a"

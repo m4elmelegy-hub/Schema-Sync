@@ -300,6 +300,29 @@
   50% { opacity: 0.5; }
 }
 
+/* ─────── Smooth theme transition ──────────────────── */
+*, *::before, *::after {
+  transition: background-color 250ms ease,
+              color 250ms ease,
+              border-color 250ms ease;
+}
+
+/* ─────── Light Mode CSS variables ─────────────────── */
+[data-theme="light"] {
+  --text-primary: #0A0F1A;
+  --text-secondary: #1E293B;
+  --text-muted: #475569;
+  --text-label: #334155;
+  --bg-base: #F0F4F8;
+  --bg-surface: #FFFFFF;
+  --bg-input: #F8FAFC;
+  --card-border: #E2E8F0;
+  --table-header-bg: #F1F5F9;
+  --table-header-text: #1E293B;
+  --table-row-hover: #F8FAFC;
+  --table-border: #E2E8F0;
+}
+
 /* ─────── Light Mode ────────────────────────────── */
 html.light {
   --background: 210 20% 96%;
@@ -315,7 +338,13 @@ html.light {
   --destructive-foreground: 0 0% 100%;
   color-scheme: light;
 }
-html.light body { background: hsl(210, 20%, 96%); }
+html.light body {
+  background: hsl(210, 20%, 96%);
+  font-size: 14px;
+  font-weight: 500;
+  color: #0A0F1A;
+  font-family: 'Cairo', 'Tajawal', sans-serif;
+}
 html.light .glass-panel {
   background: rgba(255,255,255,0.80);
   box-shadow: 0 0 0 1px rgba(0,0,0,0.06) inset, 0 20px 60px rgba(0,0,0,0.08);
@@ -363,6 +392,42 @@ html.light .text-yellow-400 { color: #92400e !important; }
 html.light .text-green-400 { color: #166534 !important; }
 html.light ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); }
 html.light ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.22); }
+
+/* ── Light mode typography ─────────────────────────────── */
+html.light label, html.light .label-text { color: #334155; font-size: 13px; font-weight: 600; }
+html.light h1 { font-size: 22px; font-weight: 800; color: #0A0F1A; }
+html.light h2 { font-size: 18px; font-weight: 700; color: #0A0F1A; }
+html.light h3 { font-size: 16px; font-weight: 700; color: #0A0F1A; }
+html.light table thead th {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background-color: #F1F5F9 !important;
+  color: #1E293B !important;
+  border-color: #E2E8F0 !important;
+}
+html.light table tbody td {
+  color: #0A0F1A;
+  font-size: 14px;
+  font-weight: 500;
+  border-color: #E2E8F0;
+}
+html.light .text-gray-400 { color: #475569 !important; }
+html.light .text-gray-300 { color: #475569 !important; }
+html.light .text-gray-500 { color: #475569 !important; }
+html.light .text-muted-foreground { color: #475569 !important; }
+/* Sidebar stays dark in light mode */
+html.light [data-sidebar], html.light aside.sidebar-dark {
+  background-color: #1E293B !important;
+  color: #F1F5F9 !important;
+}
+/* Numbers — tabular numeric */
+html.light .tabular-nums,
+html.light .font-mono,
+html.light .font-numeric {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
 
 /* ─────── Select elements ───────────────────────── */
 select, select option {

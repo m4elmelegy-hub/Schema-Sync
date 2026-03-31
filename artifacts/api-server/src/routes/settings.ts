@@ -37,7 +37,13 @@ const router = Router();
 router.get("/settings/users", authenticate, requireRole("admin"), async (req, res) => {
   try {
     const users = await db.select().from(erpUsersTable).orderBy(erpUsersTable.id);
-    res.json(users);
+    /* Mask PIN in API responses — never expose raw PIN */
+    const masked = users.map(({ pin, ...u }) => ({
+      ...u,
+      pin: pin ? "****" : null,
+      pinLength: Math.min(Math.max(pin?.length ?? 4, 4), 6),
+    }));
+    res.json(masked);
   } catch (e) {
     res.status(500).json({ error: "فشل جلب المستخدمين" });
   }
