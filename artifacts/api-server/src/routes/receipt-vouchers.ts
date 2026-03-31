@@ -29,7 +29,7 @@ router.post("/receipt-vouchers", wrap(async (req, res) => {
     if (!safe) throw httpError(400, "الخزينة غير موجودة");
     await tx.update(safesTable).set({ balance: String(Number(safe.balance) + amt) }).where(eq(safesTable.id, safe.id));
 
-    // 2. خصم من رصيد العميل — بدون سقف عند الصفر
+    // 2. خصم من رصيد العميل — مع سقف عند الصفر (لا يذهب للسالب)
     if (customer_id) {
       const [cust] = await tx.select().from(customersTable).where(eq(customersTable.id, parseInt(customer_id)));
       if (cust) {
