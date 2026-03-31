@@ -416,11 +416,6 @@ html.light .text-gray-400 { color: #475569 !important; }
 html.light .text-gray-300 { color: #475569 !important; }
 html.light .text-gray-500 { color: #475569 !important; }
 html.light .text-muted-foreground { color: #475569 !important; }
-/* Sidebar stays dark in light mode */
-html.light [data-sidebar], html.light aside.sidebar-dark {
-  background-color: #1E293B !important;
-  color: #F1F5F9 !important;
-}
 /* Numbers — tabular numeric */
 html.light .tabular-nums,
 html.light .font-mono,
