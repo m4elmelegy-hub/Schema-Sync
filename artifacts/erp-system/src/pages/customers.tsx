@@ -19,6 +19,7 @@ const api = (p: string) => `${BASE}${p}`;
 interface ReceiptVoucher { id: number; voucher_no: string; customer_id: number | null; amount: number; safe_name: string; date: string; notes: string | null; created_at: string; }
 interface PaymentVoucher { id: number; voucher_no: string; customer_id: number | null; amount: number; safe_name: string; date: string; notes: string | null; created_at: string; }
 interface SaleReturn { id: number; return_no: string; customer_id: number | null; customer_name: string | null; total_amount: number; refund_type: string | null; safe_name: string | null; date: string | null; reason: string | null; created_at: string; }
+interface PurchaseReturn { id: number; return_no: string; customer_id: number | null; customer_name: string | null; supplier_name: string | null; total_amount: number; date: string | null; created_at: string; }
 interface FinancialTransaction { id: number; type: string; customer_id: number | null; amount: number; direction: string; description: string | null; date: string | null; created_at: string; }
 
 /* ─── دالة طباعة كشف الحساب كـ PDF ─── */
@@ -226,6 +227,11 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
     queryFn: () => authFetch(api("/api/transactions")).then(r => { if (!r.ok) throw new Error("خطأ"); return r.json(); }),
     enabled: isSupplier,
   });
+  const { data: allPurchaseReturns = [] } = useQuery<PurchaseReturn[]>({
+    queryKey: ["/api/purchase-returns"],
+    queryFn: () => authFetch(api("/api/purchase-returns")).then(r => { if (!r.ok) throw new Error("خطأ"); return r.json(); }),
+    enabled: isSupplier,
+  });
 
   const sales = allSales.filter(s => s.customer_id === customerId || s.customer_name === customerName);
   const purchases = allPurchases.filter(p => p.customer_id === customerId || p.customer_name === customerName);
@@ -233,6 +239,7 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
   const receipts = receiptVouchers.filter(v => v.customer_id === customerId);
   const payments = paymentVouchers.filter(v => v.customer_id === customerId);
   const returns_ = salesReturns.filter(r => r.customer_id === customerId);
+  const purchaseReturns = allPurchaseReturns.filter(r => r.customer_id === customerId);
 
   const totalSales = sales.reduce((s, v) => s + Number(v.total_amount), 0);
   const totalPurchases = purchases.reduce((s, v) => s + Number(v.total_amount), 0);
@@ -240,6 +247,7 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
   const totalPayments = payments.reduce((s, v) => s + Number(v.amount), 0);
   const totalReturns = returns_.reduce((s, v) => s + Number(v.total_amount), 0);
   const totalSupplierPayments = supplierPayments.reduce((s, v) => s + Number(v.amount), 0);
+  const totalPurchaseReturns = purchaseReturns.reduce((s, v) => s + Number(v.total_amount), 0);
 
   type TxRow = { date: string; type: string; label: string; ref: string; debit: number; credit: number; };
   const rows: TxRow[] = [];
@@ -249,8 +257,9 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
   receipts.forEach(v => rows.push({ date: v.date ?? v.created_at, type: "receipt", label: "سند قبض", ref: v.voucher_no, debit: 0, credit: Number(v.amount) }));
   payments.forEach(v => rows.push({ date: v.date ?? v.created_at, type: "payment", label: "سند توريد", ref: v.voucher_no, debit: Number(v.amount), credit: 0 }));
   supplierPayments.forEach(v => rows.push({ date: v.date ?? v.created_at, type: "supplier_payment", label: "تسديد للمورد", ref: `SP-${v.id}`, debit: Number(v.amount), credit: 0 }));
-  returns_.filter(r => r.refund_type !== "cash").forEach(r => rows.push({ date: r.date ?? r.created_at, type: "return_credit", label: "مرتجع (خصم رصيد)", ref: r.return_no, debit: 0, credit: Number(r.total_amount) }));
-  returns_.filter(r => r.refund_type === "cash").forEach(r => rows.push({ date: r.date ?? r.created_at, type: "return_cash", label: "مرتجع (نقدي)", ref: r.return_no, debit: 0, credit: 0 }));
+  purchaseReturns.forEach(r => rows.push({ date: r.date ?? r.created_at, type: "purchase_return", label: "مرتجع مشتريات", ref: r.return_no, debit: Number(r.total_amount), credit: 0 }));
+  returns_.filter(r => r.refund_type !== "cash").forEach(r => rows.push({ date: r.date ?? r.created_at, type: "return_credit", label: "مرتجع مبيعات (رصيد)", ref: r.return_no, debit: 0, credit: Number(r.total_amount) }));
+  returns_.filter(r => r.refund_type === "cash").forEach(r => rows.push({ date: r.date ?? r.created_at, type: "return_cash", label: "مرتجع مبيعات (نقدي)", ref: r.return_no, debit: 0, credit: 0 }));
 
   rows.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
@@ -263,6 +272,7 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
     receipt:          { color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", icon: "→" },
     payment:          { color: "text-orange-400",  bg: "bg-orange-500/10 border-orange-500/20", icon: "←" },
     supplier_payment: { color: "text-cyan-400",    bg: "bg-cyan-500/10 border-cyan-500/20",     icon: "⬆" },
+    purchase_return:  { color: "text-violet-400",  bg: "bg-violet-500/10 border-violet-500/20", icon: "↺" },
     return_credit:    { color: "text-blue-400",    bg: "bg-blue-500/10 border-blue-500/20",     icon: "↩" },
     return_cash:      { color: "text-pink-400",    bg: "bg-pink-500/10 border-pink-500/20",     icon: "↩" },
   };
@@ -270,10 +280,11 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
   const summaryCards = [
     { label: "المبيعات",  value: totalSales,     count: sales.length },
     { label: "القبض",     value: totalReceipts,  count: receipts.length },
-    ...(totalPurchases > 0       ? [{ label: "المشتريات",       value: totalPurchases,       count: purchases.length       }] : []),
-    ...(totalPayments > 0        ? [{ label: "التوريد",         value: totalPayments,        count: payments.length        }] : []),
-    ...(totalSupplierPayments > 0 ? [{ label: "تسديد للمورد",  value: totalSupplierPayments, count: supplierPayments.length }] : []),
-    ...(totalReturns > 0         ? [{ label: "المرتجعات",       value: totalReturns,         count: returns_.length        }] : []),
+    ...(totalPurchases > 0        ? [{ label: "المشتريات",        value: totalPurchases,        count: purchases.length        }] : []),
+    ...(totalPayments > 0         ? [{ label: "التوريد",          value: totalPayments,         count: payments.length         }] : []),
+    ...(totalSupplierPayments > 0 ? [{ label: "تسديد للمورد",     value: totalSupplierPayments, count: supplierPayments.length  }] : []),
+    ...(totalPurchaseReturns > 0  ? [{ label: "مرتجع مشتريات",   value: totalPurchaseReturns,  count: purchaseReturns.length   }] : []),
+    ...(totalReturns > 0          ? [{ label: "مرتجع مبيعات",    value: totalReturns,          count: returns_.length          }] : []),
   ];
 
   // قراءة اسم الشركة من الإعدادات المحلية
@@ -307,6 +318,9 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
               <div className="mt-2 space-y-0.5 text-xs">
                 <p className="text-white/50">إجمالي المبيعات له: <span className="text-amber-400 font-bold">{formatCurrency(totalSales)}</span></p>
                 <p className="text-white/50">إجمالي المشتريات منه: <span className="text-purple-400 font-bold">{formatCurrency(totalPurchases)}</span></p>
+                {totalPurchaseReturns > 0 && (
+                  <p className="text-white/50">مرتجع مشتريات: <span className="text-violet-400 font-bold">{formatCurrency(totalPurchaseReturns)}</span></p>
+                )}
                 <p className="text-white/50">المدفوعات والمقبوضات: <span className="text-emerald-400 font-bold">{formatCurrency(totalReceipts + totalSupplierPayments + totalPayments)}</span></p>
                 <p className={`font-bold text-sm mt-1 ${customerBalance > 0 ? 'text-green-400' : customerBalance < 0 ? 'text-red-400' : 'text-white/40'}`}>
                   الرصيد الصافي:{" "}
@@ -402,7 +416,7 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
           <div className="flex flex-wrap gap-2 text-xs">
             {Object.entries(typeConfig).map(([key, cfg]) => (
               <span key={key} className={`px-2 py-0.5 rounded-lg border ${cfg.bg} ${cfg.color}`}>
-                {cfg.icon} {key === "sale" ? "مبيعات" : key === "purchase" ? "مشتريات" : key === "receipt" ? "قبض" : key === "payment" ? "توريد" : key === "supplier_payment" ? "تسديد للمورد" : key === "return_credit" ? "مرتجع رصيد" : "مرتجع نقدي"}
+                {cfg.icon} {key === "sale" ? "مبيعات" : key === "purchase" ? "مشتريات" : key === "receipt" ? "قبض" : key === "payment" ? "توريد" : key === "supplier_payment" ? "تسديد للمورد" : key === "purchase_return" ? "مرتجع مشتريات" : key === "return_credit" ? "مرتجع مبيعات" : "مرتجع نقدي"}
               </span>
             ))}
           </div>
