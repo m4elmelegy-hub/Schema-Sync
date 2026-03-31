@@ -1,0 +1,111 @@
+You are working on a retail ERP system built with:
+React 19 + Vite + TypeScript + Wouter + TanStack Query
+Express 5 + TypeScript + Drizzle ORM + PostgreSQL
+
+The full system analysis is complete. Here are ALL the bugs 
+and missing features. Fix them ALL in order. 
+Do NOT skip any. Do NOT simplify.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔴 CRITICAL FIX 1: Opening Balance API
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Create POST /api/inventory/opening-balance
+
+Body: { product_id, quantity, cost_price, date, notes }
+
+Logic:
+1. Check if opening balance already exists for this product
+   → If yes, BLOCK with error: "رصيد أول المدة مسجل مسبقاً"
+2. Update products.quantity += quantity
+3. Recalculate weighted avg cost:
+   new_cost = (old_qty × old_cost + qty × cost_price) / (old_qty + qty)
+   Update products.cost_price = new_cost
+4. INSERT into stock_movements:
+   movement_type = 'opening_balance'
+   quantity_before = old_qty
+   quantity_after = old_qty + quantity
+   unit_cost = cost_price
+   reference_type = 'opening_balance'
+   notes = notes
+5. Also create POST /api/opening-balance/treasury:
+   Body: { safe_id, amount, date, notes }
+   → Update safes.balance += amount
+   → INSERT into transactions with type='opening_balance', direction='in'
+6. Also create POST /api/opening-balance/customer:
+   Body: { customer_id, amount, date, notes }
+   → Update customers.balance += amount
+7. Also create POST /api/opening-balance/supplier:
+   Body: { supplier_id, amount, date, notes }
+   → Update suppliers.balance += amount
+
+Build an Opening Balance screen in Settings (admin only):
+- Tab 1: Treasury opening balances (per safe)
+- Tab 2: Product opening balances (searchable product list)
+- Tab 3: Customer opening balances
+- Tab 4: Supplier opening balances
+Each tab shows existing entries and allows adding new ones.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔴 CRITICAL FIX 2: Supplier Payment → Safe
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Fix POST /api/suppliers/:id/payment
+
+Current bug: reduces supplier balance but NEVER deducts from safe.
+
+Fix:
+1. Require safe_id in request body
+2. Check safe balance >= amount → else BLOCK
+3. UPDATE safes.balance -= amount
+4. UPDATE suppliers.balance -= amount
+5. INSERT into transactions:
+   type='supplier_payment', direction='out'
+   safe_id, safe_name, amount, reference_type='supplier_payment'
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔴 CRITICAL FIX 3: Purchase Return → Safe
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Fix POST /api/purchase-returns
+
+Current bug: deducts stock but NEVER adds cash back to safe.
+
+Fix:
+1. Add refund_type field: 'cash' | 'balance_credit'
+2. Add safe_id field (required if refund_type = 'cash')
+3. If cash: UPDATE safes.balance += total_amount
+4. If balance_credit: UPDATE suppliers.balance -= total_amount
+5. INSERT into transactions:
+   type='purchase_return', direction='in' (cash back)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔴 CRITICAL FIX 4: Remove Duplicate Safe Transfer
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+There are 2 conflicting safe transfer routes:
+- /api/safe-transfers → uses transactions table ✅ KEEP THIS
+- /api/settings/safe-transfers → uses safe_transfers table ❌ REMOVE
+
+Steps:
+1. Delete /api/settings/safe-transfers route entirely
+2. Update any frontend component using /api/settings/safe-transfers
+   to use /api/safe-transfers instead
+3. Ensure /api/safe-transfers inserts into BOTH:
+   - safe_transfers table (for history)
+   - transactions table (for financial ledger) with direction='none'
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔴 CRITICAL FIX 5: Profit Report Date Filter
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Current bug: profits route filters by created_at
+but transactions route filters by date field.
+This causes backdated sales to appear in wrong period.
+
+Fix in GET /api/profits:
+Change ALL date filters from:
+  WHERE created_at BETWEEN ? AND ?
+To:
+  WHERE date BETWEEN ? AND ?
+
+Apply same fix to sale_items join queries.
+Test: create a backdated sale → verify it appears 
+in correct period in BOTH profits and transactions.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
