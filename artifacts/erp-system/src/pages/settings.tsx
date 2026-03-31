@@ -19,7 +19,7 @@ import {
   ArrowLeftRight, Eye, EyeOff, Save, Palette, DollarSign, Database,
   Upload, Download, RefreshCcw, Building2, Image, Type, Loader2, CheckCircle2,
   HardDrive, History, BookOpen, Package, UserCircle, Truck, Banknote,
-  ChevronDown, ChevronRight, Shield,
+  ChevronDown, ChevronRight, Shield, Store, CaseSensitive, AlignLeft,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -46,8 +46,8 @@ const TAB_SECTIONS: { section: string; tabs: { id: Tab; label: string; icon: Rea
   {
     section: "التخصيص",
     tabs: [
-      { id: "appearance", label: "الواجهة",  icon: Palette },
-      { id: "currency",   label: "العملة",   icon: DollarSign },
+      { id: "appearance", label: "الواجهة",       icon: Palette },
+      { id: "currency",   label: "إعدادات المتجر", icon: Store },
     ],
   },
   {
@@ -1147,29 +1147,59 @@ const NUMBER_FORMAT_OPTIONS: { value: NumberFormat; label: string; preview: stri
   { value: "arabic-indic", label: "أرقام عربية-هندية", preview: "١٬٢٣٤٫٥٦", example: "١ ٢ ٣ … ٩" },
 ];
 
+const FONT_WEIGHT_OPTIONS = [
+  { value: 400, label: "عادي",   labelEn: "Regular", icon: "A" },
+  { value: 500, label: "متوسط",  labelEn: "Medium",  icon: "A" },
+  { value: 700, label: "عريض",   labelEn: "Bold",    icon: "A" },
+] as const;
+
+const STORE_FONT_OPTIONS: { key: FontFamily; label: string; preview: string }[] = [
+  { key: "Cairo",   label: "القاهرة",  preview: "أبجد هوز — Cairo"   },
+  { key: "Tajawal", label: "تجوال",    preview: "أبجد هوز — Tajawal" },
+  { key: "Inter",   label: "Inter",    preview: "ABCD efgh — Inter"  },
+];
+
+function StoreSettingSection({ icon: Icon, title, children }: { icon: React.FC<{ className?: string }>; title: string; children: React.ReactNode }) {
+  return (
+    <div className="bg-[#111827] border border-white/5 rounded-2xl overflow-hidden">
+      <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-white/5">
+        <Icon className="w-4 h-4 text-amber-400" />
+        <p className="text-white/70 text-xs font-bold uppercase tracking-wider">{title}</p>
+      </div>
+      <div className="p-5">{children}</div>
+    </div>
+  );
+}
+
 function CurrencyTab() {
   const { settings, update } = useAppSettings();
   const { toast } = useToast();
-  const [localCurrency, setLocalCurrency] = useState<CurrencyCode>(settings.currency);
-  const [localNumFmt,   setLocalNumFmt]   = useState<NumberFormat>(settings.numberFormat ?? "western");
-  const [saved,         setSaved]         = useState(false);
+  const [localCurrency,    setLocalCurrency]    = useState<CurrencyCode>(settings.currency);
+  const [localNumFmt,      setLocalNumFmt]      = useState<NumberFormat>(settings.numberFormat ?? "western");
+  const [localFontFamily,  setLocalFontFamily]  = useState<FontFamily>(settings.fontFamily);
+  const [localFontWeight,  setLocalFontWeight]  = useState<number>(settings.fontWeightNormal ?? 400);
+  const [saved,            setSaved]            = useState(false);
 
   const previewAmounts = [100, 1234.56, 50000, 999999];
 
   const handleSave = () => {
-    update({ currency: localCurrency, numberFormat: localNumFmt });
+    update({
+      currency: localCurrency,
+      numberFormat: localNumFmt,
+      fontFamily: localFontFamily,
+      fontWeightNormal: localFontWeight,
+    });
     setSaved(true);
-    toast({ title: "تم حفظ الإعدادات ✓", description: "تم تطبيق العملة وصيغة الأرقام على كامل النظام" });
+    toast({ title: "تم حفظ الإعدادات ✓", description: "تم تطبيق إعدادات المتجر على كامل النظام" });
     setTimeout(() => setSaved(false), 2500);
   };
 
   return (
     <div className="space-y-6">
-      <PageHeader title="العملة والأرقام" sub="اختر العملة وصيغة عرض الأرقام المستخدمة في النظام" />
+      <PageHeader title="إعدادات المتجر" sub="تخصيص العملة والأرقام والخطوط المستخدمة في النظام" />
 
-      {/* Currency Cards */}
-      <div className="bg-[#111827] border border-white/5 rounded-2xl p-5">
-        <p className="text-white/50 text-xs font-bold uppercase tracking-wider mb-4">اختر العملة</p>
+      {/* ── قسم العملة ── */}
+      <StoreSettingSection icon={DollarSign} title="إعدادات العملة">
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {CURRENCY_OPTIONS.map(o => {
             const active = localCurrency === o.code;
@@ -1193,11 +1223,10 @@ function CurrencyTab() {
             );
           })}
         </div>
-      </div>
+      </StoreSettingSection>
 
-      {/* Number Format Cards */}
-      <div className="bg-[#111827] border border-white/5 rounded-2xl p-5">
-        <p className="text-white/50 text-xs font-bold uppercase tracking-wider mb-4">صيغة عرض الأرقام</p>
+      {/* ── قسم الأرقام ── */}
+      <StoreSettingSection icon={CaseSensitive} title="إعدادات الأرقام">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {NUMBER_FORMAT_OPTIONS.map(o => {
             const active = localNumFmt === o.value;
@@ -1221,20 +1250,86 @@ function CurrencyTab() {
             );
           })}
         </div>
-      </div>
 
-      {/* Live Preview */}
-      <div className="bg-[#1A2235] border border-white/5 rounded-2xl p-5">
-        <p className="text-white/40 text-xs font-bold uppercase tracking-wider mb-4">معاينة مباشرة</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {previewAmounts.map(n => (
-            <div key={n} className="bg-[#0D1424] rounded-xl p-3 text-center border border-white/5">
-              <p className="text-white/30 text-xs mb-1">{n.toLocaleString("ar-EG")}</p>
-              <p className="text-amber-400 font-black text-sm">{formatCurrencyPreview(n, localCurrency, localNumFmt)}</p>
-            </div>
-          ))}
+        {/* Live Preview */}
+        <div className="mt-4 bg-[#0D1424] rounded-xl p-4 border border-white/5">
+          <p className="text-white/30 text-[10px] font-bold uppercase tracking-wider mb-3">معاينة مباشرة</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {previewAmounts.map(n => (
+              <div key={n} className="bg-[#111827] rounded-lg p-2.5 text-center border border-white/5">
+                <p className="text-amber-400 font-black text-sm">{formatCurrencyPreview(n, localCurrency, localNumFmt)}</p>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      </StoreSettingSection>
+
+      {/* ── قسم الخطوط ── */}
+      <StoreSettingSection icon={AlignLeft} title="إعدادات الخطوط">
+        {/* Font Family */}
+        <p className="text-white/40 text-[10px] font-bold uppercase tracking-wider mb-3">نوع الخط</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+          {STORE_FONT_OPTIONS.map(f => {
+            const active = localFontFamily === f.key;
+            return (
+              <button
+                key={f.key}
+                onClick={() => setLocalFontFamily(f.key)}
+                className={`flex flex-col gap-1.5 p-4 rounded-xl border text-right transition-all ${
+                  active
+                    ? "bg-amber-500/10 border-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.2)]"
+                    : "bg-[#1A2235] border-[#2D3748] hover:border-amber-500/30"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <p className={`font-bold text-sm ${active ? "text-amber-400" : "text-white/80"}`}>{f.label}</p>
+                  {active && <Check className="w-4 h-4 text-amber-400" />}
+                </div>
+                <p
+                  className="text-white/40 text-xs"
+                  style={{ fontFamily: `'${f.key}', sans-serif` }}
+                >
+                  {f.preview}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Font Weight */}
+        <p className="text-white/40 text-[10px] font-bold uppercase tracking-wider mb-3">وزن الخط</p>
+        <div className="grid grid-cols-3 gap-3">
+          {FONT_WEIGHT_OPTIONS.map(w => {
+            const active = localFontWeight === w.value;
+            return (
+              <button
+                key={w.value}
+                onClick={() => setLocalFontWeight(w.value)}
+                className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-all ${
+                  active
+                    ? "bg-amber-500/10 border-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.2)]"
+                    : "bg-[#1A2235] border-[#2D3748] hover:border-amber-500/30"
+                }`}
+              >
+                <span
+                  className={`text-2xl ${active ? "text-amber-400" : "text-white/50"}`}
+                  style={{
+                    fontFamily: `'${localFontFamily}', sans-serif`,
+                    fontWeight: w.value,
+                  }}
+                >
+                  أ
+                </span>
+                <div className="text-center">
+                  <p className={`font-bold text-xs ${active ? "text-amber-400" : "text-white/70"}`}>{w.label}</p>
+                  <p className="text-white/25 text-[10px]">{w.labelEn} · {w.value}</p>
+                </div>
+                {active && <Check className="w-3.5 h-3.5 text-amber-400" />}
+              </button>
+            );
+          })}
+        </div>
+      </StoreSettingSection>
 
       {/* Save */}
       <button

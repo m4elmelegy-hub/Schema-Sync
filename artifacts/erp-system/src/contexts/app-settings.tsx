@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 
 export type CurrencyCode = "EGP" | "SAR" | "AED" | "USD" | "KWD" | "BHD";
-export type FontFamily = "Tajawal" | "Cairo" | "Almarai" | "Changa";
+export type FontFamily = "Tajawal" | "Cairo" | "Almarai" | "Changa" | "Inter";
 export type AccentColor = "amber" | "emerald" | "violet" | "sky" | "rose" | "orange";
 export type FontSize = "sm" | "md" | "lg" | "xl";
 export type Theme = "dark" | "light";
@@ -100,6 +100,7 @@ export const FONTS: Record<FontFamily, { label: string; googleUrl: string }> = {
   Cairo: { label: "القاهرة", googleUrl: "https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;700;800&display=swap" },
   Almarai: { label: "المرعى", googleUrl: "https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&display=swap" },
   Changa: { label: "تشانجا", googleUrl: "https://fonts.googleapis.com/css2?family=Changa:wght@400;500;700;800&display=swap" },
+  Inter: { label: "Inter", googleUrl: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&display=swap" },
 };
 
 export const ACCENT_COLORS: Record<AccentColor, { label: string; primary: string; ring: string; bg: string }> = {
