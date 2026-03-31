@@ -1,0 +1,100 @@
+Redesign the Financial Transactions page completely.
+Fix all bugs and make it world-class professional.
+
+## BUG FIX FIRST:
+All transaction types stored in DB are in English.
+They must display in Arabic in the UI.
+Create a translation map:
+
+const typeLabels = {
+  sale: 'مبيعة',
+  purchase: 'مشترى',
+  sales_return: 'مرتجع مبيعات',
+  purchase_return: 'مرتجع مشتريات',
+  receipt_voucher: 'سند قبض',
+  payment_voucher: 'سند صرف',
+  deposit_voucher: 'إيداع',
+  supplier_payment: 'تسديد مورد',
+  safe_transfer: 'تحويل خزينة',
+  expense: 'مصروف',
+  income: 'إيراد',
+  opening_balance: 'رصيد أول المدة'
+}
+
+Apply this map everywhere the type is displayed.
+Never show raw English type strings to the user.
+
+## PAGE REDESIGN:
+
+### Header Section:
+- Title: "سجل الحركات المالية" with pulse icon
+- 3 summary cards in a row:
+  • 📥 إجمالي الوارد → green number
+  • 📤 إجمالي الصادر → red number  
+  • ⚖️ الصافي → amber (positive) or red (negative/عجز)
+- Each card: icon + label + large number + 
+  small text "خلال الفترة المحددة"
+
+### Filters Bar (sticky, always visible):
+All filters in ONE clean row:
+- 🏦 الخزينة: dropdown (كل الخزائن + each safe)
+- 🔄 الاتجاه: dropdown (الكل | وارد | صادر)
+- 🏷️ النوع: dropdown (الكل + all Arabic types)
+- 📅 من تاريخ: date picker
+- 📅 إلى تاريخ: date picker
+- Quick date pills: اليوم | أمس | هذا الأسبوع | هذا الشهر
+- 🔍 بحث: search by description/customer name
+- Reset filters button (X)
+
+### Transactions Table:
+Columns:
+# | النوع | الخزينة | الطرف | المبلغ | الاتجاه | البيان | التاريخ
+
+Design:
+- النوع: colored badge per type:
+  • مبيعة = green badge
+  • مشترى = blue badge
+  • مرتجع = orange badge
+  • سند قبض = teal badge
+  • سند صرف = purple badge
+  • تسديد مورد = red badge
+  • مصروف = red badge
+  • إيراد = green badge
+  • تحويل خزينة = gray badge
+  • رصيد أول المدة = amber badge
+
+- المبلغ column:
+  • Wارد (in): green + arrow up ↑
+  • صادر (out): red + arrow down ↓
+  • none: gray —
+
+- الطرف column: show customer/supplier name or "—"
+
+- Row hover: subtle highlight
+- Click row: expand inline to show:
+  • Reference number (invoice/voucher number)
+  • Full description
+  • Link: "عرض المستند" → navigates to original invoice
+
+### Pagination:
+- Show 25 rows per page
+- Pagination controls at bottom
+- "عرض X من Y حركة"
+
+### Export:
+- Top right: Export button → PDF or Excel
+- Exports current filtered view only
+
+### Empty State:
+- If no transactions match filters:
+  Icon + "لا توجد حركات مالية في هذه الفترة"
+  + "إعادة تعيين الفلاتر" button
+
+## VALIDATION:
+After redesign, verify:
+- All type names show in Arabic ✅
+- Warد transactions show in green ✅  
+- Sadr transactions show in red ✅
+- Filters work correctly ✅
+- Summary cards update when filters change ✅
+- No English strings visible to user ✅
