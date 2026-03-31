@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { authenticate } from "../middleware/auth";
 import healthRouter from "./health";
 import productsRouter from "./products";
 import customersRouter from "./customers";
@@ -27,8 +28,14 @@ import contactsRouter from "./contacts";
 
 const router: IRouter = Router();
 
-router.use(authRouter);
-router.use(healthRouter);
+/* ── Public routes — no auth required ─────────────────────────── */
+router.use(authRouter);   // /auth/users  /auth/login  /auth/me
+router.use(healthRouter); // /health
+
+/* ── Global auth guard — all routes below require valid JWT ────── */
+router.use(authenticate);
+
+/* ── Protected routes ─────────────────────────────────────────── */
 router.use(productsRouter);
 router.use(customersRouter);
 router.use(suppliersRouter);

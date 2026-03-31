@@ -58,17 +58,13 @@ router.get("/auth/users", async (_req, res) => {
         username: erpUsersTable.username,
         role:     erpUsersTable.role,
         active:   erpUsersTable.active,
-        pin:      erpUsersTable.pin,
       })
       .from(erpUsersTable)
       .orderBy(erpUsersTable.id);
 
     const users = rows
       .filter((u) => u.active !== false)
-      .map(({ pin, ...u }) => ({
-        ...u,
-        pinLength: Math.min(Math.max(pin?.length ?? 4, 4), 6),
-      }));
+      .map((u) => ({ ...u, pinLength: 4 }));
 
     res.json(users);
   } catch {

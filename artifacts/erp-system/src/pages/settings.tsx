@@ -11,13 +11,13 @@ import {
 import { authFetch } from "@/lib/auth-fetch";
 import { formatCurrency, formatDate, formatCurrencyPreview } from "@/lib/format";
 import {
-  useAppSettings, CURRENCIES, FONTS, ACCENT_COLORS, FONT_SIZES, LOGIN_BG_OPTIONS,
-  type CurrencyCode, type FontFamily, type AccentColor, type FontSize, type NumberFormat,
+  useAppSettings, CURRENCIES, FONTS,
+  type CurrencyCode, type FontFamily, type NumberFormat,
 } from "@/contexts/app-settings";
 import {
   Users, Landmark, Warehouse, AlertTriangle, Plus, Trash2, Edit2, X, Check,
-  ArrowLeftRight, Eye, EyeOff, Save, Palette, DollarSign, Database,
-  Upload, Download, RefreshCcw, Building2, Image, Type, Loader2, CheckCircle2,
+  ArrowLeftRight, Eye, EyeOff, Save, DollarSign, Database,
+  Upload, Download, RefreshCcw, Building2, Loader2, CheckCircle2,
   HardDrive, History, BookOpen, Package, UserCircle, Truck, Banknote,
   ChevronDown, ChevronRight, Shield, Store, CaseSensitive, AlignLeft,
 } from "lucide-react";
@@ -26,7 +26,7 @@ import * as XLSX from "xlsx";
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
 
-type Tab = "users" | "safes" | "warehouses" | "appearance" | "currency" | "backup" | "data" | "opening-balance";
+type Tab = "users" | "safes" | "warehouses" | "currency" | "backup" | "data" | "opening-balance";
 
 const TAB_SECTIONS: { section: string; tabs: { id: Tab; label: string; icon: React.FC<{ className?: string }> }[] }[] = [
   {
@@ -46,7 +46,6 @@ const TAB_SECTIONS: { section: string; tabs: { id: Tab; label: string; icon: Rea
   {
     section: "التخصيص",
     tabs: [
-      { id: "appearance", label: "الواجهة",       icon: Palette },
       { id: "currency",   label: "إعدادات المتجر", icon: Store },
     ],
   },
@@ -248,7 +247,6 @@ export default function Settings() {
         {tab === "safes"           && <SafesTab />}
         {tab === "warehouses"      && <WarehousesTab />}
         {tab === "opening-balance" && <OpeningBalanceTab />}
-        {tab === "appearance"      && <AppearanceTab />}
         {tab === "currency"        && <CurrencyTab />}
         {tab === "backup"          && <BackupImportTab />}
         {tab === "data"            && <DataTab />}
@@ -886,246 +884,6 @@ function WarehousesTab() {
           </div>
         </Modal>
       )}
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════════════════════════════
-   APPEARANCE TAB  (kept as-is — already well designed)
-   ══════════════════════════════════════════════════════════════════ */
-const COLOR_SWATCHES: Record<AccentColor, string> = {
-  amber: "#f59e0b", emerald: "#10b981", violet: "#8b5cf6",
-  sky: "#0ea5e9", rose: "#f43f5e", orange: "#f97316",
-};
-
-function AppearanceTab() {
-  const { settings, update } = useAppSettings();
-  const { toast } = useToast();
-  const logoRef     = useRef<HTMLInputElement>(null);
-  const loginBgRef  = useRef<HTMLInputElement>(null);
-
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 500 * 1024) { toast({ title: "حجم الصورة كبير جداً (الحد 500 كيلوبايت)", variant: "destructive" }); return; }
-    const reader = new FileReader();
-    reader.onload = () => update({ customLogo: reader.result as string });
-    reader.readAsDataURL(file);
-    toast({ title: "تم رفع اللوجو بنجاح" });
-  };
-
-  const handleLoginBgUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { toast({ title: "حجم الصورة كبير جداً (الحد 2 ميجابايت)", variant: "destructive" }); return; }
-    const reader = new FileReader();
-    reader.onload = () => { update({ loginBgImage: reader.result as string }); toast({ title: "تم تغيير خلفية تسجيل الدخول" }); };
-    reader.readAsDataURL(file);
-  };
-
-  const fontSizeKeys = Object.keys(FONT_SIZES) as FontSize[];
-  const currentSizeIdx = fontSizeKeys.indexOf(settings.fontSize ?? "md");
-
-  return (
-    <div className="space-y-5">
-      <PageHeader title="تخصيص الواجهة" sub="تغيير مظهر البرنامج حسب هويتك" />
-
-      {/* Company Info */}
-      <div className="glass-panel rounded-2xl p-5 border border-white/10 space-y-4">
-        <div className="flex items-center gap-2 mb-1"><Building2 className="w-4 h-4 text-amber-400" /><h4 className="font-bold text-white text-sm">معلومات الشركة</h4></div>
-        <div className="grid grid-cols-2 gap-4">
-          <div><FieldLabel>اسم الشركة</FieldLabel><SInput value={settings.companyName} onChange={e => update({ companyName: e.target.value })} placeholder="Halal Tech" /></div>
-          <div><FieldLabel>الشعار / Slogan</FieldLabel><SInput value={settings.companySlogan} onChange={e => update({ companySlogan: e.target.value })} placeholder="الحلال = البركة" /></div>
-        </div>
-      </div>
-
-      {/* Logo */}
-      <div className="glass-panel rounded-2xl p-5 border border-white/10 space-y-3">
-        <div className="flex items-center gap-2 mb-1"><Image className="w-4 h-4 text-amber-400" /><h4 className="font-bold text-white text-sm">لوجو الشركة</h4></div>
-        <div className="flex items-center gap-4">
-          <div className="w-20 h-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
-            {settings.customLogo
-              ? <img src={settings.customLogo} alt="Logo" className="w-full h-full object-contain" />
-              : <img src={`${import.meta.env.BASE_URL}logo.png`} alt="Logo" className="w-full h-full object-contain" />}
-          </div>
-          <div className="space-y-2">
-            <button onClick={() => logoRef.current?.click()}
-              className="flex items-center gap-2 px-4 py-2 glass-panel rounded-xl border border-white/10 hover:border-white/20 text-white/70 hover:text-white transition-all text-sm">
-              <Upload className="w-4 h-4" /> رفع لوجو جديد
-            </button>
-            {settings.customLogo && (
-              <button onClick={() => update({ customLogo: "" })}
-                className="flex items-center gap-2 px-4 py-2 glass-panel rounded-xl border border-red-500/20 text-red-400 hover:bg-red-500/10 transition-all text-sm">
-                <X className="w-4 h-4" /> حذف اللوجو المخصص
-              </button>
-            )}
-            <p className="text-white/25 text-xs">PNG/JPG — الحد الأقصى 500 كيلوبايت</p>
-          </div>
-        </div>
-        <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
-      </div>
-
-      {/* Font + Size */}
-      <div className="glass-panel rounded-2xl p-5 border border-white/10 space-y-4">
-        <div className="flex items-center gap-2 mb-1"><Type className="w-4 h-4 text-amber-400" /><h4 className="font-bold text-white text-sm">الخط وحجمه</h4></div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-          <div className="space-y-2">
-            <FieldLabel>نوع الخط</FieldLabel>
-            <div className="relative">
-              <select value={settings.fontFamily}
-                onChange={e => { const v = e.target.value as FontFamily; update({ fontFamily: v }); toast({ title: `تم تغيير الخط إلى ${FONTS[v].label}` }); }}
-                className="glass-input w-full appearance-none pr-4 text-sm cursor-pointer"
-                style={{ fontFamily: `'${settings.fontFamily}', sans-serif` }}>
-                {(Object.keys(FONTS) as FontFamily[]).map(f => (
-                  <option key={f} value={f} className="bg-slate-900">{FONTS[f].label} — {f}</option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/30">▾</div>
-            </div>
-            <div className="p-3 rounded-xl bg-white/5 border border-white/10 text-center" style={{ fontFamily: `'${settings.fontFamily}', sans-serif` }}>
-              <span className="text-white/70 text-sm">أبجد هوز حطي كلمن — نموذج خط {FONTS[settings.fontFamily].label}</span>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <FieldLabel>حجم الخط</FieldLabel>
-            <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-white/50 text-xs">صغير</span>
-                <span className="text-amber-400 font-bold text-sm">{FONT_SIZES[settings.fontSize ?? "md"].label}</span>
-                <span className="text-white/50 text-xs">كبير</span>
-              </div>
-              <input type="range" min={0} max={3} step={1} value={currentSizeIdx}
-                onChange={e => { const sz = fontSizeKeys[Number(e.target.value)]; update({ fontSize: sz }); }}
-                className="w-full accent-amber-500 cursor-pointer" />
-              <div className="flex justify-between">
-                {fontSizeKeys.map((k) => (
-                  <button key={k} onClick={() => update({ fontSize: k })}
-                    className={`text-xs font-bold px-2 py-0.5 rounded-lg transition-all ${(settings.fontSize ?? "md") === k ? "text-amber-400" : "text-white/30 hover:text-white/60"}`}>
-                    {FONT_SIZES[k].label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="p-3 rounded-xl bg-white/5 border border-white/10">
-              <p style={{ fontSize: FONT_SIZES[settings.fontSize ?? "md"].cssVal }} className="text-white/70 text-center">نص تجريبي بهذا الحجم</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Accent Color */}
-      <div className="glass-panel rounded-2xl p-5 border border-white/10 space-y-3">
-        <div className="flex items-center gap-2 mb-1"><Palette className="w-4 h-4 text-amber-400" /><h4 className="font-bold text-white text-sm">لون الواجهة</h4></div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {(Object.keys(ACCENT_COLORS) as AccentColor[]).map(color => {
-            const isActive = settings.accentColor === color;
-            return (
-              <button key={color} onClick={() => { update({ accentColor: color }); toast({ title: `تم تغيير اللون إلى ${ACCENT_COLORS[color].label}` }); }}
-                className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${isActive ? "border-white/30 bg-white/10" : "glass-panel border-white/5 hover:border-white/15 hover:bg-white/5"}`}>
-                <div className="w-7 h-7 rounded-full shrink-0 shadow-lg" style={{ backgroundColor: COLOR_SWATCHES[color] }} />
-                <span className={`text-sm font-bold ${isActive ? "text-white" : "text-white/60"}`}>{ACCENT_COLORS[color].label}</span>
-                {isActive && <Check className="w-4 h-4 text-white/70 mr-auto" />}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Custom Hex */}
-      <div className="glass-panel rounded-2xl p-5 border border-white/10 space-y-4">
-        <div className="flex items-center gap-2 mb-1"><Palette className="w-4 h-4 text-amber-400" /><h4 className="font-bold text-white text-sm">لون مخصص (Hex) — يتجاوز الألوان أعلاه</h4></div>
-        <div className="flex items-center gap-4">
-          <input type="color" value={settings.customAccentHex || "#f59e0b"} onChange={e => update({ customAccentHex: e.target.value })}
-            className="w-16 h-12 rounded-xl cursor-pointer border-0 bg-transparent" style={{ padding: "2px" }} />
-          <div className="flex-1">
-            <p className="text-white/60 text-xs mb-2">اختر أي لون تريده — سيطبّق فوراً</p>
-            <div className="flex gap-2">
-              <code className="text-amber-400 text-xs font-mono bg-black/30 px-2 py-1 rounded-lg">{settings.customAccentHex || "#f59e0b"}</code>
-              {settings.customAccentHex && (
-                <button onClick={() => update({ customAccentHex: "" })}
-                  className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded-lg bg-red-500/10 border border-red-500/20 transition-colors">إلغاء المخصص</button>
-              )}
-            </div>
-          </div>
-          <div className="w-10 h-10 rounded-full border-2 border-white/20 shadow-lg shrink-0" style={{ backgroundColor: settings.customAccentHex || "#f59e0b" }} />
-        </div>
-      </div>
-
-      {/* Advanced */}
-      <div className="glass-panel rounded-2xl p-5 border border-white/10 space-y-5">
-        <div className="flex items-center gap-2 mb-1"><Type className="w-4 h-4 text-amber-400" /><h4 className="font-bold text-white text-sm">إعدادات المظهر المتقدمة</h4></div>
-        <div className="space-y-2">
-          <div className="flex justify-between items-center">
-            <FieldLabel>سماكة الحدود</FieldLabel>
-            <span className="text-amber-400 font-bold text-xs font-mono">{settings.borderWidth ?? 1}px</span>
-          </div>
-          <input type="range" min={0.5} max={4} step={0.5} value={settings.borderWidth ?? 1}
-            onChange={e => update({ borderWidth: parseFloat(e.target.value) })}
-            className="w-full accent-amber-500 cursor-pointer h-2 rounded-full" />
-        </div>
-        <div className="space-y-2">
-          <FieldLabel>سماكة النص</FieldLabel>
-          <div className="grid grid-cols-4 gap-2">
-            {([400, 500, 600, 700] as const).map(w => (
-              <button key={w} onClick={() => update({ fontWeightNormal: w })}
-                className={`py-2 rounded-xl border text-xs font-bold transition-all ${(settings.fontWeightNormal ?? 400) === w ? "bg-amber-500/20 border-amber-500/40 text-amber-400" : "glass-panel border-white/10 text-white/50 hover:text-white hover:border-white/20"}`}
-                style={{ fontWeight: w }}>
-                {w === 400 ? "عادي" : w === 500 ? "متوسط" : w === 600 ? "نصف غامق" : "غامق"}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="space-y-2">
-          <div className="flex justify-between items-center">
-            <FieldLabel>حجم أيقونات القائمة</FieldLabel>
-            <span className="text-amber-400 font-bold text-xs font-mono">{settings.iconSize ?? 20}px</span>
-          </div>
-          <input type="range" min={14} max={36} step={2} value={settings.iconSize ?? 20}
-            onChange={e => update({ iconSize: parseInt(e.target.value) })}
-            className="w-full accent-amber-500 cursor-pointer h-2 rounded-full" />
-        </div>
-      </div>
-
-      {/* Login BG */}
-      <div className="glass-panel rounded-2xl p-5 border border-white/10 space-y-4">
-        <div className="flex items-center gap-2 mb-1"><Image className="w-4 h-4 text-amber-400" /><h4 className="font-bold text-white text-sm">خلفية صفحة تسجيل الدخول</h4></div>
-        <div className="flex items-center gap-4">
-          <div className="w-32 h-20 rounded-xl overflow-hidden shrink-0 border border-white/10 bg-white/5 flex items-center justify-center">
-            {settings.loginBgImage
-              ? <img src={settings.loginBgImage} alt="Login BG" className="w-full h-full object-cover" />
-              : <span className="text-white/20 text-xs text-center px-2">خلفية تدرج لوني</span>}
-          </div>
-          <div className="space-y-2">
-            <button onClick={() => loginBgRef.current?.click()}
-              className="flex items-center gap-2 px-4 py-2 glass-panel rounded-xl border border-white/10 hover:border-white/20 text-white/70 hover:text-white transition-all text-sm">
-              <Upload className="w-4 h-4" /> {settings.loginBgImage ? "تغيير الصورة" : "رفع صورة خلفية"}
-            </button>
-            {settings.loginBgImage && (
-              <button onClick={() => update({ loginBgImage: "" })}
-                className="flex items-center gap-2 px-4 py-2 glass-panel rounded-xl border border-red-500/20 text-red-400 hover:bg-red-500/10 transition-all text-sm">
-                <X className="w-4 h-4" /> إزالة الصورة
-              </button>
-            )}
-            <p className="text-white/25 text-xs">PNG/JPG — الحد الأقصى 2 ميجابايت</p>
-          </div>
-        </div>
-        <input ref={loginBgRef} type="file" accept="image/*" className="hidden" onChange={handleLoginBgUpload} />
-        {!settings.loginBgImage && (
-          <div>
-            <p className="text-white/40 text-xs mb-2">أو اختر تدرجاً:</p>
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-              {LOGIN_BG_OPTIONS.map(opt => (
-                <button key={opt.key}
-                  onClick={() => { update({ loginBg: opt.key }); toast({ title: "تم تغيير الخلفية" }); }}
-                  className={`p-2.5 rounded-xl border transition-all text-center text-xs ${settings.loginBg === opt.key ? "bg-amber-500/20 border-amber-500/40 text-amber-400" : "glass-panel border-white/10 text-white/50 hover:border-white/20 hover:text-white"}`}>
-                  {settings.loginBg === opt.key && <Check className="w-3 h-3 mx-auto mb-0.5" />}
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
