@@ -75,9 +75,11 @@ export function AppLayout({ children }: LayoutProps) {
           height: "100vh",
           position: "sticky",
           top: 0,
-          background: isDark ? "hsla(225,25%,7%,0.95)" : "rgba(255,255,255,0.92)",
+          background: isDark
+            ? "linear-gradient(to bottom, #111827, #1f2937)"
+            : "#ffffff",
           borderLeft: isDark ? "1px solid rgba(255,255,255,0.05)" : "1px solid rgba(0,0,0,0.07)",
-          backdropFilter: "blur(20px)",
+          backdropFilter: isDark ? "blur(20px)" : "none",
         }}>
 
         {/* Logo Area */}
