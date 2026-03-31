@@ -57,7 +57,7 @@ export function AppLayout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen relative flex" dir="rtl"
-      style={{ background: isDark ? "hsl(225,25%,5%)" : "hsl(210,20%,96%)" }}>
+      style={{ background: isDark ? "hsl(225,25%,5%)" : "var(--bg-base)" }}>
 
       {/* Ambient background */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">

@@ -313,19 +313,22 @@
   --text-secondary: #1E293B;
   --text-muted: #475569;
   --text-label: #334155;
-  --bg-base: #F0F4F8;
-  --bg-surface: #FFFFFF;
+  --bg-base: #FAFAFA;
+  --bg-surface: #F5F5F5;
+  --bg-elevated: #FFFFFF;
   --bg-input: #F8FAFC;
-  --card-border: #E2E8F0;
-  --table-header-bg: #F1F5F9;
+  --border-light: #E5E7EB;
+  --card-border: #E5E7EB;
+  --table-header-bg: #F5F5F5;
   --table-header-text: #1E293B;
-  --table-row-hover: #F8FAFC;
-  --table-border: #E2E8F0;
+  --table-row-hover: #F9FAFB;
+  --table-border: #E5E7EB;
+  --card-shadow: 0 4px 12px rgba(0,0,0,0.04);
 }
 
 /* ─────── Light Mode ────────────────────────────── */
 html.light {
-  --background: 210 20% 96%;
+  --background: 0 0% 98%;
   --foreground: 222 47% 10%;
   --card: 0 0% 100% / 0.85;
   --card-foreground: 222 47% 10%;
@@ -339,18 +342,23 @@ html.light {
   color-scheme: light;
 }
 html.light body {
-  background: hsl(210, 20%, 96%);
+  background: var(--bg-base);
   font-size: 14px;
   font-weight: 500;
   color: #0A0F1A;
   font-family: 'Cairo', 'Tajawal', sans-serif;
 }
 html.light .glass-panel {
-  background: rgba(255,255,255,0.80);
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.06) inset, 0 20px 60px rgba(0,0,0,0.08);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--card-shadow);
 }
-html.light .card-premium { background: rgba(255,255,255,0.90); }
-html.light .glass-input { background: rgba(0,0,0,0.04) !important; border-color: rgba(0,0,0,0.10) !important; color: hsl(222,47%,10%) !important; }
+html.light .card-premium {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--card-shadow);
+}
+html.light .glass-input { background: var(--bg-elevated) !important; border-color: var(--border-light) !important; color: hsl(222,47%,10%) !important; }
 html.light .glass-input::placeholder { color: rgba(0,0,0,0.35) !important; }
 html.light .btn-secondary { background: rgba(0,0,0,0.06) !important; color: hsl(222,47%,10%) !important; border-color: rgba(0,0,0,0.12) !important; }
 html.light .btn-secondary:hover { background: rgba(0,0,0,0.10) !important; }
@@ -358,11 +366,31 @@ html.light .nav-item { color: rgba(0,0,0,0.45); }
 html.light .nav-item:hover { color: rgba(0,0,0,0.80); background: rgba(0,0,0,0.05); }
 html.light .nav-item.active { color: rgba(0,0,0,0.90); background: rgba(245,158,11,0.10); }
 html.light .nav-section-label { color: rgba(0,0,0,0.25); }
-html.light .stat-card-amber { background: linear-gradient(135deg, hsla(38,95%,55%,0.08) 0%, rgba(255,255,255,0.90) 100%); }
-html.light .stat-card-emerald { background: linear-gradient(135deg, hsla(160,84%,39%,0.08) 0%, rgba(255,255,255,0.90) 100%); }
-html.light .stat-card-red { background: linear-gradient(135deg, hsla(0,84%,60%,0.06) 0%, rgba(255,255,255,0.90) 100%); }
-html.light .stat-card-blue { background: linear-gradient(135deg, hsla(217,91%,60%,0.06) 0%, rgba(255,255,255,0.90) 100%); }
-html.light .stat-card-violet { background: linear-gradient(135deg, hsla(262,83%,58%,0.06) 0%, rgba(255,255,255,0.90) 100%); }
+html.light .stat-card-amber {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--card-shadow), 0 0 0 1px rgba(245,158,11,0.08);
+}
+html.light .stat-card-emerald {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--card-shadow), 0 0 0 1px rgba(16,185,129,0.08);
+}
+html.light .stat-card-red {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--card-shadow), 0 0 0 1px rgba(239,68,68,0.07);
+}
+html.light .stat-card-blue {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--card-shadow), 0 0 0 1px rgba(59,130,246,0.07);
+}
+html.light .stat-card-violet {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--card-shadow), 0 0 0 1px rgba(139,92,246,0.07);
+}
 html.light .text-white { color: hsl(222,47%,10%) !important; }
 html.light .text-white\/90 { color: hsl(222,47%,14%) !important; }
 html.light .text-white\/80 { color: hsl(222,47%,18%) !important; }
@@ -402,15 +430,15 @@ html.light table thead th {
   font-size: 13px;
   font-weight: 700;
   text-transform: uppercase;
-  background-color: #F1F5F9 !important;
-  color: #1E293B !important;
-  border-color: #E2E8F0 !important;
+  background-color: var(--table-header-bg) !important;
+  color: var(--table-header-text) !important;
+  border-color: var(--table-border) !important;
 }
 html.light table tbody td {
   color: #0A0F1A;
   font-size: 14px;
   font-weight: 500;
-  border-color: #E2E8F0;
+  border-color: var(--table-border);
 }
 html.light .text-gray-400 { color: #475569 !important; }
 html.light .text-gray-300 { color: #475569 !important; }
@@ -443,7 +471,7 @@ html.light select option:checked { background-color: #f0f4ff !important; color: 
 .erp-table-row:hover td:first-child {
   border-right: 2px solid rgba(245,158,11,0.4);
 }
-html.light .erp-table-row:hover { background: rgba(0,0,0,0.03) !important; }
+html.light .erp-table-row:hover { background: var(--table-row-hover) !important; }
 
 /* ─────── Action icon button ────────────────────── */
 .btn-icon {
