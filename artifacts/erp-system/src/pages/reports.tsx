@@ -13,7 +13,8 @@ import { printSalesReport, printPurchasesReport, printSaleInvoice, printPurchase
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend,
+  PieChart, Pie, Cell,
+  BarChart, Bar, LabelList, ReferenceLine,
 } from "recharts";
 import { TableSkeleton } from "@/components/skeletons";
 
@@ -237,54 +238,141 @@ function HeroKPICard({ label, value, prevValue, sub, border, icon, valueColor = 
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
- *  Animated Waterfall Section
+ *  Recharts Waterfall Chart
  * ───────────────────────────────────────────────────────────────────────────── */
 
+const WF_COLORS = {
+  revenue:     { fill: "#10b981", stroke: "#059669" },
+  cost:        { fill: "#ef4444", stroke: "#dc2626" },
+  grossPos:    { fill: "#f59e0b", stroke: "#d97706" },
+  grossNeg:    { fill: "#ef4444", stroke: "#dc2626" },
+  expenses:    { fill: "#f97316", stroke: "#ea580c" },
+  netPos:      { fill: "#10b981", stroke: "#059669" },
+  netNeg:      { fill: "#ef4444", stroke: "#dc2626" },
+};
+
 function WaterfallSection({ pl }: { pl: ProfitsData }) {
-  const maxVal = Math.max(pl.total_revenue, 1);
-  const rows = [
-    { label: "إجمالي المبيعات",   value: pl.total_revenue,   sign: "+", gradient: "from-emerald-600 to-emerald-400", textCls: "text-emerald-400", isResult: false },
-    { label: "(-) تكلفة البضاعة", value: pl.total_cost,      sign: "-", gradient: "from-red-600 to-red-400",     textCls: "text-red-400",     isResult: false },
-    { label: "= مجمل الربح",      value: pl.gross_profit,    sign: pl.gross_profit >= 0 ? "+" : "-", gradient: pl.gross_profit >= 0 ? "from-amber-600 to-amber-400" : "from-red-600 to-red-400", textCls: pl.gross_profit >= 0 ? "text-amber-400" : "text-red-400", isResult: true },
-    { label: "(-) المصروفات",     value: pl.total_expenses,  sign: "-", gradient: "from-orange-600 to-orange-400", textCls: "text-orange-400",  isResult: false },
-    { label: "= صافي الربح",      value: Math.abs(pl.net_profit), sign: pl.net_profit >= 0 ? "+" : "-", gradient: pl.net_profit >= 0 ? "from-emerald-600 to-emerald-400" : "from-red-700 to-red-500", textCls: pl.net_profit >= 0 ? "text-emerald-400" : "text-red-400", isResult: true },
-  ];
+  const { total_revenue: rev, total_cost: cost, gross_profit: gross, total_expenses: exp, net_profit: net } = pl;
+
+  const wfData = useMemo(() => {
+    const items = [
+      {
+        name: "إجمالي المبيعات",
+        displayVal: rev,
+        base: 0,
+        fill: WF_COLORS.revenue.fill,
+        stroke: WF_COLORS.revenue.stroke,
+        label: `+${formatCurrency(rev)}`,
+        isResult: false,
+      },
+      {
+        name: "(-) تكلفة البضاعة",
+        displayVal: cost,
+        base: Math.max(gross, 0),
+        fill: WF_COLORS.cost.fill,
+        stroke: WF_COLORS.cost.stroke,
+        label: `-${formatCurrency(cost)}`,
+        isResult: false,
+      },
+      {
+        name: "= مجمل الربح",
+        displayVal: Math.abs(gross),
+        base: gross >= 0 ? 0 : gross,
+        fill: gross >= 0 ? WF_COLORS.grossPos.fill : WF_COLORS.grossNeg.fill,
+        stroke: gross >= 0 ? WF_COLORS.grossPos.stroke : WF_COLORS.grossNeg.stroke,
+        label: `${gross >= 0 ? "=" : "="} ${formatCurrency(gross)}`,
+        isResult: true,
+      },
+      {
+        name: "(-) المصروفات",
+        displayVal: exp,
+        base: Math.max(net, 0),
+        fill: WF_COLORS.expenses.fill,
+        stroke: WF_COLORS.expenses.stroke,
+        label: `-${formatCurrency(exp)}`,
+        isResult: false,
+      },
+      {
+        name: "= صافي الربح",
+        displayVal: Math.abs(net),
+        base: net >= 0 ? 0 : net,
+        fill: net >= 0 ? WF_COLORS.netPos.fill : WF_COLORS.netNeg.fill,
+        stroke: net >= 0 ? WF_COLORS.netPos.stroke : WF_COLORS.netNeg.stroke,
+        label: `${net >= 0 ? "+" : "-"} ${formatCurrency(Math.abs(net))}`,
+        isResult: true,
+      },
+    ];
+    return items;
+  }, [rev, cost, gross, exp, net]);
+
+  const maxDomain = Math.max(rev, cost, Math.abs(gross), exp, Math.abs(net), 1);
+
+  const customLabel = (props: any) => {
+    const { x, y, width, height, index } = props;
+    const item = wfData[index];
+    if (!item) return null;
+    const cx = x + width / 2;
+    const cy = height > 24 ? y + height / 2 : y - 6;
+    const anchor = "middle";
+    return (
+      <text x={cx} y={cy} textAnchor={anchor} dominantBaseline="middle"
+        fill="rgba(255,255,255,0.9)" fontSize={10} fontWeight={700}
+        fontFamily="Tajawal, Cairo, sans-serif">
+        {item.label}
+      </text>
+    );
+  };
 
   return (
     <div className="glass-panel rounded-2xl p-6 border border-white/5" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
       <h3 className="text-white font-bold mb-5 flex items-center gap-2 text-sm">
-        <BarChart3 className="w-4 h-4 text-amber-400" /> تدفق الأرباح والخسائر
+        <BarChart3 className="w-4 h-4 text-amber-400" /> تدفق الأرباح والخسائر (Waterfall)
       </h3>
-      <div className="space-y-3">
-        {rows.map((row, i) => {
-          const pct = Math.min((row.value / maxVal) * 100, 100);
-          return (
-            <div key={i} className={row.isResult ? "pt-2 border-t border-white/10" : ""}>
-              <div className="flex items-center gap-3">
-                <span className="text-white/50 text-xs w-36 text-right flex-shrink-0">{row.label}</span>
-                <div className="flex-1 h-7 bg-white/4 rounded-lg overflow-hidden relative">
-                  <motion.div
-                    className={`absolute inset-y-0 right-0 rounded-lg bg-gradient-to-l ${row.gradient}`}
-                    style={{ opacity: 0.8 }}
-                    initial={{ width: "0%" }}
-                    animate={{ width: `${pct}%` }}
-                    transition={{ duration: 0.75, delay: i * 0.1, ease: "easeOut" }}
-                  />
-                  {row.isResult && (
-                    <motion.div
-                      className="absolute inset-0 rounded-lg"
-                      style={{ background: "repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(255,255,255,0.03) 4px, rgba(255,255,255,0.03) 8px)" }}
-                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.1 + 0.6 }}
-                    />
-                  )}
-                </div>
-                <span className={`text-sm font-black w-28 text-right flex-shrink-0 ${row.textCls}`}>
-                  {row.sign}{formatCurrency(row.value)}
-                </span>
-              </div>
-            </div>
-          );
-        })}
+      <ResponsiveContainer width="100%" height={200}>
+        <BarChart data={wfData} margin={{ top: 12, right: 16, left: 8, bottom: 0 }} barCategoryGap="20%">
+          <XAxis
+            dataKey="name"
+            tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 10, fontFamily: "Tajawal, Cairo, sans-serif" }}
+            axisLine={false} tickLine={false}
+          />
+          <YAxis hide domain={[Math.min(net < 0 ? net : 0, 0) * 1.05, maxDomain * 1.1]} />
+          <ReferenceLine y={0} stroke="rgba(255,255,255,0.15)" strokeWidth={1} />
+          <Tooltip
+            contentStyle={{ background: "rgba(10,18,35,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, fontSize: 11, fontFamily: "Tajawal, Cairo" }}
+            formatter={(_: any, __: any, props: any) => {
+              const item = wfData[props.index];
+              return [item ? item.label : "", item?.name ?? ""];
+            }}
+            labelFormatter={(label) => `${label}`}
+          />
+          <Bar dataKey="base" stackId="wf" fill="transparent" isAnimationActive={false} />
+          <Bar dataKey="displayVal" stackId="wf" radius={[4, 4, 0, 0]} isAnimationActive animationDuration={800} animationEasing="ease-out">
+            {wfData.map((entry, i) => (
+              <Cell key={i}
+                fill={entry.fill}
+                stroke={entry.isResult ? entry.stroke : "transparent"}
+                strokeWidth={entry.isResult ? 1.5 : 0}
+                style={entry.isResult ? { filter: `drop-shadow(0 0 6px ${entry.fill}66)` } : {}}
+              />
+            ))}
+            <LabelList content={customLabel} />
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+
+      {/* Legend */}
+      <div className="flex flex-wrap justify-center gap-4 mt-3">
+        {[
+          { color: WF_COLORS.revenue.fill,   label: "إيراد" },
+          { color: WF_COLORS.cost.fill,      label: "تكلفة/مصروف" },
+          { color: WF_COLORS.grossPos.fill,  label: "نتيجة إيجابية" },
+          { color: WF_COLORS.netNeg.fill,    label: "نتيجة سلبية" },
+        ].map(l => (
+          <div key={l.label} className="flex items-center gap-1.5 text-xs text-white/40">
+            <div className="w-3 h-2 rounded-sm" style={{ background: l.color }} />
+            {l.label}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -441,10 +529,13 @@ function ExpenseDonutChart({ data, total }: { data: ProfitsData["by_expense_cate
  * ───────────────────────────────────────────────────────────────────────────── */
 
 const MEDALS = ["🥇", "🥈", "🥉"];
-const MEDAL_BORDERS = [
-  "border-amber-400/50 shadow-amber-400/10",
-  "border-slate-400/40 shadow-slate-400/10",
-  "border-orange-700/40 shadow-orange-700/10",
+
+const MEDAL_GLOW = [
+  "shadow-amber-400/20 border-amber-400/40",
+  "shadow-slate-400/15 border-slate-400/30",
+  "shadow-orange-700/15 border-orange-700/30",
+  "border-white/8",
+  "border-white/8",
 ];
 
 function RankedProductsList({ products }: { products: ProfitsData["by_product"] }) {
@@ -452,62 +543,67 @@ function RankedProductsList({ products }: { products: ProfitsData["by_product"] 
   if (top.length === 0) return null;
 
   return (
-    <div className="glass-panel rounded-2xl overflow-hidden border border-white/5" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
-      <div className="p-4 border-b border-white/8 flex items-center gap-2">
+    <div className="space-y-3" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
+      <div className="flex items-center gap-2 px-1">
         <ShoppingBag className="w-4 h-4 text-amber-400" />
-        <h3 className="text-white font-bold text-sm">أعلى 5 منتجات ربحية</h3>
+        <h3 className="text-white font-bold text-sm">أعلى المنتجات ربحية</h3>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-right text-sm whitespace-nowrap" dir="rtl">
-          <thead>
-            <tr style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-              <th className="px-4 py-3 text-white/30 font-medium text-xs">#</th>
-              <th className="px-4 py-3 text-white/30 font-medium text-xs">المنتج</th>
-              <th className="px-4 py-3 text-white/30 font-medium text-xs">كمية مباعة</th>
-              <th className="px-4 py-3 text-white/30 font-medium text-xs">الإيراد</th>
-              <th className="px-4 py-3 text-white/30 font-medium text-xs">التكلفة</th>
-              <th className="px-4 py-3 text-white/30 font-medium text-xs">الربح</th>
-              <th className="px-4 py-3 text-white/30 font-medium text-xs">هامش%</th>
-            </tr>
-          </thead>
-          <tbody>
-            {top.map((p, i) => {
-              const margin = p.revenue > 0 ? (p.profit / p.revenue) * 100 : 0;
-              return (
-                <motion.tr
-                  key={p.product_id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: i * 0.07 }}
-                  className="border-b border-white/[0.05] hover:bg-white/[0.025] transition-colors"
-                >
-                  <td className="px-4 py-3">
-                    <span className="text-base">{MEDALS[i] ?? `#${i + 1}`}</span>
-                  </td>
-                  <td className="px-4 py-3 font-bold text-white">{p.product_name}</td>
-                  <td className="px-4 py-3 text-white/60 tabular-nums">{p.qty_sold} وحدة</td>
-                  <td className="px-4 py-3 text-emerald-400 font-bold tabular-nums">{formatCurrency(p.revenue)}</td>
-                  <td className="px-4 py-3 text-red-400 tabular-nums">{formatCurrency(p.cost)}</td>
-                  <td className="px-4 py-3">
-                    <span className={`font-black tabular-nums ${p.profit >= 0 ? "text-amber-400" : "text-red-400"}`}>
-                      {formatCurrency(p.profit)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs font-bold px-2 py-1 rounded-lg border ${
-                      margin >= 50 ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400"
-                      : margin >= 30 ? "bg-amber-500/15 border-amber-500/30 text-amber-400"
-                      : "bg-red-500/15 border-red-500/30 text-red-400"
-                    }`}>
-                      {margin.toFixed(1)}%
-                    </span>
-                  </td>
-                </motion.tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      {top.map((p, i) => {
+        const margin     = p.revenue > 0 ? (p.profit / p.revenue) * 100 : 0;
+        const barColor   = margin >= 50 ? "#10b981" : margin >= 30 ? "#f59e0b" : "#ef4444";
+        const marginCls  = margin >= 50 ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-400"
+                         : margin >= 30 ? "bg-amber-500/20 border-amber-500/30 text-amber-400"
+                         : "bg-red-500/20 border-red-500/30 text-red-400";
+        return (
+          <motion.div
+            key={p.product_id}
+            initial={{ opacity: 0, x: 30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.4, delay: i * 0.1, ease: "easeOut" }}
+            whileHover={{ y: -3, transition: { duration: 0.15 } }}
+            className={`glass-panel rounded-2xl p-4 border shadow-lg ${MEDAL_GLOW[i] ?? "border-white/8"}`}
+          >
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl leading-none select-none">{MEDALS[i] ?? `#${i + 1}`}</span>
+                <div>
+                  <p className="text-white font-bold">{p.product_name}</p>
+                  <p className="text-white/30 text-xs mt-0.5">{p.qty_sold} وحدة مباعة</p>
+                </div>
+              </div>
+              <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${marginCls}`}>
+                هامش: {margin.toFixed(1)}%
+              </span>
+            </div>
+
+            {/* Progress bar */}
+            <div className="h-2 bg-white/5 rounded-full overflow-hidden mb-3">
+              <motion.div
+                className="h-full rounded-full"
+                style={{ background: `linear-gradient(to left, ${barColor}cc, ${barColor})` }}
+                initial={{ width: "0%" }}
+                animate={{ width: `${Math.min(margin, 100)}%` }}
+                transition={{ duration: 0.9, delay: i * 0.1 + 0.3, ease: "easeOut" }}
+              />
+            </div>
+
+            {/* Stats row */}
+            <div className="flex gap-4 text-xs flex-wrap">
+              <span className="text-white/40">
+                إيراد: <span className="text-emerald-400 font-bold">{formatCurrency(p.revenue)}</span>
+              </span>
+              <span className="text-white/20">|</span>
+              <span className="text-white/40">
+                تكلفة: <span className="text-red-400 font-bold">{formatCurrency(p.cost)}</span>
+              </span>
+              <span className="text-white/20">|</span>
+              <span className="text-white/40">
+                ربح: <span className={`font-black ${p.profit >= 0 ? "text-amber-400" : "text-red-400"}`}>{formatCurrency(p.profit)}</span>
+              </span>
+            </div>
+          </motion.div>
+        );
+      })}
     </div>
   );
 }
