@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useGetCustomers, useCreateCustomer, useGetSales, useGetPurchases, useGetSettingsSafes } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
+import { authFetch } from "@/lib/auth-fetch";
 import {
   Plus, Search, DollarSign, FileText, X,
   TrendingUp, TrendingDown, RotateCcw, ArrowUpFromLine, ArrowDownToLine,
@@ -210,19 +211,19 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
   const { data: allPurchases = [] } = useGetPurchases();
   const { data: receiptVouchers = [] } = useQuery<ReceiptVoucher[]>({
     queryKey: ["/api/receipt-vouchers"],
-    queryFn: () => fetch(api("/api/receipt-vouchers")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
+    queryFn: () => authFetch(api("/api/receipt-vouchers")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
   const { data: paymentVouchers = [] } = useQuery<PaymentVoucher[]>({
     queryKey: ["/api/payment-vouchers"],
-    queryFn: () => fetch(api("/api/payment-vouchers")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
+    queryFn: () => authFetch(api("/api/payment-vouchers")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
   const { data: salesReturns = [] } = useQuery<SaleReturn[]>({
     queryKey: ["/api/sales-returns"],
-    queryFn: () => fetch(api("/api/sales-returns")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
+    queryFn: () => authFetch(api("/api/sales-returns")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
   const { data: allTransactions = [] } = useQuery<FinancialTransaction[]>({
     queryKey: ["/api/transactions"],
-    queryFn: () => fetch(api("/api/transactions")).then(r => { if (!r.ok) throw new Error("خطأ"); return r.json(); }),
+    queryFn: () => authFetch(api("/api/transactions")).then(r => { if (!r.ok) throw new Error("خطأ"); return r.json(); }),
     enabled: isSupplier,
   });
 
@@ -382,11 +383,19 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
                 <p className="text-white/40 text-xs">{returns_.length} مرتجع</p>
               </div>
             )}
-            <div className={`${customerBalance > 0 ? 'bg-red-500/10 border-red-500/20' : customerBalance < 0 ? 'bg-blue-500/10 border-blue-500/20' : 'bg-white/5 border-white/10'} border rounded-2xl p-3 text-center`}>
-              <p className={`text-xs mb-1 ${customerBalance > 0 ? 'text-red-400' : customerBalance < 0 ? 'text-blue-400' : 'text-white/40'}`}>الرصيد الصافي</p>
-              <p className={`font-black ${customerBalance > 0 ? 'text-red-400' : customerBalance < 0 ? 'text-blue-400' : 'text-white/40'}`}>{formatCurrency(Math.abs(customerBalance))}</p>
-              <p className="text-white/40 text-xs">{customerBalance > 0 ? 'عليه' : customerBalance < 0 ? 'دائن له' : 'متسوّى'}</p>
-            </div>
+            {isSupplier ? (
+              <div className={`${customerBalance > 0 ? 'bg-green-500/10 border-green-500/20' : customerBalance < 0 ? 'bg-red-500/10 border-red-500/20' : 'bg-white/5 border-white/10'} border rounded-2xl p-3 text-center`}>
+                <p className={`text-xs mb-1 ${customerBalance > 0 ? 'text-green-400' : customerBalance < 0 ? 'text-red-400' : 'text-white/40'}`}>الرصيد الصافي</p>
+                <p className={`font-black ${customerBalance > 0 ? 'text-green-400' : customerBalance < 0 ? 'text-red-400' : 'text-white/40'}`}>{formatCurrency(Math.abs(customerBalance))}</p>
+                <p className="text-white/40 text-xs">{customerBalance > 0 ? 'عليه لنا' : customerBalance < 0 ? 'له علينا' : 'متسوّى'}</p>
+              </div>
+            ) : (
+              <div className={`${customerBalance > 0 ? 'bg-amber-500/10 border-amber-500/20' : customerBalance < 0 ? 'bg-blue-500/10 border-blue-500/20' : 'bg-white/5 border-white/10'} border rounded-2xl p-3 text-center`}>
+                <p className={`text-xs mb-1 ${customerBalance > 0 ? 'text-amber-400' : customerBalance < 0 ? 'text-blue-400' : 'text-white/40'}`}>الرصيد الصافي</p>
+                <p className={`font-black ${customerBalance > 0 ? 'text-amber-400' : customerBalance < 0 ? 'text-blue-400' : 'text-white/40'}`}>{formatCurrency(Math.abs(customerBalance))}</p>
+                <p className="text-white/40 text-xs">{customerBalance > 0 ? 'عليه' : customerBalance < 0 ? 'دائن له' : 'متسوّى'}</p>
+              </div>
+            )}
           </div>
 
           {/* ─── دليل الرموز ─── */}
@@ -429,11 +438,19 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
                         <td className="p-3 text-center font-bold text-amber-400">{r.debit > 0 ? formatCurrency(r.debit) : "—"}</td>
                         <td className="p-3 text-center font-bold text-emerald-400">{r.credit > 0 ? formatCurrency(r.credit) : "—"}</td>
                         <td className="p-3 text-center font-black">
-                          <span className={r.balance > 0 ? 'text-yellow-400' : r.balance < 0 ? 'text-blue-400' : 'text-white/40'}>
-                            {r.balance !== 0
-                              ? `${formatCurrency(Math.abs(r.balance))} ${r.balance > 0 ? 'عليه ↑' : 'دائن ↓'}`
-                              : 'صفر'}
-                          </span>
+                          {isSupplier ? (
+                            <span className={r.balance > 0 ? 'text-green-400' : r.balance < 0 ? 'text-red-400' : 'text-white/40'}>
+                              {r.balance !== 0
+                                ? `${formatCurrency(Math.abs(r.balance))} ${r.balance > 0 ? 'عليه لنا' : 'له علينا'}`
+                                : 'صفر'}
+                            </span>
+                          ) : (
+                            <span className={r.balance > 0 ? 'text-yellow-400' : r.balance < 0 ? 'text-blue-400' : 'text-white/40'}>
+                              {r.balance !== 0
+                                ? `${formatCurrency(Math.abs(r.balance))} ${r.balance > 0 ? 'عليه' : 'دائن'}`
+                                : 'صفر'}
+                            </span>
+                          )}
                         </td>
                       </tr>
                     );
@@ -445,9 +462,15 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
                     <td className="p-3 text-center font-black text-amber-400">{formatCurrency(rowsWithBalance.reduce((s, r) => s + r.debit, 0))}</td>
                     <td className="p-3 text-center font-black text-emerald-400">{formatCurrency(rowsWithBalance.reduce((s, r) => s + r.credit, 0))}</td>
                     <td className="p-3 text-center font-black">
-                      <span className={customerBalance > 0 ? 'text-yellow-400' : customerBalance < 0 ? 'text-blue-400' : 'text-white/40'}>
-                        {formatCurrency(Math.abs(customerBalance))} {customerBalance > 0 ? 'عليه' : customerBalance < 0 ? 'دائن' : ''}
-                      </span>
+                      {isSupplier ? (
+                        <span className={customerBalance > 0 ? 'text-green-400' : customerBalance < 0 ? 'text-red-400' : 'text-white/40'}>
+                          {formatCurrency(Math.abs(customerBalance))} {customerBalance > 0 ? 'عليه لنا' : customerBalance < 0 ? 'له علينا' : ''}
+                        </span>
+                      ) : (
+                        <span className={customerBalance > 0 ? 'text-yellow-400' : customerBalance < 0 ? 'text-blue-400' : 'text-white/40'}>
+                          {formatCurrency(Math.abs(customerBalance))} {customerBalance > 0 ? 'عليه' : customerBalance < 0 ? 'دائن' : ''}
+                        </span>
+                      )}
                     </td>
                   </tr>
                 </tfoot>
@@ -500,9 +523,8 @@ export default function Customers() {
   // سند القبض يستخدم مسار receipt-vouchers المباشر
   const receiptMutation = useMutation({
     mutationFn: async (data: { customer_id: number; customer_name: string; safe_id: string; amount: string; notes: string }) => {
-      const r = await fetch(api("/api/receipt-vouchers"), {
+      const r = await authFetch(api("/api/receipt-vouchers"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customer_id: data.customer_id,
           customer_name: data.customer_name,
@@ -546,9 +568,8 @@ export default function Customers() {
   // ─── تسديد دفعة للمورد ───
   const supplierPaymentMutation = useMutation({
     mutationFn: async (data: { customer_id: number; safe_id: string; amount: string; notes: string }) => {
-      const r = await fetch(api(`/api/customers/${data.customer_id}/supplier-payment`), {
+      const r = await authFetch(api(`/api/customers/${data.customer_id}/supplier-payment`), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ safe_id: parseInt(data.safe_id), amount: parseFloat(data.amount), notes: data.notes || null }),
       });
       const j = await r.json();
@@ -579,9 +600,8 @@ export default function Customers() {
   // ─── تعديل عميل ───
   const updateMutation = useMutation({
     mutationFn: async (data: { id: number; name: string; phone: string; is_supplier: boolean }) => {
-      const r = await fetch(api(`/api/customers/${data.id}`), {
+      const r = await authFetch(api(`/api/customers/${data.id}`), {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: data.name, phone: data.phone || null, is_supplier: data.is_supplier }),
       });
       const j = await r.json();
@@ -606,7 +626,7 @@ export default function Customers() {
   // ─── حذف عميل ───
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      const r = await fetch(api(`/api/customers/${id}`), { method: "DELETE" });
+      const r = await authFetch(api(`/api/customers/${id}`), { method: "DELETE" });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "خطأ في الحذف");
       return j;
