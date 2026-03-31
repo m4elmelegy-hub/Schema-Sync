@@ -194,6 +194,16 @@ router.get("/profits", wrap(async (req, res) => {
     }
   }
 
+  // ── تجميع المصروفات حسب الفئة ─────────────────────────────────────────────
+  const byCatMap = new Map<string, number>();
+  for (const e of allExpenses) {
+    const cat = e.category ?? "أخرى";
+    byCatMap.set(cat, (byCatMap.get(cat) ?? 0) + Number(e.amount));
+  }
+  const byExpenseCategory = Array.from(byCatMap.entries())
+    .map(([category, total]) => ({ category, total: Math.round(total * 100) / 100 }))
+    .sort((a, b) => b.total - a.total);
+
   const grossProfit = totalRevenue - totalCost;
   const netProfit = grossProfit - totalExpenses;
   const profitMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
@@ -226,6 +236,7 @@ router.get("/profits", wrap(async (req, res) => {
     by_product: byProductArr,
     by_month: byMonthArr,
     by_day: byDayArr,
+    by_expense_category: byExpenseCategory,
   });
 }));
 

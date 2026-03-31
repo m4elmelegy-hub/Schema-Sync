@@ -13,6 +13,7 @@ import { printSalesReport, printPurchasesReport, printSaleInvoice, printPurchase
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend,
 } from "recharts";
 import { TableSkeleton } from "@/components/skeletons";
 
@@ -123,9 +124,10 @@ interface ProfitsData {
   by_product: Array<{ product_id: number; product_name: string; qty_sold: number; revenue: number; cost: number; profit: number; profit_margin: number }>;
   by_month: Array<{ month: string; revenue: number; cost: number; profit: number }>;
   by_day:   Array<{ day:   string; revenue: number; cost: number; profit: number }>;
+  by_expense_category: Array<{ category: string; total: number }>;
 }
 
-const EMPTY_PL: ProfitsData = { total_revenue: 0, total_cost: 0, gross_profit: 0, profit_margin: 0, net_profit: 0, total_expenses: 0, invoice_count: 0, item_count: 0, by_product: [], by_month: [], by_day: [] };
+const EMPTY_PL: ProfitsData = { total_revenue: 0, total_cost: 0, gross_profit: 0, profit_margin: 0, net_profit: 0, total_expenses: 0, invoice_count: 0, item_count: 0, by_product: [], by_month: [], by_day: [], by_expense_category: [] };
 
 /* ─── Shared small helpers ──────────────────────────────────────────────────── */
 
@@ -370,6 +372,71 @@ function TrendAreaChart({ by_month, by_day }: { by_month: ProfitsData["by_month"
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+ *  Expense Donut Chart
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+const DONUT_COLORS = ["#f59e0b","#ef4444","#3b82f6","#10b981","#8b5cf6","#f97316","#06b6d4","#ec4899","#84cc16","#6b7280"];
+
+function ExpenseDonutChart({ data, total }: { data: ProfitsData["by_expense_category"]; total: number }) {
+  if (!data || data.length === 0) {
+    return (
+      <div className="glass-panel rounded-2xl p-5 border border-white/5 flex flex-col items-center justify-center" style={{ minHeight: 260, fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
+        <DollarSign className="w-8 h-8 text-white/15 mb-2" />
+        <p className="text-white/30 text-sm">لا توجد مصروفات في هذه الفترة</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="glass-panel rounded-2xl p-5 border border-white/5" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
+      <h3 className="text-white font-bold mb-4 flex items-center gap-2 text-sm">
+        <DollarSign className="w-4 h-4 text-red-400" /> توزيع المصروفات ({formatCurrency(total)})
+      </h3>
+      <div className="flex flex-col sm:flex-row items-center gap-4">
+        <ResponsiveContainer width={180} height={180}>
+          <PieChart>
+            <Pie
+              data={data}
+              cx="50%"
+              cy="50%"
+              innerRadius={52}
+              outerRadius={80}
+              dataKey="total"
+              nameKey="category"
+              strokeWidth={0}
+            >
+              {data.map((_, i) => (
+                <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip
+              contentStyle={{ background: "rgba(10,18,35,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }}
+              formatter={(value: number) => [formatCurrency(value), ""]}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="flex-1 space-y-2 w-full">
+          {data.slice(0, 6).map((item, i) => {
+            const pct = total > 0 ? (item.total / total) * 100 : 0;
+            return (
+              <div key={item.category} className="flex items-center gap-2">
+                <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: DONUT_COLORS[i % DONUT_COLORS.length] }} />
+                <span className="text-white/60 text-xs flex-1 truncate">{item.category}</span>
+                <span className="text-white/40 text-xs">{pct.toFixed(0)}%</span>
+                <span className="text-white/70 text-xs font-bold tabular-nums">{formatCurrency(item.total)}</span>
+              </div>
+            );
+          })}
+          {data.length > 6 && (
+            <p className="text-white/25 text-xs">+ {data.length - 6} فئات أخرى</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
  *  Ranked Products List
  * ───────────────────────────────────────────────────────────────────────────── */
 
@@ -385,53 +452,61 @@ function RankedProductsList({ products }: { products: ProfitsData["by_product"] 
   if (top.length === 0) return null;
 
   return (
-    <div className="glass-panel rounded-2xl border border-white/5 overflow-hidden" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
+    <div className="glass-panel rounded-2xl overflow-hidden border border-white/5" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
       <div className="p-4 border-b border-white/8 flex items-center gap-2">
         <ShoppingBag className="w-4 h-4 text-amber-400" />
-        <h3 className="text-white font-bold text-sm">أعلى المنتجات ربحية</h3>
+        <h3 className="text-white font-bold text-sm">أعلى 5 منتجات ربحية</h3>
       </div>
-      <div className="divide-y divide-white/5">
-        {top.map((p, i) => {
-          const margin = p.revenue > 0 ? (p.profit / p.revenue) * 100 : 0;
-          const barColor = margin >= 50 ? "#10b981" : margin >= 30 ? "#f59e0b" : "#ef4444";
-          return (
-            <motion.div
-              key={p.product_id}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.35, delay: i * 0.1 }}
-              className={`p-4 hover:bg-white/3 transition-colors ${i < 3 ? `border-r-2 ${MEDAL_BORDERS[i].split(" ")[0]}` : ""}`}
-            >
-              <div className="flex items-start justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xl leading-none">{MEDALS[i] ?? `#${i + 1}`}</span>
-                  <div>
-                    <p className="text-white font-bold text-sm">{p.product_name}</p>
-                    <p className="text-white/30 text-xs">{p.qty_sold} وحدة مباعة</p>
-                  </div>
-                </div>
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${margin >= 50 ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400" : margin >= 30 ? "bg-amber-500/15 border-amber-500/30 text-amber-400" : "bg-red-500/15 border-red-500/30 text-red-400"}`}>
-                  هامش: {margin.toFixed(1)}%
-                </span>
-              </div>
-              {/* Progress bar */}
-              <div className="h-1.5 bg-white/5 rounded-full overflow-hidden mb-2">
-                <motion.div
-                  className="h-full rounded-full"
-                  style={{ background: barColor }}
-                  initial={{ width: "0%" }}
-                  animate={{ width: `${Math.min(margin, 100)}%` }}
-                  transition={{ duration: 0.7, delay: i * 0.1 + 0.2, ease: "easeOut" }}
-                />
-              </div>
-              <div className="flex gap-4 text-xs text-white/40">
-                <span>إيراد: <span className="text-emerald-400 font-bold">{formatCurrency(p.revenue)}</span></span>
-                <span>تكلفة: <span className="text-red-400 font-bold">{formatCurrency(p.cost)}</span></span>
-                <span>ربح: <span className={`font-bold ${p.profit >= 0 ? "text-amber-400" : "text-red-400"}`}>{formatCurrency(p.profit)}</span></span>
-              </div>
-            </motion.div>
-          );
-        })}
+      <div className="overflow-x-auto">
+        <table className="w-full text-right text-sm whitespace-nowrap" dir="rtl">
+          <thead>
+            <tr style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+              <th className="px-4 py-3 text-white/30 font-medium text-xs">#</th>
+              <th className="px-4 py-3 text-white/30 font-medium text-xs">المنتج</th>
+              <th className="px-4 py-3 text-white/30 font-medium text-xs">كمية مباعة</th>
+              <th className="px-4 py-3 text-white/30 font-medium text-xs">الإيراد</th>
+              <th className="px-4 py-3 text-white/30 font-medium text-xs">التكلفة</th>
+              <th className="px-4 py-3 text-white/30 font-medium text-xs">الربح</th>
+              <th className="px-4 py-3 text-white/30 font-medium text-xs">هامش%</th>
+            </tr>
+          </thead>
+          <tbody>
+            {top.map((p, i) => {
+              const margin = p.revenue > 0 ? (p.profit / p.revenue) * 100 : 0;
+              return (
+                <motion.tr
+                  key={p.product_id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: i * 0.07 }}
+                  className="border-b border-white/[0.05] hover:bg-white/[0.025] transition-colors"
+                >
+                  <td className="px-4 py-3">
+                    <span className="text-base">{MEDALS[i] ?? `#${i + 1}`}</span>
+                  </td>
+                  <td className="px-4 py-3 font-bold text-white">{p.product_name}</td>
+                  <td className="px-4 py-3 text-white/60 tabular-nums">{p.qty_sold} وحدة</td>
+                  <td className="px-4 py-3 text-emerald-400 font-bold tabular-nums">{formatCurrency(p.revenue)}</td>
+                  <td className="px-4 py-3 text-red-400 tabular-nums">{formatCurrency(p.cost)}</td>
+                  <td className="px-4 py-3">
+                    <span className={`font-black tabular-nums ${p.profit >= 0 ? "text-amber-400" : "text-red-400"}`}>
+                      {formatCurrency(p.profit)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`text-xs font-bold px-2 py-1 rounded-lg border ${
+                      margin >= 50 ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400"
+                      : margin >= 30 ? "bg-amber-500/15 border-amber-500/30 text-amber-400"
+                      : "bg-red-500/15 border-red-500/30 text-red-400"
+                    }`}>
+                      {margin.toFixed(1)}%
+                    </span>
+                  </td>
+                </motion.tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -518,13 +593,16 @@ function ProfitLossReport() {
           valueColor={pl.net_profit >= 0 ? "text-white" : "text-red-400"} />
       </div>
 
-      {/* ── Waterfall + Area Chart ── */}
+      {/* ── Waterfall P&L Statement ── */}
+      <WaterfallSection pl={pl} />
+
+      {/* ── Trend Chart + Expense Donut ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <WaterfallSection pl={pl} />
         <TrendAreaChart by_month={pl.by_month} by_day={pl.by_day} />
+        <ExpenseDonutChart data={pl.by_expense_category} total={pl.total_expenses} />
       </div>
 
-      {/* ── Ranked Products ── */}
+      {/* ── Top 5 Products Table ── */}
       <RankedProductsList products={pl.by_product} />
 
       {!isLoading && pl.invoice_count === 0 && (
