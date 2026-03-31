@@ -6,6 +6,7 @@ export type AccentColor = "amber" | "emerald" | "violet" | "sky" | "rose" | "ora
 export type FontSize = "sm" | "md" | "lg" | "xl";
 export type Theme = "dark" | "light";
 export type NumberFormat = "western" | "arabic-indic";
+export type LightVariant = "soft" | "high-contrast";
 
 export interface AppSettings {
   currency: CurrencyCode;
@@ -24,6 +25,7 @@ export interface AppSettings {
   fontWeightNormal: number;  // 400 | 500 | 600 | 700
   iconSize: number;          // 16 — 36 بكسل
   theme: Theme;              // "dark" | "light"
+  lightVariant: LightVariant; // "soft" | "high-contrast" — only in light mode
 }
 
 export const FONT_SIZES: Record<FontSize, { label: string; base: string; cssVal: string }> = {
@@ -49,6 +51,7 @@ const DEFAULTS: AppSettings = {
   fontWeightNormal: 400,
   iconSize: 24,
   theme: "dark",
+  lightVariant: "soft",
 };
 
 /* ─── تحويل Hex إلى HSL ─── */
@@ -174,15 +177,17 @@ function applySettings(s: AppSettings) {
   // Icon size — حجم الأيقونات
   root.style.setProperty("--erp-icon-size", `${s.iconSize ?? 24}px`);
 
-  // Theme — dark / light
+  // Theme — dark / light + light variant
   if ((s.theme ?? "dark") === "light") {
     root.classList.add("light");
     root.classList.remove("dark");
     root.setAttribute("data-theme", "light");
+    root.setAttribute("data-light-variant", s.lightVariant ?? "soft");
   } else {
     root.classList.add("dark");
     root.classList.remove("light");
     root.setAttribute("data-theme", "dark");
+    root.removeAttribute("data-light-variant");
   }
 }
 

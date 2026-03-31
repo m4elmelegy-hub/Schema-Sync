@@ -12,14 +12,14 @@ import { authFetch } from "@/lib/auth-fetch";
 import { formatCurrency, formatDate, formatCurrencyPreview } from "@/lib/format";
 import {
   useAppSettings, CURRENCIES, FONTS,
-  type CurrencyCode, type FontFamily, type NumberFormat,
+  type CurrencyCode, type FontFamily, type NumberFormat, type LightVariant,
 } from "@/contexts/app-settings";
 import {
   Users, Landmark, Warehouse, AlertTriangle, Plus, Trash2, Edit2, X, Check,
   ArrowLeftRight, Eye, EyeOff, Save, DollarSign, Database,
   Upload, Download, RefreshCcw, Building2, Loader2, CheckCircle2,
   HardDrive, History, BookOpen, Package, UserCircle, Truck, Banknote,
-  ChevronDown, ChevronRight, Shield, Store, CaseSensitive, AlignLeft,
+  ChevronDown, ChevronRight, Shield, Store, CaseSensitive, AlignLeft, Sun,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -935,9 +935,11 @@ function CurrencyTab() {
   const [localCurrency,    setLocalCurrency]    = useState<CurrencyCode>(settings.currency);
   const [localNumFmt,      setLocalNumFmt]      = useState<NumberFormat>(settings.numberFormat ?? "western");
   const [localFontFamily,  setLocalFontFamily]  = useState<FontFamily>(settings.fontFamily);
-  const [localFontWeight,  setLocalFontWeight]  = useState<number>(settings.fontWeightNormal ?? 400);
-  const [saved,            setSaved]            = useState(false);
+  const [localFontWeight,    setLocalFontWeight]    = useState<number>(settings.fontWeightNormal ?? 400);
+  const [localLightVariant, setLocalLightVariant] = useState<LightVariant>(settings.lightVariant ?? "soft");
+  const [saved,              setSaved]              = useState(false);
 
+  const isLightMode = settings.theme === "light";
   const previewAmounts = [100, 1234.56, 50000, 999999];
 
   const handleSave = () => {
@@ -946,6 +948,7 @@ function CurrencyTab() {
       numberFormat: localNumFmt,
       fontFamily: localFontFamily,
       fontWeightNormal: localFontWeight,
+      lightVariant: localLightVariant,
     });
     setSaved(true);
     toast({ title: "تم حفظ الإعدادات ✓", description: "تم تطبيق إعدادات المتجر على كامل النظام" });
@@ -1087,6 +1090,90 @@ function CurrencyTab() {
             );
           })}
         </div>
+      </StoreSettingSection>
+
+      {/* ── قسم مظهر الواجهة ── */}
+      <StoreSettingSection icon={Sun} title="مظهر الواجهة الفاتحة">
+        {!isLightMode ? (
+          <div className="flex items-center gap-3 p-4 rounded-xl bg-[#1A2235] border border-white/5 text-center">
+            <Sun className="w-4 h-4 text-white/20 shrink-0" />
+            <p className="text-white/30 text-sm">
+              فعّل الوضع الفاتح أولاً من زر تبديل الثيم في الشريط العلوي لتفعيل هذا الخيار
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Soft */}
+            <button
+              onClick={() => { setLocalLightVariant("soft"); update({ lightVariant: "soft" }); }}
+              className={`relative flex flex-col gap-3 p-4 rounded-2xl border-2 text-right transition-all overflow-hidden ${
+                localLightVariant === "soft"
+                  ? "border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.25)]"
+                  : "border-gray-200 hover:border-amber-300"
+              }`}
+              style={{ background: "#FAFAFA" }}
+            >
+              {localLightVariant === "soft" && (
+                <span className="absolute top-3 left-3 w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center">
+                  <Check className="w-3 h-3 text-white" />
+                </span>
+              )}
+              {/* Mini UI preview */}
+              <div className="w-full rounded-xl overflow-hidden border border-gray-200 shadow-sm" style={{ background: "#FFFFFF" }}>
+                <div className="h-5 flex items-center gap-1.5 px-2" style={{ background: "#F5F5F5", borderBottom: "1px solid #E5E7EB" }}>
+                  <div className="w-8 h-1.5 rounded-full" style={{ background: "#E5E7EB" }} />
+                  <div className="w-12 h-1.5 rounded-full" style={{ background: "#E5E7EB" }} />
+                </div>
+                <div className="p-2 flex gap-1.5">
+                  <div className="flex-1 h-7 rounded-lg" style={{ background: "#F5F5F5", border: "1px solid #E5E7EB" }} />
+                  <div className="flex-1 h-7 rounded-lg" style={{ background: "#F5F5F5", border: "1px solid #E5E7EB" }} />
+                </div>
+                <div className="px-2 pb-2">
+                  <div className="h-12 rounded-lg" style={{ background: "#F9FAFB", border: "1px solid #E5E7EB" }} />
+                </div>
+              </div>
+              <div>
+                <p className="font-bold text-gray-800 text-sm">ناعم — Soft</p>
+                <p className="text-gray-400 text-xs mt-0.5">خلفية كريمية هادئة، حدود خفيفة، ظلال ناعمة</p>
+              </div>
+            </button>
+
+            {/* High Contrast */}
+            <button
+              onClick={() => { setLocalLightVariant("high-contrast"); update({ lightVariant: "high-contrast" }); }}
+              className={`relative flex flex-col gap-3 p-4 rounded-2xl border-2 text-right transition-all overflow-hidden ${
+                localLightVariant === "high-contrast"
+                  ? "border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.25)]"
+                  : "border-gray-300 hover:border-amber-300"
+              }`}
+              style={{ background: "#FFFFFF" }}
+            >
+              {localLightVariant === "high-contrast" && (
+                <span className="absolute top-3 left-3 w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center">
+                  <Check className="w-3 h-3 text-white" />
+                </span>
+              )}
+              {/* Mini UI preview */}
+              <div className="w-full rounded-xl overflow-hidden border border-gray-400 shadow-md" style={{ background: "#FFFFFF" }}>
+                <div className="h-5 flex items-center gap-1.5 px-2" style={{ background: "#E8EBF0", borderBottom: "1px solid #9CA3AF" }}>
+                  <div className="w-8 h-1.5 rounded-full" style={{ background: "#6B7280" }} />
+                  <div className="w-12 h-1.5 rounded-full" style={{ background: "#9CA3AF" }} />
+                </div>
+                <div className="p-2 flex gap-1.5">
+                  <div className="flex-1 h-7 rounded-lg" style={{ background: "#FFFFFF", border: "1.5px solid #6B7280" }} />
+                  <div className="flex-1 h-7 rounded-lg" style={{ background: "#FFFFFF", border: "1.5px solid #6B7280" }} />
+                </div>
+                <div className="px-2 pb-2">
+                  <div className="h-12 rounded-lg" style={{ background: "#EDF2F7", border: "1.5px solid #9CA3AF" }} />
+                </div>
+              </div>
+              <div>
+                <p className="font-bold text-gray-800 text-sm">تباين عالٍ — High Contrast</p>
+                <p className="text-gray-400 text-xs mt-0.5">خلفية بيضاء نقية، حدود داكنة، نصوص أكثر وضوحاً</p>
+              </div>
+            </button>
+          </div>
+        )}
       </StoreSettingSection>
 
       {/* Save */}

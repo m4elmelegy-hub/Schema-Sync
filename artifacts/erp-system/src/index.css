@@ -307,7 +307,7 @@
               border-color 250ms ease;
 }
 
-/* ─────── Light Mode CSS variables ─────────────────── */
+/* ─────── Light Mode CSS variables — Soft (default) ──── */
 [data-theme="light"] {
   --text-primary: #0A0F1A;
   --text-secondary: #1E293B;
@@ -324,7 +324,56 @@
   --table-row-hover: #F9FAFB;
   --table-border: #E5E7EB;
   --card-shadow: 0 8px 24px rgba(0,0,0,0.08);
+  --lv-text-boost: 0;
+  --lv-border-opacity: 0.10;
+  --lv-surface-opacity: 0.06;
 }
+
+/* ─────── Light Mode CSS variables — High Contrast ───── */
+[data-theme="light"][data-light-variant="high-contrast"] {
+  --text-primary: #000000;
+  --text-secondary: #0D1117;
+  --text-muted: #2D3748;
+  --text-label: #1A202C;
+  --bg-base: #FFFFFF;
+  --bg-surface: #E8EBF0;
+  --bg-elevated: #FFFFFF;
+  --bg-input: #FFFFFF;
+  --border-light: #6B7280;
+  --card-border: #6B7280;
+  --table-header-bg: #E2E8F0;
+  --table-header-text: #0D1117;
+  --table-row-hover: #EDF2F7;
+  --table-border: #9CA3AF;
+  --card-shadow: 0 2px 8px rgba(0,0,0,0.16), 0 0 0 1px rgba(0,0,0,0.08);
+  --lv-border-opacity: 0.22;
+  --lv-surface-opacity: 0.12;
+}
+
+/* HC — boost text/border classes for high contrast */
+html.light[data-light-variant="high-contrast"] .text-white\/90 { color: #000000 !important; }
+html.light[data-light-variant="high-contrast"] .text-white\/80 { color: #0D1117 !important; }
+html.light[data-light-variant="high-contrast"] .text-white\/70 { color: #1A202C !important; }
+html.light[data-light-variant="high-contrast"] .text-white\/60 { color: #2D3748 !important; }
+html.light[data-light-variant="high-contrast"] .text-white\/50 { color: #4A5568 !important; }
+html.light[data-light-variant="high-contrast"] .text-white\/40 { color: #718096 !important; }
+html.light[data-light-variant="high-contrast"] .text-white\/30 { color: #8A9BB0 !important; }
+html.light[data-light-variant="high-contrast"] .bg-white\/5  { background: rgba(0,0,0,0.10) !important; }
+html.light[data-light-variant="high-contrast"] .bg-white\/10 { background: rgba(0,0,0,0.13) !important; }
+html.light[data-light-variant="high-contrast"] .bg-white\/15 { background: rgba(0,0,0,0.16) !important; }
+html.light[data-light-variant="high-contrast"] .bg-black\/20 { background: rgba(0,0,0,0.14) !important; }
+html.light[data-light-variant="high-contrast"] .bg-black\/30 { background: rgba(0,0,0,0.18) !important; }
+html.light[data-light-variant="high-contrast"] .border-white\/5  { border-color: rgba(0,0,0,0.18) !important; }
+html.light[data-light-variant="high-contrast"] .border-white\/10 { border-color: rgba(0,0,0,0.24) !important; }
+html.light[data-light-variant="high-contrast"] .border-white\/20 { border-color: rgba(0,0,0,0.32) !important; }
+html.light[data-light-variant="high-contrast"] .glass-panel,
+html.light[data-light-variant="high-contrast"] .card-premium {
+  border-color: var(--card-border) !important;
+}
+html.light[data-light-variant="high-contrast"] table tbody td { color: #000000; }
+html.light[data-light-variant="high-contrast"] .nav-item { color: rgba(0,0,0,0.60); }
+html.light[data-light-variant="high-contrast"] .nav-item:hover { color: #000000; background: rgba(0,0,0,0.12); }
+html.light[data-light-variant="high-contrast"] .nav-item.active { color: #000000; background: rgba(245,158,11,0.16); }
 
 /* ─────── Light Mode ────────────────────────────── */
 html.light {
