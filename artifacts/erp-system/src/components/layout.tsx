@@ -80,7 +80,7 @@ export function AppLayout({ children }: LayoutProps) {
 
         {/* Logo Area */}
         <div className="px-5 py-5 flex items-center gap-3"
-          style={{ borderBottom: isDark ? "1px solid rgba(255,255,255,0.05)" : "1px solid rgba(0,0,0,0.06)" }}>
+          style={{ borderBottom: isDark ? "1px solid rgba(255,255,255,0.05)" : "1px solid rgba(0,0,0,0.10)" }}>
           <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0 flex items-center justify-center"
             style={{ background: "linear-gradient(135deg, #f59e0b20, #f59e0b10)", border: "1px solid rgba(245,158,11,0.20)" }}>
             <img src={logoSrc} alt={settings.companyName}
@@ -101,8 +101,8 @@ export function AppLayout({ children }: LayoutProps) {
         {user && (
           <div className="mx-3 mt-3 px-3 py-3 rounded-2xl flex items-center gap-2.5"
             style={{
-              background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
-              border: isDark ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(0,0,0,0.07)",
+              background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.06)",
+              border: isDark ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(0,0,0,0.11)",
             }}>
             <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-sm font-black"
               style={{ background: "linear-gradient(135deg, #f59e0b, #d97706)", color: "#000" }}>
@@ -147,7 +147,7 @@ export function AppLayout({ children }: LayoutProps) {
 
         {/* Sidebar Footer */}
         <div className="px-4 py-3 flex items-center justify-between"
-          style={{ borderTop: isDark ? "1px solid rgba(255,255,255,0.05)" : "1px solid rgba(0,0,0,0.06)" }}>
+          style={{ borderTop: isDark ? "1px solid rgba(255,255,255,0.05)" : "1px solid rgba(0,0,0,0.10)" }}>
           <p className="text-xs" style={{ color: isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.30)" }}>
             ERP v2.0
           </p>
@@ -180,7 +180,7 @@ export function AppLayout({ children }: LayoutProps) {
         <header className="shrink-0 flex items-center justify-between px-6 py-3.5"
           style={{
             background: isDark ? "hsla(225,25%,6%,0.80)" : "rgba(255,255,255,0.70)",
-            borderBottom: isDark ? "1px solid rgba(255,255,255,0.05)" : "1px solid rgba(0,0,0,0.06)",
+            borderBottom: isDark ? "1px solid rgba(255,255,255,0.05)" : "1px solid rgba(0,0,0,0.10)",
             backdropFilter: "blur(16px)",
           }}>
           <div className="flex items-center gap-3">
@@ -200,8 +200,8 @@ export function AppLayout({ children }: LayoutProps) {
             {user && (
               <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl"
                 style={{
-                  background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)",
-                  border: isDark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)",
+                  background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.07)",
+                  border: isDark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.12)",
                 }}>
                 <div className="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-black shrink-0"
                   style={{ background: "linear-gradient(135deg, #f59e0b, #d97706)", color: "#000" }}>
