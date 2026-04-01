@@ -64,7 +64,7 @@ router.get("/auth/users", async (_req, res) => {
 
     const users = rows
       .filter((u) => u.active !== false)
-      .map((u) => ({ ...u, pinLength: 4 }));
+      .map((u) => ({ ...u, pinLength: 4 })); // pinLength is a UI hint only (actual validation is server-side)
 
     res.json(users);
   } catch {

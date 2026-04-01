@@ -42,12 +42,11 @@ router.post("/sales", wrap(async (req, res) => {
     return;
   }
 
-  const { payment_type, total_amount, paid_amount, items, customer_name, customer_id, notes, date } = parsed.data;
-  const safe_id: number | undefined = req.body.safe_id ? parseInt(req.body.safe_id) : undefined;
-  const warehouse_id: number | undefined = req.body.warehouse_id ? parseInt(req.body.warehouse_id) : undefined;
-  const salesperson_id: number | undefined = req.body.salesperson_id ? parseInt(req.body.salesperson_id) : undefined;
-  const discount_percent: number = parseFloat(req.body.discount_percent) || 0;
-  const discount_amount: number = parseFloat(req.body.discount_amount) || 0;
+  const {
+    payment_type, total_amount, paid_amount, items, customer_name, customer_id,
+    notes, date, safe_id, warehouse_id, salesperson_id,
+    discount_percent, discount_amount,
+  } = parsed.data;
   const remaining = total_amount - paid_amount;
 
   if ((payment_type === "cash" || payment_type === "partial") && paid_amount > 0 && !safe_id) {
@@ -97,8 +96,8 @@ router.post("/sales", wrap(async (req, res) => {
         warehouse_name: warehouseName,
         salesperson_id: salesperson_id ?? null,
         salesperson_name: salespersonName,
-        discount_percent: String(discount_percent),
-        discount_amount: String(discount_amount),
+        discount_percent: String(discount_percent ?? 0),
+        discount_amount: String(discount_amount ?? 0),
         notes: notes ?? null,
         date: date ?? new Date().toISOString().split("T")[0],
       }).returning();

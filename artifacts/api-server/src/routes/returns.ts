@@ -187,6 +187,20 @@ router.delete("/sales-returns/:id", wrap(async (req, res) => {
             .set({ balance: String(Number(safe.balance) + total) })
             .where(eq(safesTable.id, ret.safe_id));
         }
+        // تسجيل حركة عكسية في السجل المالي
+        await tx.insert(transactionsTable).values({
+          type: "sale_return_cancel",
+          reference_type: "sale_return_cancel",
+          reference_id: ret.id,
+          safe_id: ret.safe_id,
+          safe_name: ret.safe_name ?? "",
+          customer_id: ret.customer_id ?? null,
+          customer_name: ret.customer_name ?? null,
+          amount: String(total),
+          direction: "in",
+          description: `إلغاء مرتجع مبيعات نقدي ${ret.return_no}`,
+          date: new Date().toISOString().split("T")[0],
+        });
       }
 
     await tx.delete(saleReturnItemsTable).where(eq(saleReturnItemsTable.return_id, id));
@@ -268,13 +282,20 @@ router.post("/purchase-returns", wrap(async (req, res) => {
     }
 
     // ── إنشاء سجل المرتجع ──────────────────────────────────────────────────
+    const safeIdForRecord = rtype === "cash" && safe_id ? parseInt(safe_id) : null;
+    const safeNameForRecord = rtype === "cash" && safe_id ? (await tx.select({ name: safesTable.name }).from(safesTable).where(eq(safesTable.id, parseInt(safe_id))))[0]?.name ?? null : null;
+
     const [ret] = await tx.insert(purchaseReturnsTable).values({
       return_no,
       purchase_id: purchase_id ?? null,
       customer_id: customer_id ? parseInt(customer_id) : null,
-      customer_name: customer_name ?? null,        // FIX 9: لا خلط مع supplier_name
-      supplier_name: supplier_name ?? null,        // FIX 9: مستقل
+      customer_name: customer_name ?? null,
+      supplier_id: supplier_id ? parseInt(supplier_id) : null,
+      supplier_name: supplier_name ?? null,
       total_amount: String(total),
+      refund_type: rtype,
+      safe_id: safeIdForRecord,
+      safe_name: safeNameForRecord,
       date: txDate,
       reason: reason ?? null,
       notes: notes ?? null,
@@ -368,12 +389,25 @@ router.delete("/purchase-returns/:id", wrap(async (req, res) => {
         }
       }
 
-      if (ret.customer_id) {
-        const [cust] = await tx.select().from(customersTable).where(eq(customersTable.id, ret.customer_id));
-        if (cust) {
-          await tx.update(customersTable)
-            .set({ balance: String(Number(cust.balance) - Number(ret.total_amount)) })
-            .where(eq(customersTable.id, cust.id));
+      const total = Number(ret.total_amount);
+
+      if (ret.refund_type === "cash" && ret.safe_id) {
+        // عكس الاسترداد النقدي: طرح المبلغ من الخزينة
+        const [safe] = await tx.select().from(safesTable).where(eq(safesTable.id, ret.safe_id));
+        if (safe) {
+          await tx.update(safesTable)
+            .set({ balance: String(Number(safe.balance) - total) })
+            .where(eq(safesTable.id, ret.safe_id));
+        }
+      } else if (ret.refund_type === "balance_credit" || !ret.refund_type) {
+        // عكس خصم رصيد المورد: إعادة الإضافة لرصيد المورد
+        if (ret.supplier_id) {
+          const [supp] = await tx.select().from(suppliersTable).where(eq(suppliersTable.id, ret.supplier_id));
+          if (supp) {
+            await tx.update(suppliersTable)
+              .set({ balance: String(Number(supp.balance) + total) })
+              .where(eq(suppliersTable.id, ret.supplier_id));
+          }
         }
       }
 

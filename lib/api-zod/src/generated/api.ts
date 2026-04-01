@@ -270,6 +270,11 @@ export const CreateSaleBody = zod.object({
   paid_amount: zod.number(),
   date: zod.string().nullish(),
   notes: zod.string().nullish(),
+  safe_id: zod.number().nullish(),
+  warehouse_id: zod.number().nullish(),
+  salesperson_id: zod.number().nullish(),
+  discount_percent: zod.number().nullish(),
+  discount_amount: zod.number().nullish(),
   items: zod.array(
     zod.object({
       product_id: zod.number(),
