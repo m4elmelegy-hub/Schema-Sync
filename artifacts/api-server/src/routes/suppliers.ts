@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, max } from "drizzle-orm";
 import { db, suppliersTable, transactionsTable, safesTable, purchasesTable, purchaseReturnsTable } from "@workspace/db";
 import {
   GetSuppliersResponse,
@@ -17,6 +17,13 @@ import { wrap, httpError } from "../lib/async-handler";
 
 const router: IRouter = Router();
 
+function normalizeName(name: string): string {
+  return name.trim().replace(/\s+/g, " ").toLowerCase()
+    .replace(/أ|إ|آ/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/ى/g, "ي");
+}
+
 function formatSupplier(s: typeof suppliersTable.$inferSelect) {
   return {
     ...s,
@@ -25,8 +32,14 @@ function formatSupplier(s: typeof suppliersTable.$inferSelect) {
   };
 }
 
+async function getNextSupplierCode(): Promise<number> {
+  const result = await db.select({ maxCode: max(suppliersTable.supplier_code) }).from(suppliersTable);
+  const currentMax = result[0]?.maxCode ?? 0;
+  return Math.max(currentMax ?? 0, 2000) + 1;
+}
+
 router.get("/suppliers", wrap(async (_req, res) => {
-  const suppliers = await db.select().from(suppliersTable).orderBy(suppliersTable.name);
+  const suppliers = await db.select().from(suppliersTable).orderBy(suppliersTable.supplier_code);
   res.json(GetSuppliersResponse.parse(suppliers.map(formatSupplier)));
 }));
 
@@ -36,10 +49,27 @@ router.post("/suppliers", wrap(async (req, res) => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+
+  const normalized = normalizeName(parsed.data.name);
+
+  // Duplicate name check
+  const existing = await db.select({ id: suppliersTable.id, name: suppliersTable.name })
+    .from(suppliersTable)
+    .where(eq(suppliersTable.normalized_name, normalized));
+  if (existing.length > 0) {
+    res.status(400).json({ error: `يوجد مورد بنفس الاسم بالفعل: "${existing[0].name}"` });
+    return;
+  }
+
+  const newCode = await getNextSupplierCode();
+
   const [supplier] = await db.insert(suppliersTable).values({
-    name: parsed.data.name,
+    name: parsed.data.name.trim(),
+    supplier_code: newCode,
+    normalized_name: normalized,
     phone: parsed.data.phone ?? null,
     balance: String(parsed.data.balance ?? 0),
+    linked_customer_id: parsed.data.linked_customer_id ?? null,
   }).returning();
   res.status(201).json(formatSupplier(supplier));
 }));
@@ -55,10 +85,25 @@ router.put("/suppliers/:id", wrap(async (req, res) => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+
+  const normalized = normalizeName(parsed.data.name);
+
+  // Duplicate check excluding self
+  const existing = await db.select({ id: suppliersTable.id, name: suppliersTable.name })
+    .from(suppliersTable)
+    .where(eq(suppliersTable.normalized_name, normalized));
+  const conflict = existing.find(e => e.id !== params.data.id);
+  if (conflict) {
+    res.status(400).json({ error: `يوجد مورد بنفس الاسم بالفعل: "${conflict.name}"` });
+    return;
+  }
+
   const [supplier] = await db.update(suppliersTable).set({
-    name: parsed.data.name,
+    name: parsed.data.name.trim(),
+    normalized_name: normalized,
     phone: parsed.data.phone ?? null,
     balance: parsed.data.balance !== undefined ? String(parsed.data.balance) : undefined,
+    linked_customer_id: parsed.data.linked_customer_id !== undefined ? (parsed.data.linked_customer_id ?? null) : undefined,
   }).where(eq(suppliersTable.id, params.data.id)).returning();
   if (!supplier) {
     res.status(404).json({ error: "Supplier not found" });

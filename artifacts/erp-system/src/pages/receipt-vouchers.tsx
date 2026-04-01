@@ -17,7 +17,7 @@ interface ReceiptVoucher {
   amount: number; notes: string | null; created_at: string;
 }
 
-interface Customer { id: number; name: string; balance: number; }
+interface Customer { id: number; name: string; balance: number; customer_code?: number | null; }
 
 export default function ReceiptVouchers() {
   const qc = useQueryClient();
@@ -95,7 +95,7 @@ export default function ReceiptVouchers() {
               <label className="text-white/60 text-sm block mb-1">العميل *</label>
               <select required className="glass-input w-full" value={form.customer_id} onChange={e => setForm(f => ({ ...f, customer_id: e.target.value }))}>
                 <option value="">-- اختر العميل --</option>
-                {customers.map(c => <option key={c.id} value={c.id}>{c.name} — دين: {formatCurrency(c.balance)}</option>)}
+                {customers.map(c => <option key={c.id} value={c.id}>{c.customer_code ? `[${c.customer_code}] ` : ''}{c.name} — دين: {formatCurrency(c.balance)}</option>)}
               </select>
               {selectedCustomer && <p className="text-xs mt-1 text-amber-400">إجمالي دين العميل: {formatCurrency(selectedCustomer.balance)}</p>}
             </div>

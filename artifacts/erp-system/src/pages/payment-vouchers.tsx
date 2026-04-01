@@ -17,7 +17,7 @@ interface PaymentVoucher {
   amount: number; notes: string | null; created_at: string;
 }
 
-interface Customer { id: number; name: string; balance: number; }
+interface Customer { id: number; name: string; balance: number; customer_code?: number | null; }
 
 export default function PaymentVouchers() {
   const qc = useQueryClient();
@@ -122,7 +122,7 @@ export default function PaymentVouchers() {
                 <option value="">-- اختر العميل --</option>
                 {customers.map(c => (
                   <option key={c.id} value={c.id}>
-                    {c.name}{Number(c.balance) < 0 ? ` (علينا له ${formatCurrency(Math.abs(Number(c.balance)))})` : ""}
+                    {c.customer_code ? `[${c.customer_code}] ` : ''}{c.name}{Number(c.balance) < 0 ? ` (علينا له ${formatCurrency(Math.abs(Number(c.balance)))})` : ""}
                   </option>
                 ))}
               </select>

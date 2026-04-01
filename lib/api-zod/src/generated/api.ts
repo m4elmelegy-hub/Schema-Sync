@@ -90,6 +90,7 @@ export const DeleteProductResponse = zod.object({
 export const GetCustomersResponseItem = zod.object({
   id: zod.number(),
   name: zod.string(),
+  customer_code: zod.number().nullish(),
   phone: zod.string().nullish(),
   balance: zod.number(),
   is_supplier: zod.boolean().optional(),
@@ -124,6 +125,7 @@ export const UpdateCustomerBody = zod.object({
 export const UpdateCustomerResponse = zod.object({
   id: zod.number(),
   name: zod.string(),
+  customer_code: zod.number().nullish(),
   phone: zod.string().nullish(),
   balance: zod.number(),
   is_supplier: zod.boolean().optional(),
@@ -168,6 +170,7 @@ export const CreateCustomerReceiptResponse = zod.object({
 export const GetSuppliersResponseItem = zod.object({
   id: zod.number(),
   name: zod.string(),
+  supplier_code: zod.number().nullish(),
   phone: zod.string().nullish(),
   balance: zod.number(),
   linked_customer_id: zod.number().nullish(),
@@ -202,6 +205,7 @@ export const UpdateSupplierBody = zod.object({
 export const UpdateSupplierResponse = zod.object({
   id: zod.number(),
   name: zod.string(),
+  supplier_code: zod.number().nullish(),
   phone: zod.string().nullish(),
   balance: zod.number(),
   linked_customer_id: zod.number().nullish(),

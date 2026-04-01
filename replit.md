@@ -38,6 +38,16 @@ The system is built as a monorepo using pnpm workspaces. The architecture separa
 - **export-pdf.ts** — Added `printSaleInvoice()`, `printPurchaseInvoice()`, and `printPLReport()` functions using browser print-window approach for correct Arabic RTL rendering.
 - **POS Enhancements:** Auto-selection of warehouse, salesperson auto-set to logged-in user, and professional invoice printing.
 
+## Customer/Supplier Coding System (April 2026)
+
+- **Auto-Generated Codes:** Customers get sequential codes starting at **1001**, suppliers start at **2001**. New codes auto-increment from the current max.
+- **Normalized Name Deduplication:** On create and update, names are normalized (trimmed, whitespace collapsed, Arabic diacritics unified: أإآ→ا, ة→ه, ى→ي) and compared against the `normalized_name` column — the backend returns a clear Arabic error if a duplicate is detected.
+- **DB Schema:** `customer_code INTEGER UNIQUE` and `normalized_name TEXT` added to `customersTable`; `supplier_code INTEGER UNIQUE` and `normalized_name TEXT` added to `suppliersTable`. Existing records backfilled.
+- **Zod Schemas Updated:** `GetCustomersResponseItem`, `UpdateCustomerResponse`, `GetSuppliersResponseItem`, `UpdateSupplierResponse` all expose the new code fields.
+- **Customers Page:** Added "الكود" column showing amber-tinted code badge; search now also matches by code number.
+- **Suppliers Page:** Added "الكود" column showing violet-tinted code badge; search now also matches by code number.
+- **All Dropdowns Updated:** Customer dropdowns in Sales, Sales Returns, Receipt Vouchers, Payment Vouchers, and Supplier dropdowns in Purchases all show `[CODE]` prefix before the name for quick identification.
+
 ## Security & Performance Improvements (March 2026)
 
 - **TypeScript**: Built `lib/db` and `lib/api-zod` declaration files — 0 TypeScript errors across entire codebase

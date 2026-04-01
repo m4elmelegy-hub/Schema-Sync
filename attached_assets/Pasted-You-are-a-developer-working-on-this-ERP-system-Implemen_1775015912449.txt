@@ -1,0 +1,364 @@
+You are a developer working on this ERP system.
+Implement the following changes EXACTLY as written.
+Do NOT skip anything.
+Do NOT change unrelated code.
+Do NOT break existing features.
+
+==================================================
+MAIN GOAL
+=========
+
+Add a strict customer/supplier coding system and update the entire project to use it everywhere.
+
+==================================================
+
+1. AUTO CODE FOR CUSTOMERS AND SUPPLIERS
+   ==================================================
+   In:
+
+* New Customer form
+* New Supplier form
+
+Add a visible field next to the name:
+
+* Customer Code
+* Supplier Code
+
+Rules:
+
+* Code must be auto-generated only
+* User cannot edit the code
+* Code starts from 1 and increments automatically
+* Code must be unique
+* Must work safely for existing and new records
+* Must support at least 10,000 records
+
+For old existing records:
+
+* Generate codes automatically for all existing customers
+* Generate codes automatically for all existing suppliers
+* No duplicates allowed
+
+==================================================
+2) STRICT NO-DUPLICATE RULES
+============================
+
+This is REQUIRED and must be enforced in both backend and frontend.
+
+For customers:
+
+* Customer name must be unique
+
+For suppliers:
+
+* Supplier name must be unique
+
+Before saving any customer/supplier:
+
+* Normalize the entered name before checking duplicates:
+
+  * trim leading/trailing spaces
+  * collapse repeated internal spaces
+  * compare case-insensitively
+  * ignore simple formatting differences if possible
+
+If the same customer/supplier already exists:
+
+* BLOCK save completely
+* Show a clear error message:
+
+  * "Customer already exists"
+  * "Supplier already exists"
+* Suggest/select the existing record if possible
+
+Also apply duplicate prevention when:
+
+* creating customer
+* editing customer
+* creating supplier
+* editing supplier
+* entering customer/supplier manually inside documents
+
+IMPORTANT:
+A duplicate must never be created through any screen, form, سند, invoice, report-related input, quick-add flow, or API route.
+
+==================================================
+3) USE CODE + NAME EVERYWHERE IN THE PROJECT
+============================================
+
+Update every place in the entire project that uses customers or suppliers.
+
+This includes ALL related modules, including but not limited to:
+
+* Sales
+* Purchases
+* Sales Returns
+* Purchase Returns
+* Receipt Vouchers
+* Payment / Supply Vouchers
+* Invoices
+* Reports
+* Print pages
+* Search dropdowns
+* Tables
+* Forms
+* Details pages
+* Ledger / account views if linked
+* Any document related to customer/supplier
+* Any API response or UI component related to customer/supplier
+
+Required behavior everywhere:
+
+* Display both Name and Code together
+* Example:
+  Ahmed Ali (Code: 25)
+  Supplier XYZ (Code: 14)
+
+==================================================
+4) SEARCH MUST WORK BY NAME OR CODE
+===================================
+
+In every form or document where user selects a customer or supplier:
+
+The user must be able to:
+
+* search by customer/supplier name
+* search by customer/supplier code
+
+Examples:
+
+* typing "Ahmed" should find Ahmed
+* typing "25" should find customer code 25
+* typing supplier code should find supplier مباشرة
+
+Update all dropdowns / autocomplete / select inputs to support:
+
+* name search
+* code search
+* display of both name and code
+
+Placeholder text should be clear, for example:
+
+* "Select customer or enter customer code"
+* "Select supplier or enter supplier code"
+
+==================================================
+5) MANUAL INPUT MUST AUTO-DETECT EXISTING RECORDS
+=================================================
+
+In any document/form where customer/supplier can be typed manually:
+
+When the user types a name or code:
+
+* search database in real-time or on blur
+* if an existing record is found:
+
+  * auto-select it
+  * show its code
+  * link the document to the existing database record
+* if no record is found:
+
+  * do NOT create duplicate silently
+  * follow current flow only if allowed by validation rules
+
+If typed value matches an existing customer/supplier after normalization:
+
+* treat it as existing
+* do not create a new one
+
+==================================================
+6) SHOW CODE IN SALES / PURCHASES / RETURNS
+===========================================
+
+This is REQUIRED.
+
+Code must appear clearly in all of these:
+
+* Sales screens
+* Purchase screens
+* Sales return screens
+* Purchase return screens
+* Receipt voucher screens
+* Supply/payment voucher screens
+* Any related entry/edit/view screen
+
+Wherever the selected customer/supplier appears, also show:
+
+* the code
+* not the name alone
+
+==================================================
+7) SHOW CODE IN INVOICES, REPORTS, PRINTS, TABLES
+=================================================
+
+Update all outputs and views.
+
+Everywhere customer/supplier data is shown, also show the code:
+
+* invoice headers/details
+* printed invoices
+* PDF/export views if present
+* reports
+* tables
+* transaction history
+* statements / account reports
+* any summary or details screen
+
+Format should be consistent:
+
+* Name + Code
+  Example:
+  Ahmed Ali (Code: 25)
+
+==================================================
+8) DATABASE CHANGES
+===================
+
+Implement safe database changes.
+
+Required fields:
+
+* customers.customer_code
+* suppliers.supplier_code
+
+Rules:
+
+* unique
+* indexed
+* not duplicated
+* safely generated for old and new records
+
+Also enforce duplicate-name protection at database level if possible.
+
+Recommended:
+
+* normalized_name field OR equivalent validation strategy
+* unique constraint/index that prevents duplicates after normalization if your stack supports it
+
+At minimum, enforce duplicate prevention in backend logic even if DB normalization constraint is limited.
+
+IMPORTANT:
+Handle concurrent creation safely.
+No race conditions.
+No duplicate codes.
+No duplicate names.
+
+==================================================
+9) BACKEND + FRONTEND MUST BOTH BE UPDATED
+==========================================
+
+Do not make this frontend-only.
+Do not make this backend-only.
+
+Must update:
+
+* database
+* backend logic
+* APIs
+* validation
+* forms
+* dropdowns
+* search
+* reports
+* print views
+* all related components
+
+==================================================
+10) DO NOT BREAK EXISTING SYSTEM
+================================
+
+* Keep current design as much as possible
+* Only add minimal UI needed for code display/search
+* Do not remove old features
+* Do not change unrelated behavior
+* Keep old data safe
+* Migration must be safe and without data loss
+
+==================================================
+11) REQUIRED TEST CASES
+=======================
+
+After implementation, test ALL of the following:
+
+CUSTOMERS / SUPPLIERS
+
+* Create new customer -> gets next auto code
+* Create new supplier -> gets next auto code
+* Existing records receive codes correctly
+* Editing existing customer does not break code
+* Editing existing supplier does not break code
+
+DUPLICATE PREVENTION
+
+* Add customer with exact same name -> blocked
+* Add customer with extra spaces -> blocked
+* Add customer with different letter case -> blocked
+* Add supplier with exact same name -> blocked
+* Add supplier with extra spaces -> blocked
+* Add supplier with different letter case -> blocked
+
+SEARCH
+
+* Search by customer name -> works
+* Search by customer code -> works
+* Search by supplier name -> works
+* Search by supplier code -> works
+
+AUTO DETECTION
+
+* Type existing customer manually -> auto-detected
+* Type existing supplier manually -> auto-detected
+* Existing typed value links to correct record
+
+PROJECT-WIDE
+
+* Sales shows code
+* Purchases shows code
+* Returns shows code
+* Receipts/supply/payment vouchers show code
+* Invoices show code
+* Reports show code
+* Print views show code
+* Any customer/supplier related screen reflects the new logic
+
+==================================================
+12) FINAL RESPONSE FORMAT
+=========================
+
+After finishing, provide:
+
+1. List of all modified files
+2. Short summary of backend changes
+3. Short summary of frontend changes
+4. Database/migration changes
+5. Test results for each required case
+6. Any remaining edge cases
+
+==================================================
+13) IMPORTANT IMPLEMENTATION RULE
+=================================
+
+Do a full project-wide update for anything related to customers and suppliers.
+
+Do NOT only patch the “new customer” and “new supplier” forms.
+
+Anything in the project that touches:
+
+* customer
+* supplier
+* customer selection
+* supplier selection
+* customer reports
+* supplier reports
+* customer/supplier invoices
+* customer/supplier returns
+* customer/supplier vouchers
+  must be updated to support:
+* code
+* no duplicate names
+* search by code or name
+* display name + code
+
+Implement now step by step.
+Create safe migrations if needed.
+No data loss.

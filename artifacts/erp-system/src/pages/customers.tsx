@@ -520,7 +520,11 @@ export default function Customers() {
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
-  const filtered = customers.filter(c => c.name.includes(search) || (c.phone && c.phone.includes(search)));
+  const filtered = customers.filter(c =>
+    c.name.includes(search) ||
+    (c.phone && c.phone.includes(search)) ||
+    (c.customer_code && String(c.customer_code).includes(search))
+  );
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -955,6 +959,7 @@ export default function Customers() {
           <table className="w-full text-right text-white/80 whitespace-nowrap">
             <thead className="bg-white/5 border-b border-white/10">
               <tr>
+                <th className="p-4 font-semibold text-white/60">الكود</th>
                 <th className="p-4 font-semibold text-white/60">العميل</th>
                 <th className="p-4 font-semibold text-white/60">رقم الهاتف</th>
                 <th className="p-4 font-semibold text-white/60">الرصيد</th>
@@ -963,12 +968,17 @@ export default function Customers() {
             </thead>
             <tbody>
               {isLoading ? (
-                <TableSkeleton cols={4} rows={5} />
+                <TableSkeleton cols={5} rows={5} />
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={4} className="p-12 text-center text-white/40">لا يوجد عملاء</td></tr>
+                <tr><td colSpan={5} className="p-12 text-center text-white/40">لا يوجد عملاء</td></tr>
               ) : (
                 filtered.map(customer => (
                   <tr key={customer.id} className="border-b border-white/5 erp-table-row">
+                    <td className="p-4">
+                      <span className="font-mono text-xs font-bold px-2 py-1 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                        {customer.customer_code ?? "—"}
+                      </span>
+                    </td>
                     <td className="p-4 font-bold text-white">
                       <div className="flex items-center gap-2">
                         {customer.name}

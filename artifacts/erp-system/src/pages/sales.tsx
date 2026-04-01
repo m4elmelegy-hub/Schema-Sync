@@ -147,7 +147,7 @@ function SalesReturnsPanel() {
                 <option value="" className="bg-gray-900">-- عميل غير مسجل / نقدي --</option>
                 {customers.map(c => (
                   <option key={c.id} value={c.id} className="bg-gray-900">
-                    {c.name}{Number(c.balance) > 0 ? ` — دين: ${Number(c.balance).toFixed(0)} ج.م` : Number(c.balance) < 0 ? ` — له: ${Math.abs(Number(c.balance)).toFixed(0)} ج.م` : ''}
+                    {c.customer_code ? `[${c.customer_code}] ` : ''}{c.name}{Number(c.balance) > 0 ? ` — دين: ${Number(c.balance).toFixed(0)} ج.م` : Number(c.balance) < 0 ? ` — له: ${Math.abs(Number(c.balance)).toFixed(0)} ج.م` : ''}
                   </option>
                 ))}
               </select>
@@ -725,7 +725,7 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
               {selectRow("العميل", <User className="w-3.5 h-3.5" />,
                 <select className="bg-transparent text-white outline-none w-full appearance-none text-xs" value={customerId} onChange={e => setCustomerId(e.target.value)}>
                   <option value="" className="bg-slate-900">عميل نقدي</option>
-                  {customers.map(c => <option key={c.id} value={c.id} className="bg-slate-900">{c.name}{Number(c.balance) > 0 ? ` (دين: ${Number(c.balance).toFixed(0)} ج.م)` : ''}</option>)}
+                  {customers.map(c => <option key={c.id} value={c.id} className="bg-slate-900">{c.customer_code ? `[${c.customer_code}] ` : ''}{c.name}{Number(c.balance) > 0 ? ` (دين: ${Number(c.balance).toFixed(0)} ج.م)` : ''}</option>)}
                 </select>
               )}
               {selectedCustomer?.phone && (

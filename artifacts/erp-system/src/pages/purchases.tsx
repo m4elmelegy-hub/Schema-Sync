@@ -262,13 +262,13 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
                 <option value="" className="bg-slate-900">-- اختر الطرف --</option>
                 <optgroup label="─── الموردون ───" className="bg-slate-900 text-white/60">
                   {suppliers.map(s => (
-                    <option key={`s:${s.id}`} value={`s:${s.id}`} className="bg-slate-900">{s.name}{s.balance > 0 ? ` (مستحق: ${Number(s.balance).toFixed(0)})` : ""} [مورد]</option>
+                    <option key={`s:${s.id}`} value={`s:${s.id}`} className="bg-slate-900">{s.supplier_code ? `[${s.supplier_code}] ` : ''}{s.name}{s.balance > 0 ? ` (مستحق: ${Number(s.balance).toFixed(0)})` : ""} [مورد]</option>
                   ))}
                 </optgroup>
                 {customers.filter(c => c.is_supplier).length > 0 && (
                   <optgroup label="─── عملاء-موردون ───" className="bg-slate-900 text-white/60">
                     {customers.filter(c => c.is_supplier).map(c => (
-                      <option key={`c:${c.id}`} value={`c:${c.id}`} className="bg-slate-900">{c.name} [عميل-مورد]</option>
+                      <option key={`c:${c.id}`} value={`c:${c.id}`} className="bg-slate-900">{c.customer_code ? `[${c.customer_code}] ` : ''}{c.name} [عميل-مورد]</option>
                     ))}
                   </optgroup>
                 )}

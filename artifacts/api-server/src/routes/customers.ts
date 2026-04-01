@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, ne, max } from "drizzle-orm";
 import { db, customersTable, transactionsTable, safesTable } from "@workspace/db";
 import {
   GetCustomersResponse,
@@ -17,6 +17,13 @@ import { wrap, httpError } from "../lib/async-handler";
 
 const router: IRouter = Router();
 
+function normalizeName(name: string): string {
+  return name.trim().replace(/\s+/g, " ").toLowerCase()
+    .replace(/أ|إ|آ/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/ى/g, "ي");
+}
+
 function formatCustomer(c: typeof customersTable.$inferSelect) {
   return {
     ...c,
@@ -26,8 +33,14 @@ function formatCustomer(c: typeof customersTable.$inferSelect) {
   };
 }
 
+async function getNextCustomerCode(): Promise<number> {
+  const result = await db.select({ maxCode: max(customersTable.customer_code) }).from(customersTable);
+  const currentMax = result[0]?.maxCode ?? 0;
+  return Math.max(currentMax ?? 0, 1000) + 1;
+}
+
 router.get("/customers", wrap(async (_req, res) => {
-  const customers = await db.select().from(customersTable).orderBy(customersTable.name);
+  const customers = await db.select().from(customersTable).orderBy(customersTable.customer_code);
   res.json(GetCustomersResponse.parse(customers.map(formatCustomer)));
 }));
 
@@ -37,8 +50,24 @@ router.post("/customers", wrap(async (req, res) => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+
+  const normalized = normalizeName(parsed.data.name);
+
+  // Duplicate name check
+  const existing = await db.select({ id: customersTable.id, name: customersTable.name })
+    .from(customersTable)
+    .where(eq(customersTable.normalized_name, normalized));
+  if (existing.length > 0) {
+    res.status(400).json({ error: `يوجد عميل بنفس الاسم بالفعل: "${existing[0].name}"` });
+    return;
+  }
+
+  const newCode = await getNextCustomerCode();
+
   const [customer] = await db.insert(customersTable).values({
-    name: parsed.data.name,
+    name: parsed.data.name.trim(),
+    customer_code: newCode,
+    normalized_name: normalized,
     phone: parsed.data.phone ?? null,
     balance: String(parsed.data.balance ?? 0),
     is_supplier: parsed.data.is_supplier ?? false,
@@ -57,8 +86,22 @@ router.put("/customers/:id", wrap(async (req, res) => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+
+  const normalized = normalizeName(parsed.data.name);
+
+  // Duplicate check excluding self
+  const existing = await db.select({ id: customersTable.id, name: customersTable.name })
+    .from(customersTable)
+    .where(eq(customersTable.normalized_name, normalized));
+  const conflict = existing.find(e => e.id !== params.data.id);
+  if (conflict) {
+    res.status(400).json({ error: `يوجد عميل بنفس الاسم بالفعل: "${conflict.name}"` });
+    return;
+  }
+
   const [customer] = await db.update(customersTable).set({
-    name: parsed.data.name,
+    name: parsed.data.name.trim(),
+    normalized_name: normalized,
     phone: parsed.data.phone ?? null,
     balance: parsed.data.balance !== undefined ? String(parsed.data.balance) : undefined,
     is_supplier: parsed.data.is_supplier !== undefined ? parsed.data.is_supplier : undefined,

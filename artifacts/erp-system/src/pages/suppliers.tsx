@@ -190,7 +190,9 @@ export default function Suppliers() {
   const [payError, setPayError] = useState("");
 
   const filtered = suppliers.filter(s =>
-    s.name.includes(search) || (s.phone && s.phone.includes(search))
+    s.name.includes(search) ||
+    (s.phone && s.phone.includes(search)) ||
+    (s.supplier_code && String(s.supplier_code).includes(search))
   );
 
   const handleAdd = (e: React.FormEvent) => {
@@ -372,6 +374,7 @@ export default function Suppliers() {
           <table className="w-full text-right text-white/80 whitespace-nowrap">
             <thead className="bg-white/5 border-b border-white/10">
               <tr>
+                <th className="p-4 font-semibold text-white/60">الكود</th>
                 <th className="p-4 font-semibold text-white/60">المورد</th>
                 <th className="p-4 font-semibold text-white/60">رقم الهاتف</th>
                 <th className="p-4 font-semibold text-white/60">الرصيد المستحق</th>
@@ -380,16 +383,21 @@ export default function Suppliers() {
             </thead>
             <tbody>
               {isLoading ? (
-                <TableSkeleton cols={4} rows={5} />
+                <TableSkeleton cols={5} rows={5} />
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="p-12 text-center text-white/40">
+                  <td colSpan={5} className="p-12 text-center text-white/40">
                     {search ? "لا توجد نتائج مطابقة" : "لا يوجد موردون بعد"}
                   </td>
                 </tr>
               ) : (
                 filtered.map(supplier => (
                   <tr key={supplier.id} className="border-b border-white/5 erp-table-row">
+                    <td className="p-4">
+                      <span className="font-mono text-xs font-bold px-2 py-1 rounded-lg bg-violet-500/10 text-violet-400 border border-violet-500/20">
+                        {supplier.supplier_code ?? "—"}
+                      </span>
+                    </td>
                     <td className="p-4 font-bold text-white">{supplier.name}</td>
                     <td className="p-4 text-white/60">{supplier.phone || "—"}</td>
                     <td className={`p-4 font-bold ${supplier.balance > 0 ? "text-red-400" : "text-white/30"}`}>
