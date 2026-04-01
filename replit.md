@@ -49,6 +49,37 @@ The system is built as a monorepo using pnpm workspaces. The architecture separa
 - **Suppliers Page:** Added "الكود" column showing violet-tinted code badge; search now also matches by code number.
 - **All Dropdowns Updated:** Customer dropdowns in Sales, Sales Returns, Receipt Vouchers, Payment Vouchers, and Supplier dropdowns in Purchases all show `[CODE]` prefix before the name for quick identification.
 
+## Product Accounting & COGS Fix (April 2026)
+
+**Problem fixed:** The accounting ledger had two critical errors in product-level accounting:
+1. Stock purchases were debiting `EXP-PURCHASES` (expense) instead of `ASSET-INVENTORY` (asset) — treating all purchases as immediate expense even when they enter stock.
+2. Sales journal entries had no COGS component — there was a revenue entry but no matching cost entry to deplete the inventory account.
+
+**Changes made:**
+- **`auto-account.ts`**: Added two new account helpers:
+  - `getOrCreateInventoryAccount()` → code `ASSET-INVENTORY`, type `asset` (بضاعة المخزون)
+  - `getOrCreateCOGSAccount()` → code `EXP-COGS`, type `expense` (تكلفة البضاعة المباعة)
+  - `getOrCreatePurchasesCostAccount()` marked `@deprecated`, kept for backward compatibility
+- **`purchases.ts`**: Purchase journal now: `DR ASSET-INVENTORY / CR SAFE or AP-Supplier`
+- **`sales.ts`**: Sale journal now includes two entries:
+  - Revenue: `DR SAFE or AR-Customer / CR REV-SALES` (sale price)
+  - COGS: `DR EXP-COGS / CR ASSET-INVENTORY` (sum of `cost_total` from `saleItemsTable` — historical WAC at time of sale)
+- **`returns.ts`** (sale returns): Fixed three bugs:
+  - Now looks up original `cost_price` from `saleItemsTable` (sale_id + product_id match) for each returned item
+  - Stores original cost in new `unit_cost_at_return` / `total_cost_at_return` columns on `sale_return_items`
+  - `unit_cost` in stock movement now uses original cost (not sale price)
+  - WAC recalculated correctly: `NewWAC = (currentQty × currentWAC + returnedQty × originalCostAtSale) / (currentQty + returnedQty)`
+- **`profits.ts`**: Reads `total_cost_at_return` directly from `saleReturnItemsTable` for return cost (falls back to `saleItemsTable` lookup for pre-fix records)
+- **Schema**: `saleReturnItemsTable` now has `unit_cost_at_return NUMERIC(12,4)` and `total_cost_at_return NUMERIC(12,4)` — DB column added via ALTER TABLE
+
+**Accounting flow now (correct):**
+```
+Purchase (cash, 70):   DR ASSET-INVENTORY 70  /  CR SAFE 70
+Sell (cash, 100):      DR SAFE 100            /  CR REV-SALES 100
+                       DR EXP-COGS 70         /  CR ASSET-INVENTORY 70
+Return (100 refund):   Revenue reversed 100, Inventory restored at 70, COGS reversed 70 → Net profit = 0
+```
+
 ## Posting Control System (April 2026)
 
 All financial documents (sales, purchases, deposit vouchers, payment vouchers, receipt vouchers) now follow a strict 3-state lifecycle controlled by the user — no automatic journal entries on create.

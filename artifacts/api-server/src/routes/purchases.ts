@@ -9,7 +9,7 @@ import {
 } from "@workspace/api-zod";
 import { wrap, httpError } from "../lib/async-handler";
 import {
-  getOrCreatePurchasesCostAccount,
+  getOrCreateInventoryAccount,
   getOrCreateSafeAccount,
   getOrCreateSupplierAccount,
   createJournalEntry,
@@ -215,14 +215,17 @@ router.get("/purchases/:id", wrap(async (req, res) => {
 }));
 
 /* ── بناء قيود المشتريات ────────────────────────────────────────────────── */
+// القيد الصحيح للمشتريات التي تدخل المخزون:
+//   مدين:  حساب المخزون (ASSET-INVENTORY) ← تزيد قيمة الأصول
+//   دائن:  خزينة (SAFE) أو ذمم مورد (AP)  ← نقص السيولة أو زيادة الالتزامات
 async function buildPurchaseJournalLines(purchase: typeof purchasesTable.$inferSelect): Promise<JournalLine[]> {
   const total       = Number(purchase.total_amount);
   const paid        = Number(purchase.paid_amount);
   const supplierDebt = total - paid;
   const lines: JournalLine[] = [];
 
-  const costAcct = await getOrCreatePurchasesCostAccount();
-  lines.push({ account: costAcct, debit: total, credit: 0 });
+  const inventoryAcct = await getOrCreateInventoryAccount();
+  lines.push({ account: inventoryAcct, debit: total, credit: 0 });
 
   // استرجاع الخزينة من جدول الحركات (safe_id غير مخزّن مباشرةً في purchasesTable)
   if (paid > 0) {

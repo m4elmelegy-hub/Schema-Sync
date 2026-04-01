@@ -1,0 +1,407 @@
+You are a senior ERP/accounting developer.
+
+Your task is to FIX product accounting logic across the whole system so profit, inventory value, COGS, returns, and reports are 100% mathematically correct.
+
+Do NOT do a partial fix.
+Do NOT patch only UI.
+Do NOT skip accounting logic.
+Do NOT leave any fake profit issue unresolved.
+
+==================================================
+MAIN GOAL
+=========
+
+Make inventory and product accounting fully correct.
+
+The system must never show fake profit.
+
+Profit must be based on:
+
+* actual sale price
+* actual product cost
+* correct cost of goods sold (COGS)
+* correct inventory valuation
+* correct return valuation
+
+==================================================
+
+1. CORE ACCOUNTING RULE
+   ==================================================
+   You must separate these values clearly:
+
+1) Sale Price
+2) Cost Price
+3) Inventory Value
+4) COGS
+5) Profit
+
+These are NOT the same thing.
+
+Required formula:
+
+* Revenue comes from sale price
+* Inventory valuation comes from cost
+* COGS comes from cost
+* Profit = Revenue - COGS
+* Returns must reverse both revenue and cost correctly
+
+==================================================
+2) SALES ACCOUNTING
+===================
+
+When a product is sold:
+
+A) Revenue side:
+
+* Use sale price in sales invoice
+* Customer/Safe is debited
+* Sales Revenue is credited
+
+B) Cost side:
+
+* Inventory must decrease by actual product cost
+* COGS must increase by actual product cost
+
+Required accounting entry for sale:
+
+1. Revenue entry:
+   DR Safe or Customer AR
+   CR Sales Revenue
+
+2. Cost entry:
+   DR Cost of Goods Sold (COGS)
+   CR Inventory
+
+IMPORTANT:
+Do not calculate profit directly from sale rows only.
+Profit must come from Revenue - COGS.
+
+==================================================
+3) PURCHASE ACCOUNTING
+======================
+
+When products are purchased:
+
+* Inventory must increase using actual purchase cost
+* Supplier AP or Safe must be credited
+* Do NOT treat purchases as direct expense if products enter stock
+
+Required accounting entry for stock purchase:
+
+DR Inventory
+CR Safe or Supplier AP
+
+IMPORTANT:
+If purchase adds stock to inventory, it must go to Inventory asset account, NOT Purchases Expense.
+
+Only use expense account for non-inventory expenses.
+
+==================================================
+4) WEIGHTED AVERAGE COST
+========================
+
+If the system uses weighted average cost, make it strict and correct.
+
+When purchase happens:
+
+* recalculate average cost correctly
+
+Formula:
+New Average Cost =
+((Old Qty × Old Avg Cost) + (New Qty × New Purchase Cost))
+/
+(Old Qty + New Qty)
+
+Store enough data so every sale line knows what cost was used when it was posted.
+
+IMPORTANT:
+Do not use current cost later to recalculate old sales.
+Each sale must preserve its own historical cost at time of sale.
+
+==================================================
+5) SALES RETURNS
+================
+
+When customer returns product:
+
+A) Financial reversal:
+
+* Reverse revenue using RETURN price from original sale
+* Refund from Safe OR reduce customer balance
+
+B) Inventory reversal:
+
+* Returned stock must go back to inventory using COST AT TIME OF ORIGINAL SALE
+* NOT current sale price
+* NOT current average cost unless original cost is unavailable and you explicitly handle that case
+
+Required accounting entry for sales return:
+
+1. Revenue reversal:
+   DR Sales Returns / Contra Revenue
+   CR Safe or Customer AR
+
+2. Cost reversal:
+   DR Inventory
+   CR COGS
+
+IMPORTANT:
+Returned item must restore inventory by original sale cost, not by selling price.
+
+Example:
+
+* Bought product for 70
+* Sold for 100
+* Returned by customer
+
+Correct result:
+
+* Revenue reversed by 100
+* Inventory restored by 70
+* COGS reversed by 70
+* Net profit becomes zero for that transaction
+
+This is mandatory.
+
+==================================================
+6) PURCHASE RETURNS
+===================
+
+When returning purchased stock to supplier:
+
+A) Supplier / cash side:
+
+* Reduce payable or recover cash based on purchase amount
+
+B) Inventory side:
+
+* Remove stock using the same purchase cost or correct valuation logic
+
+Required accounting entry for purchase return:
+
+1. Supplier side:
+   DR Supplier AP or Safe recovery logic as appropriate
+   CR Purchase Return / Inventory clearing as needed by your design
+
+2. Inventory side:
+   CR Inventory
+   DR appropriate offset account
+
+Final implementation must keep:
+
+* stock quantity correct
+* inventory value correct
+* supplier balance correct
+
+==================================================
+7) HISTORICAL COST PER SALE LINE
+================================
+
+This is REQUIRED.
+
+For every sold item line, store:
+
+* quantity sold
+* sale price
+* cost used at time of sale
+* total cost for that line
+
+Example fields:
+
+* unit_cost_at_sale
+* total_cost_at_sale
+
+Without this, returns and profit reports will become wrong later.
+
+Do NOT rely only on current product cost.
+
+==================================================
+8) INVENTORY VALUATION
+======================
+
+Inventory value must always be based on cost, not sale price.
+
+For each product:
+
+* quantity on hand
+* average cost
+* total inventory value = quantity × average cost
+
+Reports must never value stock using selling price unless explicitly shown as a separate commercial metric.
+
+==================================================
+9) PROFIT REPORTING
+===================
+
+Fix all profit reports so they show real profit only.
+
+Required:
+
+* Revenue
+* COGS
+* Gross Profit
+* Returns impact
+* Net Profit
+
+Rules:
+
+* Sales increase revenue
+* Sales returns reduce revenue
+* COGS increases on sale
+* COGS decreases on sales return
+* Purchases do NOT directly mean expense if inventory item entered stock
+
+IMPORTANT:
+Do not count stock purchases as immediate expense in profit report.
+
+==================================================
+10) NO FAKE PROFIT
+==================
+
+The system must not show fake profit in these cases:
+
+* products sold before cost updated
+* returns posted using sale price into stock
+* purchases treated as expense instead of inventory
+* reports reading current cost instead of historical sale cost
+* cancelling or reversing invoices without reversing COGS/inventory
+* partial returns
+* multiple purchases with different costs
+* average cost changes after old sales
+
+==================================================
+11) REQUIRED DATABASE / MODEL CHANGES
+=====================================
+
+Add or fix fields if needed.
+
+At minimum ensure:
+
+* products has current average cost
+* sale_items stores:
+
+  * unit_sale_price
+  * unit_cost_at_sale
+  * total_cost_at_sale
+* return items store:
+
+  * original_sale_item_id if applicable
+  * unit_cost_at_return_logic
+* purchase_items stores actual purchase cost
+
+If needed, create safe migrations without losing data.
+
+==================================================
+12) ACCOUNTING ENTRIES TO FIX
+=============================
+
+Review and fix journal logic for all of these:
+
+* cash sales
+* credit sales
+* partial paid sales
+* cash purchases
+* credit purchases
+* partial paid purchases
+* sales returns
+* purchase returns
+* invoice cancellation
+* posting reversal
+
+==================================================
+13) REPORTS TO FIX
+==================
+
+Update all related reports:
+
+* sales profit report
+* product profit report
+* inventory valuation report
+* daily profit
+* monthly profit
+* customer statement impact
+* supplier statement impact
+* accounting reports if they derive profit
+
+Each report must clearly distinguish:
+
+* selling value
+* cost value
+* profit value
+
+==================================================
+14) VALIDATION RULES
+====================
+
+Add strict validation:
+
+* cannot sell quantity greater than available stock (unless your business allows negative stock explicitly)
+* cannot return more than originally sold
+* cannot purchase return more than originally purchased / available returnable quantity
+* cannot post accounting entry with unbalanced debit/credit
+* cannot cancel posted invoice without full reverse accounting impact
+
+==================================================
+15) FINAL TEST CASES (MANDATORY)
+================================
+
+Test all these scenarios and show the results:
+
+1. Buy product for 70
+
+2. Sell same product for 100
+
+3. Confirm:
+
+   * Revenue = 100
+   * COGS = 70
+   * Profit = 30
+
+4. Return the same product
+
+5. Confirm:
+
+   * Revenue reversed by 100
+   * Inventory restored by 70
+   * COGS reversed by 70
+   * Profit returns to zero
+
+6. Buy same product again at different cost
+
+7. Recalculate weighted average correctly
+
+8. Sell again and confirm correct COGS is used
+
+9. Partial return and confirm proportional reversal is correct
+
+10. Cancel posted invoice and confirm all inventory/accounting effects are reversed correctly
+
+==================================================
+16) IMPORTANT IMPLEMENTATION RULES
+==================================
+
+* Fix backend logic first
+* Then fix journal entries
+* Then fix returns
+* Then fix reports
+* Then verify with real examples
+
+Do NOT just explain.
+Implement the full correction.
+
+==================================================
+17) FINAL RESPONSE FORMAT
+=========================
+
+After finishing, provide:
+
+1. What was wrong before
+2. What was fixed
+3. Which tables/fields were changed
+4. Which files were modified
+5. Exact accounting logic now used
+6. Test case results with numbers
+7. Confirmation that fake profit is eliminated
+
+Implement this carefully.
+This is a critical accounting fix.

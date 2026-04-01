@@ -1,9 +1,10 @@
 import { Router, type IRouter } from "express";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import {
   db, salesReturnsTable, saleReturnItemsTable,
   purchaseReturnsTable, purchaseReturnItemsTable,
   productsTable, customersTable, suppliersTable, safesTable, transactionsTable, stockMovementsTable,
+  saleItemsTable,
 } from "@workspace/db";
 
 import { wrap, httpError } from "../lib/async-handler";
@@ -38,6 +39,7 @@ router.post("/sales-returns", wrap(async (req, res) => {
   const total: number = items.reduce((s: number, i: { total_price: number }) => s + Number(i.total_price), 0);
   const return_no = `SR-${Date.now()}`;
   const rtype: string = refund_type === "cash" ? "cash" : "credit";
+  const txDate = date ?? new Date().toISOString().split("T")[0];
 
   const ret = await db.transaction(async (tx) => {
     let safeName: string | null = null;
@@ -50,86 +52,136 @@ router.post("/sales-returns", wrap(async (req, res) => {
     }
 
     const [ret] = await tx.insert(salesReturnsTable).values({
-        return_no,
-        sale_id: sale_id ?? null,
+      return_no,
+      sale_id: sale_id ?? null,
+      customer_id: customer_id ? parseInt(customer_id) : null,
+      customer_name: customer_name ?? null,
+      total_amount: String(total),
+      refund_type: rtype,
+      safe_id: safeIdInt,
+      safe_name: safeName,
+      date: txDate,
+      reason: reason ?? null,
+      notes: notes ?? null,
+    }).returning();
+
+    // أصناف المرتجع + إعادة الكمية للمخزون + تحديث المتوسط المرجّح
+    for (const item of items) {
+      const retQty       = Number(item.quantity);
+      const retSalePrice = Number(item.unit_price);
+
+      // ── استرجاع التكلفة الأصلية وقت البيع ──────────────────────────────
+      // القاعدة:
+      //   1. إن كانت الفاتورة الأصلية مرتبطة (sale_id موجود)، نجلب cost_price
+      //      من saleItemsTable مطابقاً بـ sale_id + product_id — هذا هو
+      //      المتوسط المرجّح التاريخي المحفوظ وقت البيع الفعلي.
+      //   2. إن لم توجد تكلفة أصلية (مرتجع بدون ربط بالفاتورة) نستخدم
+      //      cost_price الحالي للمنتج كاحتياط مقبول.
+      let unitCostAtSale = 0;
+      if (sale_id) {
+        const [origItem] = await tx
+          .select({ cost_price: saleItemsTable.cost_price })
+          .from(saleItemsTable)
+          .where(and(
+            eq(saleItemsTable.sale_id, parseInt(sale_id)),
+            eq(saleItemsTable.product_id, item.product_id),
+          ));
+        if (origItem) unitCostAtSale = Number(origItem.cost_price);
+      }
+      if (unitCostAtSale === 0) {
+        const [prod] = await tx
+          .select({ cost_price: productsTable.cost_price })
+          .from(productsTable)
+          .where(eq(productsTable.id, item.product_id));
+        if (prod) unitCostAtSale = Number(prod.cost_price);
+      }
+
+      const totalCostAtReturn = unitCostAtSale * retQty;
+
+      // ── إدراج بند المرتجع مع التكلفة الأصلية ────────────────────────────
+      await tx.insert(saleReturnItemsTable).values({
+        return_id:            ret.id,
+        product_id:           item.product_id,
+        product_name:         item.product_name,
+        quantity:             String(retQty),
+        unit_price:           String(retSalePrice),
+        total_price:          String(item.total_price),
+        unit_cost_at_return:  String(unitCostAtSale),
+        total_cost_at_return: String(totalCostAtReturn),
+      });
+
+      // ── تحديث المخزون وإعادة حساب المتوسط المرجّح ───────────────────────
+      // القاعدة: البضاعة المُرتجَعة تُعاد للمخزون بتكلفتها الأصلية وقت البيع.
+      //
+      // NewWAC = (currentQty × currentWAC + returnedQty × originalCostAtSale)
+      //          / (currentQty + returnedQty)
+      //
+      // هذا يُعدّل المتوسط المرجّح بعد الإضافة ويحافظ على صحة قيمة المخزون.
+      const [prodNow] = await tx.select().from(productsTable).where(eq(productsTable.id, item.product_id));
+      if (prodNow) {
+        const oldQty = Number(prodNow.quantity);
+        const oldWAC = Number(prodNow.cost_price);
+        const newQty = oldQty + retQty;
+        const newWAC = newQty > 0
+          ? ((oldQty * oldWAC) + (retQty * unitCostAtSale)) / newQty
+          : unitCostAtSale;
+
+        await tx.update(productsTable)
+          .set({
+            quantity:   String(newQty),
+            cost_price: String(newWAC.toFixed(4)),
+          })
+          .where(eq(productsTable.id, item.product_id));
+
+        // ── حركة مخزون وارد — unit_cost بالتكلفة الأصلية (ليس بسعر البيع) ─
+        await tx.insert(stockMovementsTable).values({
+          product_id:      item.product_id,
+          product_name:    item.product_name,
+          movement_type:   "sale_return",
+          quantity:        String(retQty),
+          quantity_before: String(oldQty),
+          quantity_after:  String(newQty),
+          unit_cost:       String(unitCostAtSale),   // ← التكلفة الأصلية وقت البيع
+          reference_type:  "sale_return",
+          reference_id:    ret.id,
+          reference_no:    return_no,
+          notes: customer_name ? `مرتجع مبيعات من ${customer_name}` : "مرتجع مبيعات",
+          date: txDate,
+        });
+      }
+    }
+
+    // ── الأثر على الأرصدة ──────────────────────────────────────────────────
+    if (rtype === "credit") {
+      if (customer_id) {
+        const [cust] = await tx.select().from(customersTable).where(eq(customersTable.id, parseInt(customer_id)));
+        if (cust) {
+          await tx.update(customersTable)
+            .set({ balance: String(Number(cust.balance) - total) })
+            .where(eq(customersTable.id, cust.id));
+        }
+      }
+    } else if (rtype === "cash" && safeIdInt) {
+      const [safe] = await tx.select().from(safesTable).where(eq(safesTable.id, safeIdInt));
+      if (safe) {
+        await tx.update(safesTable)
+          .set({ balance: String(Number(safe.balance) - total) })
+          .where(eq(safesTable.id, safeIdInt));
+      }
+      await tx.insert(transactionsTable).values({
+        type: "sale_return",
+        reference_type: "sale_return",
+        reference_id: ret.id,
+        safe_id: safeIdInt,
+        safe_name: safeName ?? "",
         customer_id: customer_id ? parseInt(customer_id) : null,
         customer_name: customer_name ?? null,
-        total_amount: String(total),
-        refund_type: rtype,
-        safe_id: safeIdInt,
-        safe_name: safeName,
-        date: date ?? new Date().toISOString().split("T")[0],
-        reason: reason ?? null,
-        notes: notes ?? null,
-      }).returning();
-
-      // أصناف المرتجع + إعادة الكمية للمخزون + حركة وارد (مرتجع مبيعات)
-      for (const item of items) {
-        await tx.insert(saleReturnItemsTable).values({
-          return_id: ret.id,
-          product_id: item.product_id,
-          product_name: item.product_name,
-          quantity: String(item.quantity),
-          unit_price: String(item.unit_price),
-          total_price: String(item.total_price),
-        });
-        const [prod] = await tx.select().from(productsTable).where(eq(productsTable.id, item.product_id));
-        if (prod) {
-          const oldQty = Number(prod.quantity);
-          const newQty = oldQty + Number(item.quantity);
-          await tx.update(productsTable)
-            .set({ quantity: String(newQty) })
-            .where(eq(productsTable.id, item.product_id));
-
-          // ── تسجيل حركة وارد (مرتجع مبيعات = يزيد المخزون) ──
-          await tx.insert(stockMovementsTable).values({
-            product_id: item.product_id,
-            product_name: item.product_name,
-            movement_type: "sale_return",
-            quantity: String(Number(item.quantity)),  // موجب = وارد
-            quantity_before: String(oldQty),
-            quantity_after: String(newQty),
-            unit_cost: String(Number(item.unit_price)),
-            reference_type: "sale_return",
-            reference_id: ret.id,
-            reference_no: return_no,
-            notes: customer_name ? `مرتجع مبيعات من ${customer_name}` : "مرتجع مبيعات",
-            date: date ?? new Date().toISOString().split("T")[0],
-          });
-        }
-      }
-
-      // الأثر المحاسبي
-      if (rtype === "credit") {
-        if (customer_id) {
-          const [cust] = await tx.select().from(customersTable).where(eq(customersTable.id, parseInt(customer_id)));
-          if (cust) {
-            await tx.update(customersTable)
-              .set({ balance: String(Number(cust.balance) - total) })
-              .where(eq(customersTable.id, cust.id));
-          }
-        }
-      } else if (rtype === "cash" && safeIdInt) {
-        const [safe] = await tx.select().from(safesTable).where(eq(safesTable.id, safeIdInt));
-        if (safe) {
-          await tx.update(safesTable)
-            .set({ balance: String(Number(safe.balance) - total) })
-            .where(eq(safesTable.id, safeIdInt));
-        }
-        await tx.insert(transactionsTable).values({
-          type: "sale_return",
-          reference_type: "sale_return",
-          reference_id: ret.id,
-          safe_id: safeIdInt,
-          safe_name: safeName ?? "",
-          customer_id: customer_id ? parseInt(customer_id) : null,
-          customer_name: customer_name ?? null,
-          amount: String(total),
-          direction: "out",
-          description: `مرتجع مبيعات نقدي ${return_no}${customer_name ? ` — ${customer_name}` : ""}`,
-          date: date ?? new Date().toISOString().split("T")[0],
-        });
-      }
+        amount: String(total),
+        direction: "out",
+        description: `مرتجع مبيعات نقدي ${return_no}${customer_name ? ` — ${customer_name}` : ""}`,
+        date: txDate,
+      });
+    }
 
     return ret;
   });

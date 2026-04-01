@@ -5,11 +5,15 @@
  * تلقائياً في شجرة الحسابات، ويعيد account_id.
  *
  * قواعد الترميز:
- *   عميل       → كود "AR-{customer_code}"   نوع: asset     (ذمم مدينة)
- *   مورد       → كود "AP-{supplier_code}"   نوع: liability  (ذمم دائنة)
- *   خزينة      → كود "SAFE-{safe_id}"       نوع: asset     (نقدية)
- *   إيرادات    → كود "REV-SALES"            نوع: revenue   (مبيعات)
- *   مشتريات    → كود "EXP-PURCHASES"        نوع: expense   (تكلفة مشتريات)
+ *   عميل          → كود "AR-{customer_code}"   نوع: asset     (ذمم مدينة)
+ *   مورد          → كود "AP-{supplier_code}"   نوع: liability  (ذمم دائنة)
+ *   خزينة         → كود "SAFE-{safe_id}"       نوع: asset     (نقدية)
+ *   مخزون بضاعة  → كود "ASSET-INVENTORY"      نوع: asset     (بضاعة — يُدان عند الشراء، يُقيَّد دائناً عند البيع)
+ *   إيرادات       → كود "REV-SALES"            نوع: revenue   (مبيعات)
+ *   تكلفة البضاعة → كود "EXP-COGS"            نوع: expense   (تكلفة البضاعة المباعة — يُدان عند البيع)
+ *
+ * ملاحظة: حساب "EXP-PURCHASES" (القديم) أُبقي للتوافق العكسي مع القيود القديمة
+ * لكن لا يُستخدم في القيود الجديدة.
  */
 
 import { eq, count, sql } from "drizzle-orm";
@@ -109,11 +113,39 @@ export async function getOrCreateSalesRevenueAccount(): Promise<AccountRef> {
   });
 }
 
-/** حساب تكلفة المشتريات (مشترك لجميع فواتير الشراء) */
+/**
+ * حساب مخزون البضاعة (أصل — يُدان عند الشراء، يُقيَّد دائناً عند بيع البضاعة)
+ * يستخدم كحساب مقابل لـ EXP-COGS
+ */
+export async function getOrCreateInventoryAccount(): Promise<AccountRef> {
+  return getOrCreateAccount({
+    code: "ASSET-INVENTORY",
+    name: "بضاعة المخزون",
+    type: "asset",
+  });
+}
+
+/**
+ * حساب تكلفة البضاعة المباعة — COGS
+ * يُدان عند ترحيل فاتورة البيع (DR COGS / CR Inventory)
+ * يُعكس عند الإلغاء أو مرتجع المبيعات
+ */
+export async function getOrCreateCOGSAccount(): Promise<AccountRef> {
+  return getOrCreateAccount({
+    code: "EXP-COGS",
+    name: "تكلفة البضاعة المباعة",
+    type: "expense",
+  });
+}
+
+/**
+ * @deprecated استخدم getOrCreateInventoryAccount بدلاً منه للمشتريات الجديدة.
+ * أُبقي للتوافق العكسي مع القيود المحاسبية القديمة فقط.
+ */
 export async function getOrCreatePurchasesCostAccount(): Promise<AccountRef> {
   return getOrCreateAccount({
     code: "EXP-PURCHASES",
-    name: "تكلفة المشتريات",
+    name: "تكلفة المشتريات (قديم)",
     type: "expense",
   });
 }

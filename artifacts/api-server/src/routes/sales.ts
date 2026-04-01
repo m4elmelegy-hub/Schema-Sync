@@ -12,6 +12,8 @@ import {
   getOrCreateSalesRevenueAccount,
   getOrCreateSafeAccount,
   getOrCreateCustomerAccount,
+  getOrCreateCOGSAccount,
+  getOrCreateInventoryAccount,
   createJournalEntry,
   type JournalLine,
 } from "../lib/auto-account";
@@ -215,12 +217,27 @@ router.get("/sales/:id", wrap(async (req, res) => {
 }));
 
 /* ── بناء قيود المبيعات ─────────────────────────────────────────────────── */
+//
+// قيد الإيراد (Revenue Entry):
+//   مدين:  خزينة (SAFE) بمبلغ المحصّل — أو ذمم عميل (AR) بالمتبقي
+//   دائن:  إيرادات المبيعات (REV-SALES) بالإجمالي
+//
+// قيد تكلفة البضاعة المباعة (COGS Entry):
+//   مدين:  تكلفة البضاعة المباعة (EXP-COGS) بإجمالي تكلفة الأصناف
+//   دائن:  مخزون البضاعة (ASSET-INVENTORY) بنفس المبلغ
+//
+// هذا يضمن:
+//   - ظهور الإيرادات وتكلفة البضاعة بشكل صحيح في قائمة الدخل
+//   - انخفاض قيمة المخزون في الميزانية العمومية عند البيع
+//   - الربح = الإيرادات - COGS (وليس مجرد الفارق بين سعر البيع وتكلفة المنتج الحالية)
+//
 async function buildSaleJournalLines(sale: typeof salesTable.$inferSelect): Promise<JournalLine[]> {
   const total  = Number(sale.total_amount);
   const paid   = Number(sale.paid_amount);
   const debt   = total - paid;
   const lines: JournalLine[] = [];
 
+  // ── قيد الإيراد ─────────────────────────────────────────────────────────
   const revenueAcct = await getOrCreateSalesRevenueAccount();
   lines.push({ account: revenueAcct, debit: 0, credit: total });
 
@@ -239,6 +256,21 @@ async function buildSaleJournalLines(sale: typeof salesTable.$inferSelect): Prom
       const custAcct = await getOrCreateCustomerAccount(cust.customer_code, cust.name);
       lines.push({ account: custAcct, debit: debt, credit: 0 });
     }
+  }
+
+  // ── قيد تكلفة البضاعة المباعة (COGS) ────────────────────────────────────
+  // نحسب إجمالي التكلفة من بنود الفاتورة (cost_total مخزّن وقت البيع = متوسط مرجّح تاريخي)
+  const saleItems = await db.select({ cost_total: saleItemsTable.cost_total })
+    .from(saleItemsTable)
+    .where(eq(saleItemsTable.sale_id, sale.id));
+
+  const totalCOGS = saleItems.reduce((sum, item) => sum + Number(item.cost_total), 0);
+
+  if (totalCOGS > 0) {
+    const cogsAcct      = await getOrCreateCOGSAccount();
+    const inventoryAcct = await getOrCreateInventoryAccount();
+    lines.push({ account: cogsAcct,      debit: totalCOGS, credit: 0 });
+    lines.push({ account: inventoryAcct, debit: 0, credit: totalCOGS });
   }
 
   return lines;

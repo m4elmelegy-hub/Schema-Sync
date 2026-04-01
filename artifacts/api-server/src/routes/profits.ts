@@ -152,17 +152,20 @@ router.get("/profits", wrap(async (req, res) => {
       const refundAmt = Number(ri.total_price);
       const retQtyNum = Number(ri.quantity);
 
-      // ── حساب تكلفة الوحدة المُرتجَعة ────────────────────────────────────
-      let unitRetCost = Number(ri.unit_price); // fallback
-      if (ret.sale_id) {
+      // ── تكلفة المرتجع: نأخذ القيمة المحفوظة أولاً (total_cost_at_return) ─
+      // هذه القيمة تُمثّل التكلفة الأصلية وقت البيع — وهي الأكثر دقة.
+      // احتياطياً (للسجلات القديمة قبل الإصلاح)، نحسبها من saleItemsTable.
+      let retCostAmt = Number(ri.total_cost_at_return ?? 0);
+      if (retCostAmt === 0 && ret.sale_id) {
         const origItems = await db.select().from(saleItemsTable)
           .where(and(eq(saleItemsTable.sale_id, ret.sale_id), eq(saleItemsTable.product_id, ri.product_id)));
         if (origItems.length > 0) {
           const origItem = origItems[0];
-          unitRetCost = Number(origItem.cost_total) / Math.max(Number(origItem.quantity), 1);
+          const unitOrigCost = Number(origItem.cost_total) / Math.max(Number(origItem.quantity), 1);
+          retCostAmt = unitOrigCost * retQtyNum;
         }
       }
-      const retCostAmt = unitRetCost * retQtyNum;
+      if (retCostAmt === 0) retCostAmt = Number(ri.unit_price) * retQtyNum; // آخر احتياط
 
       // ── تعديل الإجماليات الكلية ──────────────────────────────────────────
       totalRevenue -= refundAmt;

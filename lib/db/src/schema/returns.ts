@@ -34,6 +34,9 @@ export const saleReturnItemsTable = pgTable("sale_return_items", {
   quantity: numeric("quantity", { precision: 12, scale: 3 }).notNull(),
   unit_price: numeric("unit_price", { precision: 12, scale: 2 }).notNull(),
   total_price: numeric("total_price", { precision: 12, scale: 2 }).notNull(),
+  // تكلفة الوحدة وقت البيع الأصلي — لحساب COGS الصحيح عند المرتجع
+  unit_cost_at_return: numeric("unit_cost_at_return", { precision: 12, scale: 4 }).notNull().default("0"),
+  total_cost_at_return: numeric("total_cost_at_return", { precision: 12, scale: 4 }).notNull().default("0"),
 }, (t) => [
   index("sale_return_items_return_id_idx").on(t.return_id),
   index("sale_return_items_product_id_idx").on(t.product_id),
