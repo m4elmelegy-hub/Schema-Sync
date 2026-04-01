@@ -74,7 +74,7 @@ router.post("/system/backup", authenticate, requireRole("admin"), wrap(async (_r
     version: "2.0",
     app: "Halal Tech ERP",
     created_at: new Date().toISOString(),
-    tables: {
+    data: {
       products, customers, suppliers,
       sales, sale_items: saleItems,
       purchases, purchase_items: purchaseItems,
@@ -106,12 +106,45 @@ router.post("/system/backup", authenticate, requireRole("admin"), wrap(async (_r
 router.post("/system/restore", authenticate, requireRole("admin"), wrap(async (req, res) => {
   const body = req.body as Record<string, unknown>;
 
-  if (!body || typeof body !== "object") {
-    res.status(400).json({ error: "ملف النسخة الاحتياطية غير صالح" });
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    res.status(400).json({ error: "ملف النسخة الاحتياطية غير صالح — يجب أن يكون JSON object" });
     return;
   }
 
-  const tables = (body.tables ?? body) as Record<string, unknown[]>;
+  /*
+   * Format resolution (newest → oldest):
+   *   v2.0+  : { version, created_at, app, data: { ... } }   ← current format
+   *   legacy : { version, created_at, app, tables: { ... } } ← previous key name
+   *   raw    : { customers: [...], products: [...], ... }     ← no wrapper at all
+   *
+   * If the file has a version field but no data/tables → reject clearly.
+   * If the file has no version at all → treat as raw legacy and attempt restore.
+   */
+  const hasVersion = "version" in body;
+  const hasData    = body.data    !== undefined;
+  const hasTables  = body.tables  !== undefined;
+
+  if (hasVersion && !hasData && !hasTables) {
+    res.status(400).json({
+      error: `ملف غير مكتمل — الإصدار "${body.version}" موجود لكن مفتاح "data" مفقود`,
+    });
+    return;
+  }
+
+  /* Resolve the data section */
+  let tables: Record<string, unknown[]>;
+  let isLegacy = false;
+
+  if (hasData && typeof body.data === "object" && body.data !== null) {
+    tables = body.data as Record<string, unknown[]>;
+  } else if (hasTables && typeof body.tables === "object" && body.tables !== null) {
+    tables = body.tables as Record<string, unknown[]>;
+    isLegacy = true;
+  } else {
+    /* Raw legacy — the root object IS the data map */
+    tables = body as unknown as Record<string, unknown[]>;
+    isLegacy = true;
+  }
 
   const required = ["products", "customers", "suppliers", "sales"];
   const missing  = required.filter(k => !Array.isArray(tables[k]));
@@ -119,6 +152,9 @@ router.post("/system/restore", authenticate, requireRole("admin"), wrap(async (r
     res.status(400).json({ error: `ملف غير مكتمل — مفاتيح مفقودة: ${missing.join(", ")}` });
     return;
   }
+
+  const fileVersion  = hasVersion ? String(body.version) : "legacy";
+  const fileDate     = typeof body.created_at === "string" ? body.created_at : null;
 
   const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
 
@@ -205,7 +241,16 @@ router.post("/system/restore", authenticate, requireRole("admin"), wrap(async (r
     Object.entries(tables).map(([k, v]) => [k, Array.isArray(v) ? v.length : 0])
   );
 
-  res.json({ success: true, message: "تمت الاستعادة بنجاح", counts });
+  res.json({
+    success: true,
+    message: "تمت الاستعادة بنجاح",
+    meta: {
+      file_version: fileVersion,
+      file_date:    fileDate,
+      is_legacy:    isLegacy,
+    },
+    counts,
+  });
 }));
 
 export default router;

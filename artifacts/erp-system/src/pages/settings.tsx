@@ -1260,7 +1260,7 @@ function BackupImportTab() {
 
   const [fullBkLoading,  setFullBkLoading]  = useState(false);
   const [restoreLoading, setRestoreLoading] = useState(false);
-  const [restoreResult,  setRestoreResult]  = useState<{ counts: Record<string, number> } | null>(null);
+  const [restoreResult,  setRestoreResult]  = useState<{ counts: Record<string, number>; meta: { file_version: string; file_date: string | null; is_legacy: boolean } } | null>(null);
   const [restoreError,   setRestoreError]   = useState<string | null>(null);
   const restoreFileRef = useRef<HTMLInputElement>(null);
 
@@ -1359,7 +1359,7 @@ function BackupImportTab() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "فشل الاستعادة");
-      setRestoreResult({ counts: data.counts ?? {} });
+      setRestoreResult({ counts: data.counts ?? {}, meta: data.meta ?? { file_version: "legacy", file_date: null, is_legacy: true } });
       pushActivity({ date: new Date().toISOString(), type: "backup", file: file.name, status: "✅ استعادة ناجحة", user: "Admin" });
       refreshLog();
       toast({ title: "✅ تمت استعادة النسخة الاحتياطية بنجاح" });
@@ -1697,12 +1697,27 @@ function BackupImportTab() {
           )}
 
           {restoreResult && !restoreLoading && (
-            <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 space-y-2">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span className="text-emerald-400 font-bold text-sm">تمت الاستعادة بنجاح</span>
+            <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span className="text-emerald-400 font-bold text-sm">تمت الاستعادة بنجاح</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">
+                    v{restoreResult.meta.file_version}
+                  </span>
+                  {restoreResult.meta.is_legacy && (
+                    <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 text-[10px] font-bold">legacy</span>
+                  )}
+                </div>
               </div>
-              <div className="grid grid-cols-3 gap-2 text-center text-xs mt-2">
+              {restoreResult.meta.file_date && (
+                <p className="text-white/30 text-xs">
+                  تاريخ الملف: {new Date(restoreResult.meta.file_date).toLocaleString("ar-EG")}
+                </p>
+              )}
+              <div className="grid grid-cols-3 gap-2 text-center text-xs">
                 {Object.entries(restoreResult.counts).filter(([,v]) => (v as number) > 0).slice(0, 9).map(([k, v]) => (
                   <div key={k} className="bg-white/5 rounded-lg p-2">
                     <p className="text-white/40 text-[10px]">{k}</p>
