@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, and } from "drizzle-orm";
-import { db, purchasesTable, purchaseItemsTable, productsTable, customersTable, suppliersTable, safesTable, transactionsTable, stockMovementsTable, accountsTable, purchaseReturnsTable } from "@workspace/db";
+import { eq, and, gt, not, inArray } from "drizzle-orm";
+import { db, purchasesTable, purchaseItemsTable, productsTable, customersTable, suppliersTable, safesTable, transactionsTable, stockMovementsTable, accountsTable, purchaseReturnsTable, journalEntriesTable, journalEntryLinesTable } from "@workspace/db";
 import {
   GetPurchasesResponse,
   CreatePurchaseBody,
@@ -306,6 +306,83 @@ router.post("/purchases/:id/cancel", wrap(async (req, res) => {
     .where(eq(purchaseReturnsTable.purchase_id, id));
   if (existingReturns.length > 0) {
     throw httpError(400, "لا يمكن إلغاء فاتورة مرتبطة بمرتجعات — يجب حذف المرتجعات أولاً");
+  }
+
+  // ── فحص 1: المخزون سيصبح سالباً ─────────────────────────────────────────
+  // إلغاء الشراء يزيل الكميات من المخزون — إذا لم تكن الكميات كافية → توقف
+  {
+    const itemsToCheck = await db
+      .select({
+        product_id:   purchaseItemsTable.product_id,
+        product_name: purchaseItemsTable.product_name,
+        quantity:     purchaseItemsTable.quantity,
+      })
+      .from(purchaseItemsTable)
+      .where(eq(purchaseItemsTable.purchase_id, id));
+
+    for (const item of itemsToCheck) {
+      const cancelQty = Number(item.quantity);
+      const [prod] = await db
+        .select({ quantity: productsTable.quantity })
+        .from(productsTable)
+        .where(eq(productsTable.id, item.product_id));
+
+      if (prod && Number(prod.quantity) < cancelQty - 0.001) {
+        throw httpError(400,
+          `لا يمكن الإلغاء: المخزون الحالي لـ "${item.product_name}" (${Number(prod.quantity).toFixed(3)}) أقل من كمية الشراء المُراد عكسها (${cancelQty.toFixed(3)}) — الإلغاء سيجعل الكمية سالبة`
+        );
+      }
+    }
+  }
+
+  // ── فحص 2: رصيد المورد سيصبح سالباً ────────────────────────────────────
+  // إلغاء الشراء يُنقص ذمة المورد بـ remaining_amount
+  // إذا كان الرصيد أقل → الإلغاء سيؤدي لرصيد غير صحيح
+  if (purchase.supplier_id && Number(purchase.remaining_amount) > 0.001) {
+    const [supp] = await db
+      .select({ balance: suppliersTable.balance, name: suppliersTable.name })
+      .from(suppliersTable)
+      .where(eq(suppliersTable.id, purchase.supplier_id));
+    if (supp && Number(supp.balance) < Number(purchase.remaining_amount) - 0.001) {
+      throw httpError(400,
+        `لا يمكن الإلغاء: رصيد المورد الحالي (${Number(supp.balance).toFixed(2)}) أقل من الذمة المُراد عكسها (${Number(purchase.remaining_amount).toFixed(2)}) — توجد مدفوعات مُقيَّدة على هذا المورد`
+      );
+    }
+  }
+
+  // ── فحص 3: قيود محاسبية لاحقة على نفس الحسابات ─────────────────────────
+  if (purchase.posting_status === "posted") {
+    const [purchJE] = await db
+      .select({ id: journalEntriesTable.id })
+      .from(journalEntriesTable)
+      .where(eq(journalEntriesTable.reference, purchase.invoice_no));
+
+    if (purchJE) {
+      const jeLines = await db
+        .select({ account_id: journalEntryLinesTable.account_id })
+        .from(journalEntryLinesTable)
+        .where(eq(journalEntryLinesTable.entry_id, purchJE.id));
+
+      const accountIds = [...new Set(jeLines.map(l => l.account_id))];
+      if (accountIds.length > 0) {
+        const laterLines = await db
+          .select({ entry_id: journalEntryLinesTable.entry_id })
+          .from(journalEntryLinesTable)
+          .innerJoin(journalEntriesTable, eq(journalEntryLinesTable.entry_id, journalEntriesTable.id))
+          .where(and(
+            inArray(journalEntryLinesTable.account_id, accountIds),
+            gt(journalEntriesTable.date, purchase.date ?? ""),
+            not(eq(journalEntriesTable.id, purchJE.id)),
+          ))
+          .limit(1);
+
+        if (laterLines.length > 0) {
+          throw httpError(400,
+            "لا يمكن العكس: توجد قيود محاسبية لاحقة مبنية على نفس حسابات هذه الفاتورة — راجع دفتر الأستاذ قبل الإلغاء"
+          );
+        }
+      }
+    }
   }
 
   await assertPeriodOpen(purchase.date, req);

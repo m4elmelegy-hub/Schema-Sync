@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, salesTable, saleItemsTable, productsTable, customersTable, transactionsTable, safesTable, warehousesTable, erpUsersTable, stockMovementsTable, accountsTable, salesReturnsTable } from "@workspace/db";
+import { eq, and, gt, ne, not, inArray } from "drizzle-orm";
+import { db, salesTable, saleItemsTable, productsTable, customersTable, transactionsTable, safesTable, warehousesTable, erpUsersTable, stockMovementsTable, accountsTable, salesReturnsTable, receiptVouchersTable, journalEntriesTable, journalEntryLinesTable } from "@workspace/db";
 import {
   GetSalesResponse,
   CreateSaleBody,
@@ -324,6 +324,75 @@ router.post("/sales/:id/cancel", wrap(async (req, res) => {
     .where(eq(salesReturnsTable.sale_id, id));
   if (existingReturns.length > 0) {
     throw httpError(400, "لا يمكن إلغاء فاتورة مرتبطة بمرتجعات — يجب حذف المرتجعات أولاً");
+  }
+
+  // ── فحص 1: سندات قبض لاحقة مقيّدة على نفس العميل ───────────────────────
+  // إذا وجدت سندات قبض غير ملغاة بعد تاريخ الفاتورة → توقف
+  // (الإلغاء يرد ذمة العميل ؛ لكن تلك الذمة ربما سُدِّدت جزئياً بهذه السندات)
+  if (sale.customer_id && Number(sale.remaining_amount) > 0) {
+    const laterRVs = await db
+      .select({ id: receiptVouchersTable.id, voucher_no: receiptVouchersTable.voucher_no })
+      .from(receiptVouchersTable)
+      .where(and(
+        eq(receiptVouchersTable.customer_id, sale.customer_id),
+        gt(receiptVouchersTable.date, sale.date ?? ""),
+        ne(receiptVouchersTable.posting_status, "cancelled"),
+      ));
+    if (laterRVs.length > 0) {
+      const nos = laterRVs.map(v => v.voucher_no).join("، ");
+      throw httpError(400,
+        `لا يمكن الإلغاء: توجد ${laterRVs.length} سند(ات) قبض مُسجَّلة على هذا العميل بعد تاريخ الفاتورة (${nos}) — قد تكون مقيّدة على هذه الذمة`
+      );
+    }
+  }
+
+  // ── فحص 2: الإلغاء سيجعل رصيد العميل سالباً ────────────────────────────
+  if (sale.customer_id && Number(sale.remaining_amount) > 0.001) {
+    const [cust] = await db
+      .select({ balance: customersTable.balance, name: customersTable.name })
+      .from(customersTable)
+      .where(eq(customersTable.id, sale.customer_id));
+    if (cust && Number(cust.balance) < Number(sale.remaining_amount) - 0.001) {
+      throw httpError(400,
+        `لا يمكن الإلغاء: رصيد العميل الحالي (${Number(cust.balance).toFixed(2)}) أقل من الذمة المُراد عكسها (${Number(sale.remaining_amount).toFixed(2)}) — الإلغاء سيجعل الرصيد سالباً`
+      );
+    }
+  }
+
+  // ── فحص 3: قيود محاسبية لاحقة على نفس الحسابات ─────────────────────────
+  // نجد القيد المرتبط بهذه الفاتورة ثم نتحقق من وجود قيود أحدث على نفس الحسابات
+  if (sale.posting_status === "posted") {
+    const [saleJE] = await db
+      .select({ id: journalEntriesTable.id })
+      .from(journalEntriesTable)
+      .where(eq(journalEntriesTable.reference, sale.invoice_no));
+
+    if (saleJE) {
+      const jeLines = await db
+        .select({ account_id: journalEntryLinesTable.account_id })
+        .from(journalEntryLinesTable)
+        .where(eq(journalEntryLinesTable.entry_id, saleJE.id));
+
+      const accountIds = [...new Set(jeLines.map(l => l.account_id))];
+      if (accountIds.length > 0) {
+        const laterLines = await db
+          .select({ entry_id: journalEntryLinesTable.entry_id })
+          .from(journalEntryLinesTable)
+          .innerJoin(journalEntriesTable, eq(journalEntryLinesTable.entry_id, journalEntriesTable.id))
+          .where(and(
+            inArray(journalEntryLinesTable.account_id, accountIds),
+            gt(journalEntriesTable.date, sale.date ?? ""),
+            not(eq(journalEntriesTable.id, saleJE.id)),
+          ))
+          .limit(1);
+
+        if (laterLines.length > 0) {
+          throw httpError(400,
+            "لا يمكن العكس: توجد قيود محاسبية لاحقة مبنية على نفس حسابات هذه الفاتورة — راجع دفتر الأستاذ قبل الإلغاء"
+          );
+        }
+      }
+    }
   }
 
   await assertPeriodOpen(sale.date, req);
