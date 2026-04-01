@@ -1,17 +1,19 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 import {
   db, salesReturnsTable, saleReturnItemsTable,
   purchaseReturnsTable, purchaseReturnItemsTable,
   productsTable, customersTable, suppliersTable, safesTable, transactionsTable, stockMovementsTable,
-  saleItemsTable,
+  saleItemsTable, purchaseItemsTable,
 } from "@workspace/db";
 
 import { wrap, httpError } from "../lib/async-handler";
 
 const router: IRouter = Router();
 
-// ── مرتجعات المبيعات ───────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// مرتجعات المبيعات
+// ══════════════════════════════════════════════════════════════════════════════
 
 router.get("/sales-returns", wrap(async (_req, res) => {
   const items = await db.select().from(salesReturnsTable).orderBy(desc(salesReturnsTable.created_at));
@@ -28,10 +30,31 @@ router.get("/sales-returns/:id", wrap(async (req, res) => {
     ...ret,
     total_amount: Number(ret.total_amount),
     created_at: ret.created_at.toISOString(),
-    items: items.map(i => ({ ...i, quantity: Number(i.quantity), unit_price: Number(i.unit_price), total_price: Number(i.total_price) })),
+    items: items.map(i => ({
+      ...i,
+      quantity: Number(i.quantity),
+      unit_price: Number(i.unit_price),
+      total_price: Number(i.total_price),
+      unit_cost_at_return: Number(i.unit_cost_at_return),
+      total_cost_at_return: Number(i.total_cost_at_return),
+    })),
   });
 }));
 
+/*
+ * POST /sales-returns
+ *
+ * كل بند مرتجع يجب أن يحمل:
+ *   original_sale_item_id  — معرّف البند الدقيق من sale_items (مطلوب عند وجود sale_id)
+ *   product_id
+ *   product_name
+ *   quantity               — الكمية المُرتجَعة
+ *   unit_price             — سعر البيع (للمبلغ المسترد)
+ *   total_price
+ *
+ * الرابط بـ original_sale_item_id يحل مشكلة الغموض عندما يظهر نفس المنتج
+ * في أكثر من بند بنفس الفاتورة وبتكاليف مختلفة.
+ */
 router.post("/sales-returns", wrap(async (req, res) => {
   const { sale_id, customer_id, customer_name, items, reason, notes, date, refund_type, safe_id } = req.body;
   if (!items?.length) { res.status(400).json({ error: "أضف أصناف المرتجع" }); return; }
@@ -65,58 +88,92 @@ router.post("/sales-returns", wrap(async (req, res) => {
       notes: notes ?? null,
     }).returning();
 
-    // أصناف المرتجع + إعادة الكمية للمخزون + تحديث المتوسط المرجّح
     for (const item of items) {
       const retQty       = Number(item.quantity);
       const retSalePrice = Number(item.unit_price);
+      const origSaleItemId: number | null = item.original_sale_item_id
+        ? parseInt(item.original_sale_item_id)
+        : null;
 
-      // ── استرجاع التكلفة الأصلية وقت البيع ──────────────────────────────
-      // القاعدة:
-      //   1. إن كانت الفاتورة الأصلية مرتبطة (sale_id موجود)، نجلب cost_price
-      //      من saleItemsTable مطابقاً بـ sale_id + product_id — هذا هو
-      //      المتوسط المرجّح التاريخي المحفوظ وقت البيع الفعلي.
-      //   2. إن لم توجد تكلفة أصلية (مرتجع بدون ربط بالفاتورة) نستخدم
-      //      cost_price الحالي للمنتج كاحتياط مقبول.
-      let unitCostAtSale = 0;
-      if (sale_id) {
+      // ── التحقق من البند الأصلي وحساب التكلفة ──────────────────────────────
+      // القاعدة 1: إن كان original_sale_item_id موجوداً نستخدمه مباشرة (الأدق)
+      // القاعدة 2: إن لم يوجد نبحث بـ sale_id + product_id (احتياطي)
+      // القاعدة 3: إن لم يوجد نستخدم cost_price الحالي للمنتج
+      let unitCostAtSale  = 0;
+      let resolvedItemId: number | null = origSaleItemId;
+
+      if (origSaleItemId) {
         const [origItem] = await tx
-          .select({ cost_price: saleItemsTable.cost_price })
+          .select()
+          .from(saleItemsTable)
+          .where(eq(saleItemsTable.id, origSaleItemId));
+
+        if (!origItem) throw httpError(400, `بند البيع الأصلي ${origSaleItemId} غير موجود`);
+
+        const alreadyReturned = Number(origItem.quantity_returned);
+        const remaining       = Number(origItem.quantity) - alreadyReturned;
+
+        if (retQty > remaining + 0.0001) {
+          throw httpError(400,
+            `الكمية المطلوب إرجاعها (${retQty}) تتجاوز الكمية المتاحة للإرجاع (${remaining.toFixed(3)}) للبند ${origItem.product_name}`
+          );
+        }
+
+        unitCostAtSale = Number(origItem.cost_price);
+
+        // تحديث quantity_returned على البند الأصلي
+        await tx.update(saleItemsTable)
+          .set({ quantity_returned: String((alreadyReturned + retQty).toFixed(3)) })
+          .where(eq(saleItemsTable.id, origSaleItemId));
+
+      } else if (sale_id) {
+        // احتياطي — بحث بـ sale_id + product_id (قد يكون غامضاً)
+        const origItems = await tx
+          .select()
           .from(saleItemsTable)
           .where(and(
             eq(saleItemsTable.sale_id, parseInt(sale_id)),
             eq(saleItemsTable.product_id, item.product_id),
           ));
-        if (origItem) unitCostAtSale = Number(origItem.cost_price);
+
+        if (origItems.length > 0) {
+          // في حالة التعدد، نختار أول بند لا يزال لديه كمية متاحة
+          const available = origItems.find(r =>
+            (Number(r.quantity) - Number(r.quantity_returned)) >= retQty - 0.0001
+          ) ?? origItems[0];
+
+          unitCostAtSale  = Number(available.cost_price);
+          resolvedItemId  = available.id;
+
+          const alreadyReturned = Number(available.quantity_returned);
+          await tx.update(saleItemsTable)
+            .set({ quantity_returned: String((alreadyReturned + retQty).toFixed(3)) })
+            .where(eq(saleItemsTable.id, available.id));
+        }
       }
+
       if (unitCostAtSale === 0) {
-        const [prod] = await tx
-          .select({ cost_price: productsTable.cost_price })
-          .from(productsTable)
-          .where(eq(productsTable.id, item.product_id));
+        const [prod] = await tx.select({ cost_price: productsTable.cost_price })
+          .from(productsTable).where(eq(productsTable.id, item.product_id));
         if (prod) unitCostAtSale = Number(prod.cost_price);
       }
 
       const totalCostAtReturn = unitCostAtSale * retQty;
 
-      // ── إدراج بند المرتجع مع التكلفة الأصلية ────────────────────────────
+      // ── إدراج بند المرتجع ─────────────────────────────────────────────────
       await tx.insert(saleReturnItemsTable).values({
-        return_id:            ret.id,
-        product_id:           item.product_id,
-        product_name:         item.product_name,
-        quantity:             String(retQty),
-        unit_price:           String(retSalePrice),
-        total_price:          String(item.total_price),
-        unit_cost_at_return:  String(unitCostAtSale),
-        total_cost_at_return: String(totalCostAtReturn),
+        return_id:              ret.id,
+        product_id:             item.product_id,
+        product_name:           item.product_name,
+        quantity:               String(retQty),
+        unit_price:             String(retSalePrice),
+        total_price:            String(item.total_price),
+        original_sale_item_id:  resolvedItemId,
+        unit_cost_at_return:    String(unitCostAtSale),
+        total_cost_at_return:   String(totalCostAtReturn),
       });
 
-      // ── تحديث المخزون وإعادة حساب المتوسط المرجّح ───────────────────────
-      // القاعدة: البضاعة المُرتجَعة تُعاد للمخزون بتكلفتها الأصلية وقت البيع.
-      //
-      // NewWAC = (currentQty × currentWAC + returnedQty × originalCostAtSale)
-      //          / (currentQty + returnedQty)
-      //
-      // هذا يُعدّل المتوسط المرجّح بعد الإضافة ويحافظ على صحة قيمة المخزون.
+      // ── إعادة المخزون بالتكلفة الأصلية + تحديث WAC ───────────────────────
       const [prodNow] = await tx.select().from(productsTable).where(eq(productsTable.id, item.product_id));
       if (prodNow) {
         const oldQty = Number(prodNow.quantity);
@@ -133,7 +190,6 @@ router.post("/sales-returns", wrap(async (req, res) => {
           })
           .where(eq(productsTable.id, item.product_id));
 
-        // ── حركة مخزون وارد — unit_cost بالتكلفة الأصلية (ليس بسعر البيع) ─
         await tx.insert(stockMovementsTable).values({
           product_id:      item.product_id,
           product_name:    item.product_name,
@@ -141,7 +197,7 @@ router.post("/sales-returns", wrap(async (req, res) => {
           quantity:        String(retQty),
           quantity_before: String(oldQty),
           quantity_after:  String(newQty),
-          unit_cost:       String(unitCostAtSale),   // ← التكلفة الأصلية وقت البيع
+          unit_cost:       String(unitCostAtSale),
           reference_type:  "sale_return",
           reference_id:    ret.id,
           reference_no:    return_no,
@@ -151,7 +207,7 @@ router.post("/sales-returns", wrap(async (req, res) => {
       }
     }
 
-    // ── الأثر على الأرصدة ──────────────────────────────────────────────────
+    // ── أثر الأرصدة ────────────────────────────────────────────────────────
     if (rtype === "credit") {
       if (customer_id) {
         const [cust] = await tx.select().from(customersTable).where(eq(customersTable.id, parseInt(customer_id)));
@@ -195,65 +251,90 @@ router.delete("/sales-returns/:id", wrap(async (req, res) => {
     const [ret] = await tx.select().from(salesReturnsTable).where(eq(salesReturnsTable.id, id));
     if (!ret) throw httpError(400, "المرتجع غير موجود");
 
-      const items = await tx.select().from(saleReturnItemsTable).where(eq(saleReturnItemsTable.return_id, id));
-      const total = Number(ret.total_amount);
+    const retItems = await tx.select().from(saleReturnItemsTable).where(eq(saleReturnItemsTable.return_id, id));
+    const total = Number(ret.total_amount);
 
-      // عكس المخزون (البضاعة تخرج مرة تانية) + حركة صادر تعويضية
-      for (const item of items) {
-        const [prod] = await tx.select().from(productsTable).where(eq(productsTable.id, item.product_id));
-        if (prod) {
-          const oldQty = Number(prod.quantity);
-          const newQty = Math.max(0, oldQty - Number(item.quantity));
-          await tx.update(productsTable)
-            .set({ quantity: String(newQty) })
-            .where(eq(productsTable.id, item.product_id));
+    for (const item of retItems) {
+      const retQty = Number(item.quantity);
 
-          await tx.insert(stockMovementsTable).values({
-            product_id: item.product_id,
-            product_name: item.product_name,
-            movement_type: "adjustment",
-            quantity: String(-(Number(item.quantity))),
-            quantity_before: String(oldQty),
-            quantity_after: String(newQty),
-            unit_cost: String(Number(item.unit_price)),
-            reference_type: "sale_return_cancel",
-            reference_id: ret.id,
-            reference_no: ret.return_no,
-            notes: `إلغاء مرتجع مبيعات ${ret.return_no}`,
-            date: new Date().toISOString().split("T")[0],
-          });
+      // ── إرجاع quantity_returned على البند الأصلي ─────────────────────────
+      if (item.original_sale_item_id) {
+        const [origItem] = await tx.select().from(saleItemsTable)
+          .where(eq(saleItemsTable.id, item.original_sale_item_id));
+        if (origItem) {
+          const newReturned = Math.max(0, Number(origItem.quantity_returned) - retQty);
+          await tx.update(saleItemsTable)
+            .set({ quantity_returned: String(newReturned.toFixed(3)) })
+            .where(eq(saleItemsTable.id, origItem.id));
         }
       }
 
-      if (ret.refund_type === "credit" && ret.customer_id) {
-        const [cust] = await tx.select().from(customersTable).where(eq(customersTable.id, ret.customer_id));
-        if (cust) {
-          await tx.update(customersTable)
-            .set({ balance: String(Number(cust.balance) + total) })
-            .where(eq(customersTable.id, cust.id));
+      // ── عكس المخزون (البضاعة تخرج مرة أخرى) ─────────────────────────────
+      const unitCost = Number(item.unit_cost_at_return) || Number(item.unit_price);
+      const [prod] = await tx.select().from(productsTable).where(eq(productsTable.id, item.product_id));
+      if (prod) {
+        const oldQty = Number(prod.quantity);
+        const newQty = Math.max(0, oldQty - retQty);
+
+        // تعديل WAC عند إزالة الكمية المُرتجَعة (عكس الإضافة)
+        const oldWAC = Number(prod.cost_price);
+        let newWAC   = oldWAC;
+        if (newQty > 0) {
+          const currentValue = oldQty * oldWAC;
+          const removedValue = retQty * unitCost;
+          newWAC = Math.max(0, (currentValue - removedValue) / newQty);
         }
-      } else if (ret.refund_type === "cash" && ret.safe_id) {
-        const [safe] = await tx.select().from(safesTable).where(eq(safesTable.id, ret.safe_id));
-        if (safe) {
-          await tx.update(safesTable)
-            .set({ balance: String(Number(safe.balance) + total) })
-            .where(eq(safesTable.id, ret.safe_id));
-        }
-        // تسجيل حركة عكسية في السجل المالي
-        await tx.insert(transactionsTable).values({
-          type: "sale_return_cancel",
-          reference_type: "sale_return_cancel",
-          reference_id: ret.id,
-          safe_id: ret.safe_id,
-          safe_name: ret.safe_name ?? "",
-          customer_id: ret.customer_id ?? null,
-          customer_name: ret.customer_name ?? null,
-          amount: String(total),
-          direction: "in",
-          description: `إلغاء مرتجع مبيعات نقدي ${ret.return_no}`,
-          date: new Date().toISOString().split("T")[0],
+
+        await tx.update(productsTable)
+          .set({ quantity: String(newQty), cost_price: String(newWAC.toFixed(4)) })
+          .where(eq(productsTable.id, item.product_id));
+
+        await tx.insert(stockMovementsTable).values({
+          product_id:      item.product_id,
+          product_name:    item.product_name,
+          movement_type:   "adjustment",
+          quantity:        String(-retQty),
+          quantity_before: String(oldQty),
+          quantity_after:  String(newQty),
+          unit_cost:       String(unitCost),
+          reference_type:  "sale_return_cancel",
+          reference_id:    ret.id,
+          reference_no:    ret.return_no,
+          notes:           `إلغاء مرتجع مبيعات ${ret.return_no}`,
+          date:            new Date().toISOString().split("T")[0],
         });
       }
+    }
+
+    // ── عكس الأرصدة ─────────────────────────────────────────────────────────
+    if (ret.refund_type === "credit" && ret.customer_id) {
+      const [cust] = await tx.select().from(customersTable).where(eq(customersTable.id, ret.customer_id));
+      if (cust) {
+        await tx.update(customersTable)
+          .set({ balance: String(Number(cust.balance) + total) })
+          .where(eq(customersTable.id, cust.id));
+      }
+    } else if (ret.refund_type === "cash" && ret.safe_id) {
+      const [safe] = await tx.select().from(safesTable).where(eq(safesTable.id, ret.safe_id));
+      if (safe) {
+        await tx.update(safesTable)
+          .set({ balance: String(Number(safe.balance) + total) })
+          .where(eq(safesTable.id, ret.safe_id));
+      }
+      await tx.insert(transactionsTable).values({
+        type: "sale_return_cancel",
+        reference_type: "sale_return_cancel",
+        reference_id: ret.id,
+        safe_id: ret.safe_id,
+        safe_name: ret.safe_name ?? "",
+        customer_id: ret.customer_id ?? null,
+        customer_name: ret.customer_name ?? null,
+        amount: String(total),
+        direction: "in",
+        description: `إلغاء مرتجع مبيعات نقدي ${ret.return_no}`,
+        date: new Date().toISOString().split("T")[0],
+      });
+    }
 
     await tx.delete(saleReturnItemsTable).where(eq(saleReturnItemsTable.return_id, id));
     await tx.delete(salesReturnsTable).where(eq(salesReturnsTable.id, id));
@@ -262,7 +343,9 @@ router.delete("/sales-returns/:id", wrap(async (req, res) => {
   res.json({ success: true });
 }));
 
-// ── مرتجعات المشتريات ──────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// مرتجعات المشتريات
+// ══════════════════════════════════════════════════════════════════════════════
 
 router.get("/purchase-returns", wrap(async (_req, res) => {
   const items = await db.select().from(purchaseReturnsTable).orderBy(desc(purchaseReturnsTable.created_at));
@@ -279,13 +362,28 @@ router.get("/purchase-returns/:id", wrap(async (req, res) => {
     ...ret,
     total_amount: Number(ret.total_amount),
     created_at: ret.created_at.toISOString(),
-    items: items.map(i => ({ ...i, quantity: Number(i.quantity), unit_price: Number(i.unit_price), total_price: Number(i.total_price) })),
+    items: items.map(i => ({
+      ...i,
+      quantity: Number(i.quantity),
+      unit_price: Number(i.unit_price),
+      total_price: Number(i.total_price),
+      unit_cost_at_return: Number(i.unit_cost_at_return),
+      total_cost_at_return: Number(i.total_cost_at_return),
+    })),
   });
 }));
 
+/*
+ * POST /purchase-returns
+ *
+ * كل بند مرتجع يجب أن يحمل (اختياري عند وجود purchase_id):
+ *   original_purchase_item_id — معرّف البند الدقيق من purchase_items
+ *   product_id / product_name / quantity / unit_price / total_price
+ *
+ * التكلفة المستخدمة في WAC = unit_price من البند الأصلي (وليس من نموذج الإدخال)
+ * لأن التكلفة الأصلية مخزّنة في purchase_items.unit_price.
+ */
 router.post("/purchase-returns", wrap(async (req, res) => {
-  // FIX 3: أضيف refund_type (cash|balance_credit) و safe_id و supplier_id
-  // FIX 9: supplier_name يُحفظ بشكل صحيح ولا يُخلط مع customer_name
   const {
     purchase_id, supplier_id, customer_id, customer_name, supplier_name,
     items, reason, notes, date,
@@ -300,11 +398,15 @@ router.post("/purchase-returns", wrap(async (req, res) => {
   const rtype: string = refund_type === "cash" ? "cash" : "balance_credit";
 
   const ret = await db.transaction(async (tx) => {
-    // ── نوع الاسترداد: نقدي → زيادة رصيد الخزينة ─────────────────────────
+    // ── الاسترداد النقدي: إضافة للخزينة ─────────────────────────────────────
+    let safeIdInt: number | null = null;
+    let safeNameStr: string | null = null;
     if (rtype === "cash") {
       if (!safe_id) throw httpError(400, "يجب اختيار الخزينة للاسترداد النقدي");
       const [safe] = await tx.select().from(safesTable).where(eq(safesTable.id, parseInt(safe_id)));
       if (!safe) throw httpError(400, "الخزينة غير موجودة");
+      safeIdInt   = safe.id;
+      safeNameStr = safe.name;
 
       await tx.update(safesTable)
         .set({ balance: String(Number(safe.balance) + total) })
@@ -321,7 +423,7 @@ router.post("/purchase-returns", wrap(async (req, res) => {
         date: txDate,
       });
     } else {
-      // ── خصم من رصيد المورد (دين يُقلَّل) ─────────────────────────────
+      // ── خصم من رصيد المورد ────────────────────────────────────────────────
       if (supplier_id) {
         const [supp] = await tx.select().from(suppliersTable).where(eq(suppliersTable.id, parseInt(supplier_id)));
         if (supp) {
@@ -333,10 +435,7 @@ router.post("/purchase-returns", wrap(async (req, res) => {
       }
     }
 
-    // ── إنشاء سجل المرتجع ──────────────────────────────────────────────────
-    const safeIdForRecord = rtype === "cash" && safe_id ? parseInt(safe_id) : null;
-    const safeNameForRecord = rtype === "cash" && safe_id ? (await tx.select({ name: safesTable.name }).from(safesTable).where(eq(safesTable.id, parseInt(safe_id))))[0]?.name ?? null : null;
-
+    // ── إنشاء سجل المرتجع ─────────────────────────────────────────────────
     const [ret] = await tx.insert(purchaseReturnsTable).values({
       return_no,
       purchase_id: purchase_id ?? null,
@@ -346,56 +445,122 @@ router.post("/purchase-returns", wrap(async (req, res) => {
       supplier_name: supplier_name ?? null,
       total_amount: String(total),
       refund_type: rtype,
-      safe_id: safeIdForRecord,
-      safe_name: safeNameForRecord,
+      safe_id: safeIdInt,
+      safe_name: safeNameStr,
       date: txDate,
       reason: reason ?? null,
       notes: notes ?? null,
     }).returning();
 
-    // ── خصم من المخزون + حركة صادر ────────────────────────────────────────
+    // ── بنود المرتجع: التحقق + المخزون + WAC ────────────────────────────────
     for (const item of items) {
+      const retQty    = Number(item.quantity);
+      const origPurchaseItemId: number | null = item.original_purchase_item_id
+        ? parseInt(item.original_purchase_item_id)
+        : null;
+
+      // ── تحديد التكلفة التاريخية من بند الشراء الأصلي ─────────────────────
+      // القاعدة 1: original_purchase_item_id (الأدق)
+      // القاعدة 2: purchase_id + product_id (احتياطي)
+      // القاعدة 3: unit_price من نموذج الإدخال (آخر احتياط)
+      let historicalUnitCost: number = Number(item.unit_price); // fallback
+      let resolvedPurchItemId: number | null = origPurchaseItemId;
+
+      if (origPurchaseItemId) {
+        const [origItem] = await tx.select().from(purchaseItemsTable)
+          .where(eq(purchaseItemsTable.id, origPurchaseItemId));
+
+        if (!origItem) throw httpError(400, `بند الشراء الأصلي ${origPurchaseItemId} غير موجود`);
+
+        const alreadyReturned = Number(origItem.quantity_returned);
+        const remaining       = Number(origItem.quantity) - alreadyReturned;
+
+        if (retQty > remaining + 0.0001) {
+          throw httpError(400,
+            `الكمية المطلوب إرجاعها (${retQty}) تتجاوز الكمية المتاحة للإرجاع (${remaining.toFixed(3)}) للبند ${origItem.product_name}`
+          );
+        }
+
+        historicalUnitCost = Number(origItem.unit_price);
+
+        await tx.update(purchaseItemsTable)
+          .set({ quantity_returned: String((alreadyReturned + retQty).toFixed(3)) })
+          .where(eq(purchaseItemsTable.id, origPurchaseItemId));
+
+      } else if (purchase_id) {
+        // احتياطي — بحث بـ purchase_id + product_id
+        const origItems = await tx.select().from(purchaseItemsTable)
+          .where(and(
+            eq(purchaseItemsTable.purchase_id, parseInt(purchase_id)),
+            eq(purchaseItemsTable.product_id, item.product_id),
+          ));
+
+        if (origItems.length > 0) {
+          const available = origItems.find(r =>
+            (Number(r.quantity) - Number(r.quantity_returned)) >= retQty - 0.0001
+          ) ?? origItems[0];
+
+          historicalUnitCost = Number(available.unit_price);
+          resolvedPurchItemId = available.id;
+
+          const alreadyReturned = Number(available.quantity_returned);
+          await tx.update(purchaseItemsTable)
+            .set({ quantity_returned: String((alreadyReturned + retQty).toFixed(3)) })
+            .where(eq(purchaseItemsTable.id, available.id));
+        }
+      }
+
+      const totalCostAtReturn = historicalUnitCost * retQty;
+
+      // ── إدراج بند المرتجع ─────────────────────────────────────────────────
       await tx.insert(purchaseReturnItemsTable).values({
-        return_id: ret.id,
-        product_id: item.product_id,
-        product_name: item.product_name,
-        quantity: String(item.quantity),
-        unit_price: String(item.unit_price),
-        total_price: String(item.total_price),
+        return_id:                  ret.id,
+        product_id:                 item.product_id,
+        product_name:               item.product_name,
+        quantity:                   String(retQty),
+        unit_price:                 String(item.unit_price),
+        total_price:                String(item.total_price),
+        original_purchase_item_id:  resolvedPurchItemId,
+        unit_cost_at_return:        String(historicalUnitCost),
+        total_cost_at_return:       String(totalCostAtReturn),
       });
 
+      // ── خصم المخزون + إعادة حساب WAC ────────────────────────────────────
+      //
+      // عكس المشتريات: نُخرج الوحدات بتكلفة الشراء الأصلية (historicalUnitCost)
+      // حتى يبقى رصيد المخزون صحيحاً.
+      //
+      // NewWAC = (currentQty × currentWAC − returnedQty × historicalUnitCost)
+      //          / (currentQty − returnedQty)
+      //
       const [prod] = await tx.select().from(productsTable).where(eq(productsTable.id, item.product_id));
       if (prod) {
-        const oldQty = Number(prod.quantity);
-        const retQty = Number(item.quantity);
-        const newQty = Math.max(0, oldQty - retQty);
+        const oldQty  = Number(prod.quantity);
+        const oldWAC  = Number(prod.cost_price);
+        const newQty  = Math.max(0, oldQty - retQty);
+        let   newWAC  = oldWAC;
 
-        // ── إعادة حساب المتوسط المرجّح بعد مرتجع المشتريات ─────────────────
-        const oldWAC = Number(prod.cost_price);
-        const retUnitPrice = Number(item.unit_price);
-        let newWAC = oldWAC;
         if (newQty > 0) {
-          const oldTotalValue = oldQty * oldWAC;
-          const returnedValue = retQty * retUnitPrice;
+          const oldTotalValue   = oldQty * oldWAC;
+          const returnedValue   = retQty * historicalUnitCost;
           newWAC = Math.max(0, (oldTotalValue - returnedValue) / newQty);
-          newWAC = Math.round(newWAC * 100) / 100;
         }
 
         await tx.update(productsTable)
-          .set({ quantity: String(newQty), cost_price: String(newWAC) })
+          .set({ quantity: String(newQty), cost_price: String(newWAC.toFixed(4)) })
           .where(eq(productsTable.id, item.product_id));
 
         await tx.insert(stockMovementsTable).values({
-          product_id: item.product_id,
-          product_name: item.product_name,
-          movement_type: "purchase_return",
-          quantity: String(-retQty),
+          product_id:      item.product_id,
+          product_name:    item.product_name,
+          movement_type:   "purchase_return",
+          quantity:        String(-retQty),
           quantity_before: String(oldQty),
-          quantity_after: String(newQty),
-          unit_cost: String(retUnitPrice),
-          reference_type: "purchase_return",
-          reference_id: ret.id,
-          reference_no: return_no,
+          quantity_after:  String(newQty),
+          unit_cost:       String(historicalUnitCost),
+          reference_type:  "purchase_return",
+          reference_id:    ret.id,
+          reference_no:    return_no,
           notes: supplier_name ? `مرتجع مشتريات لـ ${supplier_name}` : "مرتجع مشتريات",
           date: txDate,
         });
@@ -413,55 +578,76 @@ router.delete("/purchase-returns/:id", wrap(async (req, res) => {
   await db.transaction(async (tx) => {
     const [ret] = await tx.select().from(purchaseReturnsTable).where(eq(purchaseReturnsTable.id, id));
     if (!ret) throw httpError(400, "غير موجود");
-      const items = await tx.select().from(purchaseReturnItemsTable).where(eq(purchaseReturnItemsTable.return_id, id));
 
-      for (const item of items) {
-        const [prod] = await tx.select().from(productsTable).where(eq(productsTable.id, item.product_id));
-        if (prod) {
-          const oldQty = Number(prod.quantity);
-          const newQty = oldQty + Number(item.quantity);
-          await tx.update(productsTable)
-            .set({ quantity: String(newQty) })
-            .where(eq(productsTable.id, item.product_id));
+    const retItems = await tx.select().from(purchaseReturnItemsTable)
+      .where(eq(purchaseReturnItemsTable.return_id, id));
 
-          await tx.insert(stockMovementsTable).values({
-            product_id: item.product_id,
-            product_name: item.product_name,
-            movement_type: "adjustment",
-            quantity: String(Number(item.quantity)),
-            quantity_before: String(oldQty),
-            quantity_after: String(newQty),
-            unit_cost: String(Number(item.unit_price)),
-            reference_type: "purchase_return_cancel",
-            reference_id: ret.id,
-            reference_no: ret.return_no,
-            notes: `إلغاء مرتجع مشتريات ${ret.return_no}`,
-            date: new Date().toISOString().split("T")[0],
-          });
+    for (const item of retItems) {
+      const retQty       = Number(item.quantity);
+      const unitCostUsed = Number(item.unit_cost_at_return) || Number(item.unit_price);
+
+      // ── استعادة quantity_returned على البند الأصلي ───────────────────────
+      if (item.original_purchase_item_id) {
+        const [origItem] = await tx.select().from(purchaseItemsTable)
+          .where(eq(purchaseItemsTable.id, item.original_purchase_item_id));
+        if (origItem) {
+          const newReturned = Math.max(0, Number(origItem.quantity_returned) - retQty);
+          await tx.update(purchaseItemsTable)
+            .set({ quantity_returned: String(newReturned.toFixed(3)) })
+            .where(eq(purchaseItemsTable.id, origItem.id));
         }
       }
 
-      const total = Number(ret.total_amount);
+      // ── إعادة المخزون + تعديل WAC ────────────────────────────────────────
+      const [prod] = await tx.select().from(productsTable).where(eq(productsTable.id, item.product_id));
+      if (prod) {
+        const oldQty = Number(prod.quantity);
+        const oldWAC = Number(prod.cost_price);
+        const newQty = oldQty + retQty;
+        const newWAC = newQty > 0
+          ? ((oldQty * oldWAC) + (retQty * unitCostUsed)) / newQty
+          : unitCostUsed;
 
-      if (ret.refund_type === "cash" && ret.safe_id) {
-        // عكس الاسترداد النقدي: طرح المبلغ من الخزينة
-        const [safe] = await tx.select().from(safesTable).where(eq(safesTable.id, ret.safe_id));
-        if (safe) {
-          await tx.update(safesTable)
-            .set({ balance: String(Number(safe.balance) - total) })
-            .where(eq(safesTable.id, ret.safe_id));
-        }
-      } else if (ret.refund_type === "balance_credit" || !ret.refund_type) {
-        // عكس خصم رصيد المورد: إعادة الإضافة لرصيد المورد
-        if (ret.supplier_id) {
-          const [supp] = await tx.select().from(suppliersTable).where(eq(suppliersTable.id, ret.supplier_id));
-          if (supp) {
-            await tx.update(suppliersTable)
-              .set({ balance: String(Number(supp.balance) + total) })
-              .where(eq(suppliersTable.id, ret.supplier_id));
-          }
+        await tx.update(productsTable)
+          .set({ quantity: String(newQty), cost_price: String(newWAC.toFixed(4)) })
+          .where(eq(productsTable.id, item.product_id));
+
+        await tx.insert(stockMovementsTable).values({
+          product_id:      item.product_id,
+          product_name:    item.product_name,
+          movement_type:   "adjustment",
+          quantity:        String(retQty),
+          quantity_before: String(oldQty),
+          quantity_after:  String(newQty),
+          unit_cost:       String(unitCostUsed),
+          reference_type:  "purchase_return_cancel",
+          reference_id:    ret.id,
+          reference_no:    ret.return_no,
+          notes:           `إلغاء مرتجع مشتريات ${ret.return_no}`,
+          date:            new Date().toISOString().split("T")[0],
+        });
+      }
+    }
+
+    const total = Number(ret.total_amount);
+
+    if (ret.refund_type === "cash" && ret.safe_id) {
+      const [safe] = await tx.select().from(safesTable).where(eq(safesTable.id, ret.safe_id));
+      if (safe) {
+        await tx.update(safesTable)
+          .set({ balance: String(Number(safe.balance) - total) })
+          .where(eq(safesTable.id, ret.safe_id));
+      }
+    } else if (ret.refund_type === "balance_credit" || !ret.refund_type) {
+      if (ret.supplier_id) {
+        const [supp] = await tx.select().from(suppliersTable).where(eq(suppliersTable.id, ret.supplier_id));
+        if (supp) {
+          await tx.update(suppliersTable)
+            .set({ balance: String(Number(supp.balance) + total) })
+            .where(eq(suppliersTable.id, ret.supplier_id));
         }
       }
+    }
 
     await tx.delete(purchaseReturnItemsTable).where(eq(purchaseReturnItemsTable.return_id, id));
     await tx.delete(purchaseReturnsTable).where(eq(purchaseReturnsTable.id, id));

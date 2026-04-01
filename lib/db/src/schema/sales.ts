@@ -45,6 +45,8 @@ export const saleItemsTable = pgTable("sale_items", {
   // تكلفة الوحدة وقت البيع (متوسط مرجّح — لحساب الربح الدقيق)
   cost_price: numeric("cost_price", { precision: 12, scale: 4 }).notNull().default("0"),
   cost_total: numeric("cost_total", { precision: 12, scale: 4 }).notNull().default("0"),
+  // الكمية المُرتجَعة من هذا البند تحديداً (لمنع الإرجاع الزائد)
+  quantity_returned: numeric("quantity_returned", { precision: 12, scale: 3 }).notNull().default("0"),
 }, (t) => [
   index("sale_items_sale_id_idx").on(t.sale_id),
   index("sale_items_product_id_idx").on(t.product_id),

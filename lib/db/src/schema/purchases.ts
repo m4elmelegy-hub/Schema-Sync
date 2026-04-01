@@ -37,6 +37,8 @@ export const purchaseItemsTable = pgTable("purchase_items", {
   quantity: numeric("quantity", { precision: 12, scale: 3 }).notNull(),
   unit_price: numeric("unit_price", { precision: 12, scale: 2 }).notNull(),
   total_price: numeric("total_price", { precision: 12, scale: 2 }).notNull(),
+  // الكمية المُرتجَعة من هذا البند تحديداً (لمنع الإرجاع الزائد)
+  quantity_returned: numeric("quantity_returned", { precision: 12, scale: 3 }).notNull().default("0"),
 }, (t) => [
   index("purchase_items_purchase_id_idx").on(t.purchase_id),
   index("purchase_items_product_id_idx").on(t.product_id),

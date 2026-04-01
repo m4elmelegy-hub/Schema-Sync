@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
-import { db, purchasesTable, purchaseItemsTable, productsTable, customersTable, suppliersTable, safesTable, transactionsTable, stockMovementsTable, accountsTable } from "@workspace/db";
+import { db, purchasesTable, purchaseItemsTable, productsTable, customersTable, suppliersTable, safesTable, transactionsTable, stockMovementsTable, accountsTable, purchaseReturnsTable } from "@workspace/db";
 import {
   GetPurchasesResponse,
   CreatePurchaseBody,
@@ -286,7 +286,7 @@ router.post("/purchases/:id/post", wrap(async (req, res) => {
   res.json(formatPurchase(updated));
 }));
 
-/* ── إلغاء فاتورة المشتريات → قيد عكسي ────────────────────────────────── */
+/* ── إلغاء فاتورة المشتريات → عكس كامل (مخزون + أرصدة + قيد محاسبي) ─── */
 router.post("/purchases/:id/cancel", wrap(async (req, res) => {
   const id = parseInt(req.params.id as string);
   if (isNaN(id)) throw httpError(400, "معرّف غير صحيح");
@@ -295,24 +295,128 @@ router.post("/purchases/:id/cancel", wrap(async (req, res) => {
   if (!purchase) throw httpError(404, "الفاتورة غير موجودة");
   if (purchase.posting_status === "cancelled") throw httpError(400, "الفاتورة ملغاة بالفعل");
 
-  if (purchase.posting_status === "posted") {
-    const lines = await buildPurchaseJournalLines(purchase);
-    if (lines.length >= 2) {
-      const reversed = lines.map(l => ({ account: l.account, debit: l.credit, credit: l.debit }));
-      await createJournalEntry({
-        date: new Date().toISOString().split("T")[0],
-        description: `إلغاء فاتورة مشتريات ${purchase.invoice_no}${purchase.supplier_name ? ` — ${purchase.supplier_name}` : ""}`,
-        reference: `REV-${purchase.invoice_no}`,
-        lines: reversed,
-      });
-    }
+  // ── التحقق: لا يمكن إلغاء فاتورة بها مرتجعات ────────────────────────────
+  const existingReturns = await db.select({ id: purchaseReturnsTable.id })
+    .from(purchaseReturnsTable)
+    .where(eq(purchaseReturnsTable.purchase_id, id));
+  if (existingReturns.length > 0) {
+    throw httpError(400, "لا يمكن إلغاء فاتورة مرتبطة بمرتجعات — يجب حذف المرتجعات أولاً");
   }
 
-  const [updated] = await db.update(purchasesTable)
-    .set({ posting_status: "cancelled" })
-    .where(eq(purchasesTable.id, id))
-    .returning();
+  const today = new Date().toISOString().split("T")[0];
 
+  await db.transaction(async (tx) => {
+    // ── 1. عكس القيد المحاسبي (للفواتير المرحَّلة فقط) ──────────────────
+    if (purchase.posting_status === "posted") {
+      const lines = await buildPurchaseJournalLines(purchase);
+      if (lines.length >= 2) {
+        const reversed = lines.map(l => ({ account: l.account, debit: l.credit, credit: l.debit }));
+        await createJournalEntry({
+          date: today,
+          description: `إلغاء فاتورة مشتريات ${purchase.invoice_no}${purchase.supplier_name ? ` — ${purchase.supplier_name}` : ""}`,
+          reference: `REV-${purchase.invoice_no}`,
+          lines: reversed,
+        });
+      }
+    }
+
+    // ── 2. إزالة بنود الشراء من المخزون + تعديل WAC ───────────────────────
+    // نستخدم unit_price المحفوظ في purchase_items (= تكلفة الشراء الأصلية)
+    const purchaseItems = await tx.select().from(purchaseItemsTable)
+      .where(eq(purchaseItemsTable.purchase_id, purchase.id));
+
+    for (const item of purchaseItems) {
+      const qty            = Number(item.quantity);
+      const purchaseUnitCost = Number(item.unit_price);
+
+      const [prod] = await tx.select().from(productsTable).where(eq(productsTable.id, item.product_id));
+      if (prod) {
+        const oldQty = Number(prod.quantity);
+        const oldWAC = Number(prod.cost_price);
+        const newQty = Math.max(0, oldQty - qty);
+
+        // عند إزالة مشتريات: NewWAC = (oldValue - removedValue) / newQty
+        let newWAC = oldWAC;
+        if (newQty > 0) {
+          const oldValue     = oldQty * oldWAC;
+          const removedValue = qty * purchaseUnitCost;
+          newWAC = Math.max(0, (oldValue - removedValue) / newQty);
+        }
+
+        await tx.update(productsTable)
+          .set({ quantity: String(newQty), cost_price: String(newWAC.toFixed(4)) })
+          .where(eq(productsTable.id, item.product_id));
+
+        await tx.insert(stockMovementsTable).values({
+          product_id:      item.product_id,
+          product_name:    item.product_name,
+          movement_type:   "adjustment",
+          quantity:        String(-qty),
+          quantity_before: String(oldQty),
+          quantity_after:  String(newQty),
+          unit_cost:       String(purchaseUnitCost),
+          reference_type:  "purchase_cancel",
+          reference_id:    purchase.id,
+          reference_no:    purchase.invoice_no,
+          notes:           `إلغاء فاتورة مشتريات ${purchase.invoice_no}`,
+          date:            today,
+        });
+      }
+    }
+
+    // ── 3. عكس رصيد المورد (الآجل / الجزئي) ─────────────────────────────
+    const remainingAmt = Number(purchase.remaining_amount);
+    if (remainingAmt > 0 && purchase.supplier_id) {
+      const [supp] = await tx.select().from(suppliersTable).where(eq(suppliersTable.id, purchase.supplier_id));
+      if (supp) {
+        const newBal = Math.max(0, Number(supp.balance) - remainingAmt);
+        await tx.update(suppliersTable)
+          .set({ balance: String(newBal) })
+          .where(eq(suppliersTable.id, supp.id));
+      }
+    }
+
+    // ── 4. عكس رصيد الخزينة (النقدي / الجزئي) ────────────────────────────
+    // نستخدم paid_amount المخزون في سجل الشراء
+    const paidAmt = Number(purchase.paid_amount);
+    if (paidAmt > 0) {
+      // نجلب الخزينة من جدول الحركات (safe_id غير مخزّن في purchasesTable)
+      const [txRow] = await db.select({ safe_id: transactionsTable.safe_id, safe_name: transactionsTable.safe_name })
+        .from(transactionsTable)
+        .where(and(
+          eq(transactionsTable.reference_type, "purchase"),
+          eq(transactionsTable.reference_id, purchase.id),
+        ))
+        .limit(1);
+
+      if (txRow?.safe_id) {
+        const [safe] = await tx.select().from(safesTable).where(eq(safesTable.id, txRow.safe_id));
+        if (safe) {
+          await tx.update(safesTable)
+            .set({ balance: String(Number(safe.balance) + paidAmt) })
+            .where(eq(safesTable.id, safe.id));
+        }
+        await tx.insert(transactionsTable).values({
+          type:           "purchase_cancel",
+          reference_type: "purchase_cancel",
+          reference_id:   purchase.id,
+          safe_id:        txRow.safe_id,
+          safe_name:      txRow.safe_name ?? "",
+          amount:         String(paidAmt),
+          direction:      "in",
+          description:    `إلغاء فاتورة مشتريات ${purchase.invoice_no}`,
+          date:           today,
+        });
+      }
+    }
+
+    // ── 5. تحديث حالة الفاتورة ────────────────────────────────────────────
+    await tx.update(purchasesTable)
+      .set({ posting_status: "cancelled" })
+      .where(eq(purchasesTable.id, id));
+  });
+
+  const [updated] = await db.select().from(purchasesTable).where(eq(purchasesTable.id, id));
   res.json(formatPurchase(updated));
 }));
 

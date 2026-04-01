@@ -1,0 +1,253 @@
+You are a senior ERP/accounting developer.
+
+Your task is to finish the remaining critical accounting fixes.
+Do NOT change unrelated code.
+Do NOT do partial work.
+Implement all 3 items below completely and safely.
+
+==================================================
+MAIN GOAL
+=========
+
+Close the remaining accounting gaps so inventory, returns, profit, and reversals are fully correct.
+
+==================================================
+
+1. FIX PURCHASE RETURNS COMPLETELY
+   ==================================================
+   Purchase returns must be handled with full accounting correctness.
+
+Current requirement:
+When returning purchased stock to supplier, the system must correctly affect:
+
+* stock quantity
+* inventory value
+* supplier payable / cash
+* accounting entries
+* reports
+
+Required logic:
+
+A) Inventory side
+
+* Remove returned quantity from inventory
+* Reduce inventory value using the correct purchase cost / valuation logic
+* Do NOT use selling price
+* Do NOT use wrong current value if historical purchase cost is available
+
+B) Supplier / payment side
+
+* If original purchase was credit:
+
+  * reduce Supplier AP
+* If original purchase was cash:
+
+  * recover Safe / cash
+* If partial payment:
+
+  * handle proportion correctly
+
+C) Journal entry
+Make purchase return accounting mathematically correct.
+Use a clean design that keeps debit = credit and inventory value accurate.
+
+D) Validation
+
+* cannot return more than originally purchased
+* cannot return more than available returnable quantity
+* partial returns must work correctly
+* inventory value after return must stay correct
+
+E) Reports
+Purchase returns must correctly affect:
+
+* inventory valuation
+* supplier balance
+* profit-related reporting if applicable
+* transaction history
+
+==================================================
+2) LINK SALES RETURNS TO ORIGINAL SALE ITEM EXACTLY
+===================================================
+
+Current matching by sale_id + product_id is NOT enough.
+
+You must make sales returns link directly to the exact original sale line.
+
+Required:
+
+* Add original_sale_item_id to sales return items
+* Every sales return item must point to the exact sale_items row it came from
+
+Why:
+
+* Same product may appear more than once
+* Same invoice may contain multiple lines of same product
+* Cost may differ between lines
+* Partial return must reverse the exact historical cost of the exact sold line
+
+Required behavior:
+
+* when creating sales return, select the original sale item
+* store:
+
+  * original_sale_item_id
+  * original unit sale price
+  * original unit cost at sale
+  * returned quantity
+  * total returned cost
+
+Validation:
+
+* cannot return more than remaining quantity on that exact original sale line
+* partial returns must reduce remaining returnable quantity correctly
+* multiple returns from same sale line must be tracked correctly
+
+Accounting:
+
+* revenue reversal must use original sale price logic
+* inventory restoration must use original historical cost from that exact sale line
+* COGS reversal must use the same exact historical cost
+
+Reports:
+
+* return reports must be accurate per original sale line
+* no ambiguity when same product appears multiple times
+
+==================================================
+3) FIX CANCEL / REVERSE OF POSTED SALES AND PURCHASES FULLY
+===========================================================
+
+When cancelling or reversing a posted invoice, the system must reverse ALL accounting and stock effects correctly.
+
+IMPORTANT:
+Do NOT only reverse revenue or payable/receivable.
+You must also reverse inventory and COGS effects when needed.
+
+A) Posted sales cancel/reverse
+If a posted sale is cancelled:
+
+* reverse revenue entry
+* reverse customer/safe effect
+* reverse COGS
+* restore inventory using the exact historical cost used at sale
+* stock quantity must return correctly
+
+B) Posted purchase cancel/reverse
+If a posted purchase is cancelled:
+
+* reverse inventory increase
+* reverse supplier/safe effect
+* inventory value must decrease correctly
+* if weighted average is used, handle reversal carefully and correctly
+
+C) Historical correctness
+Do NOT use current product cost for old reversals.
+Use historical values stored on original document lines.
+
+D) Restrictions
+
+* do not allow invalid reverse if later transactions make exact reversal impossible unless you explicitly handle it safely
+* show clear error if reverse would corrupt stock/accounting logic
+* no silent inconsistencies
+
+E) Journal entries
+Reverse entries must be balanced and fully traceable.
+Link reverse entry to original document / original journal entry if possible.
+
+==================================================
+4) REQUIRED DATABASE / MODEL CHANGES
+====================================
+
+Add/fix fields if needed.
+
+At minimum ensure:
+
+* sales_return_items.original_sale_item_id
+* sales_return_items.unit_cost_at_return
+* sales_return_items.total_cost_at_return
+* tracking of returned quantity against each sale_items row
+* purchase return items store original purchase reference if needed
+* reversal links to original posted document / journal entry if needed
+
+Create safe migrations without data loss.
+
+==================================================
+5) REQUIRED VALIDATION
+======================
+
+Implement strict validation for all 3 fixes:
+
+* no return above original quantity
+* no duplicate ambiguous line matching
+* no cancel/reverse with incorrect cost basis
+* no unbalanced journal entry
+* no stock corruption after reverse
+* no fake profit after return or cancellation
+
+==================================================
+6) REQUIRED TEST CASES
+======================
+
+Run and report these tests with exact numbers:
+
+A) Purchase Return
+
+1. Buy product at cost 70
+2. Return part of purchased quantity
+3. Confirm:
+
+   * inventory quantity reduced correctly
+   * inventory value reduced correctly
+   * supplier/cash corrected correctly
+   * journal entry balanced
+
+B) Original Sale Line Link
+
+1. Same invoice has same product in more than one line
+2. Return one specific line only
+3. Confirm exact original cost is used
+4. Confirm no ambiguity
+
+C) Cancel Posted Sale
+
+1. Buy at 70
+2. Sell at 100
+3. Post sale
+4. Cancel sale
+5. Confirm:
+
+   * revenue reversed
+   * customer/safe reversed
+   * COGS reversed
+   * inventory restored by historical cost
+   * profit returns correctly
+
+D) Cancel Posted Purchase
+
+1. Create posted purchase
+2. Cancel it
+3. Confirm:
+
+   * supplier/safe reversed
+   * inventory reversed correctly
+   * no valuation corruption
+
+==================================================
+7) FINAL RESPONSE FORMAT
+========================
+
+After finishing, provide:
+
+1. What was wrong before
+2. What was fixed in purchase returns
+3. What was fixed in original sale line linking
+4. What was fixed in cancel/reverse logic
+5. Which tables/fields changed
+6. Which files changed
+7. Exact accounting logic now used
+8. Test results with numbers
+9. Confirmation that fake profit / fake inventory value is eliminated
+
+Implement this carefully.
+This is a critical accounting completion task.

@@ -34,6 +34,8 @@ export const saleReturnItemsTable = pgTable("sale_return_items", {
   quantity: numeric("quantity", { precision: 12, scale: 3 }).notNull(),
   unit_price: numeric("unit_price", { precision: 12, scale: 2 }).notNull(),
   total_price: numeric("total_price", { precision: 12, scale: 2 }).notNull(),
+  // ربط مباشر ببند الفاتورة الأصلي — لتجنب الغموض عند تكرار نفس المنتج في الفاتورة
+  original_sale_item_id: integer("original_sale_item_id"),
   // تكلفة الوحدة وقت البيع الأصلي — لحساب COGS الصحيح عند المرتجع
   unit_cost_at_return: numeric("unit_cost_at_return", { precision: 12, scale: 4 }).notNull().default("0"),
   total_cost_at_return: numeric("total_cost_at_return", { precision: 12, scale: 4 }).notNull().default("0"),
@@ -72,6 +74,11 @@ export const purchaseReturnItemsTable = pgTable("purchase_return_items", {
   quantity: numeric("quantity", { precision: 12, scale: 3 }).notNull(),
   unit_price: numeric("unit_price", { precision: 12, scale: 2 }).notNull(),
   total_price: numeric("total_price", { precision: 12, scale: 2 }).notNull(),
+  // ربط مباشر ببند فاتورة الشراء الأصلية (لاستخدام تكلفة الشراء التاريخية)
+  original_purchase_item_id: integer("original_purchase_item_id"),
+  // تكلفة الشراء الأصلية المحفوظة وقت إنشاء المرتجع
+  unit_cost_at_return: numeric("unit_cost_at_return", { precision: 12, scale: 4 }).notNull().default("0"),
+  total_cost_at_return: numeric("total_cost_at_return", { precision: 12, scale: 4 }).notNull().default("0"),
 }, (t) => [
   index("purchase_return_items_return_id_idx").on(t.return_id),
   index("purchase_return_items_product_id_idx").on(t.product_id),

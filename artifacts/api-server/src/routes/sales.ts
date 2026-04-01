@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, salesTable, saleItemsTable, productsTable, customersTable, transactionsTable, safesTable, warehousesTable, erpUsersTable, stockMovementsTable, accountsTable } from "@workspace/db";
+import { db, salesTable, saleItemsTable, productsTable, customersTable, transactionsTable, safesTable, warehousesTable, erpUsersTable, stockMovementsTable, accountsTable, salesReturnsTable } from "@workspace/db";
 import {
   GetSalesResponse,
   CreateSaleBody,
@@ -304,7 +304,7 @@ router.post("/sales/:id/post", wrap(async (req, res) => {
   res.json(formatSale(updated));
 }));
 
-/* ── إلغاء الفاتورة → قيد عكسي ────────────────────────────────────────── */
+/* ── إلغاء الفاتورة → عكس كامل (مخزون + أرصدة + قيد محاسبي) ─────────── */
 router.post("/sales/:id/cancel", wrap(async (req, res) => {
   const id = parseInt(req.params.id as string);
   if (isNaN(id)) throw httpError(400, "معرّف غير صحيح");
@@ -313,24 +313,112 @@ router.post("/sales/:id/cancel", wrap(async (req, res) => {
   if (!sale) throw httpError(404, "الفاتورة غير موجودة");
   if (sale.posting_status === "cancelled") throw httpError(400, "الفاتورة ملغاة بالفعل");
 
-  if (sale.posting_status === "posted") {
-    const lines = await buildSaleJournalLines(sale);
-    if (lines.length >= 2) {
-      const reversed = lines.map(l => ({ account: l.account, debit: l.credit, credit: l.debit }));
-      await createJournalEntry({
-        date: new Date().toISOString().split("T")[0],
-        description: `إلغاء فاتورة مبيعات ${sale.invoice_no}${sale.customer_name ? ` — ${sale.customer_name}` : ""}`,
-        reference: `REV-${sale.invoice_no}`,
-        lines: reversed,
-      });
-    }
+  // ── التحقق: لا يمكن إلغاء فاتورة بها مرتجعات ────────────────────────────
+  const existingReturns = await db.select({ id: salesReturnsTable.id })
+    .from(salesReturnsTable)
+    .where(eq(salesReturnsTable.sale_id, id));
+  if (existingReturns.length > 0) {
+    throw httpError(400, "لا يمكن إلغاء فاتورة مرتبطة بمرتجعات — يجب حذف المرتجعات أولاً");
   }
 
-  const [updated] = await db.update(salesTable)
-    .set({ posting_status: "cancelled" })
-    .where(eq(salesTable.id, id))
-    .returning();
+  const today = new Date().toISOString().split("T")[0];
 
+  await db.transaction(async (tx) => {
+    // ── 1. عكس القيد المحاسبي (للفواتير المرحَّلة فقط) ──────────────────
+    if (sale.posting_status === "posted") {
+      const lines = await buildSaleJournalLines(sale);
+      if (lines.length >= 2) {
+        const reversed = lines.map(l => ({ account: l.account, debit: l.credit, credit: l.debit }));
+        await createJournalEntry({
+          date: today,
+          description: `إلغاء فاتورة مبيعات ${sale.invoice_no}${sale.customer_name ? ` — ${sale.customer_name}` : ""}`,
+          reference: `REV-${sale.invoice_no}`,
+          lines: reversed,
+        });
+      }
+    }
+
+    // ── 2. إعادة المخزون لكل بند + تعديل WAC ─────────────────────────────
+    // نستخدم cost_price المحفوظ في sale_items (= WAC التاريخي وقت البيع)
+    const saleItems = await tx.select().from(saleItemsTable)
+      .where(eq(saleItemsTable.sale_id, sale.id));
+
+    for (const item of saleItems) {
+      const qty          = Number(item.quantity);
+      const costAtSale   = Number(item.cost_price);
+
+      const [prod] = await tx.select().from(productsTable).where(eq(productsTable.id, item.product_id));
+      if (prod) {
+        const oldQty = Number(prod.quantity);
+        const oldWAC = Number(prod.cost_price);
+        const newQty = oldQty + qty;
+        const newWAC = newQty > 0
+          ? ((oldQty * oldWAC) + (qty * costAtSale)) / newQty
+          : costAtSale;
+
+        await tx.update(productsTable)
+          .set({ quantity: String(newQty), cost_price: String(newWAC.toFixed(4)) })
+          .where(eq(productsTable.id, item.product_id));
+
+        await tx.insert(stockMovementsTable).values({
+          product_id:      item.product_id,
+          product_name:    item.product_name,
+          movement_type:   "adjustment",
+          quantity:        String(qty),
+          quantity_before: String(oldQty),
+          quantity_after:  String(newQty),
+          unit_cost:       String(costAtSale),
+          reference_type:  "sale_cancel",
+          reference_id:    sale.id,
+          reference_no:    sale.invoice_no,
+          notes:           `إلغاء فاتورة مبيعات ${sale.invoice_no}`,
+          date:            today,
+        });
+      }
+    }
+
+    // ── 3. عكس رصيد العميل (الآجل / الجزئي) ─────────────────────────────
+    const remainingAmt = Number(sale.remaining_amount);
+    if (remainingAmt > 0 && sale.customer_id) {
+      const [cust] = await tx.select().from(customersTable).where(eq(customersTable.id, sale.customer_id));
+      if (cust) {
+        await tx.update(customersTable)
+          .set({ balance: String(Number(cust.balance) - remainingAmt) })
+          .where(eq(customersTable.id, cust.id));
+      }
+    }
+
+    // ── 4. عكس رصيد الخزينة (النقدي / الجزئي) ────────────────────────────
+    const paidAmt = Number(sale.paid_amount);
+    if (paidAmt > 0 && sale.safe_id) {
+      const [safe] = await tx.select().from(safesTable).where(eq(safesTable.id, sale.safe_id));
+      if (safe) {
+        await tx.update(safesTable)
+          .set({ balance: String(Number(safe.balance) - paidAmt) })
+          .where(eq(safesTable.id, sale.safe_id));
+      }
+      await tx.insert(transactionsTable).values({
+        type:           "sale_cancel",
+        reference_type: "sale_cancel",
+        reference_id:   sale.id,
+        safe_id:        sale.safe_id,
+        safe_name:      sale.safe_name ?? "",
+        customer_id:    sale.customer_id ?? null,
+        customer_name:  sale.customer_name ?? null,
+        amount:         String(paidAmt),
+        direction:      "out",
+        description:    `إلغاء فاتورة مبيعات ${sale.invoice_no}`,
+        date:           today,
+      });
+    }
+
+    // ── 5. تحديث حالة الفاتورة ────────────────────────────────────────────
+    await tx.update(salesTable)
+      .set({ posting_status: "cancelled" })
+      .where(eq(salesTable.id, id));
+  });
+
+  const [updated] = await db.select().from(salesTable).where(eq(salesTable.id, id));
   res.json(formatSale(updated));
 }));
 

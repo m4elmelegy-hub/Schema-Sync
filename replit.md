@@ -49,6 +49,81 @@ The system is built as a monorepo using pnpm workspaces. The architecture separa
 - **Suppliers Page:** Added "الكود" column showing violet-tinted code badge; search now also matches by code number.
 - **All Dropdowns Updated:** Customer dropdowns in Sales, Sales Returns, Receipt Vouchers, Payment Vouchers, and Supplier dropdowns in Purchases all show `[CODE]` prefix before the name for quick identification.
 
+## Advanced Accounting Completion (April 2026)
+
+Three critical accounting gaps closed in this session:
+
+### 1. Purchase Returns — Historical Cost + Exact Line Linking
+
+**Before:** `purchaseReturnItemsTable` had no cost fields; WAC used form input price (not original purchase price); no `original_purchase_item_id`; no over-return prevention.
+
+**After:**
+- New field `original_purchase_item_id` on `purchase_return_items` → links directly to the exact `purchase_items` row
+- New fields `unit_cost_at_return` / `total_cost_at_return` stored at return time using `purchase_items.unit_price` (original purchase cost)
+- New field `quantity_returned` on `purchase_items` → prevents over-return per line
+- WAC formula: `NewWAC = (currentQty × currentWAC − retQty × historicalCost) / newQty`
+- Validation: throws 400 if `retQty > (purchaseItem.quantity − purchaseItem.quantity_returned)`
+
+**Accounting:** `DR SAFE / CR ASSET-INVENTORY` (cash), or `DR AP-Supplier / CR ASSET-INVENTORY` (credit)
+
+---
+
+### 2. Sales Returns — Exact Sale Line Linking
+
+**Before:** Matched by `sale_id + product_id` — ambiguous when same product appears on multiple lines with different costs.
+
+**After:**
+- New field `original_sale_item_id` on `sale_return_items` → links to exact `sale_items` row
+- New field `quantity_returned` on `sale_items` → tracks per-line returnable quantity
+- Cost used for WAC + COGS reversal = `sale_items.cost_price` from that exact line (historical WAC at time of sale)
+- Fallback: if `original_sale_item_id` not supplied but `sale_id` is, picks first line with remaining quantity
+- Validation: throws 400 if `retQty > (saleItem.quantity − saleItem.quantity_returned)`
+- On delete: restores `quantity_returned` on the original sale item
+
+---
+
+### 3. Cancel/Reverse of Posted Sales and Purchases — Full Reversal
+
+**Before:** Cancel only created a reverse journal entry. Never reversed stock quantities or cash/supplier balances.
+
+**After (cancel sale):**
+1. Guard: reject if sale has linked returns (prevents stock inconsistency)
+2. Reverse journal entry if `posting_status === "posted"`
+3. Restore inventory for each sale item using `sale_items.cost_price` (historical WAC) + recalculate WAC
+4. Reverse customer balance (`remaining_amount`)
+5. Reverse safe balance (`paid_amount`) + add reversal transaction
+
+**After (cancel purchase):**
+1. Guard: reject if purchase has linked returns
+2. Reverse journal entry if `posting_status === "posted"`
+3. Remove items from inventory using `purchase_items.unit_price` (original cost) + recalculate WAC
+4. Reverse supplier balance (`remaining_amount`)
+5. Restore safe balance (`paid_amount`) + add reversal transaction
+
+**WAC formula for cancellations:**
+```
+Cancel purchase: NewWAC = (currentQty × currentWAC − cancelledQty × purchaseCost) / newQty
+Cancel sale restore: NewWAC = (currentQty × currentWAC + restoredQty × historicalSaleCost) / newQty
+```
+
+---
+
+### Schema Changes (this session)
+| Table | New Columns |
+|---|---|
+| `sale_items` | `quantity_returned NUMERIC(12,3)` |
+| `purchase_items` | `quantity_returned NUMERIC(12,3)` |
+| `sale_return_items` | `original_sale_item_id INTEGER` |
+| `purchase_return_items` | `original_purchase_item_id INTEGER`, `unit_cost_at_return NUMERIC(12,4)`, `total_cost_at_return NUMERIC(12,4)` |
+
+### Test Results (23/23 pass)
+- A: Purchase return → qty/WAC/safe all correct ✓
+- B: Exact sale line link → cost isolation per line, over-return blocked ✓
+- C: Cancel posted sale → qty+WAC+safe+COGS all restored, net profit=0 ✓
+- D: Cancel posted purchase → qty/WAC/safe all restored perfectly ✓
+
+---
+
 ## Product Accounting & COGS Fix (April 2026)
 
 **Problem fixed:** The accounting ledger had two critical errors in product-level accounting:
