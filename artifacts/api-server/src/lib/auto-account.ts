@@ -5,9 +5,11 @@
  * تلقائياً في شجرة الحسابات، ويعيد account_id.
  *
  * قواعد الترميز:
- *   عميل  → كود "AR-{customer_code}"   نوع: asset    (ذمم مدينة)
- *   مورد  → كود "AP-{supplier_code}"   نوع: liability (ذمم دائنة)
- *   خزينة → كود "SAFE-{safe_id}"       نوع: asset    (نقدية)
+ *   عميل       → كود "AR-{customer_code}"   نوع: asset     (ذمم مدينة)
+ *   مورد       → كود "AP-{supplier_code}"   نوع: liability  (ذمم دائنة)
+ *   خزينة      → كود "SAFE-{safe_id}"       نوع: asset     (نقدية)
+ *   إيرادات    → كود "REV-SALES"            نوع: revenue   (مبيعات)
+ *   مشتريات    → كود "EXP-PURCHASES"        نوع: expense   (تكلفة مشتريات)
  */
 
 import { eq, count, sql } from "drizzle-orm";
@@ -25,6 +27,12 @@ export interface AccountRef {
   id: number;
   code: string;
   name: string;
+}
+
+export interface JournalLine {
+  account: AccountRef;
+  debit: number;
+  credit: number;
 }
 
 /**
@@ -92,20 +100,45 @@ export async function getOrCreateSafeAccount(
   });
 }
 
+/** حساب إيرادات المبيعات (مشترك لجميع الفواتير) */
+export async function getOrCreateSalesRevenueAccount(): Promise<AccountRef> {
+  return getOrCreateAccount({
+    code: "REV-SALES",
+    name: "إيرادات المبيعات",
+    type: "revenue",
+  });
+}
+
+/** حساب تكلفة المشتريات (مشترك لجميع فواتير الشراء) */
+export async function getOrCreatePurchasesCostAccount(): Promise<AccountRef> {
+  return getOrCreateAccount({
+    code: "EXP-PURCHASES",
+    name: "تكلفة المشتريات",
+    type: "expense",
+  });
+}
+
 /**
- * Auto-creates a POSTED journal entry with two symmetric lines,
- * and updates current_balance on both accounts.
+ * Creates a POSTED multi-line journal entry and updates current_balance
+ * for every account referenced in the lines.
+ *
+ * All lines must balance (total debits === total credits) — caller is responsible.
  */
-export async function createAutoJournalEntry(opts: {
+export async function createJournalEntry(opts: {
   date: string;
   description: string;
   reference: string;
-  debit: AccountRef;
-  credit: AccountRef;
-  amount: number;
+  lines: JournalLine[];
 }): Promise<void> {
-  const { date, description, reference, debit, credit, amount } = opts;
-  const amtStr = String(amount);
+  const { date, description, reference, lines } = opts;
+
+  const totalDebit = lines.reduce((s, l) => s + l.debit, 0);
+  const totalCredit = lines.reduce((s, l) => s + l.credit, 0);
+
+  if (Math.abs(totalDebit - totalCredit) > 0.001) {
+    throw new Error(`Journal entry imbalance: debit ${totalDebit} ≠ credit ${totalCredit}`);
+  }
+  if (totalDebit === 0) return;
 
   const [{ total }] = await db
     .select({ total: count() })
@@ -121,37 +154,52 @@ export async function createAutoJournalEntry(opts: {
       description,
       status: "posted",
       reference,
-      total_debit: amtStr,
-      total_credit: amtStr,
+      total_debit: String(totalDebit),
+      total_credit: String(totalCredit),
     })
     .returning({ id: journalEntriesTable.id });
 
-  await db.insert(journalEntryLinesTable).values([
-    {
+  await db.insert(journalEntryLinesTable).values(
+    lines.map((l) => ({
       entry_id: entry.id,
-      account_id: debit.id,
-      account_code: debit.code,
-      account_name: debit.name,
-      debit: amtStr,
-      credit: "0",
-    },
-    {
-      entry_id: entry.id,
-      account_id: credit.id,
-      account_code: credit.code,
-      account_name: credit.name,
-      debit: "0",
-      credit: amtStr,
-    },
-  ]);
+      account_id: l.account.id,
+      account_code: l.account.code,
+      account_name: l.account.name,
+      debit: String(l.debit),
+      credit: String(l.credit),
+    })),
+  );
 
-  await db
-    .update(accountsTable)
-    .set({ current_balance: sql`current_balance + ${amtStr}::numeric` })
-    .where(eq(accountsTable.id, debit.id));
+  for (const l of lines) {
+    const delta = l.debit - l.credit;
+    if (delta === 0) continue;
+    await db
+      .update(accountsTable)
+      .set({ current_balance: sql`current_balance + ${String(delta)}::numeric` })
+      .where(eq(accountsTable.id, l.account.id));
+  }
+}
 
-  await db
-    .update(accountsTable)
-    .set({ current_balance: sql`current_balance + ${amtStr}::numeric` })
-    .where(eq(accountsTable.id, credit.id));
+/**
+ * Convenience wrapper: two-line symmetric entry (one debit, one credit).
+ * Kept for backward-compatibility with receipt/payment voucher code.
+ */
+export async function createAutoJournalEntry(opts: {
+  date: string;
+  description: string;
+  reference: string;
+  debit: AccountRef;
+  credit: AccountRef;
+  amount: number;
+}): Promise<void> {
+  const { date, description, reference, debit, credit, amount } = opts;
+  await createJournalEntry({
+    date,
+    description,
+    reference,
+    lines: [
+      { account: debit, debit: amount, credit: 0 },
+      { account: credit, debit: 0, credit: amount },
+    ],
+  });
 }

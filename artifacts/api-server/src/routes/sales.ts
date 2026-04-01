@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, salesTable, saleItemsTable, productsTable, customersTable, transactionsTable, safesTable, warehousesTable, erpUsersTable, stockMovementsTable } from "@workspace/db";
+import { db, salesTable, saleItemsTable, productsTable, customersTable, transactionsTable, safesTable, warehousesTable, erpUsersTable, stockMovementsTable, accountsTable } from "@workspace/db";
 import {
   GetSalesResponse,
   CreateSaleBody,
@@ -8,6 +8,13 @@ import {
   GetSaleByIdResponse,
 } from "@workspace/api-zod";
 import { wrap, httpError } from "../lib/async-handler";
+import {
+  getOrCreateSalesRevenueAccount,
+  getOrCreateSafeAccount,
+  getOrCreateCustomerAccount,
+  createJournalEntry,
+  type JournalLine,
+} from "../lib/auto-account";
 
 const router: IRouter = Router();
 
@@ -181,6 +188,50 @@ router.post("/sales", wrap(async (req, res) => {
 
       return newSale;
   });
+
+  // قيد محاسبي تلقائي بعد حفظ الفاتورة
+  try {
+    const saleDate = sale.date ?? new Date().toISOString().split("T")[0];
+    const revenueAcct = await getOrCreateSalesRevenueAccount();
+    const lines: JournalLine[] = [];
+
+    // جانب الدائن: إيرادات المبيعات (إجمالي الفاتورة)
+    lines.push({ account: revenueAcct, debit: 0, credit: total_amount });
+
+    // جانب المدين: الخزينة (المبلغ المقبوض نقداً)
+    if (paid_amount > 0 && safe_id) {
+      const [safeRow] = await db.select().from(safesTable).where(eq(safesTable.id, safe_id));
+      if (safeRow) {
+        const safeAcct = await getOrCreateSafeAccount(safeRow.id, safeRow.name);
+        lines.push({ account: safeAcct, debit: paid_amount, credit: 0 });
+      }
+    }
+
+    // جانب المدين: ذمم العميل (المبلغ الآجل)
+    const debtAmount = total_amount - paid_amount;
+    if (debtAmount > 0 && customer_id) {
+      const [cust] = await db.select().from(customersTable).where(eq(customersTable.id, customer_id));
+      if (cust?.account_id) {
+        const [acctRow] = await db.select({ id: accountsTable.id, code: accountsTable.code, name: accountsTable.name })
+          .from(accountsTable).where(eq(accountsTable.id, cust.account_id));
+        if (acctRow) lines.push({ account: acctRow, debit: debtAmount, credit: 0 });
+      } else if (cust?.customer_code) {
+        const custAcct = await getOrCreateCustomerAccount(cust.customer_code, cust.name);
+        lines.push({ account: custAcct, debit: debtAmount, credit: 0 });
+      }
+    }
+
+    if (lines.length >= 2) {
+      await createJournalEntry({
+        date: saleDate,
+        description: `فاتورة مبيعات ${sale.invoice_no}${customer_name ? ` — ${customer_name}` : ""}`,
+        reference: sale.invoice_no,
+        lines,
+      });
+    }
+  } catch (jeErr) {
+    console.error("[auto-account] sales journal entry failed:", jeErr);
+  }
 
   res.status(201).json(formatSale(sale));
 }));

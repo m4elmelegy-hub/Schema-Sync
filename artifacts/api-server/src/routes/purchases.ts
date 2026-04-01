@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, purchasesTable, purchaseItemsTable, productsTable, customersTable, safesTable, transactionsTable, stockMovementsTable } from "@workspace/db";
+import { db, purchasesTable, purchaseItemsTable, productsTable, customersTable, suppliersTable, safesTable, transactionsTable, stockMovementsTable, accountsTable } from "@workspace/db";
 import {
   GetPurchasesResponse,
   CreatePurchaseBody,
@@ -8,6 +8,13 @@ import {
   GetPurchaseByIdResponse,
 } from "@workspace/api-zod";
 import { wrap } from "../lib/async-handler";
+import {
+  getOrCreatePurchasesCostAccount,
+  getOrCreateSafeAccount,
+  getOrCreateSupplierAccount,
+  createJournalEntry,
+  type JournalLine,
+} from "../lib/auto-account";
 
 const router: IRouter = Router();
 
@@ -181,6 +188,53 @@ router.post("/purchases", wrap(async (req, res) => {
 
     return newPurchase;
   });
+
+  // قيد محاسبي تلقائي بعد حفظ فاتورة الشراء
+  try {
+    const costAcct = await getOrCreatePurchasesCostAccount();
+    const lines: JournalLine[] = [];
+
+    // جانب المدين: تكلفة المشتريات (إجمالي الفاتورة)
+    lines.push({ account: costAcct, debit: total_amount, credit: 0 });
+
+    // جانب الدائن: الخزينة (المبلغ المدفوع نقداً)
+    const cashOut = payment_type === "cash" ? total_amount
+      : payment_type === "partial" ? paid_amount
+      : 0;
+
+    if (cashOut > 0 && safe_id) {
+      const [safeRow] = await db.select().from(safesTable).where(eq(safesTable.id, safe_id));
+      if (safeRow) {
+        const safeAcct = await getOrCreateSafeAccount(safeRow.id, safeRow.name);
+        lines.push({ account: safeAcct, debit: 0, credit: cashOut });
+      }
+    }
+
+    // جانب الدائن: ذمم المورد (المبلغ الآجل)
+    const supplierDebt = total_amount - cashOut;
+    if (supplierDebt > 0 && supplier_id) {
+      const [supp] = await db.select().from(suppliersTable).where(eq(suppliersTable.id, supplier_id));
+      if (supp?.account_id) {
+        const [acctRow] = await db.select({ id: accountsTable.id, code: accountsTable.code, name: accountsTable.name })
+          .from(accountsTable).where(eq(accountsTable.id, supp.account_id));
+        if (acctRow) lines.push({ account: acctRow, debit: 0, credit: supplierDebt });
+      } else if (supp?.supplier_code) {
+        const suppAcct = await getOrCreateSupplierAccount(supp.supplier_code, supp.name);
+        lines.push({ account: suppAcct, debit: 0, credit: supplierDebt });
+      }
+    }
+
+    if (lines.length >= 2) {
+      await createJournalEntry({
+        date: today,
+        description: `فاتورة مشتريات ${purchase.invoice_no}${supplier_name ? ` — ${supplier_name}` : ""}`,
+        reference: purchase.invoice_no,
+        lines,
+      });
+    }
+  } catch (jeErr) {
+    console.error("[auto-account] purchases journal entry failed:", jeErr);
+  }
 
   res.status(201).json(formatPurchase(purchase));
 }));
