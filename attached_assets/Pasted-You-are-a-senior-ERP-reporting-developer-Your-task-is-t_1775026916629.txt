@@ -1,0 +1,213 @@
+You are a senior ERP/reporting developer.
+
+Your task is to build a COMPLETE professional reporting system based on the existing accounting logic.
+
+Do NOT rebuild the system.
+Do NOT break existing reports.
+Upgrade and standardize all reports.
+
+==================================================
+MAIN GOAL
+=========
+
+Create accurate, decision-ready reports.
+
+Reports must:
+
+* use correct accounting data (Revenue, COGS, Inventory)
+* include returns and cancellations
+* never show fake profit
+* be easy to understand for business use
+
+==================================================
+
+1. PRODUCT PROFIT REPORT (MOST IMPORTANT)
+   ==================================================
+   For each product:
+
+* total quantity sold
+* total sales value
+* total COGS
+* total profit
+* profit margin %
+
+IMPORTANT:
+
+* use unit_cost_at_sale (historical cost)
+* subtract sales returns
+* do NOT use current product cost
+
+==================================================
+2) DAILY PROFIT REPORT
+======================
+
+For each day:
+
+* total sales
+* total sales returns
+* net sales
+* total COGS
+* gross profit
+* expenses (if available)
+* net profit
+
+Only include:
+
+* posted documents
+
+==================================================
+3) SALES ANALYSIS REPORT
+========================
+
+Group by:
+
+* product
+* customer
+* salesperson (if exists)
+
+Show:
+
+* total sales
+* quantity
+* average price
+
+==================================================
+4) CUSTOMER STATEMENT
+=====================
+
+For each customer:
+
+* opening balance
+* invoices
+* payments (receipts)
+* returns
+* closing balance
+
+Sort by date.
+
+Balance must match ledger (NOT customers.balance).
+
+==================================================
+5) SUPPLIER STATEMENT
+=====================
+
+Same as customer:
+
+* purchases
+* payments
+* returns
+* closing balance
+
+==================================================
+6) INVENTORY REPORT
+===================
+
+For each product:
+
+* quantity in stock
+* average cost
+* total inventory value
+
+IMPORTANT:
+
+* value = quantity × cost
+* NOT selling price
+
+==================================================
+7) LOW STOCK REPORT
+===================
+
+Show products where:
+quantity <= low_stock_threshold
+
+==================================================
+8) TOP REPORTS
+==============
+
+A) Top products (by sales)
+B) Top customers (by revenue)
+C) Top suppliers (by purchases)
+
+==================================================
+9) CASH FLOW REPORT
+===================
+
+For each day:
+
+* receipts (in)
+* payments (out)
+* deposits
+* withdrawals
+* net cash flow
+
+==================================================
+10) REPORT RULES
+================
+
+All reports must:
+
+* use ONLY posted data
+* exclude cancelled
+* include returns correctly
+* be consistent with accounting
+
+==================================================
+11) DATE FILTERING
+==================
+
+All reports must support:
+
+* from date
+* to date
+
+==================================================
+12) PERFORMANCE
+===============
+
+* use efficient queries
+* avoid recalculating everything every time
+* use grouping (SQL GROUP BY)
+
+==================================================
+13) UI (SIMPLE)
+===============
+
+* keep current report pages
+* improve data display only
+* add filters (date range)
+
+==================================================
+14) VALIDATION
+==============
+
+Check:
+
+* profit = revenue - COGS
+* totals match accounting
+* no negative inventory
+* no mismatch with ledger
+
+==================================================
+15) FINAL TESTS
+===============
+
+Test:
+
+1. sell product → profit correct
+2. return product → profit adjusted
+3. cancel invoice → removed from reports
+4. multiple costs → correct COGS used
+
+==================================================
+16) FINAL OUTPUT
+================
+
+After implementation:
+
+* list all reports updated
+* explain calculation logic
+* show sample results
+* confirm no fake profit exists
+
+Build this carefully.
+This completes the reporting system.

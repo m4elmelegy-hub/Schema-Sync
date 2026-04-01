@@ -11,6 +11,7 @@ import {
   db, salesTable, saleItemsTable, expensesTable,
   salesReturnsTable, saleReturnItemsTable,
 } from "@workspace/db";
+
 import { wrap } from "../lib/async-handler";
 
 const router: IRouter = Router();
@@ -22,8 +23,8 @@ router.get("/profits", wrap(async (req, res) => {
     product_id?: string;
   };
 
-  // ── فلتر المبيعات بحقل date النصي (YYYY-MM-DD) ──────────────────────────
-  const saleConditions = [];
+  // ── فلتر المبيعات بحقل date النصي (YYYY-MM-DD) ── مرحّلة فقط ──────────
+  const saleConditions = [eq(salesTable.posting_status, "posted")];
   if (date_from) saleConditions.push(gte(salesTable.date, date_from));
   if (date_to)   saleConditions.push(lte(salesTable.date, date_to));
   const saleWhereClause = saleConditions.length > 0 ? and(...saleConditions) : undefined;
@@ -132,7 +133,8 @@ router.get("/profits", wrap(async (req, res) => {
     }
   }
 
-  // ── طرح مرتجعات المبيعات من الأرباح وتفاصيل المنتجات والشهور ──────────
+  // ── طرح مرتجعات المبيعات ──────────────────────────────────────────────
+  // (جدول sales_returns لا يحتوي على حقل posting_status — جميع المرتجعات تؤخذ)
   const allReturns = await db.select().from(salesReturnsTable);
   const returnsInPeriod = saleConditions.length > 0
     ? allReturns.filter(r => {

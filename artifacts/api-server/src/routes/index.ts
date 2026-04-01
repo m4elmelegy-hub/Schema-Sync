@@ -22,6 +22,7 @@ import financialTransactionsRouter from "./financial-transactions";
 import adminRouter from "./admin";
 import profitsRouter from "./profits";
 import inventoryRouter from "./inventory";
+import reportsRouter from "./reports";
 import authRouter from "./auth";
 import openingBalanceRouter from "./opening-balance";
 import contactsRouter from "./contacts";
@@ -57,6 +58,7 @@ router.use(financialTransactionsRouter);
 router.use(adminRouter);
 router.use(profitsRouter);
 router.use(inventoryRouter);
+router.use(reportsRouter);
 router.use(openingBalanceRouter);
 router.use(contactsRouter);
 

@@ -7,6 +7,7 @@ import {
   TrendingUp, TrendingDown, Package, FileText, DollarSign,
   X, ShoppingBag, ShoppingCart, Search, FileDown, Printer,
   Loader2, BarChart3, AlertTriangle, ChevronDown, Filter, ArrowUpDown,
+  Users, Truck, Calendar, CreditCard, Award, ArrowUp, ArrowDown,
 } from "lucide-react";
 import { exportSalesExcel, exportPurchasesExcel } from "@/lib/export-excel";
 import { printSalesReport, printPurchasesReport, printSaleInvoice, printPurchaseInvoice, printPLReport } from "@/lib/export-pdf";
@@ -1184,16 +1185,809 @@ function PurchasesInvoicesReport() {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
- *  Main Reports — 4 tabs
+ *  Shared date filter bar for new reports
  * ───────────────────────────────────────────────────────────────────────────── */
 
-type Tab = "pl" | "inventory" | "purchases" | "sales";
+function DateFilterBar({
+  mode, setMode, customFrom, setCustomFrom, customTo, setCustomTo,
+}: {
+  mode: DateMode; setMode: (m: DateMode) => void;
+  customFrom: string; setCustomFrom: (s: string) => void;
+  customTo: string;   setCustomTo:   (s: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
+      {DATE_MODES.map(m => (
+        <button key={m.id} onClick={() => setMode(m.id)}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${mode === m.id ? "bg-amber-500/25 border-amber-500/50 text-amber-300" : "glass-panel border-white/10 text-white/50 hover:text-white"}`}>
+          {m.label}
+        </button>
+      ))}
+      {mode === "custom" && (
+        <div className="flex items-center gap-2">
+          <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} className="glass-input rounded-xl px-3 py-1.5 text-sm text-white" />
+          <span className="text-white/30">←</span>
+          <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} className="glass-input rounded-xl px-3 py-1.5 text-sm text-white" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ *  TAB: التقرير اليومي للأرباح
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+interface DailyProfitData {
+  days: Array<{
+    day: string; total_sales: number; total_returns: number; net_sales: number;
+    total_cogs: number; gross_profit: number; expenses: number; net_profit: number;
+  }>;
+  summary: { total_net_sales: number; total_cogs: number; total_gross_profit: number; total_expenses: number; total_net_profit: number };
+}
+
+function DailyProfitReport() {
+  const [mode, setMode]             = useState<DateMode>("month");
+  const [customFrom, setCustomFrom] = useState(thisMonthStart());
+  const [customTo,   setCustomTo]   = useState(todayStr());
+  const [dateFrom, dateTo]          = getDateRange(mode, customFrom, customTo);
+
+  const { data, isLoading } = useQuery<DailyProfitData>({
+    queryKey: ["/api/reports/daily-profit", dateFrom, dateTo],
+    queryFn: () => authFetch<DailyProfitData>(api(`/api/reports/daily-profit?date_from=${dateFrom}&date_to=${dateTo}`)),
+    staleTime: 60_000,
+  });
+
+  const days = data?.days ?? [];
+  const summary = data?.summary ?? { total_net_sales: 0, total_cogs: 0, total_gross_profit: 0, total_expenses: 0, total_net_profit: 0 };
+
+  return (
+    <div className="space-y-4" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
+      <DateFilterBar mode={mode} setMode={setMode} customFrom={customFrom} setCustomFrom={setCustomFrom} customTo={customTo} setCustomTo={setCustomTo} />
+
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        {[
+          { label: "صافي المبيعات", value: summary.total_net_sales, color: "text-emerald-400" },
+          { label: "تكلفة البضاعة", value: summary.total_cogs,      color: "text-red-400" },
+          { label: "مجمل الربح",    value: summary.total_gross_profit, color: "text-amber-400" },
+          { label: "المصروفات",     value: summary.total_expenses,   color: "text-orange-400" },
+          { label: "صافي الربح",   value: summary.total_net_profit, color: summary.total_net_profit >= 0 ? "text-blue-400" : "text-red-400" },
+        ].map(c => (
+          <div key={c.label} className="glass-panel rounded-2xl p-4 border border-white/5">
+            <p className="text-white/40 text-xs mb-1">{c.label}</p>
+            <p className={`text-lg font-black ${c.color}`}>{formatCurrency(c.value)}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
+        <div className="overflow-x-auto">
+          <table className="w-full text-right text-sm whitespace-nowrap">
+            <thead className="bg-white/5 border-b border-white/10">
+              <tr>
+                <th className="p-3 text-white/50">التاريخ</th>
+                <th className="p-3 text-white/50">المبيعات</th>
+                <th className="p-3 text-white/50">المرتجعات</th>
+                <th className="p-3 text-white/50">صافي المبيعات</th>
+                <th className="p-3 text-white/50">تكلفة البضاعة</th>
+                <th className="p-3 text-white/50">مجمل الربح</th>
+                <th className="p-3 text-white/50">المصروفات</th>
+                <th className="p-3 text-white/50">صافي الربح</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? <TableSkeleton cols={8} rows={5} /> :
+               days.length === 0 ? <tr><td colSpan={8} className="p-12 text-center text-white/40">لا توجد بيانات في هذه الفترة</td></tr> :
+               days.map(d => (
+                <tr key={d.day} className="border-b border-white/5 erp-table-row">
+                  <td className="p-3 text-white/70 font-mono">{d.day}</td>
+                  <td className="p-3 text-emerald-400 font-bold">{formatCurrency(d.total_sales)}</td>
+                  <td className="p-3 text-red-400">{d.total_returns > 0 ? formatCurrency(d.total_returns) : "—"}</td>
+                  <td className="p-3 text-white font-bold">{formatCurrency(d.net_sales)}</td>
+                  <td className="p-3 text-red-400">{formatCurrency(d.total_cogs)}</td>
+                  <td className={`p-3 font-bold ${d.gross_profit >= 0 ? "text-amber-400" : "text-red-400"}`}>{formatCurrency(d.gross_profit)}</td>
+                  <td className="p-3 text-orange-400">{d.expenses > 0 ? formatCurrency(d.expenses) : "—"}</td>
+                  <td className={`p-3 font-black ${d.net_profit >= 0 ? "text-blue-400" : "text-red-400"}`}>{formatCurrency(d.net_profit)}</td>
+                </tr>
+              ))}
+            </tbody>
+            {days.length > 0 && (
+              <tfoot className="bg-white/5 border-t border-white/10">
+                <tr>
+                  <td className="p-3 font-bold text-white/50">الإجمالي</td>
+                  <td className="p-3" />
+                  <td className="p-3" />
+                  <td className="p-3 font-black text-white">{formatCurrency(summary.total_net_sales)}</td>
+                  <td className="p-3 font-black text-red-400">{formatCurrency(summary.total_cogs)}</td>
+                  <td className="p-3 font-black text-amber-400">{formatCurrency(summary.total_gross_profit)}</td>
+                  <td className="p-3 font-black text-orange-400">{formatCurrency(summary.total_expenses)}</td>
+                  <td className={`p-3 font-black ${summary.total_net_profit >= 0 ? "text-blue-400" : "text-red-400"}`}>{formatCurrency(summary.total_net_profit)}</td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ *  TAB: ربحية المنتجات
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+interface ProductProfitData {
+  products: Array<{ product_id: number; product_name: string; qty_sold: number; revenue: number; cogs: number; profit: number; profit_margin: number }>;
+  summary: { total_revenue: number; total_cogs: number; total_profit: number; overall_margin: number };
+}
+
+function ProductProfitReport() {
+  const [mode, setMode]             = useState<DateMode>("month");
+  const [customFrom, setCustomFrom] = useState(thisMonthStart());
+  const [customTo,   setCustomTo]   = useState(todayStr());
+  const [search, setSearch]         = useState("");
+  const [sort, setSort]             = useState<"profit"|"revenue"|"margin"|"qty">("profit");
+  const [dateFrom, dateTo]          = getDateRange(mode, customFrom, customTo);
+
+  const { data, isLoading } = useQuery<ProductProfitData>({
+    queryKey: ["/api/reports/product-profit", dateFrom, dateTo],
+    queryFn: () => authFetch<ProductProfitData>(api(`/api/reports/product-profit?date_from=${dateFrom}&date_to=${dateTo}`)),
+    staleTime: 60_000,
+  });
+
+  const products = useMemo(() => {
+    let list = data?.products ?? [];
+    if (search) list = list.filter(p => p.product_name.includes(search));
+    return [...list].sort((a, b) => {
+      if (sort === "profit")  return b.profit - a.profit;
+      if (sort === "revenue") return b.revenue - a.revenue;
+      if (sort === "margin")  return b.profit_margin - a.profit_margin;
+      return b.qty_sold - a.qty_sold;
+    });
+  }, [data, search, sort]);
+
+  const summary = data?.summary ?? { total_revenue: 0, total_cogs: 0, total_profit: 0, overall_margin: 0 };
+
+  return (
+    <div className="space-y-4" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
+      <DateFilterBar mode={mode} setMode={setMode} customFrom={customFrom} setCustomFrom={setCustomFrom} customTo={customTo} setCustomTo={setCustomTo} />
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          { label: "إجمالي المبيعات",  value: formatCurrency(summary.total_revenue), color: "text-emerald-400" },
+          { label: "تكلفة البضاعة",    value: formatCurrency(summary.total_cogs),    color: "text-red-400" },
+          { label: "إجمالي الربح",     value: formatCurrency(summary.total_profit),  color: summary.total_profit >= 0 ? "text-amber-400" : "text-red-400" },
+          { label: "هامش الربح الكلي", value: `${summary.overall_margin.toFixed(1)}%`, color: summary.overall_margin >= 20 ? "text-emerald-400" : "text-red-400" },
+        ].map(c => (
+          <div key={c.label} className="glass-panel rounded-2xl p-4 border border-white/5">
+            <p className="text-white/40 text-xs mb-1">{c.label}</p>
+            <p className={`text-lg font-black ${c.color}`}>{c.value}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-3 items-center">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+          <input className="glass-input w-full pr-9 text-sm" placeholder="بحث بالمنتج..." value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <div className="flex gap-1">
+          {(["profit","revenue","margin","qty"] as const).map(s => (
+            <button key={s} onClick={() => setSort(s)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${sort === s ? "bg-amber-500/20 border-amber-500/40 text-amber-400" : "glass-panel border-white/10 text-white/50 hover:text-white"}`}>
+              {s === "profit" ? "الربح" : s === "revenue" ? "المبيعات" : s === "margin" ? "الهامش" : "الكمية"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
+        <div className="overflow-x-auto">
+          <table className="w-full text-right text-sm whitespace-nowrap">
+            <thead className="bg-white/5 border-b border-white/10">
+              <tr>
+                <th className="p-3 text-white/50">#</th>
+                <th className="p-3 text-white/50">المنتج</th>
+                <th className="p-3 text-white/50">الكمية المباعة</th>
+                <th className="p-3 text-white/50">إجمالي المبيعات</th>
+                <th className="p-3 text-white/50">تكلفة البضاعة</th>
+                <th className="p-3 text-white/50">الربح</th>
+                <th className="p-3 text-white/50">هامش الربح</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? <TableSkeleton cols={7} rows={5} /> :
+               products.length === 0 ? <tr><td colSpan={7} className="p-12 text-center text-white/40">لا توجد بيانات</td></tr> :
+               products.map((p, i) => (
+                <tr key={p.product_id} className="border-b border-white/5 erp-table-row">
+                  <td className="p-3 text-white/30 text-xs">{i + 1}</td>
+                  <td className="p-3 text-white font-bold">{p.product_name}</td>
+                  <td className="p-3 text-white/70">{p.qty_sold.toFixed(2)}</td>
+                  <td className="p-3 text-emerald-400 font-bold">{formatCurrency(p.revenue)}</td>
+                  <td className="p-3 text-red-400">{formatCurrency(p.cogs)}</td>
+                  <td className={`p-3 font-black ${p.profit >= 0 ? "text-amber-400" : "text-red-400"}`}>{formatCurrency(p.profit)}</td>
+                  <td className="p-3">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${p.profit_margin >= 30 ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-400" : p.profit_margin >= 15 ? "bg-amber-500/20 border-amber-500/30 text-amber-400" : "bg-red-500/20 border-red-500/30 text-red-400"}`}>
+                      {p.profit_margin.toFixed(1)}%
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            {products.length > 0 && (
+              <tfoot className="bg-white/5 border-t border-white/10">
+                <tr>
+                  <td colSpan={3} className="p-3 text-white/50 font-bold">الإجمالي ({products.length} منتج)</td>
+                  <td className="p-3 font-black text-emerald-400">{formatCurrency(summary.total_revenue)}</td>
+                  <td className="p-3 font-black text-red-400">{formatCurrency(summary.total_cogs)}</td>
+                  <td className={`p-3 font-black ${summary.total_profit >= 0 ? "text-amber-400" : "text-red-400"}`}>{formatCurrency(summary.total_profit)}</td>
+                  <td className="p-3 font-bold text-white/50">{summary.overall_margin.toFixed(1)}%</td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ *  TAB: تحليل المبيعات
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+interface SalesAnalysisData {
+  by_product: Array<{ product_id: number; product_name: string; total_qty: number; total_revenue: number; avg_price: number; invoice_count: number }>;
+  by_customer: Array<{ customer_id: number | null; customer_name: string; total_revenue: number; invoice_count: number }>;
+}
+
+function SalesAnalysisReport() {
+  const [mode, setMode]             = useState<DateMode>("month");
+  const [customFrom, setCustomFrom] = useState(thisMonthStart());
+  const [customTo,   setCustomTo]   = useState(todayStr());
+  const [view, setView]             = useState<"product"|"customer">("product");
+  const [dateFrom, dateTo]          = getDateRange(mode, customFrom, customTo);
+
+  const { data, isLoading } = useQuery<SalesAnalysisData>({
+    queryKey: ["/api/reports/sales-analysis", dateFrom, dateTo],
+    queryFn: () => authFetch<SalesAnalysisData>(api(`/api/reports/sales-analysis?date_from=${dateFrom}&date_to=${dateTo}`)),
+    staleTime: 60_000,
+  });
+
+  const byProduct  = data?.by_product  ?? [];
+  const byCustomer = data?.by_customer ?? [];
+  const totalByProd = byProduct.reduce((s, p) => s + p.total_revenue, 0);
+  const totalByCust = byCustomer.reduce((s, c) => s + c.total_revenue, 0);
+
+  return (
+    <div className="space-y-4" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
+      <DateFilterBar mode={mode} setMode={setMode} customFrom={customFrom} setCustomFrom={setCustomFrom} customTo={customTo} setCustomTo={setCustomTo} />
+
+      <div className="flex bg-white/5 rounded-xl p-1 gap-1 w-fit">
+        <button onClick={() => setView("product")}
+          className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${view === "product" ? "bg-amber-500/20 border border-amber-500/40 text-amber-400" : "text-white/50 hover:text-white"}`}>
+          <Package className="w-4 h-4" /> حسب المنتج
+        </button>
+        <button onClick={() => setView("customer")}
+          className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${view === "customer" ? "bg-amber-500/20 border border-amber-500/40 text-amber-400" : "text-white/50 hover:text-white"}`}>
+          <Users className="w-4 h-4" /> حسب العميل
+        </button>
+      </div>
+
+      {view === "product" ? (
+        <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
+          <div className="overflow-x-auto">
+            <table className="w-full text-right text-sm whitespace-nowrap">
+              <thead className="bg-white/5 border-b border-white/10">
+                <tr>
+                  <th className="p-3 text-white/50">#</th>
+                  <th className="p-3 text-white/50">المنتج</th>
+                  <th className="p-3 text-white/50">الكمية</th>
+                  <th className="p-3 text-white/50">متوسط السعر</th>
+                  <th className="p-3 text-white/50">إجمالي المبيعات</th>
+                  <th className="p-3 text-white/50">% من الإجمالي</th>
+                  <th className="p-3 text-white/50">عدد الفواتير</th>
+                </tr>
+              </thead>
+              <tbody>
+                {isLoading ? <TableSkeleton cols={7} rows={5} /> :
+                 byProduct.length === 0 ? <tr><td colSpan={7} className="p-12 text-center text-white/40">لا توجد بيانات</td></tr> :
+                 byProduct.map((p, i) => (
+                  <tr key={p.product_id} className="border-b border-white/5 erp-table-row">
+                    <td className="p-3 text-white/30 text-xs">{i + 1}</td>
+                    <td className="p-3 text-white font-bold">{p.product_name}</td>
+                    <td className="p-3 text-white/70">{p.total_qty.toFixed(2)}</td>
+                    <td className="p-3 text-white/70">{formatCurrency(p.avg_price)}</td>
+                    <td className="p-3 text-emerald-400 font-bold">{formatCurrency(p.total_revenue)}</td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-2">
+                        <div className="h-1.5 bg-white/5 rounded-full flex-1 max-w-[80px] overflow-hidden">
+                          <div className="h-full bg-amber-400 rounded-full" style={{ width: `${totalByProd > 0 ? (p.total_revenue / totalByProd * 100) : 0}%` }} />
+                        </div>
+                        <span className="text-white/40 text-xs">{totalByProd > 0 ? (p.total_revenue / totalByProd * 100).toFixed(1) : 0}%</span>
+                      </div>
+                    </td>
+                    <td className="p-3 text-white/50">{p.invoice_count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
+          <div className="overflow-x-auto">
+            <table className="w-full text-right text-sm whitespace-nowrap">
+              <thead className="bg-white/5 border-b border-white/10">
+                <tr>
+                  <th className="p-3 text-white/50">#</th>
+                  <th className="p-3 text-white/50">العميل</th>
+                  <th className="p-3 text-white/50">إجمالي المبيعات</th>
+                  <th className="p-3 text-white/50">% من الإجمالي</th>
+                  <th className="p-3 text-white/50">عدد الفواتير</th>
+                </tr>
+              </thead>
+              <tbody>
+                {isLoading ? <TableSkeleton cols={5} rows={5} /> :
+                 byCustomer.length === 0 ? <tr><td colSpan={5} className="p-12 text-center text-white/40">لا توجد بيانات</td></tr> :
+                 byCustomer.map((c, i) => (
+                  <tr key={c.customer_id ?? i} className="border-b border-white/5 erp-table-row">
+                    <td className="p-3 text-white/30 text-xs">{i + 1}</td>
+                    <td className="p-3 text-white font-bold">{c.customer_name}</td>
+                    <td className="p-3 text-emerald-400 font-bold">{formatCurrency(c.total_revenue)}</td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-2">
+                        <div className="h-1.5 bg-white/5 rounded-full flex-1 max-w-[80px] overflow-hidden">
+                          <div className="h-full bg-blue-400 rounded-full" style={{ width: `${totalByCust > 0 ? (c.total_revenue / totalByCust * 100) : 0}%` }} />
+                        </div>
+                        <span className="text-white/40 text-xs">{totalByCust > 0 ? (c.total_revenue / totalByCust * 100).toFixed(1) : 0}%</span>
+                      </div>
+                    </td>
+                    <td className="p-3 text-white/50">{c.invoice_count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ *  TAB: كشف حساب عميل
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+interface StatementRow { date: string; type: string; description: string; debit: number; credit: number; balance: number; reference_no?: string | null }
+interface CustomerStatementData {
+  customer: { id: number; name: string; balance: number; customer_code: number };
+  opening_balance: number;
+  statement: StatementRow[];
+  closing_balance: number;
+}
+
+const STMT_TYPE_MAP: Record<string, { label: string; cls: string }> = {
+  opening_balance: { label: "رصيد أول المدة", cls: "text-amber-400" },
+  sale:            { label: "فاتورة مبيعات",  cls: "text-blue-400" },
+  receipt:         { label: "سند قبض",        cls: "text-emerald-400" },
+  sale_return:     { label: "مرتجع مبيعات",   cls: "text-orange-400" },
+};
+
+function CustomerStatementReport() {
+  const [customerId, setCustomerId] = useState<string>("");
+  const [mode, setMode]             = useState<DateMode>("month");
+  const [customFrom, setCustomFrom] = useState(thisMonthStart());
+  const [customTo,   setCustomTo]   = useState(todayStr());
+  const [dateFrom, dateTo]          = getDateRange(mode, customFrom, customTo);
+
+  const { data: customers = [] } = useQuery<any[]>({
+    queryKey: ["/api/customers"],
+    queryFn: () => authFetch<any[]>(api("/api/customers")),
+    staleTime: 120_000,
+  });
+
+  const { data, isLoading, isFetching } = useQuery<CustomerStatementData>({
+    queryKey: ["/api/reports/customer-statement", customerId, dateFrom, dateTo],
+    queryFn: () => authFetch<CustomerStatementData>(api(`/api/reports/customer-statement?customer_id=${customerId}&date_from=${dateFrom}&date_to=${dateTo}`)),
+    enabled: !!customerId,
+    staleTime: 30_000,
+  });
+
+  const stmt = data?.statement ?? [];
+
+  return (
+    <div className="space-y-4" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
+      <div className="flex flex-wrap gap-3 items-center">
+        <select value={customerId} onChange={e => setCustomerId(e.target.value)}
+          className="glass-input rounded-xl px-3 py-2 text-sm text-white min-w-[200px]">
+          <option value="">اختر العميل...</option>
+          {customers.map((c: any) => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
+        </select>
+        <DateFilterBar mode={mode} setMode={setMode} customFrom={customFrom} setCustomFrom={setCustomFrom} customTo={customTo} setCustomTo={setCustomTo} />
+      </div>
+
+      {!customerId ? (
+        <div className="glass-panel rounded-2xl p-12 text-center border border-white/5">
+          <Users className="w-10 h-10 text-white/20 mx-auto mb-3" />
+          <p className="text-white/40 font-bold">اختر عميلاً لعرض كشف حسابه</p>
+        </div>
+      ) : (
+        <>
+          {data && (
+            <div className="grid grid-cols-3 gap-3">
+              <div className="glass-panel rounded-2xl p-4 border border-white/5">
+                <p className="text-white/40 text-xs mb-1">رصيد أول المدة</p>
+                <p className={`text-lg font-black ${data.opening_balance >= 0 ? "text-amber-400" : "text-red-400"}`}>{formatCurrency(data.opening_balance)}</p>
+              </div>
+              <div className="glass-panel rounded-2xl p-4 border border-white/5">
+                <p className="text-white/40 text-xs mb-1">رصيد الختام</p>
+                <p className={`text-lg font-black ${data.closing_balance >= 0 ? "text-emerald-400" : "text-red-400"}`}>{formatCurrency(data.closing_balance)}</p>
+              </div>
+              <div className="glass-panel rounded-2xl p-4 border border-white/5">
+                <p className="text-white/40 text-xs mb-1">الرصيد الفعلي (الدفتر)</p>
+                <p className={`text-lg font-black ${data.customer.balance >= 0 ? "text-blue-400" : "text-red-400"}`}>{formatCurrency(data.customer.balance)}</p>
+              </div>
+            </div>
+          )}
+
+          <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
+            <div className="overflow-x-auto">
+              <table className="w-full text-right text-sm whitespace-nowrap">
+                <thead className="bg-white/5 border-b border-white/10">
+                  <tr>
+                    <th className="p-3 text-white/50">التاريخ</th>
+                    <th className="p-3 text-white/50">النوع</th>
+                    <th className="p-3 text-white/50">البيان</th>
+                    <th className="p-3 text-white/50">مدين (له)</th>
+                    <th className="p-3 text-white/50">دائن (عليه)</th>
+                    <th className="p-3 text-white/50">الرصيد</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(isLoading || isFetching) ? <TableSkeleton cols={6} rows={5} /> :
+                   stmt.length === 0 ? <tr><td colSpan={6} className="p-12 text-center text-white/40">لا توجد حركات في هذه الفترة</td></tr> :
+                   stmt.map((row, i) => {
+                    const meta = STMT_TYPE_MAP[row.type] ?? { label: row.type, cls: "text-white/50" };
+                    return (
+                      <tr key={i} className="border-b border-white/5 erp-table-row">
+                        <td className="p-3 font-mono text-white/60 text-xs">{row.date}</td>
+                        <td className="p-3"><span className={`text-xs font-bold ${meta.cls}`}>{meta.label}</span></td>
+                        <td className="p-3 text-white/70">{row.description}{row.reference_no && <span className="text-white/30 text-xs mr-2">{row.reference_no}</span>}</td>
+                        <td className="p-3 text-blue-400 font-bold">{row.debit > 0 ? formatCurrency(row.debit) : "—"}</td>
+                        <td className="p-3 text-emerald-400 font-bold">{row.credit > 0 ? formatCurrency(row.credit) : "—"}</td>
+                        <td className={`p-3 font-black ${row.balance >= 0 ? "text-white" : "text-red-400"}`}>{formatCurrency(row.balance)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ *  TAB: كشف حساب مورد
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+interface SupplierStatementData {
+  supplier: { id: number; name: string; balance: number };
+  opening_balance: number;
+  statement: StatementRow[];
+  closing_balance: number;
+}
+
+const SUP_TYPE_MAP: Record<string, { label: string; cls: string }> = {
+  opening_balance:  { label: "رصيد أول المدة",  cls: "text-amber-400" },
+  purchase:         { label: "فاتورة شراء",      cls: "text-blue-400" },
+  payment:          { label: "سند دفع",          cls: "text-emerald-400" },
+  purchase_return:  { label: "مرتجع مشتريات",   cls: "text-orange-400" },
+};
+
+function SupplierStatementReport() {
+  const [supplierId, setSupplierId] = useState<string>("");
+  const [mode, setMode]             = useState<DateMode>("month");
+  const [customFrom, setCustomFrom] = useState(thisMonthStart());
+  const [customTo,   setCustomTo]   = useState(todayStr());
+  const [dateFrom, dateTo]          = getDateRange(mode, customFrom, customTo);
+
+  const { data: suppliers = [] } = useQuery<any[]>({
+    queryKey: ["/api/suppliers"],
+    queryFn: () => authFetch<any[]>(api("/api/suppliers")),
+    staleTime: 120_000,
+  });
+
+  const { data, isLoading, isFetching } = useQuery<SupplierStatementData>({
+    queryKey: ["/api/reports/supplier-statement", supplierId, dateFrom, dateTo],
+    queryFn: () => authFetch<SupplierStatementData>(api(`/api/reports/supplier-statement?supplier_id=${supplierId}&date_from=${dateFrom}&date_to=${dateTo}`)),
+    enabled: !!supplierId,
+    staleTime: 30_000,
+  });
+
+  const stmt = data?.statement ?? [];
+
+  return (
+    <div className="space-y-4" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
+      <div className="flex flex-wrap gap-3 items-center">
+        <select value={supplierId} onChange={e => setSupplierId(e.target.value)}
+          className="glass-input rounded-xl px-3 py-2 text-sm text-white min-w-[200px]">
+          <option value="">اختر المورد...</option>
+          {suppliers.map((s: any) => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
+        </select>
+        <DateFilterBar mode={mode} setMode={setMode} customFrom={customFrom} setCustomFrom={setCustomFrom} customTo={customTo} setCustomTo={setCustomTo} />
+      </div>
+
+      {!supplierId ? (
+        <div className="glass-panel rounded-2xl p-12 text-center border border-white/5">
+          <Truck className="w-10 h-10 text-white/20 mx-auto mb-3" />
+          <p className="text-white/40 font-bold">اختر موردًا لعرض كشف حسابه</p>
+        </div>
+      ) : (
+        <>
+          {data && (
+            <div className="grid grid-cols-3 gap-3">
+              <div className="glass-panel rounded-2xl p-4 border border-white/5">
+                <p className="text-white/40 text-xs mb-1">رصيد أول المدة</p>
+                <p className={`text-lg font-black ${data.opening_balance >= 0 ? "text-amber-400" : "text-red-400"}`}>{formatCurrency(data.opening_balance)}</p>
+              </div>
+              <div className="glass-panel rounded-2xl p-4 border border-white/5">
+                <p className="text-white/40 text-xs mb-1">رصيد الختام</p>
+                <p className={`text-lg font-black ${data.closing_balance >= 0 ? "text-emerald-400" : "text-red-400"}`}>{formatCurrency(data.closing_balance)}</p>
+              </div>
+              <div className="glass-panel rounded-2xl p-4 border border-white/5">
+                <p className="text-white/40 text-xs mb-1">الرصيد الفعلي (الدفتر)</p>
+                <p className={`text-lg font-black ${data.supplier.balance >= 0 ? "text-blue-400" : "text-red-400"}`}>{formatCurrency(data.supplier.balance)}</p>
+              </div>
+            </div>
+          )}
+
+          <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
+            <div className="overflow-x-auto">
+              <table className="w-full text-right text-sm whitespace-nowrap">
+                <thead className="bg-white/5 border-b border-white/10">
+                  <tr>
+                    <th className="p-3 text-white/50">التاريخ</th>
+                    <th className="p-3 text-white/50">النوع</th>
+                    <th className="p-3 text-white/50">البيان</th>
+                    <th className="p-3 text-white/50">مدين (دفع)</th>
+                    <th className="p-3 text-white/50">دائن (شراء)</th>
+                    <th className="p-3 text-white/50">الرصيد</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(isLoading || isFetching) ? <TableSkeleton cols={6} rows={5} /> :
+                   stmt.length === 0 ? <tr><td colSpan={6} className="p-12 text-center text-white/40">لا توجد حركات في هذه الفترة</td></tr> :
+                   stmt.map((row, i) => {
+                    const meta = SUP_TYPE_MAP[row.type] ?? { label: row.type, cls: "text-white/50" };
+                    return (
+                      <tr key={i} className="border-b border-white/5 erp-table-row">
+                        <td className="p-3 font-mono text-white/60 text-xs">{row.date}</td>
+                        <td className="p-3"><span className={`text-xs font-bold ${meta.cls}`}>{meta.label}</span></td>
+                        <td className="p-3 text-white/70">{row.description}</td>
+                        <td className="p-3 text-emerald-400 font-bold">{row.debit > 0 ? formatCurrency(row.debit) : "—"}</td>
+                        <td className="p-3 text-blue-400 font-bold">{row.credit > 0 ? formatCurrency(row.credit) : "—"}</td>
+                        <td className={`p-3 font-black ${row.balance >= 0 ? "text-white" : "text-red-400"}`}>{formatCurrency(row.balance)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ *  TAB: التدفق النقدي
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+interface CashFlowData {
+  days: Array<{ day: string; receipts_in: number; cash_sales: number; deposits_in: number; total_in: number; payments_out: number; expenses_out: number; total_out: number; net_flow: number }>;
+  summary: { total_in: number; total_out: number; net_cash_flow: number };
+}
+
+function CashFlowReport() {
+  const [mode, setMode]             = useState<DateMode>("month");
+  const [customFrom, setCustomFrom] = useState(thisMonthStart());
+  const [customTo,   setCustomTo]   = useState(todayStr());
+  const [dateFrom, dateTo]          = getDateRange(mode, customFrom, customTo);
+
+  const { data, isLoading } = useQuery<CashFlowData>({
+    queryKey: ["/api/reports/cash-flow", dateFrom, dateTo],
+    queryFn: () => authFetch<CashFlowData>(api(`/api/reports/cash-flow?date_from=${dateFrom}&date_to=${dateTo}`)),
+    staleTime: 60_000,
+  });
+
+  const days    = data?.days    ?? [];
+  const summary = data?.summary ?? { total_in: 0, total_out: 0, net_cash_flow: 0 };
+
+  return (
+    <div className="space-y-4" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
+      <DateFilterBar mode={mode} setMode={setMode} customFrom={customFrom} setCustomFrom={setCustomFrom} customTo={customTo} setCustomTo={setCustomTo} />
+
+      <div className="grid grid-cols-3 gap-3">
+        <div className="glass-panel rounded-2xl p-4 border border-emerald-500/10">
+          <div className="flex items-center gap-2 mb-1"><ArrowDown className="w-4 h-4 text-emerald-400" /><p className="text-emerald-400 text-xs">إجمالي الوارد</p></div>
+          <p className="text-lg font-black text-white">{formatCurrency(summary.total_in)}</p>
+        </div>
+        <div className="glass-panel rounded-2xl p-4 border border-red-500/10">
+          <div className="flex items-center gap-2 mb-1"><ArrowUp className="w-4 h-4 text-red-400" /><p className="text-red-400 text-xs">إجمالي الصادر</p></div>
+          <p className="text-lg font-black text-white">{formatCurrency(summary.total_out)}</p>
+        </div>
+        <div className={`glass-panel rounded-2xl p-4 border ${summary.net_cash_flow >= 0 ? "border-blue-500/10" : "border-red-500/20"}`}>
+          <div className="flex items-center gap-2 mb-1"><CreditCard className="w-4 h-4 text-blue-400" /><p className="text-blue-400 text-xs">صافي التدفق النقدي</p></div>
+          <p className={`text-lg font-black ${summary.net_cash_flow >= 0 ? "text-blue-400" : "text-red-400"}`}>{formatCurrency(summary.net_cash_flow)}</p>
+        </div>
+      </div>
+
+      <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
+        <div className="overflow-x-auto">
+          <table className="w-full text-right text-sm whitespace-nowrap">
+            <thead className="bg-white/5 border-b border-white/10">
+              <tr>
+                <th className="p-3 text-white/50">التاريخ</th>
+                <th className="p-3 text-white/50">مبيعات نقدية</th>
+                <th className="p-3 text-white/50">سندات قبض</th>
+                <th className="p-3 text-white/50">إيداعات</th>
+                <th className="p-3 text-emerald-400 font-bold">إجمالي الوارد</th>
+                <th className="p-3 text-white/50">سندات دفع</th>
+                <th className="p-3 text-white/50">مصروفات</th>
+                <th className="p-3 text-red-400 font-bold">إجمالي الصادر</th>
+                <th className="p-3 text-white/50">صافي</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? <TableSkeleton cols={9} rows={5} /> :
+               days.length === 0 ? <tr><td colSpan={9} className="p-12 text-center text-white/40">لا توجد حركات نقدية في هذه الفترة</td></tr> :
+               days.map(d => (
+                <tr key={d.day} className="border-b border-white/5 erp-table-row">
+                  <td className="p-3 font-mono text-white/60 text-xs">{d.day}</td>
+                  <td className="p-3 text-emerald-400">{d.cash_sales > 0 ? formatCurrency(d.cash_sales) : "—"}</td>
+                  <td className="p-3 text-emerald-400">{d.receipts_in > 0 ? formatCurrency(d.receipts_in) : "—"}</td>
+                  <td className="p-3 text-blue-400">{d.deposits_in > 0 ? formatCurrency(d.deposits_in) : "—"}</td>
+                  <td className="p-3 font-bold text-emerald-400">{formatCurrency(d.total_in)}</td>
+                  <td className="p-3 text-red-400">{d.payments_out > 0 ? formatCurrency(d.payments_out) : "—"}</td>
+                  <td className="p-3 text-orange-400">{d.expenses_out > 0 ? formatCurrency(d.expenses_out) : "—"}</td>
+                  <td className="p-3 font-bold text-red-400">{formatCurrency(d.total_out)}</td>
+                  <td className={`p-3 font-black ${d.net_flow >= 0 ? "text-blue-400" : "text-red-400"}`}>{formatCurrency(d.net_flow)}</td>
+                </tr>
+              ))}
+            </tbody>
+            {days.length > 0 && (
+              <tfoot className="bg-white/5 border-t border-white/10">
+                <tr>
+                  <td colSpan={4} className="p-3 font-bold text-white/50">الإجمالي</td>
+                  <td className="p-3 font-black text-emerald-400">{formatCurrency(summary.total_in)}</td>
+                  <td colSpan={2} />
+                  <td className="p-3 font-black text-red-400">{formatCurrency(summary.total_out)}</td>
+                  <td className={`p-3 font-black ${summary.net_cash_flow >= 0 ? "text-blue-400" : "text-red-400"}`}>{formatCurrency(summary.net_cash_flow)}</td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ *  TAB: تقارير الأعلى
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+interface TopData {
+  top_products: Array<{ product_id: number; product_name: string; total_qty: number; total_revenue: number; total_profit: number }>;
+  top_customers: Array<{ customer_id: number | null; customer_name: string; total_revenue: number; invoice_count: number }>;
+  top_suppliers: Array<{ supplier_id: number | null; supplier_name: string; total_purchases: number; invoice_count: number }>;
+}
+
+function TopReportsTab() {
+  const [mode, setMode]             = useState<DateMode>("month");
+  const [customFrom, setCustomFrom] = useState(thisMonthStart());
+  const [customTo,   setCustomTo]   = useState(todayStr());
+  const [dateFrom, dateTo]          = getDateRange(mode, customFrom, customTo);
+
+  const { data, isLoading } = useQuery<TopData>({
+    queryKey: ["/api/reports/top", dateFrom, dateTo],
+    queryFn: () => authFetch<TopData>(api(`/api/reports/top?date_from=${dateFrom}&date_to=${dateTo}&limit=10`)),
+    staleTime: 60_000,
+  });
+
+  const topProducts  = data?.top_products  ?? [];
+  const topCustomers = data?.top_customers ?? [];
+  const topSuppliers = data?.top_suppliers ?? [];
+
+  const TopTable = ({ title, icon, rows, cols }: { title: string; icon: React.ReactNode; rows: any[]; cols: { key: string; label: string; fmt?: (v: any) => string; cls?: string }[] }) => (
+    <div className="glass-panel rounded-2xl overflow-hidden border border-white/5">
+      <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2">
+        {icon}
+        <h3 className="text-white font-bold text-sm">{title}</h3>
+      </div>
+      <table className="w-full text-right text-sm">
+        <thead className="bg-white/5">
+          <tr>
+            <th className="p-3 text-white/40 text-xs">#</th>
+            {cols.map(c => <th key={c.key} className="p-3 text-white/40 text-xs">{c.label}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {isLoading ? <TableSkeleton cols={cols.length + 1} rows={5} /> :
+           rows.length === 0 ? <tr><td colSpan={cols.length + 1} className="p-8 text-center text-white/30 text-xs">لا توجد بيانات</td></tr> :
+           rows.map((row, i) => (
+            <tr key={i} className="border-b border-white/5 erp-table-row">
+              <td className="p-3">
+                <span className="text-base">{["🥇","🥈","🥉"][i] ?? <span className="text-white/30 text-xs font-bold">#{i+1}</span>}</span>
+              </td>
+              {cols.map(c => (
+                <td key={c.key} className={`p-3 font-bold ${c.cls ?? "text-white"}`}>
+                  {c.fmt ? c.fmt(row[c.key]) : row[c.key]}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
+      <DateFilterBar mode={mode} setMode={setMode} customFrom={customFrom} setCustomFrom={setCustomFrom} customTo={customTo} setCustomTo={setCustomTo} />
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <TopTable title="أعلى المنتجات مبيعاً" icon={<Package className="w-4 h-4 text-amber-400" />}
+          rows={topProducts}
+          cols={[
+            { key: "product_name", label: "المنتج" },
+            { key: "total_revenue", label: "المبيعات", fmt: v => formatCurrency(v), cls: "text-emerald-400" },
+            { key: "total_profit",  label: "الربح",    fmt: v => formatCurrency(v), cls: "text-amber-400" },
+          ]} />
+
+        <TopTable title="أفضل العملاء" icon={<Users className="w-4 h-4 text-blue-400" />}
+          rows={topCustomers}
+          cols={[
+            { key: "customer_name",  label: "العميل" },
+            { key: "total_revenue",  label: "المبيعات", fmt: v => formatCurrency(v), cls: "text-emerald-400" },
+            { key: "invoice_count",  label: "الفواتير",  cls: "text-white/50" },
+          ]} />
+
+        <TopTable title="أكثر الموردين تعاملاً" icon={<Truck className="w-4 h-4 text-purple-400" />}
+          rows={topSuppliers}
+          cols={[
+            { key: "supplier_name",   label: "المورد" },
+            { key: "total_purchases", label: "المشتريات", fmt: v => formatCurrency(v), cls: "text-blue-400" },
+            { key: "invoice_count",   label: "الفواتير",   cls: "text-white/50" },
+          ]} />
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ *  Main Reports — full tab set
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+type Tab = "pl" | "daily" | "products" | "analysis" | "customer" | "supplier" | "cashflow" | "top" | "inventory" | "purchases" | "sales";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "pl",        label: "📊 الأرباح والخسائر" },
-  { id: "inventory", label: "📦 تقرير المخزن" },
-  { id: "purchases", label: "🛒 فواتير المشتريات" },
+  { id: "daily",     label: "📅 يومي" },
+  { id: "products",  label: "📦 ربحية المنتجات" },
+  { id: "analysis",  label: "📈 تحليل المبيعات" },
+  { id: "customer",  label: "👤 كشف عميل" },
+  { id: "supplier",  label: "🏭 كشف مورد" },
+  { id: "cashflow",  label: "💰 تدفق نقدي" },
+  { id: "top",       label: "🏆 الأعلى" },
+  { id: "inventory", label: "🏪 المخزون" },
   { id: "sales",     label: "🧾 فواتير المبيعات" },
+  { id: "purchases", label: "🛒 فواتير المشتريات" },
 ];
 
 export default function Reports() {
@@ -1204,7 +1998,7 @@ export default function Reports() {
       <div className="flex bg-white/5 rounded-2xl p-1 border border-white/10 flex-wrap gap-1">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex-1 min-w-fit ${tab === t.id ? "bg-amber-500 text-black shadow" : "text-white/50 hover:text-white"}`}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${tab === t.id ? "bg-amber-500 text-black shadow" : "text-white/50 hover:text-white"}`}
             style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
             {t.label}
           </button>
@@ -1214,9 +2008,16 @@ export default function Reports() {
       <AnimatePresence mode="wait">
         <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
           {tab === "pl"        && <ProfitLossReport />}
+          {tab === "daily"     && <DailyProfitReport />}
+          {tab === "products"  && <ProductProfitReport />}
+          {tab === "analysis"  && <SalesAnalysisReport />}
+          {tab === "customer"  && <CustomerStatementReport />}
+          {tab === "supplier"  && <SupplierStatementReport />}
+          {tab === "cashflow"  && <CashFlowReport />}
+          {tab === "top"       && <TopReportsTab />}
           {tab === "inventory" && <InventoryReport />}
-          {tab === "purchases" && <PurchasesInvoicesReport />}
           {tab === "sales"     && <SalesInvoicesReport />}
+          {tab === "purchases" && <PurchasesInvoicesReport />}
         </motion.div>
       </AnimatePresence>
     </div>
