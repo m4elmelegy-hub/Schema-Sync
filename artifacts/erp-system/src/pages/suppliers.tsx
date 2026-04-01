@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { authFetch } from "@/lib/auth-fetch";
 import { useGetSuppliers, useCreateSupplier, useCreateSupplierPayment, useGetSettingsSafes } from "@workspace/api-client-react";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { Plus, Search, DollarSign, FileText, X, Loader2, TrendingDown, TrendingUp, RotateCcw } from "lucide-react";
@@ -37,7 +38,7 @@ function SupplierStatementModal({ supplierId, supplierName, onClose }: {
   const { data, isLoading, isError } = useQuery<SupplierStatement>({
     queryKey: [`/api/suppliers/${supplierId}/statement`],
     queryFn: async () => {
-      const res = await fetch(api(`/api/suppliers/${supplierId}/statement`), {
+      const res = await authFetch(api(`/api/suppliers/${supplierId}/statement`), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) throw new Error("فشل جلب كشف الحساب");

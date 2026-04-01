@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { authFetch } from "@/lib/auth-fetch";
 import { useGetProducts, useCreateProduct, useDeleteProduct } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
 import { Plus, Search, Trash2, AlertTriangle, Pencil, X, FileDown, Package } from "lucide-react";
@@ -135,7 +136,7 @@ export default function Products() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: ProductForm }) => {
-      const r = await fetch(api(`/api/products/${id}`), {
+      const r = await authFetch(api(`/api/products/${id}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),

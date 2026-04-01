@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { authFetch } from "@/lib/auth-fetch";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useDeleteExpense, useGetSettingsSafes } from "@workspace/api-client-react";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -19,7 +20,7 @@ interface Expense {
 export default function Expenses() {
   const { data: expenses = [], isLoading } = useQuery<Expense[]>({
     queryKey: ["/api/expenses"],
-    queryFn: () => fetch(api("/api/expenses")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
+    queryFn: () => authFetch(api("/api/expenses")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
   const { data: safes = [] } = useGetSettingsSafes();
   const deleteMutation = useDeleteExpense();
@@ -32,7 +33,7 @@ export default function Expenses() {
 
   const createMutation = useMutation({
     mutationFn: async (body: Record<string, unknown>) => {
-      const res = await fetch(api("/api/expenses"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const res = await authFetch(api("/api/expenses"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       if (!res.ok) { const e = await res.json(); throw new Error(e.error || "خطأ"); }
       return res.json();
     },

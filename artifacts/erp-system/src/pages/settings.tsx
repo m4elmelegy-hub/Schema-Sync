@@ -1278,7 +1278,7 @@ function BackupImportTab() {
         setBkProgress(p => Math.min(p + step, 85));
         if (mod.url) {
           try {
-            const res = await fetch(api(mod.url));
+            const res = await authFetch(api(mod.url));
             bundle[mod.key] = res.ok ? await res.json() : [];
           } catch { bundle[mod.key] = []; }
         } else if (mod.key === "settings") {
@@ -1317,7 +1317,7 @@ function BackupImportTab() {
   const handleProductsExport = async () => {
     setProdExporting(true);
     try {
-      const res = await fetch(api("/api/products"));
+      const res = await authFetch(api("/api/products"));
       const prods = await res.json();
       const rows = prods.map((p: any) => ({
         "اسم الصنف": p.name, "كود الصنف (SKU)": p.sku || "", "التصنيف": p.category || "",
@@ -1347,7 +1347,7 @@ function BackupImportTab() {
         const name = row["اسم الصنف"] || row["name"] || row["Name"];
         if (!name) { failed++; continue; }
         try {
-          const res = await fetch(api("/api/products"), {
+          const res = await authFetch(api("/api/products"), {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               name: String(name), sku: String(row["كود الصنف (SKU)"] || row["sku"] || ""),
@@ -1398,7 +1398,7 @@ function BackupImportTab() {
     const file = e.target.files?.[0]; if (!file) return;
     setPurLoading(true); setPurParsed(false); setPurRows([]); setPurResult(null);
     try {
-      const prodRes  = await fetch(api("/api/products"));
+      const prodRes  = await authFetch(api("/api/products"));
       const products: any[] = prodRes.ok ? await prodRes.json() : [];
       const skuMap   = new Map<string, { id: number; name: string }>();
       for (const p of products) {
@@ -1469,7 +1469,7 @@ function BackupImportTab() {
         items, supplier_name: purSupplier || undefined,
         notes: `استيراد من Excel — ${validRows.length} صنف`,
       };
-      const res  = await fetch(api("/api/purchases"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const res  = await authFetch(api("/api/purchases"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "فشل الاستيراد");
       const msg = `تم إنشاء فاتورة مشتريات ${data.invoice_no} وتحديث المخزن بـ ${validRows.length} صنف ✓`;

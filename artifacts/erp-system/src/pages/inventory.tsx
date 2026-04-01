@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { authFetch } from "@/lib/auth-fetch";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/format";
 import {
@@ -87,18 +88,18 @@ export default function Inventory() {
 
   const { data: auditData, isLoading, refetch } = useQuery<{ products: AuditProduct[]; summary: AuditSummary }>({
     queryKey: ["inventory-audit"],
-    queryFn: () => fetch(api("/api/inventory/audit")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
+    queryFn: () => authFetch(api("/api/inventory/audit")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
 
   const { data: productDetail } = useQuery<ProductDetail>({
     queryKey: ["inventory-product", selectedProduct],
-    queryFn: () => fetch(api(`/api/inventory/product/${selectedProduct}`)).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
+    queryFn: () => authFetch(api(`/api/inventory/product/${selectedProduct}`)).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
     enabled: selectedProduct !== null,
   });
 
   const adjustMutation = useMutation({
     mutationFn: ({ product_id, new_quantity, notes }: { product_id: number; new_quantity: number; notes: string }) =>
-      fetch(api("/api/inventory/adjustment"), {
+      authFetch(api("/api/inventory/adjustment"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ product_id, new_quantity, notes }),

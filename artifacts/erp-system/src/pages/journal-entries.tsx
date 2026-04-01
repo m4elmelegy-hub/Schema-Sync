@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { authFetch } from "@/lib/auth-fetch";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { Plus, X, Trash2, CheckCircle, AlertCircle, BookOpen } from "lucide-react";
@@ -29,14 +30,14 @@ function EntryDetailModal({ entryId, onClose }: { entryId: number; onClose: () =
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const { data: entry, isLoading } = useQuery<JournalEntryDetail>({
     queryKey: ["/api/journal-entries", entryId],
-    queryFn: () => fetch(api(`/api/journal-entries/${entryId}`)).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
+    queryFn: () => authFetch(api(`/api/journal-entries/${entryId}`)).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
   const postMutation = useMutation({
-    mutationFn: () => fetch(api(`/api/journal-entries/${entryId}/post`), { method: "PATCH" }).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
+    mutationFn: () => authFetch(api(`/api/journal-entries/${entryId}/post`), { method: "PATCH" }).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/journal-entries"] }); toast({ title: "✅ تم ترحيل القيد" }); onClose(); },
   });
   const deleteMutation = useMutation({
-    mutationFn: () => fetch(api(`/api/journal-entries/${entryId}`), { method: "DELETE" }).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
+    mutationFn: () => authFetch(api(`/api/journal-entries/${entryId}`), { method: "DELETE" }).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/journal-entries"] }); toast({ title: "🗑 تم الحذف" }); onClose(); },
   });
 
@@ -140,7 +141,7 @@ function NewEntryModal({ onClose }: { onClose: () => void }) {
 
   const { data: accounts = [] } = useQuery<Account[]>({
     queryKey: ["/api/accounts"],
-    queryFn: () => fetch(api("/api/accounts")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
+    queryFn: () => authFetch(api("/api/accounts")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
 
   const postingAccounts = accounts.filter(a => a.is_posting);
@@ -149,7 +150,7 @@ function NewEntryModal({ onClose }: { onClose: () => void }) {
   const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01 && totalDebit > 0;
 
   const createMutation = useMutation({
-    mutationFn: (data: object) => fetch(api("/api/journal-entries"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error); return j; }),
+    mutationFn: (data: object) => authFetch(api("/api/journal-entries"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error); return j; }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/journal-entries"] }); toast({ title: "✅ تم حفظ القيد" }); onClose(); },
     onError: (e: Error) => toast({ title: e.message || "حدث خطأ", variant: "destructive" }),
   });
@@ -253,7 +254,7 @@ export default function JournalEntries() {
 
   const { data: entries = [], isLoading } = useQuery<JournalEntry[]>({
     queryKey: ["/api/journal-entries"],
-    queryFn: () => fetch(api("/api/journal-entries")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
+    queryFn: () => authFetch(api("/api/journal-entries")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
 
   const filtered = entries.filter(e => filter === "all" || e.status === filter);

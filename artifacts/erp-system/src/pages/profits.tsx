@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { authFetch } from "@/lib/auth-fetch";
 import { useQuery } from "@tanstack/react-query";
 import { useGetProducts } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
@@ -104,7 +105,7 @@ export default function Profits() {
       if (activeQuery.from) params.set("date_from", activeQuery.from);
       if (activeQuery.to) params.set("date_to", activeQuery.to);
       if (activeQuery.product_id !== "") params.set("product_id", String(activeQuery.product_id));
-      const r = await fetch(api(`/api/profits?${params}`));
+      const r = await authFetch(api(`/api/profits?${params}`));
       const json = await r.json();
       if (!r.ok) throw new Error(json.error || `خطأ ${r.status}`);
       return json;

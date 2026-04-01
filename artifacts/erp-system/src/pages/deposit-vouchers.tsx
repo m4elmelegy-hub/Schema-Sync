@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { authFetch } from "@/lib/auth-fetch";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useGetSettingsSafes } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
@@ -25,11 +26,11 @@ export default function DepositVouchers() {
   const { data: safes = [] } = useGetSettingsSafes();
   const { data: vouchers = [], isLoading } = useQuery<DepositVoucher[]>({
     queryKey: ["/api/deposit-vouchers"],
-    queryFn: () => fetch(api("/api/deposit-vouchers")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
+    queryFn: () => authFetch(api("/api/deposit-vouchers")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
   const { data: customers = [] } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],
-    queryFn: () => fetch(api("/api/customers")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
+    queryFn: () => authFetch(api("/api/customers")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
 
   const [showAdd, setShowAdd] = useState(false);
@@ -41,7 +42,7 @@ export default function DepositVouchers() {
 
   const createMutation = useMutation({
     mutationFn: async (body: Record<string, unknown>) => {
-      const res = await fetch(api("/api/deposit-vouchers"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const res = await authFetch(api("/api/deposit-vouchers"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       if (!res.ok) { const e = await res.json(); throw new Error(e.error || "خطأ"); }
       return res.json();
     },
@@ -58,7 +59,7 @@ export default function DepositVouchers() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(api(`/api/deposit-vouchers/${id}`), { method: "DELETE" });
+      const res = await authFetch(api(`/api/deposit-vouchers/${id}`), { method: "DELETE" });
       if (!res.ok) throw new Error("فشل الحذف");
     },
     onSuccess: () => {

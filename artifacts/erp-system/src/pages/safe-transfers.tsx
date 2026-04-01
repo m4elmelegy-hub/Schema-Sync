@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { authFetch } from "@/lib/auth-fetch";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useGetSettingsSafes } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
@@ -21,7 +22,7 @@ export default function SafeTransfers() {
 
   const { data: transfers = [], isLoading } = useQuery<Transfer[]>({
     queryKey: ["/api/safe-transfers"],
-    queryFn: () => fetch(api("/api/safe-transfers")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
+    queryFn: () => authFetch(api("/api/safe-transfers")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
 
   const [showAdd, setShowAdd] = useState(false);
@@ -29,7 +30,7 @@ export default function SafeTransfers() {
 
   const createMutation = useMutation({
     mutationFn: async (body: Record<string, unknown>) => {
-      const res = await fetch(api("/api/safe-transfers"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const res = await authFetch(api("/api/safe-transfers"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       if (!res.ok) { const e = await res.json(); throw new Error(e.error || "خطأ"); }
       return res.json();
     },

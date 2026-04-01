@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { authFetch } from "@/lib/auth-fetch";
 import { useQuery } from "@tanstack/react-query";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { X, Loader2, TrendingUp, TrendingDown, ArrowUpFromLine, ArrowDownToLine, RotateCcw, Printer } from "lucide-react";
@@ -64,7 +65,7 @@ export function CombinedStatementModal({
   const { data, isLoading, isError } = useQuery<FullStatementResponse>({
     queryKey: [`/api/contacts/${contactId}/full-statement`, contactType],
     queryFn: async () => {
-      const res = await fetch(api(`/api/contacts/${contactId}/full-statement?type=${contactType}`), {
+      const res = await authFetch(api(`/api/contacts/${contactId}/full-statement?type=${contactType}`), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) throw new Error("فشل جلب كشف الحساب");

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { authFetch } from "@/lib/auth-fetch";
 import { useGetSales, useGetSaleById, useGetProducts, useGetCustomers, useGetSettingsSafes } from "@workspace/api-client-react";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { Search, Plus, Minus, Trash2, X, Printer, ShoppingCart, User, Package, Receipt, RotateCcw, Percent, Vault, Lock } from "lucide-react";
@@ -28,14 +29,14 @@ function SalesReturnsPanel() {
 
   const { data: returns_ = [], isLoading } = useQuery<SalesReturn[]>({
     queryKey: ["/api/sales-returns"],
-    queryFn: () => fetch(api("/api/sales-returns")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
+    queryFn: () => authFetch(api("/api/sales-returns")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
   const { data: products = [] } = useGetProducts();
   const { data: customers = [] } = useGetCustomers();
   const { data: safes = [] } = useGetSettingsSafes();
 
   const createMutation = useMutation({
-    mutationFn: (data: object) => fetch(api("/api/sales-returns"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error); return j; }),
+    mutationFn: (data: object) => authFetch(api("/api/sales-returns"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error); return j; }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/sales-returns"] });
       qc.invalidateQueries({ queryKey: ["/api/customers"] });
@@ -50,7 +51,7 @@ function SalesReturnsPanel() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => fetch(api(`/api/sales-returns/${id}`), { method: "DELETE" }).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error); return j; }),
+    mutationFn: (id: number) => authFetch(api(`/api/sales-returns/${id}`), { method: "DELETE" }).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error); return j; }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/sales-returns"] });
       qc.invalidateQueries({ queryKey: ["/api/customers"] });
@@ -528,7 +529,7 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
 
   const { data: warehouses = [] } = useQuery<{ id: number; name: string }[]>({
     queryKey: ["/api/settings/warehouses"],
-    queryFn: () => fetch(api("/api/settings/warehouses")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
+    queryFn: () => authFetch(api("/api/settings/warehouses")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
 
   const [search, setSearch] = useState("");
@@ -554,7 +555,7 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
   const [successInvoice, setSuccessInvoice] = useState<SuccessInvoice | null>(null);
 
   const checkoutMutation = useMutation({
-    mutationFn: (data: object) => fetch(api("/api/sales"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) })
+    mutationFn: (data: object) => authFetch(api("/api/sales"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) })
       .then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error || "خطأ في التسجيل"); return j; }),
     onSuccess: (data) => {
       const selectedCustomer = customers.find(c => c.id === parseInt(customerId));

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { authFetch } from "@/lib/auth-fetch";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useDeleteIncome, useGetSettingsSafes } from "@workspace/api-client-react";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -19,7 +20,7 @@ interface Income {
 export default function Income() {
   const { data: incomeList = [], isLoading } = useQuery<Income[]>({
     queryKey: ["/api/income"],
-    queryFn: () => fetch(api("/api/income")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
+    queryFn: () => authFetch(api("/api/income")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
   const { data: safes = [] } = useGetSettingsSafes();
   const deleteMutation = useDeleteIncome();
@@ -32,7 +33,7 @@ export default function Income() {
 
   const createMutation = useMutation({
     mutationFn: async (body: Record<string, unknown>) => {
-      const res = await fetch(api("/api/income"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const res = await authFetch(api("/api/income"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       if (!res.ok) { const e = await res.json(); throw new Error(e.error || "خطأ"); }
       return res.json();
     },

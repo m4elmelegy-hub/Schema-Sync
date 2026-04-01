@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { authFetch } from "@/lib/auth-fetch";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/format";
 import { Plus, ChevronDown, ChevronLeft, Edit2, X } from "lucide-react";
@@ -105,11 +106,11 @@ export default function Accounts() {
 
   const { data: accounts = [], isLoading } = useQuery<Account[]>({
     queryKey: ["/api/accounts"],
-    queryFn: () => fetch(api("/api/accounts")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
+    queryFn: () => authFetch(api("/api/accounts")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: object) => fetch(api("/api/accounts"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
+    mutationFn: (data: object) => authFetch(api("/api/accounts"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/accounts"] }); setShowForm(false); setForm({ code: "", name: "", type: "asset", parent_id: "", level: "2", is_posting: true, opening_balance: "" }); toast({ title: "✅ تم إضافة الحساب" }); },
     onError: () => toast({ title: "حدث خطأ", variant: "destructive" }),
   });
@@ -117,7 +118,7 @@ export default function Accounts() {
   const seedMutation = useMutation({
     mutationFn: async () => {
       for (const acc of DEFAULT_ACCOUNTS) {
-        await fetch(api("/api/accounts"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...acc, opening_balance: 0 }) });
+        await authFetch(api("/api/accounts"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...acc, opening_balance: 0 }) });
       }
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/accounts"] }); toast({ title: "✅ تم تحميل الحسابات الافتراضية" }); },
