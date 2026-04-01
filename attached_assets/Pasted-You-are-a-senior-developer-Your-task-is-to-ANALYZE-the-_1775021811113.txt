@@ -1,0 +1,166 @@
+You are a senior developer.
+
+Your task is to ANALYZE the entire project and return a COMPLETE structured report.
+
+Do NOT change any code.
+Do NOT fix anything.
+ONLY analyze and explain.
+
+---
+
+1. PROJECT OVERVIEW
+
+---
+
+* Explain what the system does (ERP / accounting / sales / etc.)
+* List main modules:
+  (customers, suppliers, sales, purchases, vouchers, accounting, etc.)
+
+---
+
+2. DATABASE STRUCTURE
+
+---
+
+List all main tables with purpose:
+
+* customers
+* suppliers
+* accounts (ledger)
+* journal_entries
+* vouchers
+* sales
+* purchases
+* audit_logs
+* any other important table
+
+For each table include:
+
+* key fields
+* relationships (foreign keys)
+* important constraints (unique, indexes)
+
+---
+
+3. CUSTOMER & SUPPLIER SYSTEM
+
+---
+
+Explain:
+
+* How codes are generated
+* How duplicate prevention works
+* How normalization works
+* How search works (name + code)
+* Where code is used in UI
+
+---
+
+4. ACCOUNTING SYSTEM
+
+---
+
+Explain clearly:
+
+* Chart of accounts structure
+* Customer accounts (AR)
+* Supplier accounts (AP)
+* How accounts are created automatically
+* How account_id is linked
+
+---
+
+5. JOURNAL ENTRY SYSTEM
+
+---
+
+Explain:
+
+* How journal entries are created
+* Double-entry logic
+* What triggers entries:
+
+  * sales
+  * purchases
+  * vouchers
+
+Show example entries.
+
+---
+
+6. TRANSACTION FLOW
+
+---
+
+Explain full flow for:
+
+* Sale (cash / credit / partial)
+* Purchase (cash / credit / partial)
+* Receipt voucher
+* Payment voucher
+
+---
+
+7. AUDIT LOG SYSTEM
+
+---
+
+Explain:
+
+* How logs are created
+* What is stored
+* When logs are triggered
+
+---
+
+8. SEARCH & UI BEHAVIOR
+
+---
+
+Explain:
+
+* How dropdowns work
+* How search by code works
+* How auto-detection works
+
+---
+
+9. DATA INTEGRITY & VALIDATION
+
+---
+
+Explain:
+
+* How duplicates are prevented
+* How codes are protected
+* How consistency is maintained
+
+---
+
+10. POSSIBLE RISKS OR WEAK POINTS
+
+---
+
+List:
+
+* missing validations
+* possible bugs
+* race conditions
+* edge cases not handled
+
+---
+
+11. FINAL SUMMARY
+
+---
+
+* Is this system production-ready? (yes/no)
+* What level is it? (basic / intermediate / advanced ERP)
+* Biggest strengths
+* Biggest weaknesses
+
+---
+
+Return everything clearly structured.
+
+Be precise. Do NOT skip details.
