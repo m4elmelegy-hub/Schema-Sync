@@ -1,0 +1,170 @@
+You are a developer.
+
+Enhance the alerts system with:
+
+1. User-based alerts
+2. Resolve (close) alerts
+
+Do NOT break existing logic.
+Do NOT change core alert behavior.
+Only extend functionality.
+
+==================================================
+
+1. USER-BASED ALERTS
+   ==================================================
+
+Goal:
+Each user should only see relevant alerts.
+
+---
+
+A) Add fields to alerts table:
+
+* user_id (nullable)
+* role_target (nullable)
+
+---
+
+B) Logic:
+
+If alert is:
+
+* general (system-wide) → user_id = null
+* specific → assign user_id
+
+Examples:
+
+* low stock → visible to: admin + inventory role
+* customer debt → admin + accountant
+* supplier payable → admin + accountant
+* cash low → admin + cashier
+* health → admin only
+
+---
+
+C) Filtering:
+
+GET /alerts must return:
+
+* alerts where:
+
+  * user_id = current user
+    OR
+  * user_id IS NULL AND role_target includes user's role
+
+---
+
+D) Do NOT duplicate alerts per user
+
+* keep single alert, filter on read
+
+==================================================
+2) RESOLVE ALERT (IMPORTANT)
+============================
+
+Goal:
+Allow marking alert as resolved (not just read)
+
+---
+
+A) Add fields:
+
+* is_resolved (boolean)
+* resolved_at (timestamp)
+* resolved_by (user_id)
+
+---
+
+B) Behavior:
+
+If issue no longer exists:
+
+* alert should be marked resolved
+
+OR allow manual resolve
+
+---
+
+C) New API:
+
+POST /alerts/resolve/:id
+
+* mark alert as resolved
+* store user + timestamp
+
+---
+
+D) UI:
+
+Each alert must have:
+
+* "تم الحل" button
+
+Resolved alerts:
+
+* hidden by default
+* optional toggle: "عرض المحلولة"
+
+---
+
+E) Auto resolve:
+
+If alert condition disappears:
+
+* auto mark resolved
+
+Example:
+
+* stock refilled → resolve low stock alert
+* customer paid → resolve debt alert
+
+==================================================
+3) UI IMPROVEMENTS
+==================
+
+* Add filter:
+
+  * All
+  * Unread
+  * Resolved
+
+* Add badge:
+
+  * Active alerts count
+  * Critical alerts count
+
+* Add icon for resolved (✓)
+
+==================================================
+4) RULES
+========
+
+* Do NOT delete alerts
+* Keep history
+* Do NOT create duplicates
+* Do NOT affect performance
+
+==================================================
+5) FINAL TEST
+=============
+
+Test:
+
+1. Different users see different alerts
+2. Admin sees all alerts
+3. Resolve alert manually works
+4. Auto resolve works when issue fixed
+5. Resolved alerts disappear from main list
+6. No duplicate alerts created
+
+==================================================
+6) FINAL OUTPUT
+===============
+
+After finishing:
+
+* show alerts table structure
+* show filtering logic
+* show resolved example
+* confirm per-user visibility works

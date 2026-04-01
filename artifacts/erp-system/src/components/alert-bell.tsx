@@ -1,15 +1,17 @@
 /**
- * AlertBell — smart notification center.
+ * AlertBell — smart, role-filtered notification center.
  *
  * Fetch strategy (NO polling):
- *   • Fetch alert list on mount (page load).
- *   • Run daily check once per calendar day using localStorage guard.
- *   • Manual "تحديث" button re-fetches the list only.
- *   • Manual "فحص" button triggers a full run-checks + re-fetch (admin use).
+ *   • Fetch list on mount + run daily check once per calendar day.
+ *   • Manual refresh button re-fetches the list only.
+ *   • Manual "فحص" forces a full run-checks (admin).
+ *
+ * Filters: Active | Unread | Resolved
+ * Per-alert: mark read, resolve (تم الحل)
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Bell, RefreshCw } from "lucide-react";
+import { Bell, RefreshCw, CheckCircle } from "lucide-react";
 import { authFetch } from "@/lib/auth-fetch";
 import { useAppSettings } from "@/contexts/app-settings";
 
@@ -20,10 +22,16 @@ interface Alert {
   message: string;
   reference_id: string | null;
   trigger_mode: string;
+  role_target: string | null;
   last_triggered_date: string | null;
   is_read: boolean;
+  is_resolved: boolean;
+  resolved_at: string | null;
+  resolved_by: number | null;
   created_at: string;
 }
+
+type FilterTab = "active" | "unread" | "resolved";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const DAILY_CHECK_KEY = "erp_daily_alert_check";
@@ -36,81 +44,92 @@ const TYPE_ICONS: Record<string, string> = {
   health:           "🩺",
 };
 
-function todayStr() {
-  return new Date().toISOString().split("T")[0];
-}
+function todayStr() { return new Date().toISOString().split("T")[0]; }
 
 export function AlertBell() {
-  const [alerts, setAlerts]   = useState<Alert[]>([]);
-  const [open, setOpen]       = useState(false);
-  const [loading, setLoading] = useState(false);
-  const dropdownRef           = useRef<HTMLDivElement>(null);
-  const { settings }          = useAppSettings();
-  const isDark                = (settings.theme ?? "dark") === "dark";
+  const [allAlerts, setAllAlerts] = useState<Alert[]>([]);
+  const [open, setOpen]           = useState(false);
+  const [loading, setLoading]     = useState(false);
+  const [tab, setTab]             = useState<FilterTab>("active");
+  const dropdownRef               = useRef<HTMLDivElement>(null);
+  const { settings }              = useAppSettings();
+  const isDark                    = (settings.theme ?? "dark") === "dark";
 
-  const unread = alerts.filter(a => !a.is_read).length;
-  const hasCritical = alerts.some(a => !a.is_read && a.severity === "CRITICAL");
+  /* ── derived counts ─────────────────────────────────────── */
+  const active   = allAlerts.filter(a => !a.is_resolved);
+  const unread   = active.filter(a => !a.is_read);
+  const resolved = allAlerts.filter(a => a.is_resolved);
+  const critical = active.filter(a => a.severity === "CRITICAL");
 
-  /* ── Fetch alert list (display only, no side effects) ─────── */
+  const badgeCount = unread.length;
+  const hasCritical = critical.length > 0;
+
+  /* ── filtered list for the current tab ─────────────────── */
+  const displayed: Alert[] = tab === "active"   ? active
+                           : tab === "unread"   ? unread
+                           : resolved;
+
+  /* ── Fetch list (includes resolved when on resolved tab) ─ */
   const fetchAlerts = useCallback(async () => {
     try {
-      const res = await authFetch(`${BASE}/api/alerts`);
-      if (res.ok) setAlerts(await res.json());
+      const res = await authFetch(`${BASE}/api/alerts?include_resolved=true`);
+      if (res.ok) setAllAlerts(await res.json());
     } catch { /* silent */ }
   }, []);
 
-  /* ── Daily check: run at most once per calendar day ────────── */
+  /* ── Daily check: once per calendar day ────────────────── */
   const runDailyCheckIfNeeded = useCallback(async () => {
-    const last = localStorage.getItem(DAILY_CHECK_KEY);
-    if (last === todayStr()) return; // already ran today
+    if (localStorage.getItem(DAILY_CHECK_KEY) === todayStr()) return;
     try {
       const res = await authFetch(`${BASE}/api/alerts/daily-check`, { method: "POST" });
       if (res.ok) {
         localStorage.setItem(DAILY_CHECK_KEY, todayStr());
-        await fetchAlerts(); // refresh list after daily scan
+        await fetchAlerts();
       }
     } catch { /* silent */ }
   }, [fetchAlerts]);
 
-  /* ── On mount: fetch list + run daily check if needed ───────── */
   useEffect(() => {
     fetchAlerts();
     runDailyCheckIfNeeded();
   }, [fetchAlerts, runDailyCheckIfNeeded]);
 
-  /* ── Close dropdown on outside click ───────────────────────── */
+  /* ── Close on outside click ─────────────────────────────── */
   useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node))
         setOpen(false);
-      }
-    }
+    };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  /* ── Mark one alert as read ─────────────────────────────────── */
+  /* ── Actions ────────────────────────────────────────────── */
   async function markRead(id: number) {
     await authFetch(`${BASE}/api/alerts/mark-read/${id}`, { method: "POST" });
-    setAlerts(prev => prev.map(a => a.id === id ? { ...a, is_read: true } : a));
+    setAllAlerts(prev => prev.map(a => a.id === id ? { ...a, is_read: true } : a));
   }
 
-  /* ── Mark all as read ───────────────────────────────────────── */
   async function markAllRead() {
     setLoading(true);
     try {
       await authFetch(`${BASE}/api/alerts/mark-all-read`, { method: "POST" });
-      setAlerts(prev => prev.map(a => ({ ...a, is_read: true })));
+      setAllAlerts(prev => prev.map(a => ({ ...a, is_read: true })));
     } finally { setLoading(false); }
   }
 
-  /* ── Manual refresh (fetch list only, no checks) ───────────── */
+  async function resolveAlert(id: number) {
+    await authFetch(`${BASE}/api/alerts/resolve/${id}`, { method: "POST" });
+    setAllAlerts(prev => prev.map(a =>
+      a.id === id ? { ...a, is_resolved: true, resolved_at: new Date().toISOString() } : a
+    ));
+  }
+
   async function manualRefresh() {
     setLoading(true);
     try { await fetchAlerts(); } finally { setLoading(false); }
   }
 
-  /* ── Admin: force full run-checks (bypasses daily gate) ─────── */
   async function forceRunChecks() {
     setLoading(true);
     try {
@@ -119,244 +138,266 @@ export function AlertBell() {
     } finally { setLoading(false); }
   }
 
-  /* ── Styles ─────────────────────────────────────────────────── */
-  const bgPanel  = isDark ? "#1a2236" : "#ffffff";
-  const border   = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.10)";
+  /* ── Styles ─────────────────────────────────────────────── */
+  const bgPanel  = isDark ? "#161f30" : "#ffffff";
+  const border   = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.09)";
   const textMain = isDark ? "rgba(255,255,255,0.88)" : "rgba(0,0,0,0.85)";
-  const textSub  = isDark ? "rgba(255,255,255,0.40)" : "rgba(0,0,0,0.45)";
-  const rowHover = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)";
+  const textSub  = isDark ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.42)";
+  const rowHover = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)";
+
+  function tabStyle(t: FilterTab) {
+    const active = tab === t;
+    return {
+      fontSize: 11, fontWeight: 600,
+      padding: "4px 10px", borderRadius: 7, cursor: "pointer",
+      border: "none",
+      background: active
+        ? (isDark ? "rgba(245,158,11,0.18)" : "rgba(245,158,11,0.14)")
+        : "transparent",
+      color: active ? "#f59e0b" : textSub,
+      transition: "all 0.15s",
+    } as React.CSSProperties;
+  }
 
   return (
     <div ref={dropdownRef} style={{ position: "relative" }}>
 
-      {/* ── Bell Button ────────────────────────────────────────── */}
+      {/* ── Bell Button ─────────────────────────────────────── */}
       <button
         onClick={() => setOpen(o => !o)}
         style={{
-          position: "relative",
-          padding: "7px",
-          borderRadius: "10px",
+          position: "relative", padding: "7px", borderRadius: "10px",
           border: `1px solid ${border}`,
-          background: open
-            ? (isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.07)")
-            : "transparent",
-          cursor: "pointer",
-          color: textMain,
-          transition: "all 0.15s",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          background: open ? (isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)") : "transparent",
+          cursor: "pointer", color: textMain,
+          transition: "all 0.15s", display: "flex", alignItems: "center",
         }}
         title="التنبيهات"
       >
         <Bell style={{ width: 16, height: 16 }} />
-        {unread > 0 && (
+        {badgeCount > 0 && (
           <span style={{
-            position: "absolute",
-            top: -4, left: -4,
-            minWidth: 17, height: 17,
-            borderRadius: 9,
+            position: "absolute", top: -4, left: -4,
+            minWidth: 17, height: 17, borderRadius: 9,
             background: hasCritical ? "#ef4444" : "#f59e0b",
-            color: "#fff",
-            fontSize: 10, fontWeight: 700,
+            color: "#fff", fontSize: 10, fontWeight: 700,
             display: "flex", alignItems: "center", justifyContent: "center",
-            padding: "0 4px", lineHeight: 1,
+            padding: "0 4px",
           }}>
-            {unread > 9 ? "9+" : unread}
+            {badgeCount > 9 ? "9+" : badgeCount}
           </span>
         )}
       </button>
 
-      {/* ── Dropdown Panel ─────────────────────────────────────── */}
+      {/* ── Dropdown Panel ──────────────────────────────────── */}
       {open && (
         <div style={{
-          position: "absolute",
-          top: "calc(100% + 8px)",
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: 350,
-          maxHeight: 480,
-          borderRadius: 14,
-          background: bgPanel,
+          position: "absolute", top: "calc(100% + 8px)",
+          left: "50%", transform: "translateX(-50%)",
+          width: 360, maxHeight: 520,
+          borderRadius: 14, background: bgPanel,
           border: `1px solid ${border}`,
-          boxShadow: isDark
-            ? "0 16px 48px rgba(0,0,0,0.60)"
-            : "0 8px 32px rgba(0,0,0,0.12)",
-          zIndex: 9999,
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          direction: "rtl",
+          boxShadow: isDark ? "0 16px 48px rgba(0,0,0,0.65)" : "0 8px 32px rgba(0,0,0,0.13)",
+          zIndex: 9999, display: "flex", flexDirection: "column",
+          overflow: "hidden", direction: "rtl",
         }}>
 
-          {/* Header */}
+          {/* Header row */}
           <div style={{
-            padding: "12px 14px",
+            padding: "10px 14px 0",
             borderBottom: `1px solid ${border}`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 8,
           }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: textMain }}>التنبيهات</span>
-              {unread > 0 && (
-                <span style={{
-                  fontSize: 11, fontWeight: 600, padding: "1px 7px",
-                  borderRadius: 9,
-                  background: hasCritical ? "rgba(239,68,68,0.15)" : "rgba(245,158,11,0.15)",
-                  color: hasCritical ? "#ef4444" : "#f59e0b",
-                }}>
-                  {unread} غير مقروءة
-                </span>
-              )}
+            {/* Title + action buttons */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: textMain }}>التنبيهات</span>
+                {/* Badges */}
+                {active.length > 0 && (
+                  <span style={{
+                    fontSize: 10, padding: "1px 6px", borderRadius: 8, fontWeight: 600,
+                    background: "rgba(245,158,11,0.14)", color: "#f59e0b",
+                  }}>
+                    {active.length} نشطة
+                  </span>
+                )}
+                {hasCritical && (
+                  <span style={{
+                    fontSize: 10, padding: "1px 6px", borderRadius: 8, fontWeight: 600,
+                    background: "rgba(239,68,68,0.15)", color: "#ef4444",
+                  }}>
+                    {critical.length} حرجية
+                  </span>
+                )}
+              </div>
+              <div style={{ display: "flex", gap: 4 }}>
+                <button onClick={manualRefresh} disabled={loading}
+                  title="تحديث القائمة"
+                  style={{
+                    padding: "3px 7px", borderRadius: 6, border: `1px solid ${border}`,
+                    background: "transparent", color: textSub, cursor: "pointer", fontSize: 10,
+                    display: "flex", alignItems: "center", gap: 3, opacity: loading ? 0.5 : 1,
+                  }}>
+                  <RefreshCw style={{ width: 10, height: 10 }} /> تحديث
+                </button>
+                <button onClick={forceRunChecks} disabled={loading}
+                  title="فحص كامل"
+                  style={{
+                    padding: "3px 7px", borderRadius: 6, border: `1px solid ${border}`,
+                    background: "transparent", color: textSub, cursor: "pointer", fontSize: 10,
+                    opacity: loading ? 0.5 : 1,
+                  }}>
+                  🔍 فحص
+                </button>
+                {unread.length > 0 && (
+                  <button onClick={markAllRead} disabled={loading}
+                    style={{
+                      padding: "3px 7px", borderRadius: 6, border: `1px solid ${border}`,
+                      background: "transparent", color: textSub, cursor: "pointer", fontSize: 10,
+                      opacity: loading ? 0.5 : 1,
+                    }}>
+                    قراءة الكل
+                  </button>
+                )}
+              </div>
             </div>
 
-            <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
-              {/* Manual refresh — fetch list only */}
-              <button
-                onClick={manualRefresh}
-                disabled={loading}
-                title="تحديث التنبيهات"
-                style={{
-                  padding: "4px 8px", borderRadius: 7,
-                  border: `1px solid ${border}`, background: "transparent",
-                  color: textSub, cursor: "pointer", fontSize: 11,
-                  display: "flex", alignItems: "center", gap: 4,
-                  opacity: loading ? 0.5 : 1,
-                }}
-              >
-                <RefreshCw style={{ width: 11, height: 11 }} />
-                تحديث
+            {/* Filter tabs */}
+            <div style={{ display: "flex", gap: 4, paddingBottom: 8 }}>
+              <button style={tabStyle("active")} onClick={() => setTab("active")}>
+                نشطة ({active.length})
               </button>
-
-              {/* Force run-checks (admin) */}
-              <button
-                onClick={forceRunChecks}
-                disabled={loading}
-                title="تشغيل فحص كامل"
-                style={{
-                  padding: "4px 8px", borderRadius: 7,
-                  border: `1px solid ${border}`, background: "transparent",
-                  color: textSub, cursor: "pointer", fontSize: 11,
-                  opacity: loading ? 0.5 : 1,
-                }}
-              >
-                🔍 فحص
+              <button style={tabStyle("unread")} onClick={() => setTab("unread")}>
+                غير مقروءة ({unread.length})
               </button>
-
-              {unread > 0 && (
-                <button
-                  onClick={markAllRead}
-                  disabled={loading}
-                  style={{
-                    padding: "4px 8px", borderRadius: 7,
-                    border: `1px solid ${border}`, background: "transparent",
-                    color: textSub, cursor: "pointer", fontSize: 11,
-                    opacity: loading ? 0.5 : 1,
-                  }}
-                >
-                  قراءة الكل
-                </button>
-              )}
+              <button style={tabStyle("resolved")} onClick={() => setTab("resolved")}>
+                محلولة ({resolved.length})
+              </button>
             </div>
           </div>
 
-          {/* Alert List */}
+          {/* Alert list */}
           <div style={{ overflowY: "auto", flex: 1 }}>
-            {alerts.length === 0 ? (
-              <div style={{
-                padding: "36px 16px", textAlign: "center",
-                color: textSub, fontSize: 13,
-              }}>
-                <div style={{ fontSize: 30, marginBottom: 8 }}>✅</div>
-                لا توجد تنبيهات
+            {displayed.length === 0 ? (
+              <div style={{ padding: "36px 16px", textAlign: "center", color: textSub, fontSize: 13 }}>
+                <div style={{ fontSize: 28, marginBottom: 8 }}>
+                  {tab === "resolved" ? "📋" : "✅"}
+                </div>
+                {tab === "resolved" ? "لا توجد تنبيهات محلولة" : "لا توجد تنبيهات نشطة"}
               </div>
             ) : (
-              alerts.map(alert => (
-                <div
-                  key={alert.id}
-                  onClick={() => !alert.is_read && markRead(alert.id)}
+              displayed.map(alert => (
+                <div key={alert.id}
                   style={{
                     padding: "10px 14px",
                     borderBottom: `1px solid ${border}`,
-                    background: alert.is_read
-                      ? "transparent"
-                      : (isDark ? "rgba(245,158,11,0.04)" : "rgba(245,158,11,0.05)"),
-                    cursor: alert.is_read ? "default" : "pointer",
-                    transition: "background 0.15s",
-                    display: "flex",
-                    gap: 10,
-                    alignItems: "flex-start",
+                    background: alert.is_resolved
+                      ? (isDark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.02)")
+                      : alert.is_read
+                        ? "transparent"
+                        : (isDark ? "rgba(245,158,11,0.05)" : "rgba(245,158,11,0.05)"),
+                    display: "flex", gap: 10, alignItems: "flex-start",
                   }}
                   onMouseEnter={e => {
-                    if (!alert.is_read)
-                      (e.currentTarget as HTMLDivElement).style.background = rowHover;
+                    (e.currentTarget as HTMLDivElement).style.background = rowHover;
                   }}
                   onMouseLeave={e => {
-                    (e.currentTarget as HTMLDivElement).style.background = alert.is_read
-                      ? "transparent"
-                      : (isDark ? "rgba(245,158,11,0.04)" : "rgba(245,158,11,0.05)");
+                    const el = e.currentTarget as HTMLDivElement;
+                    el.style.background = alert.is_resolved
+                      ? (isDark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.02)")
+                      : alert.is_read ? "transparent"
+                      : (isDark ? "rgba(245,158,11,0.05)" : "rgba(245,158,11,0.05)");
                   }}
                 >
-                  {/* Severity dot */}
-                  <div style={{
-                    width: 8, height: 8, borderRadius: "50%",
-                    marginTop: 5, flexShrink: 0,
-                    background: alert.severity === "CRITICAL" ? "#ef4444" : "#f59e0b",
-                  }} />
+                  {/* Dot / resolved icon */}
+                  <div style={{ marginTop: 4, flexShrink: 0 }}>
+                    {alert.is_resolved ? (
+                      <CheckCircle style={{ width: 14, height: 14, color: "#22c55e" }} />
+                    ) : (
+                      <div style={{
+                        width: 8, height: 8, borderRadius: "50%", marginTop: 3,
+                        background: alert.severity === "CRITICAL" ? "#ef4444" : "#f59e0b",
+                      }} />
+                    )}
+                  </div>
 
                   <div style={{ flex: 1, minWidth: 0 }}>
+                    {/* Message */}
                     <div style={{
-                      fontSize: 12, fontWeight: 600, color: textMain,
-                      lineHeight: 1.45, wordBreak: "break-word",
+                      fontSize: 12, fontWeight: 600, lineHeight: 1.45,
+                      color: alert.is_resolved ? textSub : textMain,
+                      wordBreak: "break-word",
+                      textDecoration: alert.is_resolved ? "line-through" : "none",
+                      opacity: alert.is_resolved ? 0.7 : 1,
                     }}>
                       {TYPE_ICONS[alert.type] ?? "⚠️"} {alert.message}
                     </div>
 
-                    <div style={{ marginTop: 4, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-                      {/* Severity badge */}
+                    {/* Meta row */}
+                    <div style={{ marginTop: 4, display: "flex", gap: 5, alignItems: "center", flexWrap: "wrap" }}>
                       <span style={{
-                        fontSize: 10, padding: "1px 6px", borderRadius: 6, fontWeight: 600,
-                        background: alert.severity === "CRITICAL"
-                          ? "rgba(239,68,68,0.15)" : "rgba(245,158,11,0.15)",
+                        fontSize: 10, padding: "1px 5px", borderRadius: 5, fontWeight: 600,
+                        background: alert.severity === "CRITICAL" ? "rgba(239,68,68,0.14)" : "rgba(245,158,11,0.14)",
                         color: alert.severity === "CRITICAL" ? "#ef4444" : "#f59e0b",
                       }}>
                         {alert.severity === "CRITICAL" ? "حرجي" : "تحذير"}
                       </span>
-
-                      {/* Trigger mode badge */}
                       <span style={{
-                        fontSize: 10, padding: "1px 5px", borderRadius: 6,
+                        fontSize: 10, padding: "1px 5px", borderRadius: 5,
                         background: isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)",
                         color: textSub,
                       }}>
                         {alert.trigger_mode === "daily" ? "يومي" : "فوري"}
                       </span>
-
-                      {/* Timestamp */}
                       <span style={{ fontSize: 10, color: textSub }}>
                         {new Date(alert.created_at).toLocaleString("ar-EG", {
-                          month: "short", day: "numeric",
-                          hour: "2-digit", minute: "2-digit",
+                          month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
                         })}
                       </span>
-
-                      {!alert.is_read && (
-                        <span style={{ fontSize: 10, color: "#f59e0b", marginRight: "auto" }}>
-                          ● جديد
+                      {!alert.is_read && !alert.is_resolved && (
+                        <span style={{ fontSize: 10, color: "#f59e0b", marginRight: "auto" }}>● جديد</span>
+                      )}
+                      {alert.is_resolved && (
+                        <span style={{ fontSize: 10, color: "#22c55e" }}>
+                          ✓ {alert.resolved_by ? "محلول يدوياً" : "محلول تلقائياً"}
                         </span>
                       )}
                     </div>
+
+                    {/* Action buttons (only for active alerts) */}
+                    {!alert.is_resolved && (
+                      <div style={{ marginTop: 6, display: "flex", gap: 5 }}>
+                        {!alert.is_read && (
+                          <button
+                            onClick={() => markRead(alert.id)}
+                            style={{
+                              fontSize: 10, padding: "2px 8px", borderRadius: 5,
+                              border: `1px solid ${border}`, background: "transparent",
+                              color: textSub, cursor: "pointer",
+                            }}>
+                            تعليم كمقروء
+                          </button>
+                        )}
+                        <button
+                          onClick={() => resolveAlert(alert.id)}
+                          style={{
+                            fontSize: 10, padding: "2px 8px", borderRadius: 5,
+                            border: "1px solid rgba(34,197,94,0.35)",
+                            background: "rgba(34,197,94,0.08)",
+                            color: "#22c55e", cursor: "pointer", fontWeight: 600,
+                          }}>
+                          ✓ تم الحل
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))
             )}
           </div>
 
-          {/* Footer hint */}
+          {/* Footer */}
           <div style={{
-            padding: "8px 14px",
+            padding: "7px 14px",
             borderTop: `1px solid ${border}`,
             fontSize: 10, color: textSub, textAlign: "center",
           }}>
