@@ -1272,6 +1272,118 @@ function BackupImportTab() {
     version: string | null; date: string | null; tableCount: number;
   } | null>(null);
 
+  type BackupRecord = { id: number; filename: string; size: number; trigger: string; created_at: string };
+  const [backupList,        setBackupList]        = useState<BackupRecord[]>([]);
+  const [backupListLoading, setBackupListLoading] = useState(false);
+  const [serverSchedule,    setServerSchedule]    = useState("none");
+  const [serverDestination, setServerDestination] = useState("local");
+  const [lastScheduled,     setLastScheduled]     = useState<string | null>(null);
+  const [schedSaving,       setSchedSaving]       = useState(false);
+  const [deletingBackup,    setDeletingBackup]    = useState<number | null>(null);
+  const [serverBkLoading,   setServerBkLoading]   = useState(false);
+
+  const loadBackupSettings = useCallback(async () => {
+    try {
+      const r = await authFetch(api("/api/backups/settings"));
+      if (r.ok) {
+        const d = await r.json() as { schedule: string; destination: string; last_scheduled: string | null };
+        setServerSchedule(d.schedule ?? "none");
+        setServerDestination(d.destination ?? "local");
+        setLastScheduled(d.last_scheduled ?? null);
+      }
+    } catch {}
+  }, []);
+
+  const loadBackupList = useCallback(async () => {
+    setBackupListLoading(true);
+    try {
+      const r = await authFetch(api("/api/backups"));
+      if (r.ok) setBackupList(await r.json() as BackupRecord[]);
+    } catch {} finally {
+      setBackupListLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadBackupSettings();
+    void loadBackupList();
+  }, [loadBackupSettings, loadBackupList]);
+
+  const handleSaveSchedule = async (sched: string, dest: string) => {
+    setSchedSaving(true);
+    try {
+      const r = await authFetch(api("/api/backups/settings"), {
+        method: "PUT",
+        body: JSON.stringify({ schedule: sched, destination: dest }),
+      });
+      if (r.ok) {
+        setServerSchedule(sched);
+        setServerDestination(dest);
+        toast({ title: "✅ تم حفظ إعدادات الجدولة" });
+      }
+    } catch {} finally { setSchedSaving(false); }
+  };
+
+  const handleDeleteBackup = async (id: number) => {
+    setDeletingBackup(id);
+    try {
+      const r = await authFetch(api(`/api/backups/${id}`), { method: "DELETE" });
+      if (r.ok) {
+        setBackupList(prev => prev.filter(b => b.id !== id));
+        toast({ title: "تم حذف النسخة الاحتياطية" });
+      }
+    } catch {} finally { setDeletingBackup(null); }
+  };
+
+  const handleDownloadBackupById = async (id: number, filename: string) => {
+    try {
+      const r = await authFetch(api(`/api/backups/${id}/download`));
+      if (!r.ok) { toast({ title: "فشل تنزيل الملف", variant: "destructive" }); return; }
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+    } catch { toast({ title: "خطأ في التنزيل", variant: "destructive" }); }
+  };
+
+  const handleServerManualBackup = async () => {
+    setServerBkLoading(true);
+    try {
+      const r = await authFetch(api("/api/backups"), { method: "POST" });
+      if (r.ok) {
+        toast({ title: "✅ تم حفظ النسخة الاحتياطية على الخادم" });
+        void loadBackupList();
+        void loadBackupSettings();
+      } else {
+        const d = await r.json().catch(() => ({ error: "فشل" })) as { error?: string };
+        toast({ title: d.error ?? "فشل إنشاء النسخة", variant: "destructive" });
+      }
+    } catch { toast({ title: "خطأ في الاتصال", variant: "destructive" }); } finally { setServerBkLoading(false); }
+  };
+
+  function getNextBackupTime(sched: string, lastRun: string | null): string | null {
+    if (!lastRun || sched === "none") return null;
+    const last = new Date(lastRun);
+    const hours = sched === "daily" ? 24 : sched === "weekly" ? 24 * 7 : 24 * 30;
+    return new Date(last.getTime() + hours * 3600 * 1000).toLocaleString("ar-EG");
+  }
+
+  function formatBackupTrigger(trigger: string): string {
+    const map: Record<string, string> = {
+      login: "تسجيل دخول", logout: "تسجيل خروج",
+      sale_post: "ترحيل مبيعات", purchase_post: "ترحيل مشتريات",
+      scheduled: "جدولة تلقائية", manual: "يدوي",
+    };
+    return map[trigger] ?? trigger;
+  }
+
+  function formatBytes(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  }
+
   const toggleModule = (key: string) => setBkModules(prev => {
     const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s;
   });
@@ -1810,6 +1922,190 @@ function BackupImportTab() {
             {bkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <HardDrive className="w-4 h-4" />}
             {bkLoading ? `جاري الإنشاء... ${bkProgress}%` : `إنشاء نسخة احتياطية (${bkModules.size} وحدات)`}
           </PrimaryBtn>
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════
+          AUTO BACKUP SETTINGS
+          ══════════════════════════════════════════════════════════ */}
+      <div className="bg-[#111827] border border-sky-500/20 rounded-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-sky-500/10 flex items-center justify-center">
+              <RefreshCcw className="w-4 h-4 text-sky-400" />
+            </div>
+            <div>
+              <p className="font-bold text-white text-sm">النسخ التلقائي</p>
+              <p className="text-white/30 text-xs">جدولة وإعدادات الحفظ التلقائي على الخادم</p>
+            </div>
+          </div>
+          {schedSaving && <Loader2 className="w-4 h-4 text-sky-400 animate-spin" />}
+        </div>
+        <div className="p-5 space-y-4">
+
+          {/* Trigger info */}
+          <div className="p-3 rounded-xl bg-sky-500/5 border border-sky-500/15 text-sky-300/70 text-xs leading-relaxed space-y-1">
+            <p className="font-semibold text-sky-300">يتم إنشاء نسخة احتياطية تلقائياً عند:</p>
+            <div className="grid grid-cols-2 gap-1 mt-2">
+              {[["تسجيل الدخول", "login"], ["ترحيل فاتورة مبيعات", "sale_post"], ["ترحيل فاتورة مشتريات", "purchase_post"], ["الجدولة التلقائية", "scheduled"]].map(([label]) => (
+                <div key={label} className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0" />
+                  <span>{label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Schedule selector */}
+          <div className="space-y-2">
+            <p className="text-white/40 text-xs font-semibold uppercase tracking-wider">الجدولة المنتظمة</p>
+            <div className="flex flex-wrap gap-2">
+              {[{ v: "none", l: "بدون" }, { v: "daily", l: "يومياً" }, { v: "weekly", l: "أسبوعياً" }, { v: "monthly", l: "شهرياً" }].map(s => (
+                <button key={s.v}
+                  onClick={() => void handleSaveSchedule(s.v, serverDestination)}
+                  disabled={schedSaving}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
+                    serverSchedule === s.v
+                      ? "bg-sky-500/20 border-sky-500/40 text-sky-300"
+                      : "border-white/10 text-white/40 hover:border-sky-500/25 hover:text-sky-300/60"
+                  }`}>
+                  {s.l}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Destination selector */}
+          <div className="space-y-2">
+            <p className="text-white/40 text-xs font-semibold uppercase tracking-wider">وجهة الحفظ</p>
+            <div className="flex gap-2">
+              {[{ v: "local", l: "خادم محلي", icon: "🖥️" }, { v: "server", l: "مجلد الخادم", icon: "📁" }].map(d => (
+                <button key={d.v}
+                  onClick={() => void handleSaveSchedule(serverSchedule, d.v)}
+                  disabled={schedSaving}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
+                    serverDestination === d.v
+                      ? "bg-sky-500/20 border-sky-500/40 text-sky-300"
+                      : "border-white/10 text-white/40 hover:border-sky-500/25 hover:text-sky-300/60"
+                  }`}>
+                  <span>{d.icon}</span>{d.l}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Status row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-3 rounded-xl bg-white/3 border border-white/5 space-y-1">
+              <p className="text-white/30 text-xs">آخر نسخة تلقائية</p>
+              <p className="text-white text-sm font-bold truncate">
+                {lastScheduled ? new Date(lastScheduled).toLocaleString("ar-EG") : "—"}
+              </p>
+            </div>
+            <div className="p-3 rounded-xl bg-white/3 border border-white/5 space-y-1">
+              <p className="text-white/30 text-xs">النسخة القادمة المتوقعة</p>
+              <p className="text-sky-300 text-sm font-bold truncate">
+                {getNextBackupTime(serverSchedule, lastScheduled) ?? (serverSchedule === "none" ? "معطّل" : "قريباً")}
+              </p>
+            </div>
+          </div>
+
+          {/* Manual server backup button */}
+          <button
+            onClick={() => void handleServerManualBackup()}
+            disabled={serverBkLoading}
+            className="w-full py-3 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 hover:border-sky-500/50 text-sky-300 font-bold text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {serverBkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            {serverBkLoading ? "جاري الحفظ..." : "حفظ نسخة الآن على الخادم"}
+          </button>
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════
+          SERVER BACKUP HISTORY
+          ══════════════════════════════════════════════════════════ */}
+      <div className="bg-[#111827] border border-white/8 rounded-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center">
+              <History className="w-4 h-4 text-white/50" />
+            </div>
+            <div>
+              <p className="font-bold text-white text-sm">سجل النسخ الاحتياطية</p>
+              <p className="text-white/30 text-xs">
+                {backupList.length > 0 ? `${backupList.length} نسخة محفوظة على الخادم (الحد الأقصى 20)` : "لا توجد نسخ محفوظة بعد"}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => void loadBackupList()}
+            disabled={backupListLoading}
+            className="p-2 rounded-lg text-white/30 hover:text-white hover:bg-white/8 transition-colors"
+            title="تحديث"
+          >
+            <RefreshCcw className={`w-4 h-4 ${backupListLoading ? "animate-spin" : ""}`} />
+          </button>
+        </div>
+
+        <div className="p-3">
+          {backupListLoading && backupList.length === 0 ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-white/30 text-sm">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>جاري التحميل...</span>
+            </div>
+          ) : backupList.length === 0 ? (
+            <div className="text-center py-8 text-white/25 text-sm">
+              لا توجد نسخ احتياطية محفوظة على الخادم حتى الآن
+            </div>
+          ) : (
+            <div className="divide-y divide-white/5">
+              {backupList.map(b => (
+                <div key={b.id} className="flex items-center justify-between gap-3 py-3 px-2 rounded-xl hover:bg-white/3 transition-colors group">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center shrink-0">
+                      <HardDrive className="w-3.5 h-3.5 text-white/40" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-white text-xs font-mono truncate max-w-[200px]" title={b.filename}>{b.filename}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-white/30 text-[10px]">{new Date(b.created_at).toLocaleString("ar-EG")}</span>
+                        <span className="text-white/20 text-[10px]">•</span>
+                        <span className="text-white/30 text-[10px]">{formatBytes(b.size)}</span>
+                        <span className="text-white/20 text-[10px]">•</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold ${
+                          b.trigger === "login" ? "bg-blue-500/15 text-blue-400" :
+                          b.trigger === "sale_post" || b.trigger === "purchase_post" ? "bg-emerald-500/15 text-emerald-400" :
+                          b.trigger === "scheduled" ? "bg-sky-500/15 text-sky-400" :
+                          "bg-white/8 text-white/40"
+                        }`}>{formatBackupTrigger(b.trigger)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => void handleDownloadBackupById(b.id, b.filename)}
+                      className="p-2 rounded-lg text-emerald-400/60 hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+                      title="تنزيل"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => void handleDeleteBackup(b.id)}
+                      disabled={deletingBackup === b.id}
+                      className="p-2 rounded-lg text-red-400/40 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                      title="حذف"
+                    >
+                      {deletingBackup === b.id
+                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        : <Trash2 className="w-3.5 h-3.5" />
+                      }
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

@@ -1,0 +1,130 @@
+You are a developer.
+
+Activate and complete the Auto Backup system.
+
+Do NOT change existing backup logic.
+Only extend it.
+
+==================================================
+
+1. AUTO BACKUP TRIGGERS
+   ==================================================
+
+Run backup automatically:
+
+* on user login
+* on user logout
+* after major actions:
+
+  * sale post
+  * purchase post
+
+Call existing backup function.
+
+==================================================
+2) SCHEDULE ACTIVATION
+======================
+
+Make schedule WORK (not UI only):
+
+Options:
+
+* none
+* daily
+* weekly
+* monthly
+
+Implementation:
+
+* store schedule in settings
+* create scheduler (cron or interval)
+
+Rules:
+
+* daily → once every day
+* weekly → once per week
+* monthly → once per month
+
+==================================================
+3) BACKUP DESTINATION
+=====================
+
+Add setting:
+
+backup_destination:
+
+* "local"
+* "server"
+* "cloud" (future ready)
+
+For now:
+
+* save to server folder: /backups
+
+==================================================
+4) BACKUP HISTORY
+=================
+
+Create table:
+
+backups:
+
+* id
+* filename
+* created_at
+* size
+
+On each backup:
+
+* save file
+* insert record
+
+Create API:
+
+GET /backups → list
+DELETE /backups/:id → delete
+
+==================================================
+5) UI IMPROVEMENTS
+==================
+
+Add section:
+
+"النسخ التلقائي"
+
+Show:
+
+* schedule status
+* last backup time
+* next backup time
+
+Add table:
+
+* list backups
+* download button
+* delete button
+
+==================================================
+6) SAFETY
+=========
+
+* do not run multiple backups at same time
+* limit max backups (example: keep last 20)
+
+==================================================
+7) FINAL TEST
+=============
+
+Test:
+
+1. login → backup created
+2. schedule daily → runs automatically
+3. backups saved in folder
+4. list shows backups
+5. delete works
+
+==================================================
+After finishing:
+
+* show backup list
+* confirm schedule working

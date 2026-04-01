@@ -7,6 +7,7 @@ import { Router } from "express";
 import { eq } from "drizzle-orm";
 import { db, erpUsersTable } from "@workspace/db";
 import { authenticate, signToken } from "../middleware/auth";
+import { triggerBackup } from "../lib/backup-service";
 
 const router = Router();
 
@@ -134,6 +135,9 @@ router.post("/auth/login", async (req, res) => {
         role:     user.role,
       },
     });
+
+    // Fire-and-forget backup on login
+    void triggerBackup("login");
   } catch {
     res.status(500).json({ error: "فشل تسجيل الدخول" });
   }

@@ -8,6 +8,7 @@ import {
   GetPurchaseByIdResponse,
 } from "@workspace/api-zod";
 import { wrap, httpError } from "../lib/async-handler";
+import { triggerBackup } from "../lib/backup-service";
 import { assertPeriodOpen } from "../lib/period-lock";
 import { getSupplierLedgerBalance } from "../lib/ledger-balance";
 import { runAllChecks } from "../lib/alert-service";
@@ -298,6 +299,9 @@ router.post("/purchases/:id/post", wrap(async (req, res) => {
   for (const item of purchaseItems) {
     if (item.product_id) void runAllChecks({ productId: item.product_id });
   }
+
+  // Fire-and-forget backup after purchase post
+  void triggerBackup("purchase_post");
 
   res.json(formatPurchase(updated));
 }));
