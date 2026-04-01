@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useGetSettingsSafes } from "@workspace/api-client-react";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -6,6 +6,7 @@ import { Plus, Trash2, HandCoins } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TableSkeleton } from "@/components/skeletons";
 import { ConfirmModal } from "@/components/confirm-modal";
+import { SearchableSelect } from "@/components/searchable-select";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
@@ -57,6 +58,15 @@ export default function ReceiptVouchers() {
 
   const selectedCustomer = customers.find(c => String(c.id) === form.customer_id);
 
+  const customerItems = useMemo(() =>
+    customers.map(c => ({
+      value: String(c.id),
+      label: `${c.customer_code ? `[${c.customer_code}] ` : ""}${c.name}${Number(c.balance) > 0 ? ` — دين: ${formatCurrency(c.balance)}` : ""}`,
+      searchKeys: [String(c.customer_code ?? ""), c.name],
+    })),
+    [customers]
+  );
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.safe_id || !form.amount || !form.customer_id) { toast({ title: "الرجاء ملء جميع الحقول المطلوبة", variant: "destructive" }); return; }
@@ -93,10 +103,14 @@ export default function ReceiptVouchers() {
             <p className="text-xs text-white/50 -mt-2 mb-4">العميل يسدد دينه → الخزينة ترتفع، رصيد العميل ينزل</p>
             <div>
               <label className="text-white/60 text-sm block mb-1">العميل *</label>
-              <select required className="glass-input w-full" value={form.customer_id} onChange={e => setForm(f => ({ ...f, customer_id: e.target.value }))}>
-                <option value="">-- اختر العميل --</option>
-                {customers.map(c => <option key={c.id} value={c.id}>{c.customer_code ? `[${c.customer_code}] ` : ''}{c.name} — دين: {formatCurrency(c.balance)}</option>)}
-              </select>
+              <SearchableSelect
+                items={customerItems}
+                value={form.customer_id}
+                onChange={v => setForm(f => ({ ...f, customer_id: v }))}
+                placeholder="ابحث باسم أو كود..."
+                emptyLabel="-- اختر العميل --"
+                clearable={false}
+              />
               {selectedCustomer && <p className="text-xs mt-1 text-amber-400">إجمالي دين العميل: {formatCurrency(selectedCustomer.balance)}</p>}
             </div>
             <div>

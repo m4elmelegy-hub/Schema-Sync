@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { TableSkeleton } from "@/components/skeletons";
 import { ConfirmModal } from "@/components/confirm-modal";
+import { SearchableSelect } from "@/components/searchable-select";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -53,6 +54,22 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
   });
 
   const cartTotal = useMemo(() => cart.reduce((s, i) => s + i.total_price, 0), [cart]);
+
+  const partyItems = useMemo(() => {
+    const supplierItems = suppliers.map(s => ({
+      value: `s:${s.id}`,
+      label: `${s.supplier_code ? `[${s.supplier_code}] ` : ""}${s.name}${s.balance > 0 ? ` (مستحق: ${Number(s.balance).toFixed(0)})` : ""}`,
+      searchKeys: [String(s.supplier_code ?? ""), s.name],
+      group: "الموردون",
+    }));
+    const supplierCustomers = customers.filter(c => c.is_supplier).map(c => ({
+      value: `c:${c.id}`,
+      label: `${c.customer_code ? `[${c.customer_code}] ` : ""}${c.name} [عميل-مورد]`,
+      searchKeys: [String(c.customer_code ?? ""), c.name],
+      group: "عملاء-موردون",
+    }));
+    return [...supplierItems, ...supplierCustomers];
+  }, [suppliers, customers]);
 
   // تحليل الطرف المختار
   const selectedParty = useMemo(() => {
@@ -258,21 +275,15 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
           {/* المورد / الطرف الآخر */}
           <div className="grid grid-cols-1 gap-1.5">
             {selectRow("المورد / الطرف", <User className="w-3.5 h-3.5" />,
-              <select className="bg-transparent text-white outline-none w-full appearance-none text-xs" value={partyKey} onChange={e => setPartyKey(e.target.value)}>
-                <option value="" className="bg-slate-900">-- اختر الطرف --</option>
-                <optgroup label="─── الموردون ───" className="bg-slate-900 text-white/60">
-                  {suppliers.map(s => (
-                    <option key={`s:${s.id}`} value={`s:${s.id}`} className="bg-slate-900">{s.supplier_code ? `[${s.supplier_code}] ` : ''}{s.name}{s.balance > 0 ? ` (مستحق: ${Number(s.balance).toFixed(0)})` : ""} [مورد]</option>
-                  ))}
-                </optgroup>
-                {customers.filter(c => c.is_supplier).length > 0 && (
-                  <optgroup label="─── عملاء-موردون ───" className="bg-slate-900 text-white/60">
-                    {customers.filter(c => c.is_supplier).map(c => (
-                      <option key={`c:${c.id}`} value={`c:${c.id}`} className="bg-slate-900">{c.customer_code ? `[${c.customer_code}] ` : ''}{c.name} [عميل-مورد]</option>
-                    ))}
-                  </optgroup>
-                )}
-              </select>
+              <SearchableSelect
+                items={partyItems}
+                value={partyKey}
+                onChange={setPartyKey}
+                placeholder="ابحث باسم أو كود..."
+                emptyLabel="-- اختر الطرف --"
+                className="w-full min-w-0"
+                inputClassName="bg-transparent text-xs"
+              />
             )}
             {selectedParty?.type === "customer" && (
               <div className="text-xs text-blue-400/80 bg-blue-500/5 border border-blue-500/20 rounded-lg px-2 py-1.5 flex items-center gap-1.5">

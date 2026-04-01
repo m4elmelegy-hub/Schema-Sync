@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useGetSettingsSafes } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
@@ -6,6 +6,7 @@ import { Plus, Trash2, ArrowUpFromLine } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TableSkeleton } from "@/components/skeletons";
 import { ConfirmModal } from "@/components/confirm-modal";
+import { SearchableSelect } from "@/components/searchable-select";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
@@ -73,6 +74,27 @@ export default function PaymentVouchers() {
   const selectedCustomer = customers.find(c => String(c.id) === form.customer_id);
   const resolvedName = selectedCustomer?.name || form.customer_name_manual;
 
+  const customerItems = useMemo(() =>
+    customers.map(c => ({
+      value: String(c.id),
+      label: `${c.customer_code ? `[${c.customer_code}] ` : ""}${c.name}${Number(c.balance) < 0 ? ` (علينا له ${formatCurrency(Math.abs(Number(c.balance)))})` : ""}`,
+      searchKeys: [String(c.customer_code ?? ""), c.name],
+    })),
+    [customers]
+  );
+
+  const normalizeName = (s: string) =>
+    s.trim().replace(/\s+/g, " ").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").toLowerCase();
+
+  const handleManualBlur = () => {
+    if (!form.customer_name_manual || form.customer_id) return;
+    const q = normalizeName(form.customer_name_manual);
+    const match = customers.find(c => normalizeName(c.name) === q);
+    if (match) {
+      setForm(f => ({ ...f, customer_id: String(match.id), customer_name_manual: "" }));
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!resolvedName) { toast({ title: "اختر العميل أو أدخل الاسم", variant: "destructive" }); return; }
@@ -117,24 +139,27 @@ export default function PaymentVouchers() {
 
             <div>
               <label className="text-white/60 text-sm block mb-1">العميل *</label>
-              <select className="glass-input w-full" value={form.customer_id}
-                onChange={e => setForm(f => ({ ...f, customer_id: e.target.value, customer_name_manual: "" }))}>
-                <option value="">-- اختر العميل --</option>
-                {customers.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.customer_code ? `[${c.customer_code}] ` : ''}{c.name}{Number(c.balance) < 0 ? ` (علينا له ${formatCurrency(Math.abs(Number(c.balance)))})` : ""}
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                items={customerItems}
+                value={form.customer_id}
+                onChange={v => setForm(f => ({ ...f, customer_id: v, customer_name_manual: "" }))}
+                placeholder="ابحث باسم أو كود..."
+                emptyLabel="-- اختر العميل --"
+              />
               {selectedCustomer && Number(selectedCustomer.balance) < 0 && (
                 <p className="text-xs text-orange-400 mt-1">
                   رصيد العميل الحالي: <span className="font-bold">{formatCurrency(Math.abs(Number(selectedCustomer.balance)))}</span> علينا له
                 </p>
               )}
               {!form.customer_id && (
-                <input type="text" className="glass-input w-full mt-2" placeholder="أو اكتب الاسم يدوياً..."
+                <input
+                  type="text"
+                  className="glass-input w-full mt-2"
+                  placeholder="أو اكتب الاسم يدوياً..."
                   value={form.customer_name_manual}
-                  onChange={e => setForm(f => ({ ...f, customer_name_manual: e.target.value }))} />
+                  onChange={e => setForm(f => ({ ...f, customer_name_manual: e.target.value }))}
+                  onBlur={handleManualBlur}
+                />
               )}
             </div>
 

@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth";
 import { TableSkeleton } from "@/components/skeletons";
 import { ConfirmModal } from "@/components/confirm-modal";
+import { SearchableSelect } from "@/components/searchable-select";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
@@ -63,6 +64,15 @@ function SalesReturnsPanel() {
   const selectedProduct = products.find(p => String(p.id) === form.item_id);
   const selectedCustomer = customers.find(c => String(c.id) === form.customer_id);
   const itemTotal = (parseInt(form.quantity) || 1) * (parseFloat(form.unit_price) || 0);
+
+  const customerReturnItems = useMemo(() =>
+    customers.map(c => ({
+      value: String(c.id),
+      label: `${c.customer_code ? `[${c.customer_code}] ` : ""}${c.name}${Number(c.balance) > 0 ? ` — دين: ${Number(c.balance).toFixed(0)} ج.م` : Number(c.balance) < 0 ? ` — له: ${Math.abs(Number(c.balance)).toFixed(0)} ج.م` : ""}`,
+      searchKeys: [String(c.customer_code ?? ""), c.name],
+    })),
+    [customers]
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,15 +152,13 @@ function SalesReturnsPanel() {
             {/* عميل */}
             <div>
               <label className="text-white/60 text-xs mb-1 block">العميل</label>
-              <select className="glass-input w-full appearance-none" value={form.customer_id}
-                onChange={e => setForm(f => ({ ...f, customer_id: e.target.value }))}>
-                <option value="" className="bg-gray-900">-- عميل غير مسجل / نقدي --</option>
-                {customers.map(c => (
-                  <option key={c.id} value={c.id} className="bg-gray-900">
-                    {c.customer_code ? `[${c.customer_code}] ` : ''}{c.name}{Number(c.balance) > 0 ? ` — دين: ${Number(c.balance).toFixed(0)} ج.م` : Number(c.balance) < 0 ? ` — له: ${Math.abs(Number(c.balance)).toFixed(0)} ج.م` : ''}
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                items={customerReturnItems}
+                value={form.customer_id}
+                onChange={v => setForm(f => ({ ...f, customer_id: v }))}
+                placeholder="ابحث باسم أو كود..."
+                emptyLabel="-- عميل غير مسجل / نقدي --"
+              />
               {selectedCustomer && (
                 <p className={`text-xs mt-1 ${Number(selectedCustomer.balance) > 0 ? 'text-amber-400' : Number(selectedCustomer.balance) < 0 ? 'text-orange-400' : 'text-white/40'}`}>
                   رصيده الحالي: {Number(selectedCustomer.balance) < 0 ? `علينا له ${formatCurrency(Math.abs(Number(selectedCustomer.balance)))}` : formatCurrency(Number(selectedCustomer.balance))}
@@ -597,6 +605,15 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
 
   const selectedCustomer = customers.find(c => c.id === parseInt(customerId));
 
+  const customerSaleItems = useMemo(() =>
+    customers.map(c => ({
+      value: String(c.id),
+      label: `${c.customer_code ? `[${c.customer_code}] ` : ""}${c.name}${Number(c.balance) > 0 ? ` (دين: ${Number(c.balance).toFixed(0)} ج.م)` : ""}`,
+      searchKeys: [String(c.customer_code ?? ""), c.name],
+    })),
+    [customers]
+  );
+
   const handleCheckout = () => {
     if (cart.length === 0) { toast({ title: "السلة فارغة", variant: "destructive" }); return; }
     if ((paymentType === "credit" || paymentType === "partial") && !customerId) {
@@ -723,10 +740,15 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
             {/* العميل والخزينة */}
             <div className="grid grid-cols-1 gap-1.5">
               {selectRow("العميل", <User className="w-3.5 h-3.5" />,
-                <select className="bg-transparent text-white outline-none w-full appearance-none text-xs" value={customerId} onChange={e => setCustomerId(e.target.value)}>
-                  <option value="" className="bg-slate-900">عميل نقدي</option>
-                  {customers.map(c => <option key={c.id} value={c.id} className="bg-slate-900">{c.customer_code ? `[${c.customer_code}] ` : ''}{c.name}{Number(c.balance) > 0 ? ` (دين: ${Number(c.balance).toFixed(0)} ج.م)` : ''}</option>)}
-                </select>
+                <SearchableSelect
+                  items={customerSaleItems}
+                  value={customerId}
+                  onChange={setCustomerId}
+                  placeholder="ابحث باسم أو كود..."
+                  emptyLabel="عميل نقدي"
+                  className="w-full min-w-0"
+                  inputClassName="bg-transparent text-xs"
+                />
               )}
               {selectedCustomer?.phone && (
                 <div className="text-xs text-[#25D366] flex items-center gap-1 px-2">
