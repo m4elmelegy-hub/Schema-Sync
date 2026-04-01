@@ -27,6 +27,7 @@ import authRouter from "./auth";
 import openingBalanceRouter from "./opening-balance";
 import contactsRouter from "./contacts";
 import alertsRouter from "./alerts";
+import systemRouter from "./system";
 
 const router: IRouter = Router();
 
@@ -63,5 +64,6 @@ router.use(reportsRouter);
 router.use(openingBalanceRouter);
 router.use(contactsRouter);
 router.use(alertsRouter);
+router.use(systemRouter);
 
 export default router;

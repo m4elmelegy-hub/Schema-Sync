@@ -177,6 +177,25 @@ All financial documents (sales, purchases, deposit vouchers, payment vouchers, r
 - Post button (✅ CheckCircle) visible on draft records; Cancel button (XCircle) visible on posted records.
 - History panels with post/cancel UI added to: `deposit-vouchers.tsx`, `payment-vouchers.tsx`, `purchases.tsx` (via "سجل الفواتير" tab), `sales.tsx` (via "سجل الفواتير" tab).
 
+## Backup / Restore / Reset System (April 2026)
+
+- **`POST /api/system/backup`** — Server-side full JSON dump of every table (products, customers, suppliers, sales + items, purchases + items, returns, expenses, income, transactions, accounts, journal entries + lines, vouchers, safe transfers, stock movements, safes, warehouses, users, settings, alerts, audit logs). Returns a timestamped downloadable file.
+- **`POST /api/system/restore`** — Accepts the JSON backup body. Runs inside a single PostgreSQL transaction: deletes all business data in FK-safe order, then re-inserts everything from the backup. Automatically converts ISO timestamp strings back to `Date` objects before insertion. Rolls back completely on any error.
+- **`POST /api/settings/reset`** — Existing endpoint: clears all business tables, zeroes balances on safes/customers/suppliers/products. Keeps admin user + settings.
+- **UI (Settings → نسخ احتياطي tab)**:
+  - *النسخة الاحتياطية الانتقائية* — existing multi-module checkbox backup (client-side, calls individual API endpoints).
+  - *نسخة احتياطية كاملة من الخادم* — new green card; calls `POST /system/backup` and downloads the file directly.
+  - *استعادة نسخة احتياطية* — new violet card; file picker (`.json` only), reads file with FileReader, sends to `POST /system/restore`; shows per-table row counts on success.
+  - *تصفير قاعدة البيانات الكاملة* — existing red card; requires typing "تأكيد الحذف الكامل" + 10 s countdown before enabling.
+- **Route**: `artifacts/api-server/src/routes/system.ts` registered in `routes/index.ts`.
+
+## Smart Alerts System (April 2026)
+
+- **Schema** (`lib/db/src/schema/alerts.ts`): `alertsTable` with `trigger_mode` (event/daily), `last_triggered_date` (dedup), `role_target` (comma-separated roles), `is_resolved` / `resolved_at` / `resolved_by`.
+- **Service** (`artifacts/api-server/src/lib/alert-service.ts`): `upsertAlert` skips daily re-trigger if already active today; `autoResolve` soft-resolves stale alerts. Role targets: low_stock/customer_debt/supplier_payable → "admin,manager"; cash_low → "admin,cashier"; health → "admin".
+- **Routes** (`artifacts/api-server/src/routes/alerts.ts`): `GET /api/alerts` (role-filtered), `POST /api/alerts/run-checks` (admin force), `POST /api/alerts/daily-check` (localStorage-gated once/day), `PATCH /api/alerts/:id/resolve`.
+- **UI** (`artifacts/erp-system/src/components/alert-bell.tsx`): Bell icon in header, unread badge, dropdown with filter tabs (Active / Unread / Resolved), "✓ تم الحل" per-alert resolve button.
+
 ## Security & Performance Improvements (March 2026)
 
 - **TypeScript**: Built `lib/db` and `lib/api-zod` declaration files — 0 TypeScript errors across entire codebase

@@ -1258,6 +1258,12 @@ function BackupImportTab() {
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>(() => loadActivityLog());
   const refreshLog = () => setActivityLog(loadActivityLog());
 
+  const [fullBkLoading,  setFullBkLoading]  = useState(false);
+  const [restoreLoading, setRestoreLoading] = useState(false);
+  const [restoreResult,  setRestoreResult]  = useState<{ counts: Record<string, number> } | null>(null);
+  const [restoreError,   setRestoreError]   = useState<string | null>(null);
+  const restoreFileRef = useRef<HTMLInputElement>(null);
+
   const toggleModule = (key: string) => setBkModules(prev => {
     const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s;
   });
@@ -1312,6 +1318,56 @@ function BackupImportTab() {
     if (days === 1) return "منذ يوم واحد";
     if (days < 30)  return `منذ ${days} أيام`;
     return new Date(lastBackup).toLocaleDateString("ar-EG");
+  };
+
+  const handleFullBackup = async () => {
+    setFullBkLoading(true);
+    try {
+      const res = await authFetch(api("/api/system/backup"), { method: "POST" });
+      if (!res.ok) throw new Error(await res.text());
+      const blob = await res.blob();
+      const cd   = res.headers.get("Content-Disposition") ?? "";
+      const match = cd.match(/filename="([^"]+)"/);
+      const fname = match ? match[1] : `halal-tech-backup_${new Date().toISOString().slice(0, 10)}.json`;
+      const link  = document.createElement("a");
+      link.href = URL.createObjectURL(blob); link.download = fname; link.click();
+      URL.revokeObjectURL(link.href);
+      const now = new Date().toISOString();
+      localStorage.setItem(LAST_BK_KEY, now); setLastBackup(now);
+      pushActivity({ date: now, type: "backup", file: fname, status: "✅ نسخة كاملة", user: "Admin" });
+      refreshLog();
+      toast({ title: `✅ تم تنزيل النسخة الكاملة — ${fname}` });
+    } catch (e) {
+      toast({ title: "فشل إنشاء النسخة الكاملة", description: String(e), variant: "destructive" });
+    } finally { setFullBkLoading(false); }
+  };
+
+  const handleRestoreFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    e.target.value = "";
+    if (!file.name.endsWith(".json")) {
+      toast({ title: "يجب اختيار ملف JSON", variant: "destructive" }); return;
+    }
+    setRestoreLoading(true); setRestoreResult(null); setRestoreError(null);
+    try {
+      const text   = await file.text();
+      const parsed = JSON.parse(text);
+      const res = await authFetch(api("/api/system/restore"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(parsed),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "فشل الاستعادة");
+      setRestoreResult({ counts: data.counts ?? {} });
+      pushActivity({ date: new Date().toISOString(), type: "backup", file: file.name, status: "✅ استعادة ناجحة", user: "Admin" });
+      refreshLog();
+      toast({ title: "✅ تمت استعادة النسخة الاحتياطية بنجاح" });
+    } catch (e: unknown) {
+      const msg = e instanceof SyntaxError ? "ملف JSON غير صالح" : (e instanceof Error ? e.message : String(e));
+      setRestoreError(msg);
+      toast({ title: "فشل الاستعادة", description: msg, variant: "destructive" });
+    } finally { setRestoreLoading(false); }
   };
 
   const handleProductsExport = async () => {
@@ -1588,6 +1644,89 @@ function BackupImportTab() {
             {bkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <HardDrive className="w-4 h-4" />}
             {bkLoading ? `جاري الإنشاء... ${bkProgress}%` : `إنشاء نسخة احتياطية (${bkModules.size} وحدات)`}
           </PrimaryBtn>
+        </div>
+      </div>
+
+      {/* ── FULL SERVER BACKUP ── */}
+      <div className="bg-[#111827] border border-emerald-500/20 rounded-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-white/5 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+            <Database className="w-4 h-4 text-emerald-400" />
+          </div>
+          <div>
+            <p className="font-bold text-white text-sm">نسخة احتياطية كاملة من الخادم</p>
+            <p className="text-white/30 text-xs">تصدير جميع الجداول مباشرة من قاعدة البيانات — بما في ذلك القيود اليومية والحسابات</p>
+          </div>
+        </div>
+        <div className="p-5 space-y-3">
+          <div className="flex items-start gap-3 p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/10 text-emerald-300/70 text-xs leading-relaxed">
+            <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
+            <span>تشمل هذه النسخة: العملاء، الموردين، المنتجات، المبيعات، المشتريات، المصروفات، الخزائن، القيود المحاسبية، التنبيهات، وجميع الحركات</span>
+          </div>
+          <PrimaryBtn onClick={handleFullBackup} disabled={fullBkLoading} className="w-full" style={{ background: "linear-gradient(to right, #10b981, #059669)" }}>
+            {fullBkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            {fullBkLoading ? "جاري التصدير..." : "تنزيل نسخة احتياطية كاملة (JSON)"}
+          </PrimaryBtn>
+        </div>
+      </div>
+
+      {/* ── RESTORE ── */}
+      <div className="bg-[#111827] border border-violet-500/20 rounded-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-white/5 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-violet-500/10 flex items-center justify-center">
+            <Upload className="w-4 h-4 text-violet-400" />
+          </div>
+          <div>
+            <p className="font-bold text-white text-sm">استعادة نسخة احتياطية</p>
+            <p className="text-white/30 text-xs">ارفع ملف JSON وسيتم استعادة جميع البيانات داخل معاملة آمنة</p>
+          </div>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="flex items-start gap-3 p-3 rounded-xl bg-amber-500/5 border border-amber-500/15 text-amber-300/70 text-xs leading-relaxed">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+            <span>تحذير: ستُحذف البيانات الحالية واستبدالها ببيانات الملف. المستخدمون والإعدادات تبقى كما هي. العملية لا يمكن التراجع عنها.</span>
+          </div>
+
+          <input ref={restoreFileRef} type="file" accept=".json" className="hidden" onChange={handleRestoreFile} />
+
+          {restoreLoading && (
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-violet-500/10 border border-violet-500/20">
+              <Loader2 className="w-4 h-4 text-violet-400 animate-spin" />
+              <p className="text-violet-300 text-sm">جاري الاستعادة داخل معاملة آمنة...</p>
+            </div>
+          )}
+
+          {restoreResult && !restoreLoading && (
+            <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 space-y-2">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <span className="text-emerald-400 font-bold text-sm">تمت الاستعادة بنجاح</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center text-xs mt-2">
+                {Object.entries(restoreResult.counts).filter(([,v]) => (v as number) > 0).slice(0, 9).map(([k, v]) => (
+                  <div key={k} className="bg-white/5 rounded-lg p-2">
+                    <p className="text-white/40 text-[10px]">{k}</p>
+                    <p className="text-white font-bold">{String(v)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {restoreError && !restoreLoading && (
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+              <X className="w-4 h-4 shrink-0" /> {restoreError}
+            </div>
+          )}
+
+          <button
+            onClick={() => restoreFileRef.current?.click()}
+            disabled={restoreLoading}
+            className="w-full py-3 rounded-xl border-2 border-dashed border-violet-500/30 hover:border-violet-500/60 text-violet-400 hover:text-violet-300 transition-all flex items-center justify-center gap-2 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Upload className="w-4 h-4" />
+            اختر ملف النسخة الاحتياطية (.json)
+          </button>
         </div>
       </div>
 

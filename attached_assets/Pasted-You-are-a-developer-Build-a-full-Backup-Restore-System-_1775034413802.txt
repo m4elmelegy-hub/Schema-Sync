@@ -1,0 +1,188 @@
+You are a developer.
+
+Build a full Backup + Restore + System Reset feature.
+
+Do NOT break system.
+Do NOT delete code.
+Only manage data safely.
+
+==================================================
+
+1. BACKUP SYSTEM
+   ==================================================
+
+Create endpoint:
+
+POST /system/backup
+
+---
+
+Backup must include ALL data:
+
+* customers
+* suppliers
+* products
+* sales
+* purchases
+* returns
+* vouchers
+* accounts
+* journal entries
+* stock movements
+* alerts
+* settings
+* users
+* any other table
+
+---
+
+Format:
+
+* JSON file
+* include all tables
+* structured clearly
+
+Example:
+{
+"customers": [...],
+"suppliers": [...],
+"sales": [...]
+}
+
+---
+
+Return:
+
+* downloadable file
+  OR
+* upload to server/cloud and return URL
+
+==================================================
+2) RESTORE SYSTEM
+=================
+
+Create endpoint:
+
+POST /system/restore
+
+---
+
+Input:
+
+* backup file (JSON)
+
+---
+
+Process:
+
+* clear current data safely
+* insert all backup data
+* maintain relationships (IDs)
+
+---
+
+IMPORTANT:
+
+* run inside transaction
+* if fail → rollback
+
+==================================================
+3) SYSTEM RESET
+===============
+
+Create endpoint:
+
+POST /system/reset
+
+---
+
+Flow:
+
+1. Ask confirmation:
+   "سيتم حذف كل البيانات — هل تريد عمل نسخة احتياطية أولاً؟"
+
+---
+
+2. If user selects backup:
+
+* call /system/backup first
+
+---
+
+3. Reset system:
+
+* delete all business data:
+
+  * customers
+  * suppliers
+  * sales
+  * purchases
+  * returns
+  * vouchers
+  * stock
+  * journal entries
+  * alerts
+
+* KEEP:
+
+  * system structure
+  * admin user
+  * basic settings (optional)
+
+---
+
+After reset:
+
+* system behaves like fresh install
+
+==================================================
+4) UI
+=====
+
+In Settings page:
+
+Add section:
+"النسخ الاحتياطي وإعادة التهيئة"
+
+Buttons:
+
+* "تحميل نسخة احتياطية"
+* "استعادة نسخة"
+* "إعادة ضبط النظام"
+
+---
+
+Reset button:
+
+* show warning modal
+* ask for confirmation
+* optional checkbox:
+  "عمل نسخة احتياطية قبل الحذف"
+
+==================================================
+5) SAFETY RULES
+===============
+
+* Never delete data without confirmation
+* Always allow backup before reset
+* Restore must validate file format
+* Do not allow partial restore
+
+==================================================
+6) FINAL TEST
+=============
+
+Test:
+
+1. backup file created
+2. reset system → data removed
+3. restore backup → data returns correctly
+4. relationships intact
+5. no errors
+
+==================================================
+After finishing:
+
+* show backup file example
+* show restore result
+* confirm full reset works
