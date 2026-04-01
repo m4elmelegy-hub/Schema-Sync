@@ -1,7 +1,9 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, max } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { db, suppliersTable, transactionsTable, safesTable, purchasesTable, purchaseReturnsTable } from "@workspace/db";
 import { writeAuditLog } from "../lib/audit-log";
+import { getSupplierLedgerBalance } from "../lib/ledger-balance";
 import {
   GetSuppliersResponse,
   CreateSupplierBody,
@@ -26,10 +28,10 @@ function normalizeName(name: string): string {
     .replace(/ى/g, "ي");
 }
 
-function formatSupplier(s: typeof suppliersTable.$inferSelect) {
+function formatSupplier(s: typeof suppliersTable.$inferSelect, ledgerBalance?: number) {
   return {
     ...s,
-    balance: Number(s.balance),
+    balance: ledgerBalance !== undefined ? ledgerBalance : Number(s.balance),
     created_at: s.created_at.toISOString(),
   };
 }
@@ -41,8 +43,32 @@ async function getNextSupplierCode(): Promise<number> {
 }
 
 router.get("/suppliers", wrap(async (_req, res) => {
-  const suppliers = await db.select().from(suppliersTable).orderBy(suppliersTable.supplier_code);
-  res.json(GetSuppliersResponse.parse(suppliers.map(formatSupplier)));
+  const rows = await db.execute(sql`
+    SELECT
+      s.id, s.name, s.supplier_code, s.phone, s.balance AS stored_balance,
+      s.linked_customer_id, s.account_id, s.normalized_name,
+      s.created_at,
+      COALESCE(SUM(CAST(jel.credit AS FLOAT8)), 0)
+    - COALESCE(SUM(CAST(jel.debit  AS FLOAT8)), 0) AS ledger_balance
+    FROM suppliers s
+    LEFT JOIN journal_entry_lines jel ON jel.account_id = s.account_id
+    LEFT JOIN journal_entries je ON je.id = jel.entry_id AND je.status = 'posted'
+    GROUP BY s.id, s.name, s.supplier_code, s.phone, s.balance,
+             s.linked_customer_id, s.account_id, s.normalized_name, s.created_at
+    ORDER BY s.supplier_code
+  `);
+  const suppliers = (rows.rows as any[]).map(r => ({
+    id: r.id,
+    name: r.name,
+    supplier_code: r.supplier_code,
+    phone: r.phone,
+    balance: Math.round(Number(r.ledger_balance) * 100) / 100,
+    linked_customer_id: r.linked_customer_id,
+    account_id: r.account_id,
+    normalized_name: r.normalized_name,
+    created_at: new Date(r.created_at).toISOString(),
+  }));
+  res.json(GetSuppliersResponse.parse(suppliers));
 }));
 
 router.post("/suppliers", wrap(async (req, res) => {
@@ -214,7 +240,8 @@ router.post("/suppliers/:id/payment", wrap(async (req, res) => {
     return updatedSupplier;
   });
 
-  res.json(CreateSupplierPaymentResponse.parse(formatSupplier(updated)));
+  const ledgerBal = await getSupplierLedgerBalance(updated.account_id);
+  res.json(CreateSupplierPaymentResponse.parse(formatSupplier(updated, ledgerBal)));
 }));
 
 // ─── كشف حساب المورد ──────────────────────────────────────────────────────────

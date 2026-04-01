@@ -9,6 +9,7 @@ import {
 } from "@workspace/api-zod";
 import { wrap, httpError } from "../lib/async-handler";
 import { assertPeriodOpen } from "../lib/period-lock";
+import { getCustomerLedgerBalance } from "../lib/ledger-balance";
 import {
   getOrCreateSalesRevenueAccount,
   getOrCreateSafeAccount,
@@ -346,16 +347,19 @@ router.post("/sales/:id/cancel", wrap(async (req, res) => {
     }
   }
 
-  // ── فحص 2: الإلغاء سيجعل رصيد العميل سالباً ────────────────────────────
+  // ── فحص 2: الإلغاء سيجعل رصيد العميل سالباً (من دفتر الأستاذ AR) ────────
   if (sale.customer_id && Number(sale.remaining_amount) > 0.001) {
-    const [cust] = await db
-      .select({ balance: customersTable.balance, name: customersTable.name })
+    const [custRow] = await db
+      .select({ account_id: customersTable.account_id, name: customersTable.name })
       .from(customersTable)
       .where(eq(customersTable.id, sale.customer_id));
-    if (cust && Number(cust.balance) < Number(sale.remaining_amount) - 0.001) {
-      throw httpError(400,
-        `لا يمكن الإلغاء: رصيد العميل الحالي (${Number(cust.balance).toFixed(2)}) أقل من الذمة المُراد عكسها (${Number(sale.remaining_amount).toFixed(2)}) — الإلغاء سيجعل الرصيد سالباً`
-      );
+    if (custRow) {
+      const ledgerBal = await getCustomerLedgerBalance(custRow.account_id);
+      if (ledgerBal < Number(sale.remaining_amount) - 0.001) {
+        throw httpError(400,
+          `لا يمكن الإلغاء: رصيد دفتر الأستاذ للعميل (${ledgerBal.toFixed(2)}) أقل من الذمة المُراد عكسها (${Number(sale.remaining_amount).toFixed(2)}) — الإلغاء سيجعل الرصيد سالباً`
+        );
+      }
     }
   }
 

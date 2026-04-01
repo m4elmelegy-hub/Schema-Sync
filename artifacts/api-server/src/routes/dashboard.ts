@@ -2,10 +2,11 @@ import { Router, type IRouter } from "express";
 import { gte, sum, desc, inArray } from "drizzle-orm";
 import {
   db, salesTable, saleItemsTable, expensesTable, incomeTable,
-  customersTable, suppliersTable, productsTable, transactionsTable,
+  productsTable, transactionsTable,
 } from "@workspace/db";
 import { GetDashboardStatsResponse } from "@workspace/api-zod";
 import { wrap } from "../lib/async-handler";
+import { getTotalCustomerLedgerBalance, getTotalSupplierLedgerBalance } from "../lib/ledger-balance";
 
 const router: IRouter = Router();
 
@@ -44,12 +45,11 @@ router.get("/dashboard/stats", wrap(async (_req, res) => {
   }
   const net_profit = gross_profit_today - total_expenses_today + total_income_today;
 
-  // ── ديون العملاء والموردين ────────────────────────────────────────────────
-  const [custDebts] = await db.select({ total: sum(customersTable.balance) }).from(customersTable);
-  const total_customer_debts = Number(custDebts?.total ?? 0);
-
-  const [suppDebts] = await db.select({ total: sum(suppliersTable.balance) }).from(suppliersTable);
-  const total_supplier_debts = Number(suppDebts?.total ?? 0);
+  // ── ديون العملاء والموردين — من دفتر الأستاذ (AR / AP) ──────────────────
+  const [total_customer_debts, total_supplier_debts] = await Promise.all([
+    getTotalCustomerLedgerBalance(),
+    getTotalSupplierLedgerBalance(),
+  ]);
 
   // ── منتجات منخفضة المخزون ────────────────────────────────────────────────
   const allProducts = await db.select().from(productsTable);

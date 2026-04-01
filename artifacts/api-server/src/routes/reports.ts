@@ -325,8 +325,14 @@ router.get("/reports/customer-statement", wrap(async (req, res) => {
   if (isNaN(cid)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
 
   const custRow = await db.execute(sql.raw(`
-    SELECT id, name, CAST(balance AS FLOAT8) AS balance, customer_code
-    FROM customers WHERE id = ${cid}
+    SELECT c.id, c.name, c.customer_code,
+           COALESCE(SUM(CAST(jel.debit  AS FLOAT8)), 0)
+         - COALESCE(SUM(CAST(jel.credit AS FLOAT8)), 0) AS balance
+    FROM customers c
+    LEFT JOIN journal_entry_lines jel ON jel.account_id = c.account_id
+    LEFT JOIN journal_entries je ON je.id = jel.entry_id AND je.status = 'posted'
+    WHERE c.id = ${cid}
+    GROUP BY c.id, c.name, c.customer_code
   `));
   if (!custRow.rows.length) { res.status(404).json({ error: "العميل غير موجود" }); return; }
   const customer = custRow.rows[0] as any;
@@ -432,7 +438,14 @@ router.get("/reports/supplier-statement", wrap(async (req, res) => {
   if (isNaN(sid)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
 
   const supRow = await db.execute(sql.raw(`
-    SELECT id, name, CAST(balance AS FLOAT8) AS balance FROM suppliers WHERE id = ${sid}
+    SELECT s.id, s.name,
+           COALESCE(SUM(CAST(jel.credit AS FLOAT8)), 0)
+         - COALESCE(SUM(CAST(jel.debit  AS FLOAT8)), 0) AS balance
+    FROM suppliers s
+    LEFT JOIN journal_entry_lines jel ON jel.account_id = s.account_id
+    LEFT JOIN journal_entries je ON je.id = jel.entry_id AND je.status = 'posted'
+    WHERE s.id = ${sid}
+    GROUP BY s.id, s.name
   `));
   if (!supRow.rows.length) { res.status(404).json({ error: "المورد غير موجود" }); return; }
   const supplier = supRow.rows[0] as any;
@@ -754,9 +767,18 @@ router.get("/reports/health-check", wrap(async (req, res) => {
   /* ── تشغيل الاستعلامات بشكل متوازٍ ─────────────────────────────────── */
   const [custRows, supRows, invRows, profitRows, cashRows] = await Promise.all([
 
-    /* 1. فحص أرصدة العملاء */
+    /* 1. فحص أرصدة العملاء — مقارنة رصيد AR (دفتر الأستاذ) بالفواتير المرحّلة */
     db.execute(sql.raw(`
       WITH
+        ar_ledger AS (
+          SELECT c.id AS customer_id,
+                 COALESCE(SUM(CAST(jel.debit  AS FLOAT8)), 0)
+               - COALESCE(SUM(CAST(jel.credit AS FLOAT8)), 0) AS ar_bal
+          FROM customers c
+          LEFT JOIN journal_entry_lines jel ON jel.account_id = c.account_id
+          LEFT JOIN journal_entries je ON je.id = jel.entry_id AND je.status = 'posted'
+          GROUP BY c.id
+        ),
         cust_sales AS (
           SELECT customer_id, COALESCE(SUM(CAST(total_amount AS FLOAT8)),0) AS tot
           FROM sales WHERE posting_status='posted' GROUP BY customer_id
@@ -770,23 +792,33 @@ router.get("/reports/health-check", wrap(async (req, res) => {
           FROM sales_returns GROUP BY customer_id
         )
       SELECT c.id, c.name,
-             CAST(c.balance AS FLOAT8)                                       AS system_balance,
+             COALESCE(al.ar_bal, 0)                                          AS system_balance,
              COALESCE(cs.tot,0) - COALESCE(cr.tot,0) - COALESCE(cret.tot,0) AS ledger_balance,
              COALESCE(cs.tot,0) AS total_sales,
              COALESCE(cr.tot,0) AS total_receipts,
              COALESCE(cret.tot,0) AS total_returns
       FROM customers c
-      LEFT JOIN cust_sales    cs   ON cs.customer_id   = c.id
-      LEFT JOIN cust_receipts cr   ON cr.customer_id   = c.id
+      LEFT JOIN ar_ledger     al   ON al.customer_id  = c.id
+      LEFT JOIN cust_sales    cs   ON cs.customer_id  = c.id
+      LEFT JOIN cust_receipts cr   ON cr.customer_id  = c.id
       LEFT JOIN cust_returns  cret ON cret.customer_id = c.id
-      WHERE ABS(CAST(c.balance AS FLOAT8) - (COALESCE(cs.tot,0) - COALESCE(cr.tot,0) - COALESCE(cret.tot,0))) > ${TOL}
-         OR CAST(c.balance AS FLOAT8) != 0
-      ORDER BY ABS(CAST(c.balance AS FLOAT8) - (COALESCE(cs.tot,0) - COALESCE(cr.tot,0) - COALESCE(cret.tot,0))) DESC
+      WHERE ABS(COALESCE(al.ar_bal,0) - (COALESCE(cs.tot,0) - COALESCE(cr.tot,0) - COALESCE(cret.tot,0))) > ${TOL}
+         OR COALESCE(al.ar_bal,0) != 0
+      ORDER BY ABS(COALESCE(al.ar_bal,0) - (COALESCE(cs.tot,0) - COALESCE(cr.tot,0) - COALESCE(cret.tot,0))) DESC
     `)),
 
-    /* 2. فحص أرصدة الموردين */
+    /* 2. فحص أرصدة الموردين — مقارنة رصيد AP (دفتر الأستاذ) بالفواتير المرحّلة */
     db.execute(sql.raw(`
       WITH
+        ap_ledger AS (
+          SELECT s.id AS supplier_id,
+                 COALESCE(SUM(CAST(jel.credit AS FLOAT8)), 0)
+               - COALESCE(SUM(CAST(jel.debit  AS FLOAT8)), 0) AS ap_bal
+          FROM suppliers s
+          LEFT JOIN journal_entry_lines jel ON jel.account_id = s.account_id
+          LEFT JOIN journal_entries je ON je.id = jel.entry_id AND je.status = 'posted'
+          GROUP BY s.id
+        ),
         sup_purchases AS (
           SELECT supplier_id, COALESCE(SUM(CAST(total_amount AS FLOAT8)),0) AS tot
           FROM purchases WHERE posting_status='posted' GROUP BY supplier_id
@@ -800,16 +832,17 @@ router.get("/reports/health-check", wrap(async (req, res) => {
           FROM purchase_returns GROUP BY customer_id
         )
       SELECT s.id, s.name,
-             CAST(s.balance AS FLOAT8)                                      AS system_balance,
+             COALESCE(al.ap_bal, 0)                                           AS system_balance,
              COALESCE(sp.tot,0) - COALESCE(spv.tot,0) - COALESCE(sret.tot,0) AS ledger_balance,
              COALESCE(sp.tot,0) AS total_purchases,
              COALESCE(spv.tot,0) AS total_payments,
              COALESCE(sret.tot,0) AS total_returns
       FROM suppliers s
+      LEFT JOIN ap_ledger     al   ON al.supplier_id  = s.id
       LEFT JOIN sup_purchases sp   ON sp.supplier_id  = s.id
       LEFT JOIN sup_payments  spv  ON spv.supplier_id = s.id
       LEFT JOIN sup_returns   sret ON sret.supplier_id = s.id
-      ORDER BY ABS(CAST(s.balance AS FLOAT8) - (COALESCE(sp.tot,0) - COALESCE(spv.tot,0) - COALESCE(sret.tot,0))) DESC
+      ORDER BY ABS(COALESCE(al.ap_bal,0) - (COALESCE(sp.tot,0) - COALESCE(spv.tot,0) - COALESCE(sret.tot,0))) DESC
     `)),
 
     /* 3. فحص تطابق كميات المخزون */
@@ -848,25 +881,25 @@ router.get("/reports/health-check", wrap(async (req, res) => {
 
   /* ── معالجة نتائج العملاء ────────────────────────────────────────────── */
   for (const r of custRows.rows as any[]) {
-    const sys = r2(Number(r.system_balance));
-    const led = r2(Number(r.ledger_balance));
-    const diff = Math.abs(sys - led);
+    const arLedger      = r2(Number(r.system_balance));   // رصيد AR من دفتر الأستاذ
+    const invoiceComputed = r2(Number(r.ledger_balance)); // مجموع الفواتير المرحّلة
+    const diff = Math.abs(arLedger - invoiceComputed);
     if (diff <= TOL) continue;
-    const sev = diffSeverity(sys - led);
+    const sev = diffSeverity(arLedger - invoiceComputed);
     issues.push({
       id: nextId(), group: "customer_issues", type: "customer_balance",
       severity: sev, color: colorOf(sev),
-      message:  `عدم تطابق رصيد العميل — ${r.name}`,
-      action:   "افتح كشف حساب العميل وراجع الفواتير أو المدفوعات المفقودة أو غير المرحّلة",
+      message:  `فارق في رصيد AR — ${r.name}`,
+      action:   "رصيد حساب AR في دفتر الأستاذ لا يطابق مجموع الفواتير المرحّلة — راجع القيود المحاسبية",
       details: {
-        customer_id:    Number(r.id),
-        customer_name:  String(r.name),
-        system_balance: sys,
-        ledger_balance: led,
-        difference:     r2(sys - led),
-        total_sales:    r2(Number(r.total_sales)),
-        total_receipts: r2(Number(r.total_receipts)),
-        total_returns:  r2(Number(r.total_returns)),
+        customer_id:      Number(r.id),
+        customer_name:    String(r.name),
+        ar_ledger_balance: arLedger,
+        invoice_computed:  invoiceComputed,
+        difference:        r2(arLedger - invoiceComputed),
+        total_sales:       r2(Number(r.total_sales)),
+        total_receipts:    r2(Number(r.total_receipts)),
+        total_returns:     r2(Number(r.total_returns)),
       },
     });
   }
@@ -874,7 +907,7 @@ router.get("/reports/health-check", wrap(async (req, res) => {
     issues.push({
       id: nextId(), group: "customer_issues", type: "customer_balance",
       severity: "OK", color: "green",
-      message:  "جميع أرصدة العملاء متطابقة مع دفتر الأستاذ",
+      message:  "رصيد AR في دفتر الأستاذ متطابق مع جميع الفواتير المرحّلة",
       action:   "لا يلزم أي إجراء",
       details:  { checked: (custRows.rows as any[]).length },
     });
@@ -882,25 +915,25 @@ router.get("/reports/health-check", wrap(async (req, res) => {
 
   /* ── معالجة نتائج الموردين ───────────────────────────────────────────── */
   for (const r of supRows.rows as any[]) {
-    const sys = r2(Number(r.system_balance));
-    const led = r2(Number(r.ledger_balance));
-    const diff = Math.abs(sys - led);
+    const apLedger        = r2(Number(r.system_balance));   // رصيد AP من دفتر الأستاذ
+    const invoiceComputed = r2(Number(r.ledger_balance));   // مجموع الفواتير المرحّلة
+    const diff = Math.abs(apLedger - invoiceComputed);
     if (diff <= TOL) continue;
-    const sev = diffSeverity(sys - led);
+    const sev = diffSeverity(apLedger - invoiceComputed);
     issues.push({
       id: nextId(), group: "supplier_issues", type: "supplier_balance",
       severity: sev, color: colorOf(sev),
-      message:  `عدم تطابق رصيد المورد — ${r.name}`,
-      action:   "افتح كشف حساب المورد وراجع فواتير الشراء والمدفوعات غير المرحّلة",
+      message:  `فارق في رصيد AP — ${r.name}`,
+      action:   "رصيد حساب AP في دفتر الأستاذ لا يطابق مجموع فواتير الشراء المرحّلة — راجع القيود المحاسبية",
       details: {
         supplier_id:      Number(r.id),
         supplier_name:    String(r.name),
-        system_balance:   sys,
-        ledger_balance:   led,
-        difference:       r2(sys - led),
-        total_purchases:  r2(Number(r.total_purchases)),
-        total_payments:   r2(Number(r.total_payments)),
-        total_returns:    r2(Number(r.total_returns)),
+        ap_ledger_balance: apLedger,
+        invoice_computed:  invoiceComputed,
+        difference:        r2(apLedger - invoiceComputed),
+        total_purchases:   r2(Number(r.total_purchases)),
+        total_payments:    r2(Number(r.total_payments)),
+        total_returns:     r2(Number(r.total_returns)),
       },
     });
   }

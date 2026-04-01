@@ -9,6 +9,7 @@ import {
 } from "@workspace/api-zod";
 import { wrap, httpError } from "../lib/async-handler";
 import { assertPeriodOpen } from "../lib/period-lock";
+import { getSupplierLedgerBalance } from "../lib/ledger-balance";
 import {
   getOrCreateInventoryAccount,
   getOrCreateSafeAccount,
@@ -335,18 +336,20 @@ router.post("/purchases/:id/cancel", wrap(async (req, res) => {
     }
   }
 
-  // ── فحص 2: رصيد المورد سيصبح سالباً ────────────────────────────────────
+  // ── فحص 2: رصيد المورد سيصبح سالباً (من دفتر الأستاذ AP) ──────────────
   // إلغاء الشراء يُنقص ذمة المورد بـ remaining_amount
-  // إذا كان الرصيد أقل → الإلغاء سيؤدي لرصيد غير صحيح
   if (purchase.supplier_id && Number(purchase.remaining_amount) > 0.001) {
-    const [supp] = await db
-      .select({ balance: suppliersTable.balance, name: suppliersTable.name })
+    const [suppRow] = await db
+      .select({ account_id: suppliersTable.account_id, name: suppliersTable.name })
       .from(suppliersTable)
       .where(eq(suppliersTable.id, purchase.supplier_id));
-    if (supp && Number(supp.balance) < Number(purchase.remaining_amount) - 0.001) {
-      throw httpError(400,
-        `لا يمكن الإلغاء: رصيد المورد الحالي (${Number(supp.balance).toFixed(2)}) أقل من الذمة المُراد عكسها (${Number(purchase.remaining_amount).toFixed(2)}) — توجد مدفوعات مُقيَّدة على هذا المورد`
-      );
+    if (suppRow) {
+      const ledgerBal = await getSupplierLedgerBalance(suppRow.account_id);
+      if (ledgerBal < Number(purchase.remaining_amount) - 0.001) {
+        throw httpError(400,
+          `لا يمكن الإلغاء: رصيد دفتر الأستاذ للمورد (${ledgerBal.toFixed(2)}) أقل من الذمة المُراد عكسها (${Number(purchase.remaining_amount).toFixed(2)}) — توجد مدفوعات مُقيَّدة على هذا المورد`
+        );
+      }
     }
   }
 

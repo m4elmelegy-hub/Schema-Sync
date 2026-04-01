@@ -1,7 +1,9 @@
 import { Router, type IRouter } from "express";
 import { eq, ne, max } from "drizzle-orm";
 import { db, customersTable, transactionsTable, safesTable } from "@workspace/db";
+import { sql } from "drizzle-orm";
 import { writeAuditLog } from "../lib/audit-log";
+import { getCustomerLedgerBalance } from "../lib/ledger-balance";
 import {
   GetCustomersResponse,
   CreateCustomerBody,
@@ -26,10 +28,10 @@ function normalizeName(name: string): string {
     .replace(/ى/g, "ي");
 }
 
-function formatCustomer(c: typeof customersTable.$inferSelect) {
+function formatCustomer(c: typeof customersTable.$inferSelect, ledgerBalance?: number) {
   return {
     ...c,
-    balance: Number(c.balance),
+    balance: ledgerBalance !== undefined ? ledgerBalance : Number(c.balance),
     is_supplier: c.is_supplier ?? false,
     created_at: c.created_at.toISOString(),
   };
@@ -42,8 +44,32 @@ async function getNextCustomerCode(): Promise<number> {
 }
 
 router.get("/customers", wrap(async (_req, res) => {
-  const customers = await db.select().from(customersTable).orderBy(customersTable.customer_code);
-  res.json(GetCustomersResponse.parse(customers.map(formatCustomer)));
+  const rows = await db.execute(sql`
+    SELECT
+      c.id, c.name, c.customer_code, c.phone, c.balance AS stored_balance,
+      c.is_supplier, c.account_id, c.normalized_name,
+      c.created_at,
+      COALESCE(SUM(CAST(jel.debit  AS FLOAT8)), 0)
+    - COALESCE(SUM(CAST(jel.credit AS FLOAT8)), 0) AS ledger_balance
+    FROM customers c
+    LEFT JOIN journal_entry_lines jel ON jel.account_id = c.account_id
+    LEFT JOIN journal_entries je ON je.id = jel.entry_id AND je.status = 'posted'
+    GROUP BY c.id, c.name, c.customer_code, c.phone, c.balance,
+             c.is_supplier, c.account_id, c.normalized_name, c.created_at
+    ORDER BY c.customer_code
+  `);
+  const customers = (rows.rows as any[]).map(r => ({
+    id: r.id,
+    name: r.name,
+    customer_code: r.customer_code,
+    phone: r.phone,
+    balance: Math.round(Number(r.ledger_balance) * 100) / 100,
+    is_supplier: r.is_supplier ?? false,
+    account_id: r.account_id,
+    normalized_name: r.normalized_name,
+    created_at: new Date(r.created_at).toISOString(),
+  }));
+  res.json(GetCustomersResponse.parse(customers));
 }));
 
 router.post("/customers", wrap(async (req, res) => {
@@ -192,7 +218,8 @@ router.post("/customers/:id/receipt", wrap(async (req, res) => {
     description: parsed.data.description ?? `سند قبض - ${customer.name}`,
   });
 
-  res.json(CreateCustomerReceiptResponse.parse(formatCustomer(updated)));
+  const ledgerBal = await getCustomerLedgerBalance(updated.account_id);
+  res.json(CreateCustomerReceiptResponse.parse(formatCustomer(updated, ledgerBal)));
 }));
 
 router.post("/customers/:id/supplier-payment", wrap(async (req, res) => {
@@ -241,7 +268,8 @@ router.post("/customers/:id/supplier-payment", wrap(async (req, res) => {
     resultCustomer = updated;
   });
 
-  res.json({ success: true, customer: formatCustomer(resultCustomer!) });
+  const ledgerBal = await getCustomerLedgerBalance(resultCustomer!.account_id);
+  res.json({ success: true, customer: formatCustomer(resultCustomer!, ledgerBal) });
 }));
 
 export default router;
