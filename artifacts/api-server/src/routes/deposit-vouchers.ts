@@ -3,6 +3,7 @@ import { eq, desc } from "drizzle-orm";
 import { db, depositVouchersTable, safesTable, customersTable, transactionsTable, accountsTable } from "@workspace/db";
 
 import { wrap, httpError } from "../lib/async-handler";
+import { assertPeriodOpen } from "../lib/period-lock";
 import { getOrCreateSafeAccount, createAutoJournalEntry, type AccountRef } from "../lib/auto-account";
 
 const router: IRouter = Router();
@@ -21,6 +22,8 @@ router.post("/deposit-vouchers", wrap(async (req, res) => {
   if (!safe_id || !amount) { res.status(400).json({ error: "البيانات غير مكتملة" }); return; }
   const amt = Number(amount);
   if (isNaN(amt) || amt <= 0) { res.status(400).json({ error: "المبلغ غير صحيح" }); return; }
+
+  await assertPeriodOpen(date ?? null, req);
 
   const voucher = await db.transaction(async (tx) => {
     // 1. الخزينة ترتفع
@@ -102,6 +105,8 @@ router.post("/deposit-vouchers/:id/post", wrap(async (req, res) => {
   if (v.posting_status === "posted")    throw httpError(400, "السند مرحَّل بالفعل");
   if (v.posting_status === "cancelled") throw httpError(400, "لا يمكن ترحيل سند ملغى");
 
+  await assertPeriodOpen(v.date, req);
+
   const custAcct = await getVoucherCustomerAcct(v.customer_id);
   if (custAcct) {
     const safeAcct = await getOrCreateSafeAccount(v.safe_id, v.safe_name);
@@ -133,6 +138,8 @@ router.post("/deposit-vouchers/:id/cancel", wrap(async (req, res) => {
   if (!v) throw httpError(404, "سند التوريد غير موجود");
   if (v.posting_status === "cancelled") throw httpError(400, "السند ملغى بالفعل");
 
+  await assertPeriodOpen(v.date, req);
+
   if (v.posting_status === "posted") {
     const custAcct = await getVoucherCustomerAcct(v.customer_id);
     if (custAcct) {
@@ -161,6 +168,12 @@ router.post("/deposit-vouchers/:id/cancel", wrap(async (req, res) => {
 router.delete("/deposit-vouchers/:id", wrap(async (req, res) => {
   const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
+
+  const [preCheck] = await db.select({ date: depositVouchersTable.date, posting_status: depositVouchersTable.posting_status })
+    .from(depositVouchersTable).where(eq(depositVouchersTable.id, id));
+  if (!preCheck) throw httpError(404, "غير موجود");
+  if (preCheck.posting_status === "posted") throw httpError(400, "لا يمكن حذف سند مرحَّل — استخدم الإلغاء");
+  await assertPeriodOpen(preCheck.date, req);
 
   await db.transaction(async (tx) => {
     const [v] = await tx.select().from(depositVouchersTable).where(eq(depositVouchersTable.id, id));

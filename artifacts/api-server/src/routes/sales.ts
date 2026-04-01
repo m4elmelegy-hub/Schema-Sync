@@ -8,6 +8,7 @@ import {
   GetSaleByIdResponse,
 } from "@workspace/api-zod";
 import { wrap, httpError } from "../lib/async-handler";
+import { assertPeriodOpen } from "../lib/period-lock";
 import {
   getOrCreateSalesRevenueAccount,
   getOrCreateSafeAccount,
@@ -62,6 +63,8 @@ router.post("/sales", wrap(async (req, res) => {
     res.status(400).json({ error: "يجب اختيار الخزينة للمبيعات النقدية" });
     return;
   }
+
+  await assertPeriodOpen(date, req);
 
   let status = "paid";
   if (payment_type === "credit") status = "unpaid";
@@ -286,6 +289,8 @@ router.post("/sales/:id/post", wrap(async (req, res) => {
   if (sale.posting_status === "posted")    throw httpError(400, "الفاتورة مرحَّلة بالفعل");
   if (sale.posting_status === "cancelled") throw httpError(400, "لا يمكن ترحيل فاتورة ملغاة");
 
+  await assertPeriodOpen(sale.date, req);
+
   const lines = await buildSaleJournalLines(sale);
   if (lines.length >= 2) {
     await createJournalEntry({
@@ -320,6 +325,8 @@ router.post("/sales/:id/cancel", wrap(async (req, res) => {
   if (existingReturns.length > 0) {
     throw httpError(400, "لا يمكن إلغاء فاتورة مرتبطة بمرتجعات — يجب حذف المرتجعات أولاً");
   }
+
+  await assertPeriodOpen(sale.date, req);
 
   const today = new Date().toISOString().split("T")[0];
 

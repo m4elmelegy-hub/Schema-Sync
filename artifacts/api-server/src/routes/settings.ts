@@ -28,7 +28,9 @@ import {
   journalEntriesTable,
   journalEntryLinesTable,
   accountsTable,
+  systemSettingsTable,
 } from "@workspace/db";
+import { invalidateClosingDateCache } from "../lib/period-lock";
 
 const router = Router();
 
@@ -179,6 +181,53 @@ router.delete("/settings/warehouses/:id", authenticate, requireRole("admin"), as
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: "فشل حذف المخزن" });
+  }
+});
+
+// ─── PERIOD LOCK (closing_date) ───────────────────────────────────────────────
+
+/**
+ * GET /settings/period
+ * يُعيد تاريخ الإغلاق الحالي أو null إذا لم يُعيَّن.
+ */
+router.get("/settings/period", async (_req, res) => {
+  try {
+    const [row] = await db.select().from(systemSettingsTable)
+      .where(eq(systemSettingsTable.key, "closing_date"));
+    res.json({ closing_date: row?.value ?? null });
+  } catch (e) {
+    res.status(500).json({ error: "فشل جلب إعداد الفترة" });
+  }
+});
+
+/**
+ * PUT /settings/period
+ * يُعيِّن أو يُلغي تاريخ الإغلاق (أدمن فقط).
+ * Body: { closing_date: "YYYY-MM-DD" | null }
+ */
+router.put("/settings/period", authenticate, requireRole("admin"), async (req, res) => {
+  try {
+    const { closing_date } = req.body;
+
+    if (closing_date) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(closing_date)) {
+        res.status(400).json({ error: "تنسيق التاريخ غير صحيح — استخدم YYYY-MM-DD" });
+        return;
+      }
+      await db.insert(systemSettingsTable)
+        .values({ key: "closing_date", value: closing_date })
+        .onConflictDoUpdate({
+          target: systemSettingsTable.key,
+          set: { value: closing_date, updated_at: new Date() },
+        });
+    } else {
+      await db.delete(systemSettingsTable).where(eq(systemSettingsTable.key, "closing_date"));
+    }
+
+    invalidateClosingDateCache();
+    res.json({ closing_date: closing_date ?? null });
+  } catch (e) {
+    res.status(500).json({ error: "فشل تحديث إعداد الفترة" });
   }
 });
 

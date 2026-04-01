@@ -8,6 +8,7 @@ import {
   GetPurchaseByIdResponse,
 } from "@workspace/api-zod";
 import { wrap, httpError } from "../lib/async-handler";
+import { assertPeriodOpen } from "../lib/period-lock";
 import {
   getOrCreateInventoryAccount,
   getOrCreateSafeAccount,
@@ -64,6 +65,8 @@ router.post("/purchases", wrap(async (req, res) => {
   } = parsed.data;
 
   const remaining = total_amount - paid_amount;
+
+  await assertPeriodOpen(date, req);
 
   let status = "paid";
   if (payment_type === "credit") status = "unpaid";
@@ -268,6 +271,8 @@ router.post("/purchases/:id/post", wrap(async (req, res) => {
   if (purchase.posting_status === "posted")    throw httpError(400, "الفاتورة مرحَّلة بالفعل");
   if (purchase.posting_status === "cancelled") throw httpError(400, "لا يمكن ترحيل فاتورة ملغاة");
 
+  await assertPeriodOpen(purchase.date, req);
+
   const lines = await buildPurchaseJournalLines(purchase);
   if (lines.length >= 2) {
     await createJournalEntry({
@@ -302,6 +307,8 @@ router.post("/purchases/:id/cancel", wrap(async (req, res) => {
   if (existingReturns.length > 0) {
     throw httpError(400, "لا يمكن إلغاء فاتورة مرتبطة بمرتجعات — يجب حذف المرتجعات أولاً");
   }
+
+  await assertPeriodOpen(purchase.date, req);
 
   const today = new Date().toISOString().split("T")[0];
 

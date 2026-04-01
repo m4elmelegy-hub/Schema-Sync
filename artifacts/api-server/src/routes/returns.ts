@@ -8,6 +8,7 @@ import {
 } from "@workspace/db";
 
 import { wrap, httpError } from "../lib/async-handler";
+import { assertPeriodOpen } from "../lib/period-lock";
 
 const router: IRouter = Router();
 
@@ -63,6 +64,8 @@ router.post("/sales-returns", wrap(async (req, res) => {
   const return_no = `SR-${Date.now()}`;
   const rtype: string = refund_type === "cash" ? "cash" : "credit";
   const txDate = date ?? new Date().toISOString().split("T")[0];
+
+  await assertPeriodOpen(txDate, req);
 
   const ret = await db.transaction(async (tx) => {
     let safeName: string | null = null;
@@ -247,6 +250,11 @@ router.post("/sales-returns", wrap(async (req, res) => {
 
 router.delete("/sales-returns/:id", wrap(async (req, res) => {
   const id = parseInt(req.params.id as string);
+  const [preCheck] = await db.select({ date: salesReturnsTable.date })
+    .from(salesReturnsTable).where(eq(salesReturnsTable.id, id));
+  if (!preCheck) throw httpError(404, "المرتجع غير موجود");
+  await assertPeriodOpen(preCheck.date, req);
+
   await db.transaction(async (tx) => {
     const [ret] = await tx.select().from(salesReturnsTable).where(eq(salesReturnsTable.id, id));
     if (!ret) throw httpError(400, "المرتجع غير موجود");
@@ -396,6 +404,8 @@ router.post("/purchase-returns", wrap(async (req, res) => {
   const return_no = `PR-${Date.now()}`;
   const txDate = date ?? new Date().toISOString().split("T")[0];
   const rtype: string = refund_type === "cash" ? "cash" : "balance_credit";
+
+  await assertPeriodOpen(txDate, req);
 
   const ret = await db.transaction(async (tx) => {
     // ── الاسترداد النقدي: إضافة للخزينة ─────────────────────────────────────
@@ -575,6 +585,11 @@ router.post("/purchase-returns", wrap(async (req, res) => {
 
 router.delete("/purchase-returns/:id", wrap(async (req, res) => {
   const id = parseInt(req.params.id as string);
+  const [preCheck] = await db.select({ date: purchaseReturnsTable.date })
+    .from(purchaseReturnsTable).where(eq(purchaseReturnsTable.id, id));
+  if (!preCheck) throw httpError(404, "غير موجود");
+  await assertPeriodOpen(preCheck.date, req);
+
   await db.transaction(async (tx) => {
     const [ret] = await tx.select().from(purchaseReturnsTable).where(eq(purchaseReturnsTable.id, id));
     if (!ret) throw httpError(400, "غير موجود");
