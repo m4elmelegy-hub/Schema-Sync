@@ -1,0 +1,193 @@
+You are a developer.
+
+Refactor the alerts system to be SMART (no spam, no constant polling).
+
+Do NOT break existing alerts.
+Improve behavior only.
+
+==================================================
+MAIN GOAL
+=========
+
+Alerts must be:
+
+* triggered at the right time
+* shown once (not repeated)
+* not annoying
+* useful for daily work
+
+==================================================
+
+1. REMOVE FREQUENT POLLING
+   ==================================================
+
+Remove or disable:
+
+* auto refresh every 60 seconds
+* repeated alert generation loops
+
+The system must NOT run alerts continuously.
+
+==================================================
+2) ADD TRIGGER MODES
+====================
+
+Each alert must have:
+
+* trigger_mode:
+
+  * "event"
+  * "daily"
+
+* last_triggered_date (date only)
+
+---
+
+Rules:
+
+EVENT:
+
+* triggered immediately when action happens
+* example:
+
+  * sale → check customer debt
+  * purchase → check supplier
+  * stock change → check low stock
+
+DAILY:
+
+* triggered only once per day
+* only if not already triggered today
+
+==================================================
+3) EVENT-BASED ALERTS
+=====================
+
+Trigger alerts on:
+
+* sales (after save/post)
+* purchases
+* returns
+* stock changes
+
+Example:
+
+* if product becomes low stock → create alert
+* if customer exceeds limit → create alert
+
+IMPORTANT:
+
+* do NOT create duplicate alerts
+* update existing alert if already exists
+
+==================================================
+4) DAILY CHECK (ON LOGIN)
+=========================
+
+Run once per day:
+
+Trigger when:
+
+* user logs in
+  OR
+* first dashboard load of the day
+
+Run checks:
+
+* health check
+* low stock scan
+* customer debt scan
+* supplier payable scan
+* cash low check
+
+Before creating alert:
+
+* check last_triggered_date
+* if already triggered today → skip
+
+==================================================
+5) ALERT DEDUPLICATION (IMPORTANT)
+==================================
+
+Ensure:
+
+* only ONE alert per:
+  (type + reference_id)
+
+If exists:
+
+* update it
+* do NOT insert new row
+
+==================================================
+6) ADD OPTIONAL SETTINGS
+========================
+
+Add settings (simple config):
+
+* enable_event_alerts (true/false)
+* enable_daily_alerts (true/false)
+
+Default:
+
+* both enabled
+
+==================================================
+7) UI BEHAVIOR
+==============
+
+* remove constant refresh
+* fetch alerts:
+
+  * on page load
+  * on manual refresh button
+
+Add button:
+
+* "تحديث التنبيهات"
+
+==================================================
+8) MESSAGE RULE
+===============
+
+Alert must not repeat in same day unless:
+
+* issue changed (e.g. higher amount)
+  OR
+* alert was resolved and reappeared
+
+==================================================
+9) PERFORMANCE
+==============
+
+* no background loops
+* no heavy repeated queries
+* only run checks when needed
+
+==================================================
+10) FINAL TESTS
+===============
+
+Test:
+
+1. sale triggers customer debt alert → once only
+2. low stock triggers alert → once
+3. login triggers daily alerts → only first time per day
+4. refresh does NOT duplicate alerts
+5. same alert not repeated multiple times
+6. system works without polling
+
+==================================================
+11) FINAL OUTPUT
+================
+
+After finishing:
+
+* confirm polling removed
+* show example event alert
+* show example daily alert
+* confirm no duplicates
+* confirm no spam
+
+Implement clean and simple.
+This is a usability improvement.
