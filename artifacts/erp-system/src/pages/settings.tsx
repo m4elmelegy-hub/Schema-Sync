@@ -1264,6 +1264,14 @@ function BackupImportTab() {
   const [restoreError,   setRestoreError]   = useState<string | null>(null);
   const restoreFileRef = useRef<HTMLInputElement>(null);
 
+  const [restoreModal,        setRestoreModal]        = useState(false);
+  const [restoreConfirmText,  setRestoreConfirmText]  = useState("");
+  const [restoreUnderstood,   setRestoreUnderstood]   = useState(false);
+  const [pendingRestore,      setPendingRestore]      = useState<{
+    fileName: string; parsed: unknown;
+    version: string | null; date: string | null; tableCount: number;
+  } | null>(null);
+
   const toggleModule = (key: string) => setBkModules(prev => {
     const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s;
   });
@@ -1348,26 +1356,42 @@ function BackupImportTab() {
     if (!file.name.endsWith(".json")) {
       toast({ title: "يجب اختيار ملف JSON", variant: "destructive" }); return;
     }
-    setRestoreLoading(true); setRestoreResult(null); setRestoreError(null);
     try {
       const text   = await file.text();
-      const parsed = JSON.parse(text);
+      const parsed = JSON.parse(text) as Record<string, unknown>;
+      const version    = typeof parsed.version === "string" ? parsed.version : null;
+      const date       = typeof parsed.created_at === "string" ? parsed.created_at : null;
+      const dataSection = (parsed.data ?? parsed.tables ?? parsed) as Record<string, unknown>;
+      const tableCount  = Object.values(dataSection).filter(Array.isArray).length;
+      setPendingRestore({ fileName: file.name, parsed, version, date, tableCount });
+      setRestoreConfirmText(""); setRestoreUnderstood(false);
+      setRestoreModal(true);
+    } catch {
+      toast({ title: "ملف JSON غير صالح", variant: "destructive" });
+    }
+  };
+
+  const handleConfirmRestore = async () => {
+    if (!pendingRestore) return;
+    setRestoreModal(false);
+    setRestoreLoading(true); setRestoreResult(null); setRestoreError(null);
+    try {
       const res = await authFetch(api("/api/system/restore"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(parsed),
+        body: JSON.stringify(pendingRestore.parsed),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "فشل الاستعادة");
       setRestoreResult({ counts: data.counts ?? {}, meta: data.meta ?? { file_version: "legacy", file_date: null, is_legacy: true } });
-      pushActivity({ date: new Date().toISOString(), type: "backup", file: file.name, status: "✅ استعادة ناجحة", user: "Admin" });
+      pushActivity({ date: new Date().toISOString(), type: "backup", file: pendingRestore.fileName, status: "✅ استعادة ناجحة", user: "Admin" });
       refreshLog();
       toast({ title: "✅ تمت استعادة النسخة الاحتياطية بنجاح" });
     } catch (e: unknown) {
-      const msg = e instanceof SyntaxError ? "ملف JSON غير صالح" : (e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
       setRestoreError(msg);
       toast({ title: "فشل الاستعادة", description: msg, variant: "destructive" });
-    } finally { setRestoreLoading(false); }
+    } finally { setRestoreLoading(false); setPendingRestore(null); }
   };
 
   const handleProductsExport = async () => {
@@ -1548,9 +1572,151 @@ function BackupImportTab() {
     XLSX.writeFile(wb, "template-purchase-invoice.xlsx");
   };
 
+  const canConfirmRestore = restoreConfirmText === "RESTORE" && restoreUnderstood;
+
   return (
     <div className="space-y-6">
       <PageHeader title="النسخ الاحتياطية والاستيراد" sub="احتفظ ببيانات نظامك واستورد البيانات بأمان" />
+
+      {/* ══════════════════════════════════════════════════════════
+          RESTORE CONFIRMATION MODAL
+          ══════════════════════════════════════════════════════════ */}
+      {restoreModal && pendingRestore && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" dir="rtl">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => setRestoreModal(false)}
+          />
+
+          {/* Panel */}
+          <div className="relative w-full max-w-md bg-[#0F1623] border border-red-500/30 rounded-2xl shadow-2xl overflow-hidden">
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-red-500/20 bg-red-500/5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-red-500/15 flex items-center justify-center">
+                  <AlertTriangle className="w-5 h-5 text-red-400" />
+                </div>
+                <div>
+                  <p className="font-bold text-red-400 text-sm">تأكيد الاستعادة</p>
+                  <p className="text-white/30 text-xs">هذا الإجراء لا يمكن التراجع عنه</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setRestoreModal(false)}
+                className="p-1.5 rounded-lg text-white/30 hover:text-white hover:bg-white/8 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-5">
+              {/* Warning banner */}
+              <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 space-y-1">
+                <p className="text-red-300 font-bold text-sm text-center">
+                  ⚠️ سيتم حذف كل البيانات الحالية واستبدالها بالنسخة الاحتياطية
+                </p>
+                <p className="text-white/40 text-xs text-center">المستخدمون والإعدادات الأساسية تبقى كما هي</p>
+              </div>
+
+              {/* File info */}
+              <div className="p-3 rounded-xl bg-white/3 border border-white/8 space-y-2">
+                <p className="text-white/50 text-xs font-bold uppercase tracking-widest">معلومات الملف</p>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <p className="text-white/30 mb-0.5">اسم الملف</p>
+                    <p className="text-white font-bold truncate">{pendingRestore.fileName}</p>
+                  </div>
+                  <div>
+                    <p className="text-white/30 mb-0.5">الإصدار</p>
+                    <p className="text-white font-bold">{pendingRestore.version ?? "legacy"}</p>
+                  </div>
+                  {pendingRestore.date && (
+                    <div className="col-span-2">
+                      <p className="text-white/30 mb-0.5">تاريخ الإنشاء</p>
+                      <p className="text-white font-bold">{new Date(pendingRestore.date).toLocaleString("ar-EG")}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-white/30 mb-0.5">عدد الجداول</p>
+                    <p className="text-white font-bold">{pendingRestore.tableCount} جدول</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Type RESTORE */}
+              <div className="space-y-2">
+                <label className="block text-white/60 text-sm">
+                  اكتب <span className="text-red-400 font-black tracking-widest">RESTORE</span> للمتابعة:
+                </label>
+                <input
+                  type="text"
+                  value={restoreConfirmText}
+                  onChange={e => setRestoreConfirmText(e.target.value)}
+                  placeholder="RESTORE"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className={`w-full bg-white/5 border rounded-xl px-4 py-3 text-sm font-bold text-center tracking-widest outline-none transition-all placeholder:text-white/15 placeholder:font-normal placeholder:tracking-normal ${
+                    restoreConfirmText === "RESTORE"
+                      ? "border-emerald-500/50 text-emerald-400 bg-emerald-500/5"
+                      : restoreConfirmText.length > 0
+                        ? "border-red-500/40 text-white"
+                        : "border-white/10 text-white"
+                  }`}
+                />
+                {restoreConfirmText.length > 0 && restoreConfirmText !== "RESTORE" && (
+                  <p className="text-red-400/70 text-xs text-center">يجب كتابة RESTORE بالأحرف الكبيرة</p>
+                )}
+                {restoreConfirmText === "RESTORE" && (
+                  <p className="text-emerald-400/70 text-xs text-center flex items-center justify-center gap-1">
+                    <Check className="w-3 h-3" /> صحيح
+                  </p>
+                )}
+              </div>
+
+              {/* Understood checkbox */}
+              <label className="flex items-start gap-3 cursor-pointer group">
+                <div
+                  onClick={() => setRestoreUnderstood(v => !v)}
+                  className={`mt-0.5 w-5 h-5 shrink-0 rounded-md border-2 flex items-center justify-center transition-all ${
+                    restoreUnderstood
+                      ? "bg-red-500 border-red-500"
+                      : "bg-transparent border-white/20 group-hover:border-white/40"
+                  }`}
+                >
+                  {restoreUnderstood && <Check className="w-3 h-3 text-white" />}
+                </div>
+                <span className="text-white/60 text-sm leading-relaxed select-none">
+                  فهمت أن <span className="text-red-400 font-bold">جميع البيانات الحالية سيتم حذفها</span> واستبدالها بمحتوى الملف المحدد
+                </span>
+              </label>
+
+              {/* Action buttons */}
+              <div className="flex gap-3 pt-1">
+                <button
+                  onClick={() => setRestoreModal(false)}
+                  className="flex-1 py-3 rounded-xl border border-white/10 text-white/50 hover:text-white hover:border-white/20 transition-all text-sm font-bold"
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={handleConfirmRestore}
+                  disabled={!canConfirmRestore}
+                  className={`flex-1 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                    canConfirmRestore
+                      ? "bg-red-500 hover:bg-red-400 text-white shadow-lg shadow-red-500/25"
+                      : "bg-white/5 text-white/20 cursor-not-allowed"
+                  }`}
+                >
+                  <Upload className="w-4 h-4" />
+                  استعادة النسخة الاحتياطية
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── BACKUP ── */}
       <div className="bg-[#111827] border border-white/5 rounded-2xl overflow-hidden">
