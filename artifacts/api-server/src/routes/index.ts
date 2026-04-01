@@ -26,6 +26,7 @@ import reportsRouter from "./reports";
 import authRouter from "./auth";
 import openingBalanceRouter from "./opening-balance";
 import contactsRouter from "./contacts";
+import alertsRouter from "./alerts";
 
 const router: IRouter = Router();
 
@@ -61,5 +62,6 @@ router.use(inventoryRouter);
 router.use(reportsRouter);
 router.use(openingBalanceRouter);
 router.use(contactsRouter);
+router.use(alertsRouter);
 
 export default router;

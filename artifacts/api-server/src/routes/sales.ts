@@ -10,6 +10,7 @@ import {
 import { wrap, httpError } from "../lib/async-handler";
 import { assertPeriodOpen } from "../lib/period-lock";
 import { getCustomerLedgerBalance } from "../lib/ledger-balance";
+import { runAllChecks } from "../lib/alert-service";
 import {
   getOrCreateSalesRevenueAccount,
   getOrCreateSafeAccount,
@@ -306,6 +307,15 @@ router.post("/sales/:id/post", wrap(async (req, res) => {
     .set({ posting_status: "posted" })
     .where(eq(salesTable.id, id))
     .returning();
+
+  // Fire-and-forget alert checks after posting
+  const saleItems = await db.select({ product_id: saleItemsTable.product_id })
+    .from(saleItemsTable).where(eq(saleItemsTable.sale_id, id));
+  const customerIdForAlert = updated.customer_id ?? undefined;
+  void runAllChecks({ customerId: customerIdForAlert });
+  for (const item of saleItems) {
+    if (item.product_id) void runAllChecks({ productId: item.product_id });
+  }
 
   res.json(formatSale(updated));
 }));

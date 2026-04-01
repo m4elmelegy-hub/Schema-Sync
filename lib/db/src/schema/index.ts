@@ -15,3 +15,4 @@ export * from "./vouchers";
 export * from "./stock_movements";
 export * from "./audit-logs";
 export * from "./settings";
+export * from "./alerts";

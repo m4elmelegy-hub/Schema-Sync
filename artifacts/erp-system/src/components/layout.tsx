@@ -6,6 +6,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { NAV_ITEMS, canAccess, type UserRole } from "@/lib/rbac";
 import { LogOut, ChevronLeft } from "lucide-react";
 import { PageTransition } from "@/components/page-transition";
+import { AlertBell } from "@/components/alert-bell";
 
 interface LayoutProps { children: ReactNode; }
 
@@ -196,6 +197,7 @@ export function AppLayout({ children }: LayoutProps) {
           </div>
 
           <div className="flex items-center gap-2">
+            <AlertBell />
             <ThemeToggle />
             {user && (
               <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl"

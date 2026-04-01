@@ -8,6 +8,7 @@
  */
 import { Router, type IRouter } from "express";
 import { sql } from "drizzle-orm";
+import { checkHealthCritical } from "../lib/alert-service";
 import { db } from "@workspace/db";
 import { wrap } from "../lib/async-handler";
 
@@ -1055,6 +1056,9 @@ router.get("/reports/health-check", wrap(async (req, res) => {
     accounting_issues: issues.filter(i => i.group === "accounting_issues"),
     cash_issues:       issues.filter(i => i.group === "cash_issues"),
   };
+
+  // Fire-and-forget: update health alert based on result
+  void checkHealthCritical(criticalCount > 0);
 
   res.json({
     status:     overallStatus,

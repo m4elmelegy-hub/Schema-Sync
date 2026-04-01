@@ -1,0 +1,141 @@
+You are a developer.
+
+Build a simple and useful Alerts system for the ERP.
+
+Do NOT over-engineer.
+Keep it practical and fast.
+
+==================================================
+MAIN GOAL
+=========
+
+Notify the user when important business issues happen.
+
+==================================================
+
+1. ALERT TYPES (REQUIRED)
+   ==================================================
+
+Create alerts for:
+
+1. Low Stock
+
+* product.quantity <= low_stock_threshold
+
+2. Customer Debt Limit
+
+* customer AR balance > limit (example: 10,000)
+
+3. Supplier Payable Limit
+
+* supplier AP balance > limit
+
+4. Cash Low
+
+* safe balance < minimum threshold
+
+5. Health Check Critical
+
+* if health-check returns CRITICAL
+
+==================================================
+2) DATABASE
+===========
+
+Create table: alerts
+
+Fields:
+
+* id
+* type (low_stock, customer_debt, supplier_payable, cash_low, health)
+* severity (WARNING / CRITICAL)
+* message
+* reference_id (product_id / customer_id / etc)
+* is_read (boolean)
+* created_at
+
+==================================================
+3) ALERT GENERATION
+===================
+
+Run checks:
+
+* on important actions (sales, purchases, vouchers)
+* OR simple periodic check (optional)
+
+Do NOT create duplicate alerts for same issue:
+
+* if same issue exists → update it instead of inserting new one
+
+==================================================
+4) API ENDPOINTS
+================
+
+GET /alerts
+
+* list all alerts (latest first)
+
+POST /alerts/mark-read/:id
+
+* mark alert as read
+
+POST /alerts/mark-all-read
+
+* mark all as read
+
+==================================================
+5) MESSAGE FORMAT
+=================
+
+Make messages clear and in Arabic:
+
+Examples:
+
+* "المخزون منخفض للمنتج (iPhone Screen)"
+* "رصيد العميل محمد تجاوز الحد المسموح (12000)"
+* "رصيد الخزنة أقل من الحد الأدنى"
+* "يوجد مشكلة حرجة في صحة النظام"
+
+==================================================
+6) UI (SIMPLE)
+==============
+
+Add:
+
+* Alerts icon (🔔) in header
+* Show unread count
+* Dropdown list of alerts
+* Each alert clickable
+
+Color:
+
+* WARNING → yellow
+* CRITICAL → red
+
+==================================================
+7) RULES
+========
+
+* Do NOT block system
+* Alerts are informational only
+* Must be fast
+* Avoid duplicates
+
+==================================================
+8) FINAL TEST
+=============
+
+Test:
+
+1. product low stock → alert created
+2. customer exceeds limit → alert created
+3. health check critical → alert created
+4. mark read works
+5. no duplicate alerts
+
+==================================================
+After finishing:
+
+* show sample alerts
+* show API response
+* confirm no duplicates
