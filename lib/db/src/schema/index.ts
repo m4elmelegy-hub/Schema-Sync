@@ -13,3 +13,4 @@ export * from "./accounts";
 export * from "./returns";
 export * from "./vouchers";
 export * from "./stock_movements";
+export * from "./audit-logs";

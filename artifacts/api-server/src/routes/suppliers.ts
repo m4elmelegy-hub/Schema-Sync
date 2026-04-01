@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, max } from "drizzle-orm";
 import { db, suppliersTable, transactionsTable, safesTable, purchasesTable, purchaseReturnsTable } from "@workspace/db";
+import { writeAuditLog } from "../lib/audit-log";
 import {
   GetSuppliersResponse,
   CreateSupplierBody,
@@ -79,6 +80,14 @@ router.post("/suppliers", wrap(async (req, res) => {
     .where(eq(suppliersTable.id, supplier.id))
     .returning();
 
+  void writeAuditLog({
+    action: "create",
+    record_type: "supplier",
+    record_id: updated.id,
+    new_value: formatSupplier(updated),
+    user: req.user ? { id: req.user.id, username: req.user.username } : null,
+  });
+
   res.status(201).json(formatSupplier(updated));
 }));
 
@@ -106,6 +115,8 @@ router.put("/suppliers/:id", wrap(async (req, res) => {
     return;
   }
 
+  const [before] = await db.select().from(suppliersTable).where(eq(suppliersTable.id, params.data.id));
+
   const [supplier] = await db.update(suppliersTable).set({
     name: parsed.data.name.trim(),
     normalized_name: normalized,
@@ -117,6 +128,16 @@ router.put("/suppliers/:id", wrap(async (req, res) => {
     res.status(404).json({ error: "Supplier not found" });
     return;
   }
+
+  void writeAuditLog({
+    action: "update",
+    record_type: "supplier",
+    record_id: supplier.id,
+    old_value: before ? formatSupplier(before) : null,
+    new_value: formatSupplier(supplier),
+    user: req.user ? { id: req.user.id, username: req.user.username } : null,
+  });
+
   res.json(UpdateSupplierResponse.parse(formatSupplier(supplier)));
 }));
 
@@ -126,7 +147,19 @@ router.delete("/suppliers/:id", wrap(async (req, res) => {
     res.status(400).json({ error: params.error.message });
     return;
   }
+
+  const [before] = await db.select().from(suppliersTable).where(eq(suppliersTable.id, params.data.id));
   await db.delete(suppliersTable).where(eq(suppliersTable.id, params.data.id));
+
+  void writeAuditLog({
+    action: "delete",
+    record_type: "supplier",
+    record_id: params.data.id,
+    old_value: before ? formatSupplier(before) : null,
+    new_value: null,
+    user: req.user ? { id: req.user.id, username: req.user.username } : null,
+  });
+
   res.json(DeleteSupplierResponse.parse({ success: true, message: "Supplier deleted" }));
 }));
 

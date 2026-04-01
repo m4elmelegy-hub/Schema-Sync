@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, ne, max } from "drizzle-orm";
 import { db, customersTable, transactionsTable, safesTable } from "@workspace/db";
+import { writeAuditLog } from "../lib/audit-log";
 import {
   GetCustomersResponse,
   CreateCustomerBody,
@@ -80,6 +81,14 @@ router.post("/customers", wrap(async (req, res) => {
     .where(eq(customersTable.id, customer.id))
     .returning();
 
+  void writeAuditLog({
+    action: "create",
+    record_type: "customer",
+    record_id: updated.id,
+    new_value: formatCustomer(updated),
+    user: req.user ? { id: req.user.id, username: req.user.username } : null,
+  });
+
   res.status(201).json(formatCustomer(updated));
 }));
 
@@ -107,6 +116,8 @@ router.put("/customers/:id", wrap(async (req, res) => {
     return;
   }
 
+  const [before] = await db.select().from(customersTable).where(eq(customersTable.id, params.data.id));
+
   const [customer] = await db.update(customersTable).set({
     name: parsed.data.name.trim(),
     normalized_name: normalized,
@@ -118,6 +129,16 @@ router.put("/customers/:id", wrap(async (req, res) => {
     res.status(404).json({ error: "Customer not found" });
     return;
   }
+
+  void writeAuditLog({
+    action: "update",
+    record_type: "customer",
+    record_id: customer.id,
+    old_value: before ? formatCustomer(before) : null,
+    new_value: formatCustomer(customer),
+    user: req.user ? { id: req.user.id, username: req.user.username } : null,
+  });
+
   res.json(UpdateCustomerResponse.parse(formatCustomer(customer)));
 }));
 
@@ -127,7 +148,19 @@ router.delete("/customers/:id", wrap(async (req, res) => {
     res.status(400).json({ error: params.error.message });
     return;
   }
+
+  const [before] = await db.select().from(customersTable).where(eq(customersTable.id, params.data.id));
   await db.delete(customersTable).where(eq(customersTable.id, params.data.id));
+
+  void writeAuditLog({
+    action: "delete",
+    record_type: "customer",
+    record_id: params.data.id,
+    old_value: before ? formatCustomer(before) : null,
+    new_value: null,
+    user: req.user ? { id: req.user.id, username: req.user.username } : null,
+  });
+
   res.json(DeleteCustomerResponse.parse({ success: true, message: "Customer deleted" }));
 }));
 
