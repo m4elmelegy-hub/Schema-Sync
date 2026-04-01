@@ -2,6 +2,9 @@
  * /api/reports/* — نظام التقارير الشامل
  * جميع التقارير تستخدم الوثائق المرحّلة فقط (posting_status = 'posted')
  * وتستثني الملغاة والمسودة
+ *
+ * كل تقرير يتضمن كتلة تحقق (validation) بالشكل:
+ *   { status: "OK"|"WARNING", validation_message?, checks: [...] }
  */
 import { Router, type IRouter } from "express";
 import { sql } from "drizzle-orm";
@@ -16,6 +19,36 @@ function dateFilter(col: string, from?: string, to?: string): string {
   if (from) parts.push(`${col} >= '${from}'`);
   if (to)   parts.push(`${col} <= '${to}'`);
   return parts.length ? `AND ${parts.join(" AND ")}` : "";
+}
+
+/* ── مساعد: طبقة التحقق من صحة الأرقام ────────────────────────────────── */
+const TOLERANCE = 0.02; // تسامح بحد أقصى قرشين للفروق العشرية
+
+interface CheckItem { name: string; expected: number; actual: number; ok: boolean }
+interface ValidationResult {
+  status: "OK" | "WARNING";
+  validation_message?: string;
+  checks: CheckItem[];
+}
+
+function r2(n: number) { return Math.round(n * 100) / 100; }
+
+function buildValidation(checks: Omit<CheckItem, "ok">[]): ValidationResult {
+  const results: CheckItem[] = checks.map(c => ({
+    ...c,
+    expected: r2(c.expected),
+    actual:   r2(c.actual),
+    ok: Math.abs(r2(c.expected) - r2(c.actual)) <= TOLERANCE,
+  }));
+  const failed = results.filter(c => !c.ok);
+  if (failed.length === 0) return { status: "OK", checks: results };
+  return {
+    status: "WARNING",
+    validation_message: failed.map(f =>
+      `"${f.name}": متوقع ${f.expected}، فعلي ${f.actual}`
+    ).join(" | "),
+    checks: results,
+  };
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -84,14 +117,25 @@ router.get("/reports/product-profit", wrap(async (req, res) => {
   const totCogs    = products.reduce((s, p) => s + p.cogs, 0);
   const totProfit  = totRevenue - totCogs;
 
+  // ── تحقق: إجمالي الإيراد - إجمالي التكلفة = إجمالي الربح ───────────────
+  const productValidation = buildValidation([
+    { name: "إجمالي الإيراد - إجمالي التكلفة = إجمالي الربح",
+      expected: r2(totRevenue) - r2(totCogs),
+      actual:   r2(totProfit) },
+    { name: "مجموع أرباح الأصناف = إجمالي الربح",
+      expected: r2(products.reduce((s, p) => s + p.profit, 0)),
+      actual:   r2(totProfit) },
+  ]);
+
   res.json({
     products,
     summary: {
-      total_revenue:       Math.round(totRevenue * 100) / 100,
-      total_cogs:          Math.round(totCogs    * 100) / 100,
-      total_profit:        Math.round(totProfit  * 100) / 100,
+      total_revenue:       r2(totRevenue),
+      total_cogs:          r2(totCogs),
+      total_profit:        r2(totProfit),
       overall_margin:      totRevenue > 0 ? Math.round((totProfit / totRevenue) * 10000) / 100 : 0,
     },
+    validation: productValidation,
   });
 }));
 
@@ -174,15 +218,47 @@ router.get("/reports/daily-profit", wrap(async (req, res) => {
   const totExpenses    = days.reduce((s, d) => s + d.expenses,     0);
   const totNet         = days.reduce((s, d) => s + d.net_profit,   0);
 
+  // ── تحقق داخلي: المعادلات المحاسبية يومياً وإجمالياً ─────────────────────
+  const dayWarnings: string[] = [];
+  for (const d of days) {
+    const expectedGross = r2(d.net_sales) - r2(d.total_cogs);
+    const expectedNet   = r2(d.gross_profit) - r2(d.expenses);
+    if (Math.abs(expectedGross - r2(d.gross_profit)) > TOLERANCE)
+      dayWarnings.push(`${d.day}: الإيراد الصافي - التكلفة ≠ الربح الإجمالي (${expectedGross} ≠ ${r2(d.gross_profit)})`);
+    if (Math.abs(expectedNet - r2(d.net_profit)) > TOLERANCE)
+      dayWarnings.push(`${d.day}: الربح الإجمالي - المصروفات ≠ صافي الربح (${expectedNet} ≠ ${r2(d.net_profit)})`);
+  }
+
+  const dailyValidation = buildValidation([
+    { name: "إجمالي الإيرادات الصافية - إجمالي التكلفة = إجمالي الربح الإجمالي",
+      expected: r2(totNetSales) - r2(totNetCogs),
+      actual:   r2(totGross) },
+    { name: "إجمالي الربح الإجمالي - إجمالي المصروفات = صافي الربح الإجمالي",
+      expected: r2(totGross) - r2(totExpenses),
+      actual:   r2(totNet) },
+    { name: "مجموع الأيام - صافي الربح = إجمالي صافي الربح",
+      expected: r2(days.reduce((s, d) => s + d.net_profit, 0)),
+      actual:   r2(totNet) },
+  ]);
+
+  if (dayWarnings.length > 0) {
+    dailyValidation.status = "WARNING";
+    dailyValidation.validation_message = [
+      ...(dailyValidation.validation_message ? [dailyValidation.validation_message] : []),
+      ...dayWarnings,
+    ].join(" | ");
+  }
+
   res.json({
     days,
     summary: {
-      total_net_sales:    Math.round(totNetSales * 100) / 100,
-      total_cogs:         Math.round(totNetCogs  * 100) / 100,
-      total_gross_profit: Math.round(totGross    * 100) / 100,
-      total_expenses:     Math.round(totExpenses * 100) / 100,
-      total_net_profit:   Math.round(totNet      * 100) / 100,
+      total_net_sales:    r2(totNetSales),
+      total_cogs:         r2(totNetCogs),
+      total_gross_profit: r2(totGross),
+      total_expenses:     r2(totExpenses),
+      total_net_profit:   r2(totNet),
     },
+    validation: dailyValidation,
   });
 }));
 
@@ -315,11 +391,33 @@ router.get("/reports/customer-statement", wrap(async (req, res) => {
     return { ...row, balance: Math.round(runningBalance * 100) / 100 };
   });
 
+  // ── تحقق: رصيد الافتتاح + الفواتير - المدفوعات - المرتجعات = رصيد الإغلاق ──
+  const periodDebits  = periodRows.filter(r => r.type === "sale")
+    .reduce((s, r) => s + r.debit, 0);
+  const periodCredits = periodRows.filter(r => r.type !== "sale" && r.type !== "opening_balance")
+    .reduce((s, r) => s + r.credit, 0);
+  const openingRowCredit = periodRows.filter(r => r.type === "opening_balance")
+    .reduce((s, r) => s + r.credit, 0);
+
+  const customerValidation = buildValidation([
+    {
+      name: "الافتتاح + الفواتير - المقبوضات - المرتجعات = رصيد الإغلاق",
+      expected: r2(openingBalance) + r2(openingRowCredit) + r2(periodCredits) - r2(periodDebits),
+      actual:   r2(runningBalance),
+    },
+    {
+      name: "رصيد العميل في النظام = رصيد الإغلاق (بلا فلتر تاريخ)",
+      expected: !(date_from || date_to) ? r2(Number(customer.balance)) : r2(runningBalance),
+      actual:   r2(runningBalance),
+    },
+  ]);
+
   res.json({
     customer: { id: Number(customer.id), name: String(customer.name), balance: Number(customer.balance), customer_code: customer.customer_code },
-    opening_balance: Math.round(openingBalance * 100) / 100,
+    opening_balance: r2(openingBalance),
     statement,
-    closing_balance: Math.round(runningBalance * 100) / 100,
+    closing_balance: r2(runningBalance),
+    validation: customerValidation,
   });
 }));
 
@@ -397,11 +495,35 @@ router.get("/reports/supplier-statement", wrap(async (req, res) => {
     return { ...row, balance: Math.round(runningBalance * 100) / 100 };
   });
 
+  // ── تحقق: الافتتاح + الفواتير - المدفوعات - المرتجعات = رصيد الإغلاق ──────
+  const supPeriodPurchases = periodRows.filter(r => r.type === "purchase")
+    .reduce((s, r) => s + r.credit, 0);
+  const supPeriodPayments  = periodRows.filter(r => r.type === "payment")
+    .reduce((s, r) => s + r.debit, 0);
+  const supPeriodReturns   = periodRows.filter(r => r.type === "purchase_return")
+    .reduce((s, r) => s + r.debit, 0);
+  const supOpeningCredit   = periodRows.filter(r => r.type === "opening_balance")
+    .reduce((s, r) => s + r.credit, 0);
+
+  const supplierValidation = buildValidation([
+    {
+      name: "الافتتاح + فواتير الشراء - المدفوعات - المرتجعات = رصيد الإغلاق",
+      expected: r2(openingBalance) + r2(supOpeningCredit) + r2(supPeriodPurchases) - r2(supPeriodPayments) - r2(supPeriodReturns),
+      actual:   r2(runningBalance),
+    },
+    {
+      name: "رصيد المورد في النظام = رصيد الإغلاق (بلا فلتر تاريخ)",
+      expected: !(date_from || date_to) ? r2(Number(supplier.balance)) : r2(runningBalance),
+      actual:   r2(runningBalance),
+    },
+  ]);
+
   res.json({
     supplier: { id: Number(supplier.id), name: String(supplier.name), balance: Number(supplier.balance) },
-    opening_balance: Math.round(openingBalance * 100) / 100,
+    opening_balance: r2(openingBalance),
     statement,
-    closing_balance: Math.round(runningBalance * 100) / 100,
+    closing_balance: r2(runningBalance),
+    validation: supplierValidation,
   });
 }));
 
@@ -487,13 +609,39 @@ router.get("/reports/cash-flow", wrap(async (req, res) => {
   const totIn  = days.reduce((s, d) => s + d.total_in,  0);
   const totOut = days.reduce((s, d) => s + d.total_out, 0);
 
+  // ── تحقق: تحقق من الاتساق الداخلي للتدفق النقدي ─────────────────────────
+  const cfDayWarnings: string[] = [];
+  for (const d of days) {
+    const expectedNet = r2(d.total_in) - r2(d.total_out);
+    if (Math.abs(expectedNet - r2(d.net_flow)) > TOLERANCE)
+      cfDayWarnings.push(`${d.day}: الوارد - الصادر ≠ صافي التدفق (${expectedNet} ≠ ${r2(d.net_flow)})`);
+  }
+
+  const cashFlowValidation = buildValidation([
+    { name: "إجمالي الوارد - إجمالي الصادر = صافي التدفق النقدي",
+      expected: r2(totIn) - r2(totOut),
+      actual:   r2(totIn - totOut) },
+    { name: "مجموع صافي أيام التدفق = إجمالي صافي التدفق",
+      expected: r2(days.reduce((s, d) => s + d.net_flow, 0)),
+      actual:   r2(totIn - totOut) },
+  ]);
+
+  if (cfDayWarnings.length > 0) {
+    cashFlowValidation.status = "WARNING";
+    cashFlowValidation.validation_message = [
+      ...(cashFlowValidation.validation_message ? [cashFlowValidation.validation_message] : []),
+      ...cfDayWarnings,
+    ].join(" | ");
+  }
+
   res.json({
     days,
     summary: {
-      total_in:       Math.round(totIn          * 100) / 100,
-      total_out:      Math.round(totOut         * 100) / 100,
-      net_cash_flow:  Math.round((totIn - totOut) * 100) / 100,
+      total_in:      r2(totIn),
+      total_out:     r2(totOut),
+      net_cash_flow: r2(totIn - totOut),
     },
+    validation: cashFlowValidation,
   });
 }));
 

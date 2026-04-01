@@ -59,31 +59,85 @@ router.get("/inventory/audit", wrap(async (_req, res) => {
     ORDER BY p.name
   `);
 
-  const products = (rows.rows as unknown as AuditRow[]).map(r => ({
-    id: Number(r.id),
-    name: String(r.name),
-    sku: r.sku ? String(r.sku) : null,
-    category: r.category ? String(r.category) : null,
-    actual_qty: Number(r.actual_qty),
-    cost_price: Number(r.cost_price),
-    sale_price: Number(r.sale_price),
-    low_stock_threshold: r.low_stock_threshold ? Number(r.low_stock_threshold) : null,
-    opening_qty: Number(r.opening_qty),
-    purchased_qty: Number(r.purchased_qty),
-    sold_qty: Number(r.sold_qty),
-    sale_return_qty: Number(r.sale_return_qty),
-    purchase_return_qty: Number(r.purchase_return_qty),
-    adjustment_qty: Number(r.adjustment_qty),
-    calculated_qty: Number(r.calculated_qty),
-    discrepancy: Number(r.actual_qty) - Number(r.calculated_qty),
-    total_value: Number(r.actual_qty) * Number(r.cost_price),
-  }));
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const TOLERANCE = 0.02;
 
-  const total_inventory_value = products.reduce((s, p) => s + p.total_value, 0);
-  const low_stock_count = products.filter(p =>
-    p.low_stock_threshold !== null && p.actual_qty <= p.low_stock_threshold
-  ).length;
+  const products = (rows.rows as unknown as AuditRow[]).map(r => {
+    const actual_qty    = Number(r.actual_qty);
+    const cost_price    = Number(r.cost_price);
+    const calculated_qty = Number(r.calculated_qty);
+    const total_value   = r2(actual_qty * cost_price);
+    const discrepancy   = r2(actual_qty - calculated_qty);
+
+    // تحقق على مستوى المنتج: الكمية × السعر = القيمة، والكمية المحسوبة = الفعلية
+    const checks: Array<{ name: string; expected: number; actual: number; ok: boolean }> = [
+      {
+        name: "الكمية × سعر التكلفة = قيمة المخزون",
+        expected: r2(actual_qty * cost_price),
+        actual:   total_value,
+        ok: Math.abs(r2(actual_qty * cost_price) - total_value) <= TOLERANCE,
+      },
+      {
+        name: "الكمية المحسوبة من الحركات = الكمية الفعلية",
+        expected: r2(calculated_qty),
+        actual:   r2(actual_qty),
+        ok: Math.abs(discrepancy) <= TOLERANCE,
+      },
+    ];
+    const productStatus = checks.every(c => c.ok) ? "OK" : "WARNING";
+
+    return {
+      id: Number(r.id),
+      name: String(r.name),
+      sku: r.sku ? String(r.sku) : null,
+      category: r.category ? String(r.category) : null,
+      actual_qty,
+      cost_price,
+      sale_price: Number(r.sale_price),
+      low_stock_threshold: r.low_stock_threshold ? Number(r.low_stock_threshold) : null,
+      opening_qty: Number(r.opening_qty),
+      purchased_qty: Number(r.purchased_qty),
+      sold_qty: Number(r.sold_qty),
+      sale_return_qty: Number(r.sale_return_qty),
+      purchase_return_qty: Number(r.purchase_return_qty),
+      adjustment_qty: Number(r.adjustment_qty),
+      calculated_qty,
+      discrepancy,
+      total_value,
+      validation: { status: productStatus as "OK" | "WARNING", checks },
+    };
+  });
+
+  const total_inventory_value = r2(products.reduce((s, p) => s + p.total_value, 0));
+  const low_stock_count  = products.filter(p => p.low_stock_threshold !== null && p.actual_qty <= p.low_stock_threshold).length;
   const zero_stock_count = products.filter(p => p.actual_qty <= 0).length;
+  const discrepancy_count = products.filter(p => p.validation.status === "WARNING").length;
+
+  // تحقق على مستوى المستودع الكامل
+  const summaryChecks = [
+    {
+      name: "مجموع قيم الأصناف = إجمالي قيمة المخزون",
+      expected: r2(products.reduce((s, p) => s + p.total_value, 0)),
+      actual:   total_inventory_value,
+      ok: Math.abs(r2(products.reduce((s, p) => s + p.total_value, 0)) - total_inventory_value) <= TOLERANCE,
+    },
+    {
+      name: "عدد الأصناف ذات الفارق = 0",
+      expected: 0,
+      actual:   discrepancy_count,
+      ok: discrepancy_count === 0,
+    },
+  ];
+  const summaryStatus = summaryChecks.every(c => c.ok) ? "OK" : "WARNING";
+  const summaryValidation = {
+    status: summaryStatus as "OK" | "WARNING",
+    ...(summaryStatus === "WARNING" ? {
+      validation_message: summaryChecks.filter(c => !c.ok).map(c =>
+        `"${c.name}": متوقع ${c.expected}، فعلي ${c.actual}`
+      ).join(" | "),
+    } : {}),
+    checks: summaryChecks,
+  };
 
   res.json({
     products,
@@ -92,7 +146,9 @@ router.get("/inventory/audit", wrap(async (_req, res) => {
       total_inventory_value,
       low_stock_count,
       zero_stock_count,
+      discrepancy_count,
     },
+    validation: summaryValidation,
   });
 }));
 
