@@ -14,6 +14,7 @@ import {
   CreateCustomerReceiptResponse,
 } from "@workspace/api-zod";
 import { wrap, httpError } from "../lib/async-handler";
+import { getOrCreateCustomerAccount } from "../lib/auto-account";
 
 const router: IRouter = Router();
 
@@ -72,7 +73,14 @@ router.post("/customers", wrap(async (req, res) => {
     balance: String(parsed.data.balance ?? 0),
     is_supplier: parsed.data.is_supplier ?? false,
   }).returning();
-  res.status(201).json(formatCustomer(customer));
+
+  const acct = await getOrCreateCustomerAccount(newCode, parsed.data.name.trim());
+  const [updated] = await db.update(customersTable)
+    .set({ account_id: acct.id })
+    .where(eq(customersTable.id, customer.id))
+    .returning();
+
+  res.status(201).json(formatCustomer(updated));
 }));
 
 router.put("/customers/:id", wrap(async (req, res) => {

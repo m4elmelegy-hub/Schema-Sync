@@ -9,9 +9,10 @@ import { db,
   productsTable, stockMovementsTable,
   customersTable, suppliersTable,
 } from "@workspace/db";
-import { sql } from "drizzle-orm";
+import { sql, isNull } from "drizzle-orm";
 import { wrap } from "../lib/async-handler";
 import { authenticate, requireRole } from "../middleware/auth";
+import { getOrCreateCustomerAccount, getOrCreateSupplierAccount } from "../lib/auto-account";
 
 const router: IRouter = Router();
 
@@ -68,6 +69,34 @@ router.post("/admin/clear", authenticate, requireRole("admin"), wrap(async (req,
 
   for (const t of sorted) await TABLES[t]();
   res.json({ success: true, cleared: sorted });
+}));
+
+/* ── ربط تلقائي: إنشاء حسابات للعملاء والموردين الموجودين ────────────────
+ *  POST /api/admin/backfill-accounts
+ *  يُنشئ حساباً محاسبياً لكل عميل/مورد لا يملك account_id بعد.
+ */
+router.post("/admin/backfill-accounts", [authenticate, requireRole("admin", "manager")], wrap(async (_req, res) => {
+  const customers = await db.select().from(customersTable).where(isNull(customersTable.account_id));
+  const suppliers = await db.select().from(suppliersTable).where(isNull(suppliersTable.account_id));
+
+  let customersLinked = 0;
+  let suppliersLinked = 0;
+
+  for (const c of customers) {
+    if (!c.customer_code) continue;
+    const acct = await getOrCreateCustomerAccount(c.customer_code, c.name);
+    await db.update(customersTable).set({ account_id: acct.id }).where(sql`id = ${c.id}`);
+    customersLinked++;
+  }
+
+  for (const s of suppliers) {
+    if (!s.supplier_code) continue;
+    const acct = await getOrCreateSupplierAccount(s.supplier_code, s.name);
+    await db.update(suppliersTable).set({ account_id: acct.id }).where(sql`id = ${s.id}`);
+    suppliersLinked++;
+  }
+
+  res.json({ success: true, customersLinked, suppliersLinked });
 }));
 
 export default router;

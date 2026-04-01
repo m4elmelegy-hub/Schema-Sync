@@ -14,6 +14,7 @@ import {
   CreateSupplierPaymentResponse,
 } from "@workspace/api-zod";
 import { wrap, httpError } from "../lib/async-handler";
+import { getOrCreateSupplierAccount } from "../lib/auto-account";
 
 const router: IRouter = Router();
 
@@ -71,7 +72,14 @@ router.post("/suppliers", wrap(async (req, res) => {
     balance: String(parsed.data.balance ?? 0),
     linked_customer_id: parsed.data.linked_customer_id ?? null,
   }).returning();
-  res.status(201).json(formatSupplier(supplier));
+
+  const acct = await getOrCreateSupplierAccount(newCode, parsed.data.name.trim());
+  const [updated] = await db.update(suppliersTable)
+    .set({ account_id: acct.id })
+    .where(eq(suppliersTable.id, supplier.id))
+    .returning();
+
+  res.status(201).json(formatSupplier(updated));
 }));
 
 router.put("/suppliers/:id", wrap(async (req, res) => {

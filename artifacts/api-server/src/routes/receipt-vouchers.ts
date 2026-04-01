@@ -1,8 +1,9 @@
 import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
-import { db, receiptVouchersTable, customersTable, safesTable, transactionsTable } from "@workspace/db";
+import { db, receiptVouchersTable, customersTable, safesTable, transactionsTable, accountsTable } from "@workspace/db";
 
 import { wrap, httpError } from "../lib/async-handler";
+import { getOrCreateSafeAccount, createAutoJournalEntry } from "../lib/auto-account";
 
 const router: IRouter = Router();
 
@@ -68,6 +69,38 @@ router.post("/receipt-vouchers", wrap(async (req, res) => {
 
     return v;
   });
+
+  // ── قيد محاسبي تلقائي: نقدية (مدين) × عميل (دائن) ────────────────────────
+  if (customer_id) {
+    const [cust] = await db
+      .select({ account_id: customersTable.account_id, name: customersTable.name })
+      .from(customersTable)
+      .where(eq(customersTable.id, parseInt(customer_id)));
+
+    if (cust?.account_id) {
+      const [custAcct] = await db
+        .select({ id: accountsTable.id, code: accountsTable.code, name: accountsTable.name })
+        .from(accountsTable)
+        .where(eq(accountsTable.id, cust.account_id));
+
+      const safeAcct = await getOrCreateSafeAccount(
+        parseInt(safe_id),
+        voucher.safe_name,
+      );
+
+      if (custAcct) {
+        await createAutoJournalEntry({
+          date: voucher.date,
+          description: `سند قبض ${voucher.voucher_no} — ${customer_name}`,
+          reference: voucher.voucher_no,
+          debit: safeAcct,
+          credit: custAcct,
+          amount: amt,
+        });
+      }
+    }
+  }
+
   res.status(201).json(fmt(voucher));
 }));
 

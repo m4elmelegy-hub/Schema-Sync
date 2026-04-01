@@ -10,6 +10,7 @@ export const customersTable = pgTable("customers", {
   phone: text("phone"),
   balance: numeric("balance", { precision: 12, scale: 2 }).notNull().default("0"),
   is_supplier: boolean("is_supplier").notNull().default(false),
+  account_id: integer("account_id"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   unique("customers_customer_code_unique").on(t.customer_code),
