@@ -13,6 +13,7 @@ export const receiptVouchersTable = pgTable("receipt_vouchers", {
   safe_id: integer("safe_id").notNull(),
   safe_name: text("safe_name").notNull(),
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  posting_status: text("posting_status").notNull().default("draft"), // draft | posted | cancelled
   notes: text("notes"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
@@ -33,6 +34,7 @@ export const depositVouchersTable = pgTable("deposit_vouchers", {
   safe_id: integer("safe_id").notNull(),
   safe_name: text("safe_name").notNull(),
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  posting_status: text("posting_status").notNull().default("draft"), // draft | posted | cancelled
   source: text("source"), // مصدر المبلغ (عند عدم وجود عميل)
   notes: text("notes"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -54,6 +56,7 @@ export const paymentVouchersTable = pgTable("payment_vouchers", {
   safe_id: integer("safe_id").notNull(),
   safe_name: text("safe_name").notNull(),
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  posting_status: text("posting_status").notNull().default("draft"), // draft | posted | cancelled
   notes: text("notes"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [

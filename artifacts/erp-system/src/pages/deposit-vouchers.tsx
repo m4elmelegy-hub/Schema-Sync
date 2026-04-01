@@ -3,7 +3,7 @@ import { authFetch } from "@/lib/auth-fetch";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useGetSettingsSafes } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
-import { Plus, Trash2, ArrowDownToLine } from "lucide-react";
+import { Plus, Trash2, ArrowDownToLine, CheckCircle, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TableSkeleton } from "@/components/skeletons";
 import { ConfirmModal } from "@/components/confirm-modal";
@@ -15,10 +15,17 @@ interface DepositVoucher {
   id: number; voucher_no: string; date: string;
   customer_id: number | null; customer_name: string | null;
   safe_id: number; safe_name: string;
-  amount: number; source: string | null; notes: string | null; created_at: string;
+  amount: number; posting_status: string;
+  source: string | null; notes: string | null; created_at: string;
 }
 
 interface Customer { id: number; name: string; balance: number; }
+
+function PostingBadge({ status }: { status: string }) {
+  if (status === "posted")    return <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-medium">مرحَّل</span>;
+  if (status === "cancelled") return <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 font-medium">ملغى</span>;
+  return <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-white/50 font-medium">مسودة</span>;
+}
 
 export default function DepositVouchers() {
   const qc = useQueryClient();
@@ -40,6 +47,12 @@ export default function DepositVouchers() {
     date: new Date().toISOString().split("T")[0],
   });
 
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["/api/deposit-vouchers"] });
+    qc.invalidateQueries({ queryKey: ["/api/settings/safes"] });
+    qc.invalidateQueries({ queryKey: ["/api/customers"] });
+  };
+
   const createMutation = useMutation({
     mutationFn: async (body: Record<string, unknown>) => {
       const res = await authFetch(api("/api/deposit-vouchers"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -47,27 +60,40 @@ export default function DepositVouchers() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "تم حفظ سند التوريد" });
-      qc.invalidateQueries({ queryKey: ["/api/deposit-vouchers"] });
-      qc.invalidateQueries({ queryKey: ["/api/settings/safes"] });
-      qc.invalidateQueries({ queryKey: ["/api/customers"] });
+      toast({ title: "تم حفظ سند التوريد كمسودة" });
+      invalidate();
       setShowAdd(false);
       setForm({ customer_id: "", safe_id: "", amount: "", notes: "", date: new Date().toISOString().split("T")[0] });
     },
     onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
   });
 
+  const postMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await authFetch(api(`/api/deposit-vouchers/${id}/post`), { method: "POST" });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error || "فشل الترحيل"); }
+      return res.json();
+    },
+    onSuccess: () => { toast({ title: "✅ تم ترحيل السند وإنشاء القيد المحاسبي" }); invalidate(); },
+    onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await authFetch(api(`/api/deposit-vouchers/${id}/cancel`), { method: "POST" });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error || "فشل الإلغاء"); }
+      return res.json();
+    },
+    onSuccess: () => { toast({ title: "تم إلغاء السند" }); invalidate(); },
+    onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
       const res = await authFetch(api(`/api/deposit-vouchers/${id}`), { method: "DELETE" });
-      if (!res.ok) throw new Error("فشل الحذف");
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error || "فشل الحذف"); }
     },
-    onSuccess: () => {
-      toast({ title: "تم الحذف" });
-      qc.invalidateQueries({ queryKey: ["/api/deposit-vouchers"] });
-      qc.invalidateQueries({ queryKey: ["/api/settings/safes"] });
-      qc.invalidateQueries({ queryKey: ["/api/customers"] });
-    },
+    onSuccess: () => { toast({ title: "تم الحذف" }); invalidate(); },
     onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
   });
 
@@ -145,7 +171,7 @@ export default function DepositVouchers() {
             </div>
             <div className="flex gap-3 pt-2">
               <button type="submit" disabled={createMutation.isPending} className="flex-1 btn-primary py-3 rounded-xl font-bold">
-                {createMutation.isPending ? "جاري الحفظ..." : "حفظ السند"}
+                {createMutation.isPending ? "جاري الحفظ..." : "حفظ كمسودة"}
               </button>
               <button type="button" onClick={() => setShowAdd(false)} className="flex-1 bg-white/10 text-white py-3 rounded-xl font-bold hover:bg-white/20">إلغاء</button>
             </div>
@@ -162,29 +188,58 @@ export default function DepositVouchers() {
                 <th className="p-4 font-medium">العميل</th>
                 <th className="p-4 font-medium">الخزينة</th>
                 <th className="p-4 font-medium">المبلغ</th>
+                <th className="p-4 font-medium">الحالة</th>
                 <th className="p-4 font-medium">التاريخ</th>
                 <th className="p-4 font-medium">ملاحظات</th>
-                <th className="p-4 w-16"></th>
+                <th className="p-4 w-28"></th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
-                <TableSkeleton cols={7} rows={5} />
+                <TableSkeleton cols={8} rows={5} />
               ) : vouchers.length === 0 ? (
-                <tr><td colSpan={7} className="p-8 text-center text-white/40">لا توجد سندات توريد بعد</td></tr>
+                <tr><td colSpan={8} className="p-8 text-center text-white/40">لا توجد سندات توريد بعد</td></tr>
               ) : vouchers.map(v => (
                 <tr key={v.id} className="border-b border-white/5 erp-table-row">
                   <td className="p-4 font-mono text-amber-400 text-sm">{v.voucher_no}</td>
                   <td className="p-4 font-bold text-white">{v.customer_name || v.source || '—'}</td>
                   <td className="p-4 text-blue-300">{v.safe_name}</td>
                   <td className="p-4 font-bold text-emerald-400">{formatCurrency(v.amount)}</td>
+                  <td className="p-4"><PostingBadge status={v.posting_status} /></td>
                   <td className="p-4 text-sm text-white/60">{v.date}</td>
                   <td className="p-4 text-white/50 text-sm">{v.notes || '-'}</td>
                   <td className="p-4">
-                    <button onClick={() => setConfirmDeleteId(v.id)}
-                      className="btn-icon btn-icon-danger">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      {v.posting_status === "draft" && (
+                        <button
+                          onClick={() => postMutation.mutate(v.id)}
+                          disabled={postMutation.isPending}
+                          title="ترحيل"
+                          className="btn-icon text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                        </button>
+                      )}
+                      {v.posting_status === "posted" && (
+                        <button
+                          onClick={() => cancelMutation.mutate(v.id)}
+                          disabled={cancelMutation.isPending}
+                          title="إلغاء"
+                          className="btn-icon text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
+                        >
+                          <XCircle className="w-4 h-4" />
+                        </button>
+                      )}
+                      {v.posting_status !== "posted" && (
+                        <button
+                          onClick={() => setConfirmDeleteId(v.id)}
+                          className="btn-icon btn-icon-danger"
+                          title="حذف"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

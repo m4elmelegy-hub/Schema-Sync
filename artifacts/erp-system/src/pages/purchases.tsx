@@ -1,8 +1,9 @@
 import { useState, useMemo, useEffect } from "react";
 import { useCreatePurchase, useGetProducts, useGetCustomers, useGetSuppliers, useCreateProduct, useDeleteProduct, useGetSettingsSafes, useGetSettingsWarehouses } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
-import { Search, Plus, Minus, Trash2, ShoppingBag, Package, User, Vault, AlertTriangle } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { Search, Plus, Minus, Trash2, ShoppingBag, Package, User, Vault, AlertTriangle, CheckCircle, XCircle, ClipboardList } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { authFetch } from "@/lib/auth-fetch";
 import { useToast } from "@/hooks/use-toast";
 import { TableSkeleton } from "@/components/skeletons";
 import { ConfirmModal } from "@/components/confirm-modal";
@@ -507,9 +508,108 @@ function ProductsPanel() {
   );
 }
 
+/* ─── سجل الفواتير مع التحكم بالترحيل ─── */
+const BASE_H = import.meta.env.BASE_URL.replace(/\/$/, "");
+const apiH = (p: string) => `${BASE_H}${p}`;
+
+interface PurchaseRecord {
+  id: number; invoice_no: string; date: string | null;
+  supplier_name: string | null; payment_type: string;
+  total_amount: number; paid_amount: number; remaining_amount: number;
+  posting_status: string; status: string;
+}
+
+function PostingBadge({ status }: { status: string }) {
+  if (status === "posted")    return <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-medium">مرحَّل</span>;
+  if (status === "cancelled") return <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 font-medium">ملغى</span>;
+  return <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-white/50 font-medium">مسودة</span>;
+}
+
+function PurchaseHistoryPanel() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const { data: purchases = [], isLoading } = useQuery<PurchaseRecord[]>({
+    queryKey: ["/api/purchases"],
+    queryFn: () => authFetch(apiH("/api/purchases")).then(r => { if (!r.ok) throw new Error("خطأ"); return r.json(); }),
+  });
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["/api/purchases"] });
+
+  const postMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await authFetch(apiH(`/api/purchases/${id}/post`), { method: "POST" });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error || "فشل الترحيل"); }
+      return res.json();
+    },
+    onSuccess: () => { toast({ title: "✅ تم ترحيل الفاتورة وإنشاء القيد المحاسبي" }); invalidate(); },
+    onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await authFetch(apiH(`/api/purchases/${id}/cancel`), { method: "POST" });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error || "فشل الإلغاء"); }
+      return res.json();
+    },
+    onSuccess: () => { toast({ title: "تم إلغاء الفاتورة وإنشاء قيد عكسي" }); invalidate(); },
+    onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <div className="glass-panel rounded-3xl overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-right text-white/80 whitespace-nowrap text-sm">
+          <thead className="bg-white/5 border-b border-white/10">
+            <tr>
+              <th className="p-3 font-medium">رقم الفاتورة</th>
+              <th className="p-3 font-medium">المورد</th>
+              <th className="p-3 font-medium">الإجمالي</th>
+              <th className="p-3 font-medium">نوع الدفع</th>
+              <th className="p-3 font-medium">حالة الترحيل</th>
+              <th className="p-3 font-medium">التاريخ</th>
+              <th className="p-3 w-24"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? <TableSkeleton cols={7} rows={5} />
+              : purchases.length === 0 ? <tr><td colSpan={7} className="p-8 text-center text-white/40">لا توجد فواتير بعد</td></tr>
+              : purchases.map(p => (
+                <tr key={p.id} className="border-b border-white/5 erp-table-row">
+                  <td className="p-3 font-mono text-amber-400">{p.invoice_no}</td>
+                  <td className="p-3 font-bold text-white">{p.supplier_name || '—'}</td>
+                  <td className="p-3 font-bold text-blue-400">{formatCurrency(p.total_amount)}</td>
+                  <td className="p-3 text-white/60">{p.payment_type === "cash" ? "نقدي" : p.payment_type === "credit" ? "آجل" : "جزئي"}</td>
+                  <td className="p-3"><PostingBadge status={p.posting_status} /></td>
+                  <td className="p-3 text-white/50">{p.date || '—'}</td>
+                  <td className="p-3">
+                    <div className="flex items-center gap-1">
+                      {p.posting_status === "draft" && (
+                        <button onClick={() => postMutation.mutate(p.id)} disabled={postMutation.isPending} title="ترحيل"
+                          className="btn-icon text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10">
+                          <CheckCircle className="w-4 h-4" />
+                        </button>
+                      )}
+                      {p.posting_status === "posted" && (
+                        <button onClick={() => cancelMutation.mutate(p.id)} disabled={cancelMutation.isPending} title="إلغاء"
+                          className="btn-icon text-amber-400 hover:text-amber-300 hover:bg-amber-500/10">
+                          <XCircle className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 /* ─── الصفحة الرئيسية ─── */
 export default function Purchases() {
-  const [tab, setTab] = useState<"new" | "products">("new");
+  const [tab, setTab] = useState<"new" | "history" | "products">("new");
 
   return (
     <div className="space-y-4">
@@ -518,13 +618,18 @@ export default function Purchases() {
           <button onClick={() => setTab("new")} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${tab === "new" ? "bg-amber-500 text-black shadow" : "text-white/50 hover:text-white"}`}>
             فاتورة شراء
           </button>
+          <button onClick={() => setTab("history")} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-1.5 ${tab === "history" ? "bg-amber-500 text-black shadow" : "text-white/50 hover:text-white"}`}>
+            <ClipboardList className="w-3.5 h-3.5" /> سجل الفواتير
+          </button>
           <button onClick={() => setTab("products")} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${tab === "products" ? "bg-amber-500 text-black shadow" : "text-white/50 hover:text-white"}`}>
             المنتجات
           </button>
         </div>
       </div>
 
-      {tab === "new" ? <NewPurchasePanel onDone={() => {}} /> : <ProductsPanel />}
+      {tab === "new" ? <NewPurchasePanel onDone={() => {}} />
+        : tab === "history" ? <PurchaseHistoryPanel />
+        : <ProductsPanel />}
     </div>
   );
 }

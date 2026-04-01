@@ -12,7 +12,8 @@ export const salesTable = pgTable("sales", {
   total_amount: numeric("total_amount", { precision: 12, scale: 2 }).notNull().default("0"),
   paid_amount: numeric("paid_amount", { precision: 12, scale: 2 }).notNull().default("0"),
   remaining_amount: numeric("remaining_amount", { precision: 12, scale: 2 }).notNull().default("0"),
-  status: text("status").notNull().default("paid"), // paid, partial, unpaid
+  status: text("status").notNull().default("paid"),           // paid, partial, unpaid
+  posting_status: text("posting_status").notNull().default("draft"), // draft | posted | cancelled
   safe_id: integer("safe_id"),
   safe_name: text("safe_name"),
   warehouse_id: integer("warehouse_id"),

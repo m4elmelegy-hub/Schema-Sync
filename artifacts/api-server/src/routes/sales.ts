@@ -189,50 +189,7 @@ router.post("/sales", wrap(async (req, res) => {
       return newSale;
   });
 
-  // قيد محاسبي تلقائي بعد حفظ الفاتورة
-  try {
-    const saleDate = sale.date ?? new Date().toISOString().split("T")[0];
-    const revenueAcct = await getOrCreateSalesRevenueAccount();
-    const lines: JournalLine[] = [];
-
-    // جانب الدائن: إيرادات المبيعات (إجمالي الفاتورة)
-    lines.push({ account: revenueAcct, debit: 0, credit: total_amount });
-
-    // جانب المدين: الخزينة (المبلغ المقبوض نقداً)
-    if (paid_amount > 0 && safe_id) {
-      const [safeRow] = await db.select().from(safesTable).where(eq(safesTable.id, safe_id));
-      if (safeRow) {
-        const safeAcct = await getOrCreateSafeAccount(safeRow.id, safeRow.name);
-        lines.push({ account: safeAcct, debit: paid_amount, credit: 0 });
-      }
-    }
-
-    // جانب المدين: ذمم العميل (المبلغ الآجل)
-    const debtAmount = total_amount - paid_amount;
-    if (debtAmount > 0 && customer_id) {
-      const [cust] = await db.select().from(customersTable).where(eq(customersTable.id, customer_id));
-      if (cust?.account_id) {
-        const [acctRow] = await db.select({ id: accountsTable.id, code: accountsTable.code, name: accountsTable.name })
-          .from(accountsTable).where(eq(accountsTable.id, cust.account_id));
-        if (acctRow) lines.push({ account: acctRow, debit: debtAmount, credit: 0 });
-      } else if (cust?.customer_code) {
-        const custAcct = await getOrCreateCustomerAccount(cust.customer_code, cust.name);
-        lines.push({ account: custAcct, debit: debtAmount, credit: 0 });
-      }
-    }
-
-    if (lines.length >= 2) {
-      await createJournalEntry({
-        date: saleDate,
-        description: `فاتورة مبيعات ${sale.invoice_no}${customer_name ? ` — ${customer_name}` : ""}`,
-        reference: sale.invoice_no,
-        lines,
-      });
-    }
-  } catch (jeErr) {
-    console.error("[auto-account] sales journal entry failed:", jeErr);
-  }
-
+  // القيد المحاسبي يُنشأ عند الترحيل (POST /sales/:id/post) — ليس عند الإنشاء
   res.status(201).json(formatSale(sale));
 }));
 
@@ -255,6 +212,94 @@ router.get("/sales/:id", wrap(async (req, res) => {
     ...formatSale(sale),
     items: items.map(formatSaleItem),
   }));
+}));
+
+/* ── بناء قيود المبيعات ─────────────────────────────────────────────────── */
+async function buildSaleJournalLines(sale: typeof salesTable.$inferSelect): Promise<JournalLine[]> {
+  const total  = Number(sale.total_amount);
+  const paid   = Number(sale.paid_amount);
+  const debt   = total - paid;
+  const lines: JournalLine[] = [];
+
+  const revenueAcct = await getOrCreateSalesRevenueAccount();
+  lines.push({ account: revenueAcct, debit: 0, credit: total });
+
+  if (paid > 0 && sale.safe_id && sale.safe_name) {
+    const safeAcct = await getOrCreateSafeAccount(sale.safe_id, sale.safe_name);
+    lines.push({ account: safeAcct, debit: paid, credit: 0 });
+  }
+
+  if (debt > 0 && sale.customer_id) {
+    const [cust] = await db.select().from(customersTable).where(eq(customersTable.id, sale.customer_id));
+    if (cust?.account_id) {
+      const [acctRow] = await db.select({ id: accountsTable.id, code: accountsTable.code, name: accountsTable.name })
+        .from(accountsTable).where(eq(accountsTable.id, cust.account_id));
+      if (acctRow) lines.push({ account: acctRow, debit: debt, credit: 0 });
+    } else if (cust?.customer_code) {
+      const custAcct = await getOrCreateCustomerAccount(cust.customer_code, cust.name);
+      lines.push({ account: custAcct, debit: debt, credit: 0 });
+    }
+  }
+
+  return lines;
+}
+
+/* ── ترحيل الفاتورة (draft → posted) ───────────────────────────────────── */
+router.post("/sales/:id/post", wrap(async (req, res) => {
+  const id = parseInt(req.params.id as string);
+  if (isNaN(id)) throw httpError(400, "معرّف غير صحيح");
+
+  const [sale] = await db.select().from(salesTable).where(eq(salesTable.id, id));
+  if (!sale) throw httpError(404, "الفاتورة غير موجودة");
+  if (sale.posting_status === "posted")    throw httpError(400, "الفاتورة مرحَّلة بالفعل");
+  if (sale.posting_status === "cancelled") throw httpError(400, "لا يمكن ترحيل فاتورة ملغاة");
+
+  const lines = await buildSaleJournalLines(sale);
+  if (lines.length >= 2) {
+    await createJournalEntry({
+      date: sale.date ?? new Date().toISOString().split("T")[0],
+      description: `فاتورة مبيعات ${sale.invoice_no}${sale.customer_name ? ` — ${sale.customer_name}` : ""}`,
+      reference: sale.invoice_no,
+      lines,
+    });
+  }
+
+  const [updated] = await db.update(salesTable)
+    .set({ posting_status: "posted" })
+    .where(eq(salesTable.id, id))
+    .returning();
+
+  res.json(formatSale(updated));
+}));
+
+/* ── إلغاء الفاتورة → قيد عكسي ────────────────────────────────────────── */
+router.post("/sales/:id/cancel", wrap(async (req, res) => {
+  const id = parseInt(req.params.id as string);
+  if (isNaN(id)) throw httpError(400, "معرّف غير صحيح");
+
+  const [sale] = await db.select().from(salesTable).where(eq(salesTable.id, id));
+  if (!sale) throw httpError(404, "الفاتورة غير موجودة");
+  if (sale.posting_status === "cancelled") throw httpError(400, "الفاتورة ملغاة بالفعل");
+
+  if (sale.posting_status === "posted") {
+    const lines = await buildSaleJournalLines(sale);
+    if (lines.length >= 2) {
+      const reversed = lines.map(l => ({ account: l.account, debit: l.credit, credit: l.debit }));
+      await createJournalEntry({
+        date: new Date().toISOString().split("T")[0],
+        description: `إلغاء فاتورة مبيعات ${sale.invoice_no}${sale.customer_name ? ` — ${sale.customer_name}` : ""}`,
+        reference: `REV-${sale.invoice_no}`,
+        lines: reversed,
+      });
+    }
+  }
+
+  const [updated] = await db.update(salesTable)
+    .set({ posting_status: "cancelled" })
+    .where(eq(salesTable.id, id))
+    .returning();
+
+  res.json(formatSale(updated));
 }));
 
 export default router;

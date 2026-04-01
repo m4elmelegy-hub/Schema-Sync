@@ -49,6 +49,27 @@ The system is built as a monorepo using pnpm workspaces. The architecture separa
 - **Suppliers Page:** Added "الكود" column showing violet-tinted code badge; search now also matches by code number.
 - **All Dropdowns Updated:** Customer dropdowns in Sales, Sales Returns, Receipt Vouchers, Payment Vouchers, and Supplier dropdowns in Purchases all show `[CODE]` prefix before the name for quick identification.
 
+## Posting Control System (April 2026)
+
+All financial documents (sales, purchases, deposit vouchers, payment vouchers, receipt vouchers) now follow a strict 3-state lifecycle controlled by the user — no automatic journal entries on create.
+
+**States:** `draft` → `posted` → `cancelled`
+- **draft**: Record saved, customer/supplier balances updated (AR/AP), inventory moved. No journal entry created yet.
+- **posted**: User explicitly posts the record. A journal entry (JE) is created at this moment and the record is locked (cannot be edited/deleted).
+- **cancelled**: Only available for posted records. A reverse JE is created to negate the original. Record is permanently locked.
+- **DELETE**: Only allowed on `draft` records.
+
+**Backend Changes:**
+- `posting_status TEXT NOT NULL DEFAULT 'draft'` column added to all voucher tables via raw SQL migration.
+- Auto-JE creation removed from all `POST /api/...` (create) endpoints.
+- `/post` and `/cancel` endpoints added to: `sales.ts`, `purchases.ts`, `deposit-vouchers.ts`, `payment-vouchers.ts`, `receipt-vouchers.ts`.
+- `buildXxxJournalLines()` helper extracted in each route for reuse by both `/post` and `/cancel`.
+
+**Frontend Changes:**
+- `PostingBadge` / `SalesPostingBadge` component shows مسودة / مرحَّل / ملغى colored chips.
+- Post button (✅ CheckCircle) visible on draft records; Cancel button (XCircle) visible on posted records.
+- History panels with post/cancel UI added to: `deposit-vouchers.tsx`, `payment-vouchers.tsx`, `purchases.tsx` (via "سجل الفواتير" tab), `sales.tsx` (via "سجل الفواتير" tab).
+
 ## Security & Performance Improvements (March 2026)
 
 - **TypeScript**: Built `lib/db` and `lib/api-zod` declaration files — 0 TypeScript errors across entire codebase

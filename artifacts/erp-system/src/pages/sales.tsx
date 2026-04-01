@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { authFetch } from "@/lib/auth-fetch";
 import { useGetSales, useGetSaleById, useGetProducts, useGetCustomers, useGetSettingsSafes } from "@workspace/api-client-react";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { Search, Plus, Minus, Trash2, X, Printer, ShoppingCart, User, Package, Receipt, RotateCcw, Percent, Vault, Lock } from "lucide-react";
+import { Search, Plus, Minus, Trash2, X, Printer, ShoppingCart, User, Package, Receipt, RotateCcw, Percent, Vault, Lock, CheckCircle, XCircle, ClipboardList } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth";
@@ -817,8 +817,104 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
   );
 }
 
+/* ─── سجل فواتير المبيعات مع التحكم بالترحيل ─── */
+interface SaleRecord {
+  id: number; invoice_no: string; date: string | null;
+  customer_name: string | null; payment_type: string;
+  total_amount: number; paid_amount: number; remaining_amount: number;
+  posting_status: string; status: string;
+}
+
+function SalesPostingBadge({ status }: { status: string }) {
+  if (status === "posted")    return <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-medium">مرحَّل</span>;
+  if (status === "cancelled") return <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 font-medium">ملغى</span>;
+  return <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-white/50 font-medium">مسودة</span>;
+}
+
+function SalesHistoryPanel() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const { data: sales = [], isLoading } = useQuery<SaleRecord[]>({
+    queryKey: ["/api/sales"],
+    queryFn: () => authFetch(api("/api/sales")).then(r => { if (!r.ok) throw new Error("خطأ"); return r.json(); }),
+  });
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["/api/sales"] });
+
+  const postMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await authFetch(api(`/api/sales/${id}/post`), { method: "POST" });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error || "فشل الترحيل"); }
+      return res.json();
+    },
+    onSuccess: () => { toast({ title: "✅ تم ترحيل الفاتورة وإنشاء القيد المحاسبي" }); invalidate(); },
+    onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await authFetch(api(`/api/sales/${id}/cancel`), { method: "POST" });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error || "فشل الإلغاء"); }
+      return res.json();
+    },
+    onSuccess: () => { toast({ title: "تم إلغاء الفاتورة وإنشاء قيد عكسي" }); invalidate(); },
+    onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <div className="glass-panel rounded-3xl overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-right text-white/80 whitespace-nowrap text-sm">
+          <thead className="bg-white/5 border-b border-white/10">
+            <tr>
+              <th className="p-3 font-medium">رقم الفاتورة</th>
+              <th className="p-3 font-medium">العميل</th>
+              <th className="p-3 font-medium">الإجمالي</th>
+              <th className="p-3 font-medium">نوع الدفع</th>
+              <th className="p-3 font-medium">حالة الترحيل</th>
+              <th className="p-3 font-medium">التاريخ</th>
+              <th className="p-3 w-24"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? <TableSkeleton cols={7} rows={5} />
+              : sales.length === 0 ? <tr><td colSpan={7} className="p-8 text-center text-white/40">لا توجد فواتير بعد</td></tr>
+              : sales.map(s => (
+                <tr key={s.id} className="border-b border-white/5 erp-table-row">
+                  <td className="p-3 font-mono text-amber-400">{s.invoice_no}</td>
+                  <td className="p-3 font-bold text-white">{s.customer_name || 'نقدي'}</td>
+                  <td className="p-3 font-bold text-emerald-400">{formatCurrency(s.total_amount)}</td>
+                  <td className="p-3 text-white/60">{s.payment_type === "cash" ? "نقدي" : s.payment_type === "credit" ? "آجل" : "جزئي"}</td>
+                  <td className="p-3"><SalesPostingBadge status={s.posting_status} /></td>
+                  <td className="p-3 text-white/50">{s.date || '—'}</td>
+                  <td className="p-3">
+                    <div className="flex items-center gap-1">
+                      {s.posting_status === "draft" && (
+                        <button onClick={() => postMutation.mutate(s.id)} disabled={postMutation.isPending} title="ترحيل"
+                          className="btn-icon text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10">
+                          <CheckCircle className="w-4 h-4" />
+                        </button>
+                      )}
+                      {s.posting_status === "posted" && (
+                        <button onClick={() => cancelMutation.mutate(s.id)} disabled={cancelMutation.isPending} title="إلغاء"
+                          className="btn-icon text-amber-400 hover:text-amber-300 hover:bg-amber-500/10">
+                          <XCircle className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export default function Sales() {
-  const [tab, setTab] = useState<"new" | "returns">("new");
+  const [tab, setTab] = useState<"new" | "history" | "returns">("new");
   const [selectedSaleId, setSelectedSaleId] = useState<number | null>(null);
 
   return (
@@ -828,6 +924,9 @@ export default function Sales() {
           <button onClick={() => setTab("new")} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${tab === "new" ? "bg-amber-500 text-black shadow" : "text-white/50 hover:text-white"}`}>
             ➕ فاتورة بيع جديدة
           </button>
+          <button onClick={() => setTab("history")} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-1.5 ${tab === "history" ? "bg-amber-500 text-black shadow" : "text-white/50 hover:text-white"}`}>
+            <ClipboardList className="w-3.5 h-3.5" /> سجل الفواتير
+          </button>
           <button onClick={() => setTab("returns")} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${tab === "returns" ? "bg-orange-500 text-white shadow" : "text-white/50 hover:text-white"}`}>
             ↩ المرتجعات
           </button>
@@ -836,7 +935,9 @@ export default function Sales() {
 
       {selectedSaleId && <SaleDetailModal saleId={selectedSaleId} onClose={() => setSelectedSaleId(null)} />}
 
-      {tab === "returns" ? <SalesReturnsPanel /> : <NewSalePanel onDone={() => {}} />}
+      {tab === "history" ? <SalesHistoryPanel />
+        : tab === "returns" ? <SalesReturnsPanel />
+        : <NewSalePanel onDone={() => {}} />}
     </div>
   );
 }
