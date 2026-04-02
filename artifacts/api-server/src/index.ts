@@ -1,27 +1,58 @@
+import net from "net";
 import app from "./app";
 import { logger } from "./lib/logger";
-import { startBackupScheduler } from "./lib/backup-scheduler";
+import { startBackupScheduler, stopBackupScheduler } from "./lib/backup-scheduler";
 
-const rawPort = process.env["PORT"];
+const PORT = 8080;
 
-if (!rawPort) {
-  throw new Error(
-    "PORT environment variable is required but was not provided.",
-  );
+function isPortInUse(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const tester = net.createServer();
+    tester.once("error", (err: NodeJS.ErrnoException) => {
+      if (err.code === "EADDRINUSE") {
+        resolve(true);
+      } else {
+        resolve(false);
+      }
+    });
+    tester.once("listening", () => {
+      tester.close(() => resolve(false));
+    });
+    tester.listen(port, "0.0.0.0");
+  });
 }
 
-const port = Number(rawPort);
-
-if (Number.isNaN(port) || port <= 0) {
-  throw new Error(`Invalid PORT value: "${rawPort}"`);
-}
-
-app.listen(port, (err) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
-    process.exit(1);
+async function main() {
+  const inUse = await isPortInUse(PORT);
+  if (inUse) {
+    logger.warn({ port: PORT }, "Duplicate start prevented — port already in use");
+    process.exit(0);
   }
 
-  logger.info({ port }, "Server listening");
-  startBackupScheduler();
-});
+  const server = app.listen(PORT, (err?: Error) => {
+    if (err) {
+      logger.error({ err }, "Error listening on port");
+      process.exit(1);
+    }
+    logger.info(`Backend started on port ${PORT}`);
+    startBackupScheduler();
+  });
+
+  function cleanup(signal: string) {
+    logger.info({ signal }, "Shutdown signal received — closing server");
+    stopBackupScheduler();
+    server.close(() => {
+      logger.info("Server closed cleanly");
+      process.exit(0);
+    });
+    setTimeout(() => {
+      logger.warn("Forced exit after timeout");
+      process.exit(1);
+    }, 10_000);
+  }
+
+  process.on("SIGTERM", () => cleanup("SIGTERM"));
+  process.on("SIGINT",  () => cleanup("SIGINT"));
+}
+
+void main();

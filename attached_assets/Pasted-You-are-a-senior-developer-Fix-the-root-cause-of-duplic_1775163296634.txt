@@ -1,0 +1,124 @@
+You are a senior developer.
+
+Fix the root cause of duplicate server starts and port conflicts permanently.
+
+==================================================
+PROBLEM
+=======
+
+The server starts multiple times due to:
+
+* duplicate workflows
+* multiple entry points
+* artifacts auto-creating workflows
+
+This causes:
+EADDRINUSE (port already in use)
+
+==================================================
+GOAL
+====
+
+Ensure backend server runs ONLY ONCE, always.
+
+==================================================
+
+1. SINGLE ENTRY POINT (CRITICAL)
+   ==================================================
+
+Find the ONLY server entry file (example: server.ts or index.ts)
+
+Ensure:
+
+* server.listen() exists ONLY ONCE in entire project
+* no duplicate app.listen anywhere
+
+==================================================
+2) ADD PORT LOCK PROTECTION
+===========================
+
+Before starting server:
+
+Check if port is already in use.
+
+If in use:
+
+* log: "Server already running, skipping duplicate start"
+* exit process safely
+
+==================================================
+3) PREVENT MULTIPLE STARTS
+==========================
+
+Add global protection:
+
+if (global.serverStarted) {
+console.log("Server already started");
+process.exit(0);
+}
+global.serverStarted = true;
+
+==================================================
+4) CLEAN WORKFLOWS
+==================
+
+Ensure only ONE backend workflow exists:
+
+* remove duplicates:
+
+  * Start Backend
+  * artifacts/api-server
+  * any auto-generated ones
+
+Keep ONLY:
+
+* backend-main
+
+==================================================
+5) FORCE FIX PORT
+=================
+
+Use fixed port:
+
+const PORT = 8080;
+
+No dynamic port switching.
+
+==================================================
+6) ADD START LOG
+================
+
+Log clearly:
+
+"Backend started on port 8080"
+
+If duplicate:
+"Duplicate start prevented"
+
+==================================================
+7) OPTIONAL (STRONG FIX)
+========================
+
+Kill existing process before start:
+
+Use:
+process.on("SIGINT", cleanup)
+process.on("SIGTERM", cleanup)
+
+==================================================
+8) FINAL TEST
+=============
+
+Test:
+
+* start project → server runs once
+* restart → no duplicate
+* reload → no crash
+* no EADDRINUSE
+
+==================================================
+After finishing:
+
+* confirm single entry point
+* confirm duplicate prevention works
+* confirm no port conflict anymore
