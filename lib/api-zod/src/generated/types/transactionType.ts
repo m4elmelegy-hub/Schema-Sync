@@ -22,7 +22,12 @@ export const TransactionType = {
   sale_credit: "sale_credit",
   sale_partial: "sale_partial",
   purchase_cash: "purchase_cash",
+  purchase_credit: "purchase_credit",
   receipt_voucher: "receipt_voucher",
   payment_voucher: "payment_voucher",
   sale_cancel: "sale_cancel",
+  supplier_payment: "supplier_payment",
+  safe_closing: "safe_closing",
+  safe_adjustment: "safe_adjustment",
+  deposit_voucher: "deposit_voucher",
 } as const;

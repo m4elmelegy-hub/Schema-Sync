@@ -1064,7 +1064,7 @@ components:
           type: integer
         type:
           type: string
-          enum: [sale, purchase, expense, income, receipt, payment, sale_return, purchase_return, sale_cash, sale_credit, sale_partial, purchase_cash, receipt_voucher, payment_voucher, sale_cancel]
+          enum: [sale, purchase, expense, income, receipt, payment, sale_return, purchase_return, sale_cash, sale_credit, sale_partial, purchase_cash, purchase_credit, receipt_voucher, payment_voucher, sale_cancel, supplier_payment, safe_closing, safe_adjustment, deposit_voucher]
         amount:
           type: number
         description:
