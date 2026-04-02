@@ -2,6 +2,7 @@ import net from "net";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startBackupScheduler, stopBackupScheduler } from "./lib/backup-scheduler";
+import { seedDefaults } from "./lib/seed-defaults";
 
 const PORT = 8080;
 
@@ -28,6 +29,8 @@ async function main() {
     logger.warn({ port: PORT }, "Duplicate start prevented — port already in use");
     process.exit(0);
   }
+
+  await seedDefaults();
 
   const server = app.listen(PORT, (err?: Error) => {
     if (err) {
