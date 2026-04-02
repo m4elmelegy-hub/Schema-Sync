@@ -1,0 +1,121 @@
+You are a senior frontend engineer.
+
+Your task is to upgrade the entire UI/UX of the ERP to a professional SaaS-level product.
+
+IMPORTANT:
+- Do NOT change backend logic
+- Do NOT break any functionality
+- Only improve UI, UX, layout, and consistency
+
+==================================================
+MAIN GOAL
+==================================================
+
+Make the system:
+- clean
+- fast
+- modern
+- easy to use
+- visually premium
+
+==================================================
+PRIORITY ORDER (IMPORTANT)
+==================================================
+
+1) Login page
+2) Dashboard
+3) Sales (POS)
+4) Customers & Suppliers
+5) Reports
+6) Settings
+7) Global UI consistency
+
+==================================================
+LOGIN PAGE (VERY IMPORTANT)
+==================================================
+
+- form MUST be on the RIGHT side
+- branding panel on the LEFT
+- larger logo
+- clean white card
+- better spacing
+- bigger inputs
+- premium buttons
+- better contrast
+
+==================================================
+DASHBOARD
+==================================================
+
+- add 4 KPI cards (sales, profit, customers, stock)
+- improve spacing
+- improve visual hierarchy
+- make numbers large and clear
+
+==================================================
+SALES / POS
+==================================================
+
+- improve layout clarity
+- make totals bigger and clearer
+- improve cart UI
+- add better visual feedback
+- improve spacing and alignment
+
+==================================================
+CUSTOMERS / SUPPLIERS
+==================================================
+
+- clean tables
+- clear balances
+- better buttons
+- better modals
+- better spacing
+
+==================================================
+REPORTS
+==================================================
+
+- add summary boxes
+- highlight totals
+- improve table readability
+- improve chart labels
+
+==================================================
+SETTINGS
+==================================================
+
+- simplify layout
+- group sections into cards
+- improve dangerous actions UI (reset, restore)
+
+==================================================
+GLOBAL UI RULES
+==================================================
+
+- consistent spacing
+- rounded corners (12–16px)
+- soft shadows
+- better typography
+- better contrast
+- no clutter
+- use blue/purple + gold accent
+
+==================================================
+UX IMPROVEMENTS
+==================================================
+
+- better empty states
+- toast messages
+- hover effects
+- smooth transitions
+
+==================================================
+FINAL RESULT
+==================================================
+
+The system must feel like a premium SaaS product.
+
+After finishing:
+- list changes
+- show UI preview

@@ -4,7 +4,7 @@ import {
   TrendingUp, TrendingDown, Wallet, Users,
   AlertTriangle, PackageX, ShoppingCart, ReceiptText,
   DollarSign, Landmark, ArrowUpRight, ArrowDownRight,
-  Package,
+  Package, Truck,
 } from "lucide-react";
 import {
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -16,12 +16,16 @@ const TX_LABELS: Record<string, string> = {
   sale: "مبيعات", purchase: "مشتريات", expense: "مصروف",
   income: "إيراد", receipt: "سند قبض", deposit: "سند توريد",
   payment: "سند صرف", transfer: "تحويل خزينة",
+  sale_cash: "بيع نقدي", sale_credit: "بيع آجل", sale_partial: "بيع جزئي",
+  sale_return: "مرتجع مبيعات", purchase_return: "مرتجع مشتريات",
+  receipt_voucher: "سند قبض", payment_voucher: "سند صرف",
+  sale_cancel: "إلغاء بيع",
 };
 const TX_ICONS: Record<string, typeof ShoppingCart> = {
   sale: ShoppingCart, purchase: Landmark, expense: TrendingDown,
   income: TrendingUp, receipt: ReceiptText, deposit: DollarSign,
 };
-const TX_IS_INCOME = new Set(["sale", "receipt", "income", "deposit"]);
+const TX_IS_INCOME = new Set(["sale", "receipt", "income", "deposit", "sale_cash", "sale_credit", "sale_partial", "receipt_voucher"]);
 
 /* ─────────────────────────────────────────────────────────── */
 export default function Dashboard() {
@@ -32,9 +36,9 @@ export default function Dashboard() {
     return (
       <div className="space-y-6" dir="rtl">
         {/* KPI skeleton */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "20px" }}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: "16px" }}
           className="db-grid-kpi">
-          {Array.from({ length: 4 }).map((_, i) => (
+          {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} style={{
               borderRadius: "20px", height: "148px",
               background: "rgba(255,255,255,0.04)",
@@ -134,6 +138,19 @@ export default function Dashboard() {
       badge:    { up: false, label: "مستحقة" },
     },
     {
+      label:    "ديون الموردين",
+      value:    stats.total_supplier_debts ?? 0,
+      icon:     Truck,
+      gradient: "linear-gradient(135deg, #164e63 0%, #155e75 40%, #0e7490 100%)",
+      glow:     "rgba(6,182,212,0.28)",
+      iconBg:   "rgba(6,182,212,0.20)",
+      iconClr:  "#67e8f9",
+      badge:    {
+        up:    (stats.total_supplier_debts ?? 0) === 0,
+        label: (stats.total_supplier_debts ?? 0) === 0 ? "لا ديون" : "مستحقة",
+      },
+    },
+    {
       label:    "تنبيهات المخزون",
       value:    stats.low_stock_products?.length ?? 0,
       icon:     Package,
@@ -157,8 +174,8 @@ export default function Dashboard() {
       ══════════════════════════════════════════════════════ */}
       <div className="db-grid-kpi" style={{
         display: "grid",
-        gridTemplateColumns: "repeat(4, 1fr)",
-        gap: "20px",
+        gridTemplateColumns: "repeat(5, 1fr)",
+        gap: "16px",
         marginBottom: "24px",
       }}>
         {kpiCards.map((card, i) => (
@@ -484,6 +501,9 @@ export default function Dashboard() {
         }
 
         /* Responsive grid */
+        @media (max-width: 1280px) {
+          .db-grid-kpi   { grid-template-columns: repeat(3,1fr) !important; }
+        }
         @media (max-width: 1024px) {
           .db-grid-kpi   { grid-template-columns: repeat(2,1fr) !important; }
           .db-grid-bottom { grid-template-columns: 1fr !important; }
@@ -519,8 +539,8 @@ function KpiCard({ card, index }: { card: KpiDef; index: number }) {
       style={{
         position: "relative",
         overflow: "hidden",
-        borderRadius: "20px",
-        padding: "24px",
+        borderRadius: "18px",
+        padding: "20px",
         background: card.gradient,
         boxShadow: `0 8px 32px rgba(0,0,0,0.30), 0 0 0 1px rgba(255,255,255,0.08)`,
         animationDelay: `${index * 0.08}s`,
@@ -564,8 +584,8 @@ function KpiCard({ card, index }: { card: KpiDef; index: number }) {
 
         {/* Big value */}
         <p style={{
-          fontSize: "28px", fontWeight: 900, color: "#fff",
-          marginBottom: "14px", letterSpacing: "-0.5px", lineHeight: 1,
+          fontSize: "24px", fontWeight: 900, color: "#fff",
+          marginBottom: "12px", letterSpacing: "-0.5px", lineHeight: 1,
         }}>
           {card.rawValue ? String(card.value) : formatCurrency(card.value)}
         </p>

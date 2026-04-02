@@ -8,6 +8,13 @@ import { LogOut, ChevronLeft } from "lucide-react";
 import { PageTransition } from "@/components/page-transition";
 import { AlertBell } from "@/components/alert-bell";
 
+const NAV_SECTIONS = [
+  { label: "الرئيسية",   hrefs: ["/", "/tasks"] },
+  { label: "التجارة",    hrefs: ["/sales", "/purchases", "/suppliers", "/products", "/inventory", "/customers"] },
+  { label: "المالية",    hrefs: ["/profits", "/financial-transactions", "/reports"] },
+  { label: "النظام",     hrefs: ["/settings"] },
+];
+
 interface LayoutProps { children: ReactNode; }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -129,19 +136,57 @@ export function AppLayout({ children }: LayoutProps) {
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-3 pb-3 mt-1">
-          {visibleNav.map(item => {
-            const isActive = location === item.href;
+          {NAV_SECTIONS.map((section, si) => {
+            const sectionItems = visibleNav.filter(item => section.hrefs.includes(item.href));
+            if (sectionItems.length === 0) return null;
             return (
-              <Link key={item.href} href={item.href}>
-                <div className={`nav-item ${isActive ? "active" : ""}`}>
-                  <item.icon className="erp-nav-icon shrink-0"
-                    style={{ color: isActive ? "#f59e0b" : "inherit", opacity: isActive ? 1 : 0.7 }} />
-                  <span>{item.name}</span>
-                  {isActive && (
-                    <ChevronLeft className="w-3 h-3 mr-auto opacity-50" />
-                  )}
-                </div>
-              </Link>
+              <div key={section.label} style={{ marginBottom: "4px" }}>
+                {si > 0 && (
+                  <div style={{
+                    paddingTop: "12px",
+                    paddingBottom: "6px",
+                    paddingRight: "8px",
+                    fontSize: "10px",
+                    fontWeight: 700,
+                    letterSpacing: "0.08em",
+                    color: isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.28)",
+                    textTransform: "uppercase",
+                    borderTop: isDark ? "1px solid rgba(255,255,255,0.05)" : "1px solid rgba(0,0,0,0.07)",
+                    marginTop: "4px",
+                  }}>
+                    {section.label}
+                  </div>
+                )}
+                {si === 0 && (
+                  <div style={{
+                    paddingTop: "4px",
+                    paddingBottom: "6px",
+                    paddingRight: "8px",
+                    fontSize: "10px",
+                    fontWeight: 700,
+                    letterSpacing: "0.08em",
+                    color: isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.28)",
+                    textTransform: "uppercase",
+                  }}>
+                    {section.label}
+                  </div>
+                )}
+                {sectionItems.map(item => {
+                  const isActive = location === item.href;
+                  return (
+                    <Link key={item.href} href={item.href}>
+                      <div className={`nav-item ${isActive ? "active" : ""}`}>
+                        <item.icon className="erp-nav-icon shrink-0"
+                          style={{ color: isActive ? "#f59e0b" : "inherit", opacity: isActive ? 1 : 0.7 }} />
+                        <span>{item.name}</span>
+                        {isActive && (
+                          <ChevronLeft className="w-3 h-3 mr-auto opacity-50" />
+                        )}
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
             );
           })}
         </nav>

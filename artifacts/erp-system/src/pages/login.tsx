@@ -100,12 +100,13 @@ export default function Login() {
       style={{
         minHeight: "100vh",
         display: "flex",
+        flexDirection: "row-reverse",
         fontFamily: "inherit",
         background: "#f8faff",
       }}
     >
       {/* ════════════════════════════════════════════════════
-          BRAND PANEL  (dark blue → purple, RTL = right side)
+          BRAND PANEL  (dark blue → purple, RTL = left side)
       ════════════════════════════════════════════════════ */}
       <div
         className="hidden lg:flex"
