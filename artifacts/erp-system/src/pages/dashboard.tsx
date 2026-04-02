@@ -492,12 +492,14 @@ export default function Dashboard() {
 
         /* KPI hover */
         .db-kpi-hover {
-          transition: transform 0.22s cubic-bezier(.34,1.56,.64,1),
-                      box-shadow 0.22s ease;
+          transition: transform 0.25s cubic-bezier(.34,1.56,.64,1),
+                      box-shadow 0.25s ease,
+                      filter 0.25s ease;
         }
         .db-kpi-hover:hover {
-          transform: translateY(-3px) scale(1.02);
-          box-shadow: 0 20px 48px rgba(0,0,0,0.35) !important;
+          transform: translateY(-5px) scale(1.025);
+          box-shadow: 0 24px 56px rgba(0,0,0,0.40), 0 0 0 1px rgba(255,255,255,0.14) !important;
+          filter: brightness(1.06) saturate(1.1);
         }
 
         /* Responsive grid */
@@ -539,27 +541,34 @@ function KpiCard({ card, index }: { card: KpiDef; index: number }) {
       style={{
         position: "relative",
         overflow: "hidden",
-        borderRadius: "18px",
-        padding: "20px",
+        borderRadius: "20px",
+        padding: "22px 22px 20px",
         background: card.gradient,
-        boxShadow: `0 8px 32px rgba(0,0,0,0.30), 0 0 0 1px rgba(255,255,255,0.08)`,
+        boxShadow: `0 10px 40px rgba(0,0,0,0.34), 0 0 0 1px rgba(255,255,255,0.10), inset 0 1px 0 rgba(255,255,255,0.12)`,
         animationDelay: `${index * 0.08}s`,
         cursor: "default",
       }}
     >
+      {/* Top shimmer line */}
+      <div style={{
+        position: "absolute", top: 0, left: 0, right: 0, height: "1px",
+        background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.35) 50%, transparent 100%)",
+        pointerEvents: "none",
+      }} />
+
       {/* Glow orb */}
       <div style={{
-        position: "absolute", top: "-40px", left: "-40px",
-        width: "180px", height: "180px", borderRadius: "50%",
+        position: "absolute", top: "-50px", left: "-50px",
+        width: "220px", height: "220px", borderRadius: "50%",
         background: card.glow,
-        filter: "blur(48px)",
+        filter: "blur(55px)",
         pointerEvents: "none",
       }} />
 
       {/* Dot pattern */}
       <div style={{
         position: "absolute", inset: 0, pointerEvents: "none",
-        backgroundImage: "radial-gradient(rgba(255,255,255,0.08) 1px, transparent 1px)",
+        backgroundImage: "radial-gradient(rgba(255,255,255,0.10) 1px, transparent 1px)",
         backgroundSize: "20px 20px",
         maskImage: "radial-gradient(ellipse 70% 70% at 80% 20%, #000 40%, transparent 100%)",
         WebkitMaskImage: "radial-gradient(ellipse 70% 70% at 80% 20%, #000 40%, transparent 100%)",
@@ -567,25 +576,27 @@ function KpiCard({ card, index }: { card: KpiDef; index: number }) {
 
       <div style={{ position: "relative", zIndex: 1 }}>
         {/* Header row */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
-          <p style={{ fontSize: "12px", fontWeight: 700, color: "rgba(255,255,255,0.60)", letterSpacing: "0.04em" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "18px" }}>
+          <p style={{ fontSize: "11.5px", fontWeight: 700, color: "rgba(255,255,255,0.65)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
             {card.label}
           </p>
           <div style={{
-            width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+            width: 44, height: 44, borderRadius: 14, flexShrink: 0,
             display: "flex", alignItems: "center", justifyContent: "center",
             background: card.iconBg,
-            border: "1px solid rgba(255,255,255,0.15)",
-            backdropFilter: "blur(8px)",
+            border: "1.5px solid rgba(255,255,255,0.18)",
+            backdropFilter: "blur(10px)",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.20)",
           }}>
-            <Icon style={{ width: 19, height: 19, color: card.iconClr }} />
+            <Icon style={{ width: 21, height: 21, color: card.iconClr }} />
           </div>
         </div>
 
         {/* Big value */}
         <p style={{
-          fontSize: "24px", fontWeight: 900, color: "#fff",
-          marginBottom: "12px", letterSpacing: "-0.5px", lineHeight: 1,
+          fontSize: "26px", fontWeight: 900, color: "#fff",
+          marginBottom: "14px", letterSpacing: "-0.8px", lineHeight: 1,
+          textShadow: "0 2px 12px rgba(0,0,0,0.3)",
         }}>
           {card.rawValue ? String(card.value) : formatCurrency(card.value)}
         </p>
@@ -596,11 +607,12 @@ function KpiCard({ card, index }: { card: KpiDef; index: number }) {
           padding: "4px 10px",
           borderRadius: "20px",
           background: card.badge.up
-            ? "rgba(52,211,153,0.18)"
-            : "rgba(248,113,113,0.18)",
-          border: `1px solid ${card.badge.up ? "rgba(52,211,153,0.25)" : "rgba(248,113,113,0.25)"}`,
+            ? "rgba(52,211,153,0.20)"
+            : "rgba(248,113,113,0.20)",
+          border: `1px solid ${card.badge.up ? "rgba(52,211,153,0.30)" : "rgba(248,113,113,0.30)"}`,
           fontSize: "11px", fontWeight: 700,
           color: card.badge.up ? "#6ee7b7" : "#fca5a5",
+          backdropFilter: "blur(4px)",
         }}>
           {card.badge.up
             ? <ArrowUpRight style={{ width: 12, height: 12 }} />

@@ -310,13 +310,14 @@ export default function Login() {
             width: "100%",
             maxWidth: "460px",
             background: "#fff",
-            borderRadius: "20px",
-            border: "1px solid rgba(226,218,255,0.6)",
+            borderRadius: "24px",
+            border: "1px solid rgba(200,185,255,0.65)",
             boxShadow:
-              "0 0 0 1px rgba(167,139,250,0.06)," +
-              "0 4px 6px rgba(0,0,0,0.03)," +
-              "0 20px 80px rgba(99,57,206,0.08)," +
-              "0 8px 32px rgba(0,0,0,0.06)",
+              "0 0 0 1px rgba(167,139,250,0.10)," +
+              "0 4px 8px rgba(0,0,0,0.04)," +
+              "0 28px 100px rgba(99,57,206,0.14)," +
+              "0 8px 48px rgba(0,0,0,0.08)," +
+              "0 0 80px rgba(167,139,250,0.07)",
             padding: "44px 40px",
           }}
         >
@@ -449,13 +450,13 @@ export default function Login() {
 
         /* Input base */
         .lp-input {
-          transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+          transition: border-color 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
         }
         .lp-input:focus {
           outline: none;
           border-color: #7c3aed !important;
-          box-shadow: 0 0 0 4px rgba(124,58,237,0.12) !important;
-          background: #fdfcff !important;
+          box-shadow: 0 0 0 4px rgba(124,58,237,0.18), 0 4px 20px rgba(124,58,237,0.10) !important;
+          background: #fdfbff !important;
         }
 
         /* Primary button */
@@ -463,7 +464,7 @@ export default function Login() {
           position: relative;
           overflow: hidden;
           transition: transform 0.18s cubic-bezier(.34,1.56,.64,1),
-                      box-shadow 0.18s ease,
+                      box-shadow 0.20s ease,
                       filter 0.18s ease;
         }
         .lp-btn-primary::after {
@@ -472,29 +473,31 @@ export default function Login() {
           inset: 0;
           background: linear-gradient(90deg,
             transparent 0%,
-            rgba(255,255,255,0.18) 40%,
-            rgba(255,255,255,0.30) 50%,
-            rgba(255,255,255,0.18) 60%,
+            rgba(255,255,255,0.22) 40%,
+            rgba(255,255,255,0.36) 50%,
+            rgba(255,255,255,0.22) 60%,
             transparent 100%
           );
           transform: translateX(-150%);
           transition: transform 0s;
+          pointer-events: none;
         }
         .lp-btn-primary:hover:not(:disabled)::after {
           transform: translateX(150%);
           transition: transform 0.55s ease;
         }
         .lp-btn-primary:hover:not(:disabled) {
-          transform: translateY(-2px);
-          box-shadow: 0 12px 32px rgba(99,57,206,0.45) !important;
-          filter: brightness(1.05);
+          transform: translateY(-3px);
+          box-shadow: 0 16px 40px rgba(99,57,206,0.55), 0 4px 16px rgba(0,0,0,0.12) !important;
+          filter: brightness(1.06);
         }
         .lp-btn-primary:active:not(:disabled) {
-          transform: translateY(0);
-          box-shadow: 0 4px 12px rgba(99,57,206,0.25) !important;
+          transform: translateY(0) scale(0.97);
+          box-shadow: 0 4px 12px rgba(99,57,206,0.28) !important;
+          filter: brightness(0.96);
         }
         .lp-btn-primary:disabled {
-          opacity: 0.65;
+          opacity: 0.55;
           cursor: not-allowed;
         }
 

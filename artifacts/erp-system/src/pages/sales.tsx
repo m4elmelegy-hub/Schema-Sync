@@ -590,12 +590,16 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
   const discountAmount = useMemo(() => cartSubtotal * (parseFloat(discountPct) || 0) / 100, [cartSubtotal, discountPct]);
   const cartTotal = useMemo(() => cartSubtotal - discountAmount, [cartSubtotal, discountAmount]);
 
+  const [recentlyAdded, setRecentlyAdded] = useState<number | null>(null);
+
   const addToCart = (product: typeof products[0]) => {
     setCart(prev => {
       const existing = prev.find(i => i.product_id === product.id);
       if (existing) return prev.map(i => i.product_id === product.id ? { ...i, quantity: i.quantity + 1, total_price: (i.quantity + 1) * i.unit_price } : i);
       return [...prev, { product_id: product.id, product_name: product.name, quantity: 1, unit_price: product.sale_price, total_price: product.sale_price }];
     });
+    setRecentlyAdded(product.id);
+    setTimeout(() => setRecentlyAdded(null), 520);
   };
 
   const updateQty = (pid: number, delta: number) => setCart(prev => prev.map(i => {
@@ -1079,20 +1083,42 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
           )}
           <div className="flex-1 overflow-y-auto glass-panel rounded-2xl p-3">
             <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
-              {filteredProducts.map(product => (
-                <button key={product.id} onClick={() => addToCart(product)} disabled={product.quantity <= 0}
-                  className={`glass-panel rounded-2xl p-3 text-right transition-all hover:-translate-y-0.5 ${product.quantity <= 0 ? 'opacity-40 cursor-not-allowed' : 'hover:border-amber-500/40'}`}>
-                  <div className="h-14 bg-white/5 rounded-xl mb-3 flex items-center justify-center border border-white/5">
-                    <Package className="w-6 h-6 text-white/30" />
-                  </div>
-                  <p className="font-bold text-white text-sm truncate">{product.name}</p>
-                  {product.category && <p className="text-xs text-amber-400/70 mt-0.5">{product.category}</p>}
-                  <div className="flex justify-between items-center mt-2">
-                    <span className="text-emerald-400 font-bold text-sm">{formatCurrency(product.sale_price)}</span>
-                    <span className="text-xs text-white/40">{product.quantity}</span>
-                  </div>
-                </button>
-              ))}
+              {filteredProducts.map(product => {
+                const outOfStock = product.quantity <= 0;
+                const lowStock = !outOfStock && product.quantity <= 5;
+                const isFlashing = recentlyAdded === product.id;
+                return (
+                  <button key={product.id} onClick={() => addToCart(product)} disabled={outOfStock}
+                    className={`group relative rounded-2xl p-3 text-right border transition-all overflow-hidden ${
+                      outOfStock
+                        ? "opacity-40 cursor-not-allowed bg-white/3 border-white/5"
+                        : `bg-white/4 border-white/8 hover:border-amber-500/50 hover:bg-amber-500/5 hover:-translate-y-1 active:scale-95 ${isFlashing ? "pos-card-flash" : ""}`
+                    }`}>
+                    {/* Icon area */}
+                    <div className={`h-14 rounded-xl mb-3 flex items-center justify-center border transition-colors ${
+                      outOfStock ? "bg-white/3 border-white/5" : "bg-white/5 border-white/8 group-hover:bg-amber-500/10 group-hover:border-amber-500/20"
+                    }`}>
+                      <Package className={`w-6 h-6 transition-colors ${outOfStock ? "text-white/15" : "text-white/25 group-hover:text-amber-400/60"}`} />
+                    </div>
+                    {/* Name */}
+                    <p className="font-bold text-white text-sm truncate leading-tight">{product.name}</p>
+                    {product.category && <p className="text-xs text-amber-400/60 mt-0.5 truncate">{product.category}</p>}
+                    {/* Price row */}
+                    <div className="flex justify-between items-center mt-2">
+                      <span className="text-emerald-400 font-black text-sm tabular-nums">{formatCurrency(product.sale_price)}</span>
+                      <span className={`text-xs font-bold tabular-nums ${outOfStock ? "text-red-400/70" : lowStock ? "text-orange-400" : "text-white/35"}`}>
+                        {outOfStock ? "نفد" : product.quantity}
+                      </span>
+                    </div>
+                    {/* Hover add hint */}
+                    {!outOfStock && (
+                      <div className="mt-2 py-0.5 rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity bg-amber-500/15 text-amber-400 border border-amber-500/20 text-center">
+                        + إضافة
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -1127,23 +1153,32 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
           <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
             {cart.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-white/20 gap-3 py-10">
-                <ShoppingCart className="w-12 h-12 opacity-30" />
-                <p className="text-sm">اضغط على منتج لإضافته</p>
+                <ShoppingCart className="w-14 h-14 opacity-20" />
+                <p className="text-sm font-bold">اضغط على أي منتج للإضافة</p>
               </div>
             ) : cart.map(item => (
-              <div key={item.product_id} className="bg-white/5 border border-white/10 rounded-xl p-3">
-                <div className="flex justify-between items-start mb-2">
-                  <p className="font-bold text-white text-sm flex-1 ml-2 truncate">{item.product_name}</p>
-                  <button onClick={() => setCart(prev => prev.filter(i => i.product_id !== item.product_id))} className="text-red-400/70 hover:text-red-400 p-0.5"><Trash2 className="w-3.5 h-3.5" /></button>
+              <div key={item.product_id} className="bg-white/5 border border-white/8 rounded-2xl p-3 transition-all hover:border-white/15 hover:bg-white/7">
+                <div className="flex justify-between items-start mb-2.5">
+                  <p className="font-bold text-white text-sm flex-1 ml-2 truncate leading-tight">{item.product_name}</p>
+                  <button onClick={() => setCart(prev => prev.filter(i => i.product_id !== item.product_id))}
+                    className="w-7 h-7 rounded-lg bg-red-500/10 hover:bg-red-500/25 text-red-400/60 hover:text-red-400 flex items-center justify-center transition-colors shrink-0">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
-                    <button onClick={() => updateQty(item.product_id, -1)} className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center hover:bg-white/20"><Minus className="w-3 h-3 text-white" /></button>
-                    <span className="text-white font-bold text-sm w-6 text-center">{item.quantity}</span>
-                    <button onClick={() => updateQty(item.product_id, 1)} className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center hover:bg-white/20"><Plus className="w-3 h-3 text-white" /></button>
-                    <span className="text-white/40 text-xs mr-1">× {formatCurrency(item.unit_price)}</span>
+                    <button onClick={() => updateQty(item.product_id, -1)}
+                      className="w-7 h-7 rounded-lg bg-white/8 hover:bg-white/18 flex items-center justify-center transition-colors border border-white/10">
+                      <Minus className="w-3 h-3 text-white" />
+                    </button>
+                    <span className="text-white font-black text-sm w-7 text-center tabular-nums">{item.quantity}</span>
+                    <button onClick={() => updateQty(item.product_id, 1)}
+                      className="w-7 h-7 rounded-lg bg-amber-500/18 hover:bg-amber-500/30 border border-amber-500/25 flex items-center justify-center transition-colors">
+                      <Plus className="w-3 h-3 text-amber-400" />
+                    </button>
+                    <span className="text-white/35 text-xs mr-1 tabular-nums">× {formatCurrency(item.unit_price)}</span>
                   </div>
-                  <span className="font-bold text-emerald-400 text-sm">{formatCurrency(item.total_price)}</span>
+                  <span className="font-black text-emerald-400 text-base tabular-nums">{formatCurrency(item.total_price)}</span>
                 </div>
               </div>
             ))}
@@ -1220,20 +1255,20 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
             )}
 
             {/* ── صندوق الإجماليات ── */}
-            <div className="rounded-xl border border-white/10 overflow-hidden">
+            <div className="rounded-2xl border border-white/12 overflow-hidden" style={{ background: "linear-gradient(135deg, rgba(245,158,11,0.06), rgba(255,255,255,0.02))" }}>
               {discountAmount > 0 && (
-                <div className="flex justify-between px-3 py-1.5 bg-white/3 text-xs border-b border-white/5">
+                <div className="flex justify-between px-3 py-1.5 text-xs border-b border-white/8">
                   <span className="text-white/40">قبل الخصم ({discountPct}%)</span>
                   <span className="text-white/40 line-through tabular-nums">{formatCurrency(cartSubtotal)}</span>
                 </div>
               )}
-              <div className="flex items-center justify-between px-3 py-2.5 bg-white/5 border-b border-white/10">
-                <span className="text-white/70 text-sm font-bold">الإجمالي</span>
-                <span className="font-black text-white text-xl tabular-nums">{formatCurrency(cartTotal)}</span>
+              <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+                <span className="text-white/55 text-xs font-bold uppercase tracking-wide">إجمالي الفاتورة</span>
+                <span className="font-black text-white tabular-nums" style={{ fontSize: "1.55rem", letterSpacing: "-0.5px", lineHeight: 1 }}>{formatCurrency(cartTotal)}</span>
               </div>
               <div className="grid grid-cols-2">
                 <div className="px-3 py-2.5 border-l border-white/10">
-                  <p className="text-white/40 text-xs mb-0.5">المدفوع</p>
+                  <p className="text-white/35 text-xs mb-1">المدفوع</p>
                   <p className="font-black text-emerald-400 text-sm tabular-nums">
                     {paymentType === "cash"
                       ? formatCurrency(cartTotal)
@@ -1243,7 +1278,7 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
                   </p>
                 </div>
                 <div className="px-3 py-2.5">
-                  <p className="text-white/40 text-xs mb-0.5">المتبقي</p>
+                  <p className="text-white/35 text-xs mb-1">المتبقي</p>
                   <p className={`font-black text-sm tabular-nums ${
                     paymentType === "cash" ? "text-white/20" :
                     paymentType === "credit" ? "text-red-400" :
@@ -1260,8 +1295,13 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
             </div>
 
             <button onClick={handleCheckout} disabled={checkoutMutation.isPending || cart.length === 0}
-              className="w-full btn-primary py-3 text-sm disabled:opacity-50 font-bold">
-              {checkoutMutation.isPending ? "جاري التسجيل..." : "✦ إصدار الفاتورة  (Ctrl+S)"}
+              className="w-full py-3 rounded-xl font-black text-sm disabled:opacity-40 transition-all active:scale-97 relative overflow-hidden"
+              style={{
+                background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+                color: "#000",
+                boxShadow: cart.length > 0 ? "0 6px 22px rgba(245,158,11,0.40), 0 1px 3px rgba(0,0,0,0.2)" : "none",
+              }}>
+              {checkoutMutation.isPending ? "⏳ جاري التسجيل..." : "✦ إصدار الفاتورة"}
             </button>
 
             <div className="flex items-center justify-center gap-4 text-xs text-white/20 pb-1">
