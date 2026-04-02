@@ -35,7 +35,7 @@ export async function getClosingDate(): Promise<string | null> {
 
   cachedDate = row?.value ?? null;
   cacheExpiry = now + CACHE_TTL_MS;
-  return cachedDate;
+  return cachedDate ?? null;
 }
 
 /**

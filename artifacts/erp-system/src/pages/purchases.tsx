@@ -143,7 +143,6 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
         queryClient.invalidateQueries({ queryKey: ["/api/purchases"] });
         queryClient.invalidateQueries({ queryKey: ["/api/products"] });
         queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
         queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
         queryClient.invalidateQueries({ queryKey: ["/api/settings/safes"] });
         setCart([]); setPaidAmount(""); setPartyKey(""); setCustomerId(""); setSafeId(""); setPaymentType("cash");

@@ -93,6 +93,7 @@ export const GetCustomersResponseItem = zod.object({
   phone: zod.string().nullish(),
   balance: zod.number(),
   is_supplier: zod.boolean().optional(),
+  customer_code: zod.number().nullish(),
   created_at: zod.string(),
 });
 export const GetCustomersResponse = zod.array(GetCustomersResponseItem);
@@ -127,6 +128,7 @@ export const UpdateCustomerResponse = zod.object({
   phone: zod.string().nullish(),
   balance: zod.number(),
   is_supplier: zod.boolean().optional(),
+  customer_code: zod.number().nullish(),
   created_at: zod.string(),
 });
 
@@ -160,6 +162,7 @@ export const CreateCustomerReceiptResponse = zod.object({
   phone: zod.string().nullish(),
   balance: zod.number(),
   is_supplier: zod.boolean().optional(),
+  customer_code: zod.number().nullish(),
   created_at: zod.string(),
 });
 

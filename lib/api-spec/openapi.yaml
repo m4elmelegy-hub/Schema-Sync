@@ -625,6 +625,9 @@ components:
           type: number
         is_supplier:
           type: boolean
+        customer_code:
+          type: integer
+          nullable: true
         created_at:
           type: string
       required: [id, name, balance, created_at]

@@ -3,7 +3,6 @@ import { authenticate } from "../middleware/auth";
 import healthRouter from "./health";
 import productsRouter from "./products";
 import customersRouter from "./customers";
-import suppliersRouter from "./suppliers";
 import salesRouter from "./sales";
 import purchasesRouter from "./purchases";
 import expensesRouter from "./expenses";
@@ -43,7 +42,6 @@ router.use(authenticate);
 /* ── Protected routes ─────────────────────────────────────────── */
 router.use(productsRouter);
 router.use(customersRouter);
-router.use(suppliersRouter);
 router.use(salesRouter);
 router.use(purchasesRouter);
 router.use(expensesRouter);

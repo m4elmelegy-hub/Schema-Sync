@@ -6,7 +6,7 @@ import {
   useGetSettingsSafes, useCreateSettingsSafe, useDeleteSettingsSafe,
   useGetSettingsWarehouses, useCreateSettingsWarehouse, useDeleteSettingsWarehouse,
   useResetDatabase,
-  useGetProducts, useGetCustomers, useGetSuppliers,
+  useGetProducts, useGetCustomers,
 } from "@workspace/api-client-react";
 import { authFetch } from "@/lib/auth-fetch";
 import { formatCurrency, formatDate, formatCurrencyPreview } from "@/lib/format";
@@ -3030,16 +3030,17 @@ function OBCustomersTab() {
 /* ── Suppliers sub-tab ── */
 function OBSuppliersTab() {
   const { data: entries, loading, reload } = useOBData("/opening-balance/supplier");
-  const { data: suppliers = [] } = useGetSuppliers();
+  const { data: allCustomers = [] } = useGetCustomers();
+  const suppliers = allCustomers.filter(c => c.is_supplier);
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [form, setForm]     = useState({ supplier_id: "", amount: "", date: new Date().toISOString().split("T")[0], notes: "" });
   const [saving, setSaving] = useState(false);
 
   const registeredIds = new Set(entries.map(e => e.id));
-  const filteredSuppliers = (suppliers as any[]).filter((s: any) => !registeredIds.has(s.id) && s.name.includes(search));
-  const selectedSupplier  = (suppliers as any[]).find((s: any) => String(s.id) === form.supplier_id);
-  const handleSelect = (s: any) => { setForm(f => ({ ...f, supplier_id: String(s.id) })); setSearch(s.name); };
+  const filteredSuppliers = suppliers.filter(s => !registeredIds.has(s.id) && s.name.includes(search));
+  const selectedSupplier  = suppliers.find(s => String(s.id) === form.supplier_id);
+  const handleSelect = (s: { id: number; name: string }) => { setForm(f => ({ ...f, supplier_id: String(s.id) })); setSearch(s.name); };
 
   const handleSubmit = async () => {
     if (!form.supplier_id || !form.amount) { toast({ title: "العميل والمبلغ مطلوبان", variant: "destructive" }); return; }

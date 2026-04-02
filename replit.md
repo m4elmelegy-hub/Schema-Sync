@@ -51,19 +51,29 @@ The system is built as a monorepo using pnpm workspaces. The architecture separa
 - **Suppliers Page:** Shows customers with `is_supplier=true`; added "الكود" column with violet-tinted code badge.
 - **All Dropdowns Updated:** Customer dropdowns in Sales, Sales Returns, Receipt Vouchers, Payment Vouchers, and Supplier dropdowns in Purchases all show `[CODE]` prefix before the name for quick identification.
 
-## Suppliers → Customers Refactoring (April 2026)
+## Suppliers Fully Removed — Unified Customers Architecture (April 2026)
 
-Major architectural change: **the `suppliers` table is deprecated in favor of `customers` with `is_supplier=true`.**
+**COMPLETE REMOVAL of the suppliers concept. Everything now uses `customers` with `is_supplier=true`.**
 
-- **DB:** `supplier_id` column dropped from `purchases` table. Purchases now link to `customer_id` (FK to `customers`). `supplier_name` kept as free-text display field.
-- **Backend `suppliers.ts`:** Rewritten as a shim — all `/api/suppliers` endpoints query `customersTable WHERE is_supplier=true`. Supplier codes start at 1001 (same sequence as customers). AP account created as `AP-C-{customer_code}` via `getOrCreateCustomerPayableAccount()`.
-- **Backend `contacts.ts`:** Rewritten as customer-only with `is_supplier` support.
-- **Backend `purchases.ts`:** Uses `customer_id` FK only; `supplier_name` set from `customer_name` for display. Ledger balance uses `AP-C-{customer_code}` accounts.
-- **Backend `reports.ts`:** `supplier-statement` report queries `customersTable` with `is_supplier=true`; `top_suppliers` uses `customer_id`.
-- **Backend `admin.ts`, `system.ts`, `settings.ts`, `opening-balance.ts`, `alert-service.ts`, `backup-service.ts`:** All cleaned of `suppliersTable` references; use `customersTable WHERE is_supplier=true` instead.
-- **Frontend `purchases.tsx`:** Removed `useGetSuppliers` hook; derives supplier list from `customers.filter(is_supplier)`.
-- **Balance convention:** positive balance = customer/supplier owes us (عليه); negative = we owe them (له).
-- **OpenAPI spec + Zod codegen:** `supplier_id` removed from all Purchase schemas; codegen regenerated.
+### What Changed
+- **DB:** `suppliers` table removed. `supplier_id` dropped from `purchases`. Purchases use `customer_id` FK to `customers`. `supplier_name` kept as free-text display field.
+- **Backend `routes/suppliers.ts`:** DELETED. `/api/suppliers` endpoint no longer exists (returns 401 → auth middleware, 404 after auth).
+- **Backend `customers.ts`:** `/customers/:id/supplier-payment` handles paying a supplier-customer. AP account: `AP-C-{customer_code}`.
+- **Backend `purchases.ts`:** Uses `customer_id` FK only. Ledger uses `AP-C-{customer_code}` accounts.
+- **Backend `reports.ts`:** `top_suppliers` query uses `customer_id`; no separate supplier-statement report.
+- **All backend files:** Cleaned of `suppliersTable` references. Use `customersTable WHERE is_supplier=true`.
+- **Frontend:** `useGetSuppliers` hook removed. Supplier list derived from `customers.filter(is_supplier)`. No `/suppliers` page or nav item.
+- **OpenAPI spec + codegen:** `customer_code` added to `Customer` schema. Codegen (Zod-only) regenerated. `api.schemas.ts` updated manually (codegen:zod doesn't touch it).
+- **Balance convention:** positive = customer owes us (عليه); negative = we owe them (له).
+
+### Critical Codegen Rule
+ALWAYS use `pnpm --filter @workspace/api-spec run codegen:zod` — NEVER use plain `codegen` (wipes frontend React hooks).
+After codegen, manually rebuild libs: `cd lib/api-client-react && npx tsc --build --force`.
+
+### TypeScript Status (Post-Stabilization)
+- Backend: **0 errors** (after building shared libs via `npx tsc --build`)
+- Frontend: **0 errors** (after building libs + adding `customer_code` to `api.schemas.ts`)
+- Shared libs must be built before `tsc --noEmit`: `cd lib/db && npx tsc --build`, same for `lib/api-zod` and `lib/api-client-react`.
 
 ## Advanced Accounting Completion (April 2026)
 
