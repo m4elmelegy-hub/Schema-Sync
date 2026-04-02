@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { SalePaymentType } from "./salePaymentType";
+import type { SalePostingStatus } from "./salePostingStatus";
 import type { SaleStatus } from "./saleStatus";
 
 export interface Sale {
@@ -18,6 +19,8 @@ export interface Sale {
   paid_amount: number;
   remaining_amount: number;
   status: SaleStatus;
+  posting_status?: SalePostingStatus;
+  date?: string | null;
   notes?: string | null;
   created_at: string;
 }

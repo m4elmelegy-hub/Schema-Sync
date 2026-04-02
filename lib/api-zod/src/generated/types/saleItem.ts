@@ -14,4 +14,7 @@ export interface SaleItem {
   quantity: number;
   unit_price: number;
   total_price: number;
+  cost_price?: number | null;
+  cost_total?: number | null;
+  quantity_returned?: number | null;
 }

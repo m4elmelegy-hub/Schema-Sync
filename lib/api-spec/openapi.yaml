@@ -702,6 +702,13 @@ components:
         status:
           type: string
           enum: [paid, partial, unpaid]
+        posting_status:
+          type: string
+          enum: [draft, posted, cancelled]
+          nullable: true
+        date:
+          type: string
+          nullable: true
         notes:
           type: string
           nullable: true
@@ -726,6 +733,15 @@ components:
           type: number
         total_price:
           type: number
+        cost_price:
+          type: number
+          nullable: true
+        cost_total:
+          type: number
+          nullable: true
+        quantity_returned:
+          type: number
+          nullable: true
       required: [id, sale_id, product_id, product_name, quantity, unit_price, total_price]
 
     SaleWithItems:
@@ -753,6 +769,13 @@ components:
         status:
           type: string
           enum: [paid, partial, unpaid]
+        posting_status:
+          type: string
+          enum: [draft, posted, cancelled]
+          nullable: true
+        date:
+          type: string
+          nullable: true
         notes:
           type: string
           nullable: true
@@ -780,6 +803,24 @@ components:
           type: number
         paid_amount:
           type: number
+        safe_id:
+          type: integer
+          nullable: true
+        warehouse_id:
+          type: integer
+          nullable: true
+        salesperson_id:
+          type: integer
+          nullable: true
+        discount_percent:
+          type: number
+          nullable: true
+        discount_amount:
+          type: number
+          nullable: true
+        date:
+          type: string
+          nullable: true
         notes:
           type: string
           nullable: true
@@ -829,6 +870,13 @@ components:
         status:
           type: string
           enum: [paid, partial, unpaid]
+        posting_status:
+          type: string
+          enum: [draft, posted, cancelled]
+          nullable: true
+        date:
+          type: string
+          nullable: true
         notes:
           type: string
           nullable: true
@@ -853,6 +901,9 @@ components:
           type: number
         total_price:
           type: number
+        quantity_returned:
+          type: number
+          nullable: true
       required: [id, purchase_id, product_id, product_name, quantity, unit_price, total_price]
 
     PurchaseWithItems:
@@ -907,6 +958,15 @@ components:
           type: number
         paid_amount:
           type: number
+        safe_id:
+          type: integer
+          nullable: true
+        warehouse_id:
+          type: integer
+          nullable: true
+        date:
+          type: string
+          nullable: true
         notes:
           type: string
           nullable: true
@@ -994,7 +1054,7 @@ components:
           type: integer
         type:
           type: string
-          enum: [sale, purchase, expense, income, receipt, payment]
+          enum: [sale, purchase, expense, income, receipt, payment, sale_return, purchase_return, sale_cash, sale_credit, purchase_cash, receipt_voucher, payment_voucher]
         amount:
           type: number
         description:

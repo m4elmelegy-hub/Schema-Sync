@@ -38,6 +38,7 @@ function formatPurchaseItem(item: typeof purchaseItemsTable.$inferSelect) {
     quantity: Number(item.quantity),
     unit_price: Number(item.unit_price),
     total_price: Number(item.total_price),
+    quantity_returned: item.quantity_returned != null ? Number(item.quantity_returned) : null,
   };
 }
 

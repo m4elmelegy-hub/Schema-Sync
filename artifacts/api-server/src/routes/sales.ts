@@ -40,6 +40,9 @@ function formatSaleItem(item: typeof saleItemsTable.$inferSelect) {
     quantity: Number(item.quantity),
     unit_price: Number(item.unit_price),
     total_price: Number(item.total_price),
+    cost_price: item.cost_price != null ? Number(item.cost_price) : null,
+    cost_total: item.cost_total != null ? Number(item.cost_total) : null,
+    quantity_returned: item.quantity_returned != null ? Number(item.quantity_returned) : null,
   };
 }
 

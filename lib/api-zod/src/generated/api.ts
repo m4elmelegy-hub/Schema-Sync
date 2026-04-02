@@ -90,10 +90,8 @@ export const DeleteProductResponse = zod.object({
 export const GetCustomersResponseItem = zod.object({
   id: zod.number(),
   name: zod.string(),
-  customer_code: zod.number().nullish(),
   phone: zod.string().nullish(),
   balance: zod.number(),
-  is_supplier: zod.boolean().optional(),
   created_at: zod.string(),
 });
 export const GetCustomersResponse = zod.array(GetCustomersResponseItem);
@@ -105,7 +103,6 @@ export const CreateCustomerBody = zod.object({
   name: zod.string(),
   phone: zod.string().nullish(),
   balance: zod.number().optional(),
-  is_supplier: zod.boolean().optional(),
 });
 
 /**
@@ -119,16 +116,13 @@ export const UpdateCustomerBody = zod.object({
   name: zod.string(),
   phone: zod.string().nullish(),
   balance: zod.number().optional(),
-  is_supplier: zod.boolean().optional(),
 });
 
 export const UpdateCustomerResponse = zod.object({
   id: zod.number(),
   name: zod.string(),
-  customer_code: zod.number().nullish(),
   phone: zod.string().nullish(),
   balance: zod.number(),
-  is_supplier: zod.boolean().optional(),
   created_at: zod.string(),
 });
 
@@ -170,10 +164,8 @@ export const CreateCustomerReceiptResponse = zod.object({
 export const GetSuppliersResponseItem = zod.object({
   id: zod.number(),
   name: zod.string(),
-  supplier_code: zod.number().nullish(),
   phone: zod.string().nullish(),
   balance: zod.number(),
-  linked_customer_id: zod.number().nullish(),
   created_at: zod.string(),
 });
 export const GetSuppliersResponse = zod.array(GetSuppliersResponseItem);
@@ -185,7 +177,6 @@ export const CreateSupplierBody = zod.object({
   name: zod.string(),
   phone: zod.string().nullish(),
   balance: zod.number().optional(),
-  linked_customer_id: zod.number().nullish(),
 });
 
 /**
@@ -199,16 +190,13 @@ export const UpdateSupplierBody = zod.object({
   name: zod.string(),
   phone: zod.string().nullish(),
   balance: zod.number().optional(),
-  linked_customer_id: zod.number().nullish(),
 });
 
 export const UpdateSupplierResponse = zod.object({
   id: zod.number(),
   name: zod.string(),
-  supplier_code: zod.number().nullish(),
   phone: zod.string().nullish(),
   balance: zod.number(),
-  linked_customer_id: zod.number().nullish(),
   created_at: zod.string(),
 });
 
@@ -233,7 +221,6 @@ export const CreateSupplierPaymentParams = zod.object({
 
 export const CreateSupplierPaymentBody = zod.object({
   amount: zod.number(),
-  safe_id: zod.number(),
   description: zod.string().nullish(),
 });
 
@@ -258,6 +245,8 @@ export const GetSalesResponseItem = zod.object({
   paid_amount: zod.number(),
   remaining_amount: zod.number(),
   status: zod.enum(["paid", "partial", "unpaid"]),
+  posting_status: zod.enum(["draft", "posted", "cancelled"]).nullish(),
+  date: zod.string().nullish(),
   notes: zod.string().nullish(),
   created_at: zod.string(),
 });
@@ -272,13 +261,13 @@ export const CreateSaleBody = zod.object({
   payment_type: zod.enum(["cash", "credit", "partial"]),
   total_amount: zod.number(),
   paid_amount: zod.number(),
-  date: zod.string().nullish(),
-  notes: zod.string().nullish(),
   safe_id: zod.number().nullish(),
   warehouse_id: zod.number().nullish(),
   salesperson_id: zod.number().nullish(),
   discount_percent: zod.number().nullish(),
   discount_amount: zod.number().nullish(),
+  date: zod.string().nullish(),
+  notes: zod.string().nullish(),
   items: zod.array(
     zod.object({
       product_id: zod.number(),
@@ -307,6 +296,8 @@ export const GetSaleByIdResponse = zod.object({
   paid_amount: zod.number(),
   remaining_amount: zod.number(),
   status: zod.enum(["paid", "partial", "unpaid"]),
+  posting_status: zod.enum(["draft", "posted", "cancelled"]).nullish(),
+  date: zod.string().nullish(),
   notes: zod.string().nullish(),
   created_at: zod.string(),
   items: zod.array(
@@ -318,6 +309,9 @@ export const GetSaleByIdResponse = zod.object({
       quantity: zod.number(),
       unit_price: zod.number(),
       total_price: zod.number(),
+      cost_price: zod.number().nullish(),
+      cost_total: zod.number().nullish(),
+      quantity_returned: zod.number().nullish(),
     }),
   ),
 });
@@ -330,14 +324,13 @@ export const GetPurchasesResponseItem = zod.object({
   invoice_no: zod.string(),
   supplier_name: zod.string().nullish(),
   supplier_id: zod.number().nullish(),
-  customer_id: zod.number().nullish(),
-  customer_name: zod.string().nullish(),
-  customer_payment_type: zod.string().nullish(),
   payment_type: zod.enum(["cash", "credit", "partial"]),
   total_amount: zod.number(),
   paid_amount: zod.number(),
   remaining_amount: zod.number(),
   status: zod.enum(["paid", "partial", "unpaid"]),
+  posting_status: zod.enum(["draft", "posted", "cancelled"]).nullish(),
+  date: zod.string().nullish(),
   notes: zod.string().nullish(),
   created_at: zod.string(),
 });
@@ -349,12 +342,11 @@ export const GetPurchasesResponse = zod.array(GetPurchasesResponseItem);
 export const CreatePurchaseBody = zod.object({
   supplier_name: zod.string().nullish(),
   supplier_id: zod.number().nullish(),
-  customer_id: zod.number().nullish(),
-  customer_name: zod.string().nullish(),
-  safe_id: zod.number().nullish(),
   payment_type: zod.enum(["cash", "credit", "partial"]),
   total_amount: zod.number(),
   paid_amount: zod.number(),
+  safe_id: zod.number().nullish(),
+  warehouse_id: zod.number().nullish(),
   date: zod.string().nullish(),
   notes: zod.string().nullish(),
   items: zod.array(
@@ -380,9 +372,6 @@ export const GetPurchaseByIdResponse = zod.object({
   invoice_no: zod.string(),
   supplier_name: zod.string().nullish(),
   supplier_id: zod.number().nullish(),
-  customer_id: zod.number().nullish(),
-  customer_name: zod.string().nullish(),
-  customer_payment_type: zod.string().nullish(),
   payment_type: zod.enum(["cash", "credit", "partial"]),
   total_amount: zod.number(),
   paid_amount: zod.number(),
@@ -399,6 +388,7 @@ export const GetPurchaseByIdResponse = zod.object({
       quantity: zod.number(),
       unit_price: zod.number(),
       total_price: zod.number(),
+      quantity_returned: zod.number().nullish(),
     }),
   ),
 });
@@ -481,6 +471,13 @@ export const GetTransactionsResponseItem = zod.object({
     "income",
     "receipt",
     "payment",
+    "sale_return",
+    "purchase_return",
+    "sale_cash",
+    "sale_credit",
+    "purchase_cash",
+    "receipt_voucher",
+    "payment_voucher",
   ]),
   amount: zod.number(),
   description: zod.string().nullish(),
@@ -515,11 +512,25 @@ export const GetDashboardStatsResponse = zod.object({
   recent_transactions: zod.array(
     zod.object({
       id: zod.number(),
-      type: zod.string(),
+      type: zod.enum([
+        "sale",
+        "purchase",
+        "expense",
+        "income",
+        "receipt",
+        "payment",
+        "sale_return",
+        "purchase_return",
+        "sale_cash",
+        "sale_credit",
+        "purchase_cash",
+        "receipt_voucher",
+        "payment_voucher",
+      ]),
       amount: zod.number(),
       description: zod.string().nullish(),
       related_id: zod.number().nullish(),
       created_at: zod.string(),
-    }).passthrough(),
+    }),
   ),
 });

@@ -98,6 +98,8 @@ export interface Sale {
   paid_amount: number;
   remaining_amount: number;
   status: SaleStatus;
+  posting_status?: "draft" | "posted" | "cancelled" | null;
+  date?: string | null;
   notes?: string | null;
   created_at: string;
 }
@@ -110,6 +112,9 @@ export interface SaleItem {
   quantity: number;
   unit_price: number;
   total_price: number;
+  cost_price?: number | null;
+  cost_total?: number | null;
+  quantity_returned?: number | null;
 }
 
 export type SaleWithItemsPaymentType =
@@ -140,6 +145,8 @@ export interface SaleWithItems {
   paid_amount: number;
   remaining_amount: number;
   status: SaleWithItemsStatus;
+  posting_status?: "draft" | "posted" | "cancelled" | null;
+  date?: string | null;
   notes?: string | null;
   created_at: string;
   items: SaleItem[];
@@ -168,6 +175,12 @@ export interface CreateSaleInput {
   payment_type: CreateSaleInputPaymentType;
   total_amount: number;
   paid_amount: number;
+  safe_id?: number | null;
+  warehouse_id?: number | null;
+  salesperson_id?: number | null;
+  discount_percent?: number | null;
+  discount_amount?: number | null;
+  date?: string | null;
   notes?: string | null;
   items: CreateSaleItemInput[];
 }
@@ -202,6 +215,8 @@ export interface Purchase {
   paid_amount: number;
   remaining_amount: number;
   status: PurchaseStatus;
+  posting_status?: "draft" | "posted" | "cancelled" | null;
+  date?: string | null;
   notes?: string | null;
   created_at: string;
 }
@@ -214,6 +229,7 @@ export interface PurchaseItem {
   quantity: number;
   unit_price: number;
   total_price: number;
+  quantity_returned?: number | null;
 }
 
 export type PurchaseWithItemsPaymentType =

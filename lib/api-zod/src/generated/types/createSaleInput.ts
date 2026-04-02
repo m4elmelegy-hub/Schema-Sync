@@ -14,6 +14,12 @@ export interface CreateSaleInput {
   payment_type: CreateSaleInputPaymentType;
   total_amount: number;
   paid_amount: number;
+  safe_id?: number | null;
+  warehouse_id?: number | null;
+  salesperson_id?: number | null;
+  discount_percent?: number | null;
+  discount_amount?: number | null;
+  date?: string | null;
   notes?: string | null;
   items: CreateSaleItemInput[];
 }

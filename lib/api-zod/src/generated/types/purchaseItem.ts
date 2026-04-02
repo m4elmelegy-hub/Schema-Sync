@@ -14,4 +14,5 @@ export interface PurchaseItem {
   quantity: number;
   unit_price: number;
   total_price: number;
+  quantity_returned?: number | null;
 }

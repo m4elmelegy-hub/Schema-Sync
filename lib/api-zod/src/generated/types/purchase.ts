@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PurchasePaymentType } from "./purchasePaymentType";
+import type { PurchasePostingStatus } from "./purchasePostingStatus";
 import type { PurchaseStatus } from "./purchaseStatus";
 
 export interface Purchase {
@@ -13,13 +14,13 @@ export interface Purchase {
   invoice_no: string;
   supplier_name?: string | null;
   supplier_id?: number | null;
-  customer_id?: number | null;
-  customer_name?: string | null;
   payment_type: PurchasePaymentType;
   total_amount: number;
   paid_amount: number;
   remaining_amount: number;
   status: PurchaseStatus;
+  posting_status?: PurchasePostingStatus;
+  date?: string | null;
   notes?: string | null;
   created_at: string;
 }

@@ -7,6 +7,7 @@
  */
 import type { SaleItem } from "./saleItem";
 import type { SaleWithItemsPaymentType } from "./saleWithItemsPaymentType";
+import type { SaleWithItemsPostingStatus } from "./saleWithItemsPostingStatus";
 import type { SaleWithItemsStatus } from "./saleWithItemsStatus";
 
 export interface SaleWithItems {
@@ -19,6 +20,8 @@ export interface SaleWithItems {
   paid_amount: number;
   remaining_amount: number;
   status: SaleWithItemsStatus;
+  posting_status?: SaleWithItemsPostingStatus;
+  date?: string | null;
   notes?: string | null;
   created_at: string;
   items: SaleItem[];

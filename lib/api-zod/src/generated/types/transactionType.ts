@@ -16,4 +16,11 @@ export const TransactionType = {
   income: "income",
   receipt: "receipt",
   payment: "payment",
+  sale_return: "sale_return",
+  purchase_return: "purchase_return",
+  sale_cash: "sale_cash",
+  sale_credit: "sale_credit",
+  purchase_cash: "purchase_cash",
+  receipt_voucher: "receipt_voucher",
+  payment_voucher: "payment_voucher",
 } as const;

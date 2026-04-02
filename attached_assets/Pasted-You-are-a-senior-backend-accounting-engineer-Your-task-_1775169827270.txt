@@ -1,0 +1,184 @@
+You are a senior backend + accounting engineer.
+
+Your task is NOT to add features.
+Your task is to VALIDATE and FIX the accounting system completely.
+
+==================================================
+GOAL
+====
+
+Ensure all accounting, inventory, and reports are 100% correct.
+
+==================================================
+STEP 1 — CLEAN TEST DATA
+========================
+
+* reset database
+* create fresh controlled dataset
+
+==================================================
+STEP 2 — CREATE TEST SCENARIOS
+==============================
+
+Simulate full business flow:
+
+1. Create customer "محمد"
+
+2. Create supplier "شركة التوريد"
+
+3. Add product:
+
+* name: منتج A
+* cost: 70
+
+---
+
+PURCHASE TEST:
+
+* purchase 10 units @ 70
+  EXPECTED:
+* inventory = 10
+* inventory value = 700
+* journal:
+  DR inventory 700
+  CR cash/AP 700
+
+---
+
+SALE TEST (CASH):
+
+* sell 2 units @ 100
+  EXPECTED:
+* revenue = 200
+* COGS = 140
+* profit = 60
+
+journal:
+DR cash 200
+CR revenue 200
+
+DR COGS 140
+CR inventory 140
+
+inventory:
+
+* qty = 8
+
+---
+
+SALE TEST (CREDIT):
+
+* sell 2 units credit
+  EXPECTED:
+* AR increases
+* same COGS logic
+
+---
+
+PARTIAL PAYMENT:
+
+* receive 100 from customer
+  EXPECTED:
+  DR cash 100
+  CR AR 100
+
+---
+
+SALES RETURN:
+
+* return 1 unit
+  EXPECTED:
+* revenue reversed
+* COGS reversed
+* inventory increases at ORIGINAL COST
+
+---
+
+PURCHASE RETURN:
+
+* return 2 units
+  EXPECTED:
+* inventory decreases
+* supplier/AP updated
+* WAC updated correctly
+
+---
+
+==================================================
+STEP 3 — VERIFY ALL CALCULATIONS
+================================
+
+Check:
+
+* inventory quantity
+* WAC calculation
+* revenue
+* COGS
+* profit
+* AR/AP balances
+* cash balance
+
+==================================================
+STEP 4 — FIX ERRORS
+===================
+
+If any mismatch:
+
+* fix logic
+* fix queries
+* fix report calculations
+
+DO NOT PATCH.
+Fix root cause.
+
+==================================================
+STEP 5 — REPORT VALIDATION
+==========================
+
+Test reports:
+
+* profit report
+* daily report
+* product profit
+* customer statement
+* supplier statement
+* cash flow
+
+Ensure:
+
+profit = revenue - COGS - expenses
+
+==================================================
+STEP 6 — ADD DEBUG OUTPUT
+=========================
+
+After tests, print:
+
+* expected values
+* actual values
+* differences
+
+==================================================
+STEP 7 — FINAL RESULT
+=====================
+
+Return:
+
+* full test log
+* all calculations
+* confirmation:
+  "ACCOUNTING SYSTEM VERIFIED 100%"
+
+If NOT:
+list exact errors
+
+==================================================
+IMPORTANT RULES
+===============
+
+* no assumptions
+* no fake data
+* no skipping steps
+* must simulate real flow
+
+This is a critical audit.
