@@ -10,4 +10,5 @@ export interface CreateCustomerInput {
   name: string;
   phone?: string | null;
   balance?: number;
+  is_supplier?: boolean;
 }

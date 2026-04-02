@@ -623,6 +623,8 @@ components:
           nullable: true
         balance:
           type: number
+        is_supplier:
+          type: boolean
         created_at:
           type: string
       required: [id, name, balance, created_at]
@@ -637,6 +639,8 @@ components:
           nullable: true
         balance:
           type: number
+        is_supplier:
+          type: boolean
       required: [name]
 
     Supplier:
