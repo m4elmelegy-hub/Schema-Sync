@@ -188,6 +188,18 @@ router.delete("/customers/:id", wrap(async (req, res) => {
     return;
   }
 
+  // فحص الرصيد — لا يمكن حذف عميل بدين قائم
+  const ledgerRows = await db
+    .select({ amount: customerLedgerTable.amount })
+    .from(customerLedgerTable)
+    .where(eq(customerLedgerTable.customer_id, params.data.id));
+  const ledgerBalance = ledgerRows.reduce((s, r) => s + Number(r.amount), 0);
+  if (Math.abs(ledgerBalance) > 0.001) {
+    const label = ledgerBalance > 0 ? `عليه لنا ${ledgerBalance.toFixed(2)}` : `له علينا ${Math.abs(ledgerBalance).toFixed(2)}`;
+    res.status(400).json({ error: `لا يمكن حذف العميل — يوجد رصيد غير مسوّى (${label})` });
+    return;
+  }
+
   const [before] = await db.select().from(customersTable).where(eq(customersTable.id, params.data.id));
   await db.delete(customersTable).where(eq(customersTable.id, params.data.id));
 

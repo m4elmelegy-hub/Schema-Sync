@@ -1127,8 +1127,9 @@ export default function Customers() {
               )}
             </div>
             <div className="flex gap-3">
-              <button onClick={handleDelete} disabled={deleteMutation.isPending}
-                className="flex-1 bg-red-500/80 hover:bg-red-500 text-white py-2.5 rounded-xl font-bold transition-colors">
+              <button onClick={handleDelete}
+                disabled={deleteMutation.isPending || Number(customers.find(c => c.id === deleteConfirmId)?.balance) !== 0}
+                className="flex-1 bg-red-500/80 hover:bg-red-500 text-white py-2.5 rounded-xl font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
                 {deleteMutation.isPending ? "جاري الحذف..." : "حذف"}
               </button>
               <button onClick={() => setDeleteConfirmId(null)} className="flex-1 btn-secondary py-2.5">إلغاء</button>
