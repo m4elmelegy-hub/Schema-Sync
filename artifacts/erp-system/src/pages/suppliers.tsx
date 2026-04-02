@@ -196,6 +196,10 @@ export default function Suppliers() {
     (s.supplier_code && String(s.supplier_code).includes(search))
   );
 
+  const totalOwed = suppliers.reduce((s, sup) => s + (Number(sup.balance) > 0 ? Number(sup.balance) : 0), 0);
+  const suppliersWithDebt = suppliers.filter(s => Number(s.balance) > 0).length;
+  const suppliersSettled = suppliers.length - suppliersWithDebt;
+
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim()) return;
@@ -255,6 +259,41 @@ export default function Suppliers() {
           <Plus className="w-5 h-5" /> إضافة مورد
         </button>
       </div>
+
+      {/* ── إحصائيات الموردين ── */}
+      {!isLoading && suppliers.length > 0 && (
+        <div className="grid grid-cols-3 gap-4">
+          <div className="glass-panel rounded-2xl p-4 border border-white/10 flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-violet-500/10 border border-violet-500/20">
+              <TrendingDown className="w-5 h-5 text-violet-400" />
+            </div>
+            <div>
+              <p className="text-white/40 text-xs">إجمالي الموردين</p>
+              <p className="text-white font-black text-xl">{suppliers.length}</p>
+            </div>
+          </div>
+          <div className="glass-panel rounded-2xl p-4 border border-red-500/30 bg-red-500/5 flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/20">
+              <DollarSign className="w-5 h-5 text-red-400" />
+            </div>
+            <div>
+              <p className="text-red-400/70 text-xs">إجمالي المستحقات</p>
+              <p className="text-red-400 font-black text-xl tabular-nums">{formatCurrency(totalOwed)}</p>
+              <p className="text-red-400/40 text-xs">{suppliersWithDebt} مورد بدين</p>
+            </div>
+          </div>
+          <div className="glass-panel rounded-2xl p-4 border border-emerald-500/30 bg-emerald-500/5 flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+              <TrendingUp className="w-5 h-5 text-emerald-400" />
+            </div>
+            <div>
+              <p className="text-emerald-400/70 text-xs">موردون متسوّيون</p>
+              <p className="text-emerald-400 font-black text-xl">{suppliersSettled}</p>
+              <p className="text-emerald-400/40 text-xs">لا يوجد دين</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── كشف حساب المورد ── */}
       {showReport && (
@@ -335,12 +374,30 @@ export default function Suppliers() {
               </div>
 
               <div>
-                <label className="block text-white/70 text-sm mb-1">المبلغ المدفوع *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-white/70 text-sm">المبلغ المدفوع *</label>
+                  <button type="button"
+                    onClick={() => setPaymentData({ ...paymentData, amount: showPayment.balance })}
+                    className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg hover:bg-amber-500/20 transition-colors font-bold">
+                    سداد كامل ({formatCurrency(showPayment.balance)})
+                  </button>
+                </div>
                 <input required type="number" step="0.01" min="0.01"
                   max={showPayment.balance}
                   className="glass-input"
                   value={paymentData.amount || ""}
                   onChange={e => setPaymentData({ ...paymentData, amount: parseFloat(e.target.value) || 0 })} />
+                {paymentData.amount > 0 && paymentData.amount < showPayment.balance && (
+                  <div className="flex items-center justify-between mt-2 px-3 py-1.5 bg-amber-500/5 border border-amber-500/20 rounded-xl">
+                    <span className="text-amber-400/70 text-xs">المتبقي بعد الدفع</span>
+                    <span className="text-amber-400 font-bold text-xs tabular-nums">
+                      {formatCurrency(showPayment.balance - paymentData.amount)}
+                    </span>
+                  </div>
+                )}
+                {paymentData.amount >= showPayment.balance && paymentData.amount > 0 && (
+                  <p className="text-emerald-400 text-xs mt-1.5 font-bold">✓ سداد كامل — الرصيد سيصبح صفر</p>
+                )}
               </div>
 
               <div>
@@ -401,8 +458,15 @@ export default function Suppliers() {
                     </td>
                     <td className="p-4 font-bold text-white">{supplier.name}</td>
                     <td className="p-4 text-white/60">{supplier.phone || "—"}</td>
-                    <td className={`p-4 font-bold ${supplier.balance > 0 ? "text-red-400" : "text-white/30"}`}>
-                      {formatCurrency(supplier.balance)}
+                    <td className="p-4">
+                      {Number(supplier.balance) > 0 ? (
+                        <div>
+                          <span className="font-black text-red-400 tabular-nums block">{formatCurrency(Number(supplier.balance))}</span>
+                          <span className="text-xs text-red-400/50 font-medium">مستحق للمورد</span>
+                        </div>
+                      ) : (
+                        <span className="text-emerald-400/70 text-sm font-bold">متسوّى ✓</span>
+                      )}
                     </td>
                     <td className="p-4">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -419,9 +483,9 @@ export default function Suppliers() {
                             setShowPayment({ id: supplier.id, name: supplier.name, balance: supplier.balance });
                           }}
                           disabled={supplier.balance <= 0}
-                          className="flex items-center gap-1.5 bg-red-500/20 text-red-400 hover:bg-red-500/30 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed border border-red-500/30"
+                          className="flex items-center gap-1.5 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed border border-emerald-500/30"
                         >
-                          <DollarSign className="w-3.5 h-3.5" /> دفع دفعة
+                          <DollarSign className="w-3.5 h-3.5" /> سداد دفعة
                         </button>
                       </div>
                     </td>

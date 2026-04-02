@@ -23,4 +23,5 @@ export const TransactionType = {
   purchase_cash: "purchase_cash",
   receipt_voucher: "receipt_voucher",
   payment_voucher: "payment_voucher",
+  sale_cancel: "sale_cancel",
 } as const;
