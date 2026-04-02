@@ -29,6 +29,7 @@ import contactsRouter from "./contacts";
 import alertsRouter from "./alerts";
 import systemRouter from "./system";
 import backupsRouter from "./backups";
+import companiesRouter from "./companies";
 
 const router: IRouter = Router();
 
@@ -67,5 +68,6 @@ router.use(contactsRouter);
 router.use(alertsRouter);
 router.use(systemRouter);
 router.use(backupsRouter);
+router.use(companiesRouter);
 
 export default router;

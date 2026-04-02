@@ -5,9 +5,15 @@
  */
 import { Router } from "express";
 import { eq } from "drizzle-orm";
-import { db, erpUsersTable } from "@workspace/db";
+import { db, erpUsersTable, companiesTable } from "@workspace/db";
 import { authenticate, signToken } from "../middleware/auth";
 import { triggerBackup } from "../lib/backup-service";
+
+function daysRemaining(endDate: string): number {
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  const end = new Date(endDate); end.setHours(0, 0, 0, 0);
+  return Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+}
 
 const router = Router();
 
@@ -119,6 +125,30 @@ router.post("/auth/login", async (req, res) => {
         });
       }
       return;
+    }
+
+    /* ── Subscription check ───────────────────────────────── */
+    if (user.company_id) {
+      const [company] = await db
+        .select()
+        .from(companiesTable)
+        .where(eq(companiesTable.id, user.company_id));
+
+      if (company) {
+        if (!company.is_active) {
+          res.status(403).json({ error: "الاشتراك معطل — تواصل مع المدير" });
+          return;
+        }
+        const days = daysRemaining(company.end_date);
+        if (days < 0) {
+          res.status(403).json({
+            error: "انتهت صلاحية الاشتراك",
+            expired: true,
+            endDate: company.end_date,
+          });
+          return;
+        }
+      }
     }
 
     /* ── Success — clear lockout ──────────────────────────── */

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, integer } from "drizzle-orm/pg-core";
 
 export const erpUsersTable = pgTable("erp_users", {
   id: serial("id").primaryKey(),
@@ -8,6 +8,7 @@ export const erpUsersTable = pgTable("erp_users", {
   role: text("role").notNull().default("cashier"),
   permissions: text("permissions").default("{}"),
   active: boolean("active").default(true),
+  company_id: integer("company_id"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

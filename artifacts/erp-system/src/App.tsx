@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/layout";
+import { SubscriptionBanner } from "@/components/subscription-banner";
 import { AuthProvider, useAuth } from "@/contexts/auth";
 import { AppSettingsProvider } from "@/contexts/app-settings";
 import { canAccess, type UserRole } from "@/lib/rbac";
@@ -80,6 +81,7 @@ function Router() {
 
   return (
     <AppLayout>
+      <SubscriptionBanner />
       <Switch>
         <Route path="/">
           {() => <Suspense fallback={<PageFallback />}><Dashboard /></Suspense>}

@@ -17,3 +17,4 @@ export * from "./audit-logs";
 export * from "./settings";
 export * from "./alerts";
 export * from "./backups";
+export * from "./companies";
