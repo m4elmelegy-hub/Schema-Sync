@@ -19,23 +19,23 @@ const ROLE_LABELS: Record<string, string> = {
 
 const FEATURES = [
   { icon: "⚡", label: "مبيعات فورية", desc: "نقطة بيع سريعة وسهلة" },
-  { icon: "📊", label: "تقارير ذكية", desc: "تحليلات مالية شاملة" },
-  { icon: "🔒", label: "أمان تام",     desc: "صلاحيات متعددة المستويات" },
-  { icon: "🏪", label: "إدارة المخزون", desc: "تتبع دقيق للمنتجات" },
+  { icon: "📊", label: "تقارير ذكية",  desc: "تحليلات مالية شاملة"  },
+  { icon: "🔒", label: "أمان تام",      desc: "صلاحيات متعددة المستويات" },
+  { icon: "🏪", label: "إدارة المخزون", desc: "تتبع دقيق للمنتجات"  },
 ];
 
 export default function Login() {
-  const { login }        = useAuth();
-  const { settings }     = useAppSettings();
-  const [, setLocation]  = useLocation();
+  const { login }       = useAuth();
+  const { settings }    = useAppSettings();
+  const [, setLocation] = useLocation();
 
-  const [mode, setMode]           = useState<"login" | "register">("login");
-  const [username, setUsername]   = useState("");
-  const [pin, setPin]             = useState("");
-  const [showPin, setShowPin]     = useState(false);
-  const [error, setError]         = useState("");
-  const [loading, setLoading]     = useState(false);
-  const [focused, setFocused]     = useState<"username" | "pin" | null>(null);
+  const [mode, setMode]         = useState<"login" | "register">("login");
+  const [username, setUsername] = useState("");
+  const [pin, setPin]           = useState("");
+  const [showPin, setShowPin]   = useState(false);
+  const [error, setError]       = useState("");
+  const [loading, setLoading]   = useState(false);
+  const [focused, setFocused]   = useState<"username" | "pin" | null>(null);
 
   const usernameRef = useRef<HTMLInputElement>(null);
   const pinRef      = useRef<HTMLInputElement>(null);
@@ -53,29 +53,19 @@ export default function Login() {
 
   const activeUsers = users.filter((u) => u.active !== false);
 
-  useEffect(() => {
-    setTimeout(() => usernameRef.current?.focus(), 300);
-  }, []);
+  useEffect(() => { setTimeout(() => usernameRef.current?.focus(), 400); }, []);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-
     const trimmed = username.trim();
     if (!trimmed) { setError("أدخل اسم المستخدم"); usernameRef.current?.focus(); return; }
     if (!pin)     { setError("أدخل الرقم السري");  pinRef.current?.focus(); return; }
 
     const matchedUser = activeUsers.find(
-      (u) =>
-        u.username.toLowerCase() === trimmed.toLowerCase() ||
-        u.name === trimmed
+      (u) => u.username.toLowerCase() === trimmed.toLowerCase() || u.name === trimmed
     );
-
-    if (!matchedUser) {
-      setError("اسم المستخدم غير موجود");
-      usernameRef.current?.focus();
-      return;
-    }
+    if (!matchedUser) { setError("اسم المستخدم غير موجود"); usernameRef.current?.focus(); return; }
 
     setLoading(true);
     try {
@@ -84,7 +74,6 @@ export default function Login() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: matchedUser.id, pin }),
       });
-
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setError(data.error || "الرقم السري غير صحيح");
@@ -92,12 +81,10 @@ export default function Login() {
         pinRef.current?.focus();
         return;
       }
-
       const { user: authedUser, token } = await res.json() as {
         user: { id: number; name: string; username: string; role: string };
         token: string;
       };
-
       login(authedUser, token);
       setLocation("/");
     } catch {
@@ -108,99 +95,147 @@ export default function Login() {
   }, [username, pin, activeUsers, login, setLocation]);
 
   return (
-    <div className="min-h-screen flex" style={{ direction: "rtl", background: "#f0f4ff" }}>
+    <div
+      dir="rtl"
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        fontFamily: "inherit",
+        background: "#f8faff",
+      }}
+    >
+      {/* ════════════════════════════════════════════════════
+          BRAND PANEL  (dark blue → purple, RTL = right side)
+      ════════════════════════════════════════════════════ */}
+      <div
+        className="hidden lg:flex"
+        style={{
+          width: "46%",
+          position: "relative",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          overflow: "hidden",
+          background:
+            "linear-gradient(145deg, #0f0c29 0%, #1a1040 25%, #302b63 60%, #24243e 100%)",
+        }}
+      >
+        {/* ── Glowing animated blobs ───────────────────── */}
+        <div className="lp-blob lp-blob-1" />
+        <div className="lp-blob lp-blob-2" />
+        <div className="lp-blob lp-blob-3" />
 
-      {/* ═══════════════════════════════════════════════
-          LEFT — Brand panel
-      ═══════════════════════════════════════════════ */}
-      <div className="hidden lg:flex w-[46%] relative flex-col items-center justify-center overflow-hidden"
-        style={{ background: "linear-gradient(145deg, #1e40af 0%, #1d4ed8 40%, #2563eb 70%, #3b82f6 100%)" }}>
+        {/* ── Subtle dot-grid ──────────────────────────── */}
+        <div
+          style={{
+            position: "absolute", inset: 0, pointerEvents: "none",
+            backgroundImage:
+              "radial-gradient(rgba(255,255,255,0.08) 1px, transparent 1px)",
+            backgroundSize: "28px 28px",
+            maskImage:
+              "radial-gradient(ellipse 80% 80% at 50% 50%, #000 60%, transparent 100%)",
+            WebkitMaskImage:
+              "radial-gradient(ellipse 80% 80% at 50% 50%, #000 60%, transparent 100%)",
+          }}
+        />
 
-        {/* Decorative blobs */}
-        <div style={{
-          position: "absolute", top: "-80px", left: "-80px",
-          width: "360px", height: "360px", borderRadius: "50%",
-          background: "rgba(255,255,255,0.06)",
-        }} />
-        <div style={{
-          position: "absolute", bottom: "-60px", right: "-60px",
-          width: "300px", height: "300px", borderRadius: "50%",
-          background: "rgba(255,255,255,0.05)",
-        }} />
-        <div style={{
-          position: "absolute", top: "40%", left: "60%",
-          width: "180px", height: "180px", borderRadius: "50%",
-          background: "rgba(255,255,255,0.04)",
-        }} />
+        {/* ── Frosted inner glow ring ───────────────────── */}
+        <div
+          style={{
+            position: "absolute",
+            top: "50%", left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: "500px", height: "500px",
+            borderRadius: "50%",
+            border: "1px solid rgba(167,139,250,0.12)",
+            pointerEvents: "none",
+          }}
+        />
 
-        {/* Grid pattern */}
-        <div style={{
-          position: "absolute", inset: 0, pointerEvents: "none",
-          backgroundImage:
-            "linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px)," +
-            "linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)",
-          backgroundSize: "48px 48px",
-        }} />
-
-        {/* Content */}
-        <div className="relative z-10 text-center px-12 max-w-[420px]" dir="rtl">
-
+        {/* ── Content ───────────────────────────────────── */}
+        <div
+          className="relative z-10 flex flex-col items-center text-center px-12"
+          style={{ maxWidth: "400px" }}
+          dir="rtl"
+        >
           {/* Logo */}
-          <div className="flex justify-center mb-8">
-            <div style={{
-              width: "88px", height: "88px", borderRadius: "24px",
-              background: "rgba(255,255,255,0.15)",
-              backdropFilter: "blur(12px)",
-              border: "1.5px solid rgba(255,255,255,0.25)",
+          <div
+            style={{
+              width: "100px", height: "100px",
+              borderRadius: "28px",
+              background: "rgba(255,255,255,0.08)",
+              backdropFilter: "blur(20px)",
+              border: "1.5px solid rgba(255,255,255,0.18)",
               display: "flex", alignItems: "center", justifyContent: "center",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.2), 0 2px 8px rgba(0,0,0,0.1)",
-            }}>
-              <img
-                src={logoSrc}
-                alt="Logo"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = "none";
-                  const parent = (e.target as HTMLImageElement).parentElement;
-                  if (parent) parent.innerHTML = '<span style="font-size:38px">🏪</span>';
-                }}
-                style={{ width: "56px", height: "56px", objectFit: "contain" }}
-              />
-            </div>
+              marginBottom: "28px",
+              boxShadow:
+                "0 0 0 1px rgba(251,191,36,0.2)," +
+                "0 0 40px rgba(251,191,36,0.25)," +
+                "0 20px 60px rgba(0,0,0,0.5)," +
+                "inset 0 1px 0 rgba(255,255,255,0.12)",
+            }}
+          >
+            <img
+              src={logoSrc}
+              alt="Logo"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+                const p = (e.target as HTMLImageElement).parentElement;
+                if (p) p.innerHTML = '<span style="font-size:44px">🏪</span>';
+              }}
+              style={{ width: "64px", height: "64px", objectFit: "contain", filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.3))" }}
+            />
           </div>
 
-          {/* App name */}
-          <h1 style={{
-            fontSize: "32px", fontWeight: 900, color: "#fff",
-            marginBottom: "10px", letterSpacing: "-0.5px",
-            textShadow: "0 2px 12px rgba(0,0,0,0.15)",
-          }}>
+          {/* Company name */}
+          <h1
+            style={{
+              fontSize: "34px", fontWeight: 900, color: "#fff",
+              marginBottom: "10px", letterSpacing: "-0.5px",
+              textShadow: "0 2px 24px rgba(167,139,250,0.4)",
+              lineHeight: 1.1,
+            }}
+          >
             {settings.companyName || "Halal Tech ERP"}
           </h1>
 
           {/* Tagline */}
-          <p style={{
-            fontSize: "15px", color: "rgba(255,255,255,0.75)",
-            marginBottom: "40px", lineHeight: 1.6,
-          }}>
+          <p
+            style={{
+              fontSize: "15px", color: "rgba(196,181,253,0.85)",
+              marginBottom: "44px", lineHeight: 1.7,
+            }}
+          >
             {settings.companySlogan || "أدِر عملك باحترافية وثقة كاملة"}
           </p>
 
-          {/* Feature list */}
-          <div className="flex flex-col gap-3">
+          {/* Feature pills */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
             {FEATURES.map((f) => (
-              <div key={f.label} style={{
-                display: "flex", alignItems: "center", gap: "14px",
-                background: "rgba(255,255,255,0.1)",
-                backdropFilter: "blur(8px)",
-                border: "1px solid rgba(255,255,255,0.15)",
-                borderRadius: "14px",
-                padding: "12px 16px",
-                textAlign: "right",
-              }}>
-                <span style={{ fontSize: "22px", flexShrink: 0 }}>{f.icon}</span>
+              <div
+                key={f.label}
+                style={{
+                  display: "flex", alignItems: "center", gap: "14px",
+                  background: "rgba(255,255,255,0.06)",
+                  backdropFilter: "blur(16px)",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: "16px",
+                  padding: "14px 18px",
+                  textAlign: "right",
+                  transition: "background 0.2s",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")}
+              >
+                <span style={{
+                  fontSize: "24px", flexShrink: 0,
+                  filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.4))",
+                }}>
+                  {f.icon}
+                </span>
                 <div>
-                  <div style={{ fontSize: "13px", fontWeight: 700, color: "#fff" }}>{f.label}</div>
-                  <div style={{ fontSize: "11.5px", color: "rgba(255,255,255,0.6)", marginTop: "1px" }}>{f.desc}</div>
+                  <div style={{ fontSize: "13.5px", fontWeight: 700, color: "#e2d9f3" }}>{f.label}</div>
+                  <div style={{ fontSize: "12px", color: "rgba(196,181,253,0.65)", marginTop: "2px" }}>{f.desc}</div>
                 </div>
               </div>
             ))}
@@ -208,81 +243,113 @@ export default function Login() {
         </div>
 
         {/* Version badge */}
-        <div style={{
-          position: "absolute", bottom: "24px",
-          fontSize: "11px", color: "rgba(255,255,255,0.35)",
-          letterSpacing: "0.12em", fontWeight: 500,
-        }}>
+        <div
+          style={{
+            position: "absolute", bottom: "24px",
+            fontSize: "11px", color: "rgba(196,181,253,0.3)",
+            letterSpacing: "0.14em", fontWeight: 500,
+          }}
+        >
           HALAL TECH ERP v2.0
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════
-          RIGHT — Auth form
-      ═══════════════════════════════════════════════ */}
-      <div className="flex-1 flex flex-col items-center justify-center px-5 py-10"
-        style={{ background: "#f0f4ff", minHeight: "100vh" }}>
-
+      {/* ════════════════════════════════════════════════════
+          FORM PANEL  (right in LTR, left in RTL)
+      ════════════════════════════════════════════════════ */}
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "40px 20px",
+          minHeight: "100vh",
+          background:
+            "linear-gradient(160deg, #f8faff 0%, #eff3ff 50%, #f3f0ff 100%)",
+        }}
+      >
         {/* Mobile logo */}
-        <div className="flex lg:hidden flex-col items-center mb-8">
-          <div style={{
-            width: "64px", height: "64px", borderRadius: "18px",
-            background: "linear-gradient(145deg, #1e40af, #3b82f6)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            marginBottom: "10px",
-            boxShadow: "0 6px 20px rgba(37,99,235,0.3)",
-          }}>
+        <div
+          className="flex lg:hidden flex-col items-center"
+          style={{ marginBottom: "32px" }}
+        >
+          <div
+            style={{
+              width: "72px", height: "72px",
+              borderRadius: "20px",
+              background: "linear-gradient(145deg, #1a1040, #302b63)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              marginBottom: "12px",
+              boxShadow:
+                "0 0 32px rgba(167,139,250,0.3)," +
+                "0 8px 24px rgba(0,0,0,0.2)",
+            }}
+          >
             <img
               src={logoSrc}
               alt="Logo"
               onError={(e) => {
                 (e.target as HTMLImageElement).style.display = "none";
-                const parent = (e.target as HTMLImageElement).parentElement;
-                if (parent) parent.innerHTML = '<span style="font-size:28px">🏪</span>';
+                const p = (e.target as HTMLImageElement).parentElement;
+                if (p) p.innerHTML = '<span style="font-size:32px">🏪</span>';
               }}
-              style={{ width: "42px", height: "42px", objectFit: "contain" }}
+              style={{ width: "48px", height: "48px", objectFit: "contain" }}
             />
           </div>
-          <div style={{ fontSize: "18px", fontWeight: 800, color: "#1e3a8a" }}>
+          <div style={{ fontSize: "20px", fontWeight: 800, color: "#1e1b4b" }}>
             {settings.companyName || "Halal Tech ERP"}
           </div>
         </div>
 
-        {/* Card */}
-        <div style={{
-          width: "100%", maxWidth: "440px",
-          background: "#fff",
-          borderRadius: "24px",
-          boxShadow: "0 4px 6px rgba(0,0,0,0.04), 0 20px 60px rgba(37,99,235,0.08), 0 8px 24px rgba(0,0,0,0.06)",
-          padding: "40px 36px",
-          border: "1px solid rgba(219,234,254,0.8)",
-        }}>
-
+        {/* ── Card ──────────────────────────────────────── */}
+        <div
+          style={{
+            width: "100%",
+            maxWidth: "460px",
+            background: "#fff",
+            borderRadius: "20px",
+            border: "1px solid rgba(226,218,255,0.6)",
+            boxShadow:
+              "0 0 0 1px rgba(167,139,250,0.06)," +
+              "0 4px 6px rgba(0,0,0,0.03)," +
+              "0 20px 80px rgba(99,57,206,0.08)," +
+              "0 8px 32px rgba(0,0,0,0.06)",
+            padding: "44px 40px",
+          }}
+        >
           {/* Tab toggle */}
-          <div style={{
-            display: "flex",
-            background: "#f1f5f9",
-            borderRadius: "12px",
-            padding: "4px",
-            marginBottom: "32px",
-            gap: "4px",
-          }}>
-            {([["login", "تسجيل الدخول"], ["register", "إنشاء حساب"]] as const).map(([m, label]) => (
+          <div
+            style={{
+              display: "flex",
+              background: "#f1f0ff",
+              borderRadius: "14px",
+              padding: "5px",
+              marginBottom: "36px",
+              gap: "5px",
+            }}
+          >
+            {([["login", "تسجيل الدخول"], ["register", "معلومات"]] as const).map(([m, label]) => (
               <button
                 key={m}
                 onClick={() => { setMode(m); setError(""); }}
                 style={{
                   flex: 1,
-                  padding: "9px 0",
-                  borderRadius: "9px",
+                  padding: "10px 0",
+                  borderRadius: "10px",
                   fontSize: "13.5px",
                   fontWeight: 700,
                   border: "none",
                   cursor: "pointer",
-                  transition: "all 0.2s ease",
-                  background: mode === m ? "#fff" : "transparent",
-                  color: mode === m ? "#1d4ed8" : "#64748b",
-                  boxShadow: mode === m ? "0 1px 4px rgba(0,0,0,0.1), 0 0 0 1px rgba(219,234,254,0.8)" : "none",
+                  transition: "all 0.25s ease",
+                  background: mode === m
+                    ? "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)"
+                    : "transparent",
+                  color: mode === m ? "#fff" : "#7c6fa0",
+                  boxShadow: mode === m
+                    ? "0 4px 12px rgba(99,57,206,0.3), 0 1px 4px rgba(0,0,0,0.1)"
+                    : "none",
                 }}
               >
                 {label}
@@ -293,19 +360,13 @@ export default function Login() {
           {mode === "login" ? (
             <LoginForm
               users={activeUsers}
-              username={username}
-              setUsername={setUsername}
-              pin={pin}
-              setPin={setPin}
-              showPin={showPin}
-              setShowPin={setShowPin}
-              error={error}
-              setError={setError}
+              username={username} setUsername={setUsername}
+              pin={pin} setPin={setPin}
+              showPin={showPin} setShowPin={setShowPin}
+              error={error} setError={setError}
               loading={loading}
-              focused={focused}
-              setFocused={setFocused}
-              usernameRef={usernameRef}
-              pinRef={pinRef}
+              focused={focused} setFocused={setFocused}
+              usernameRef={usernameRef} pinRef={pinRef}
               onSubmit={handleSubmit}
             />
           ) : (
@@ -314,11 +375,23 @@ export default function Login() {
         </div>
 
         {/* Footer */}
-        <p style={{ marginTop: "24px", fontSize: "12px", color: "#94a3b8", textAlign: "center" }}>
+        <p
+          style={{
+            marginTop: "28px",
+            fontSize: "12px",
+            color: "#a89cc8",
+            textAlign: "center",
+            letterSpacing: "0.02em",
+          }}
+        >
           {settings.companyName || "Halal Tech ERP"} &copy; {new Date().getFullYear()}
+          &nbsp;·&nbsp; جميع الحقوق محفوظة
         </p>
       </div>
 
+      {/* ════════════════════════════════════════════════════
+          Global styles
+      ════════════════════════════════════════════════════ */}
       <style>{`
         @keyframes lp-shake {
           0%,100% { transform: translateX(0); }
@@ -329,51 +402,126 @@ export default function Login() {
           75%      { transform: translateX(-3px); }
           90%      { transform: translateX(2px); }
         }
+        @keyframes lp-float-1 {
+          0%,100% { transform: translate(0,0) scale(1); }
+          33%     { transform: translate(30px,-40px) scale(1.08); }
+          66%     { transform: translate(-20px,20px) scale(0.95); }
+        }
+        @keyframes lp-float-2 {
+          0%,100% { transform: translate(0,0) scale(1); }
+          40%     { transform: translate(-40px,30px) scale(1.1); }
+          70%     { transform: translate(20px,-20px) scale(0.92); }
+        }
+        @keyframes lp-float-3 {
+          0%,100% { transform: translate(0,0) scale(1); }
+          50%     { transform: translate(20px,40px) scale(1.06); }
+        }
+        @keyframes lp-spin {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
+        }
+
+        .lp-blob {
+          position: absolute;
+          border-radius: 50%;
+          filter: blur(60px);
+          pointer-events: none;
+        }
+        .lp-blob-1 {
+          width: 420px; height: 420px;
+          top: -120px; right: -80px;
+          background: radial-gradient(circle, rgba(124,58,237,0.45) 0%, transparent 70%);
+          animation: lp-float-1 12s ease-in-out infinite;
+        }
+        .lp-blob-2 {
+          width: 360px; height: 360px;
+          bottom: -100px; left: -80px;
+          background: radial-gradient(circle, rgba(79,70,229,0.4) 0%, transparent 70%);
+          animation: lp-float-2 15s ease-in-out infinite;
+        }
+        .lp-blob-3 {
+          width: 260px; height: 260px;
+          top: 45%; left: 30%;
+          background: radial-gradient(circle, rgba(167,139,250,0.25) 0%, transparent 70%);
+          animation: lp-float-3 10s ease-in-out infinite;
+        }
+
+        /* Input base */
         .lp-input {
-          transition: border-color 0.2s, box-shadow 0.2s;
+          transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
         }
         .lp-input:focus {
           outline: none;
-          border-color: #3b82f6 !important;
-          box-shadow: 0 0 0 3px rgba(59,130,246,0.12) !important;
+          border-color: #7c3aed !important;
+          box-shadow: 0 0 0 4px rgba(124,58,237,0.12) !important;
+          background: #fdfcff !important;
         }
+
+        /* Primary button */
         .lp-btn-primary {
-          transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+          position: relative;
+          overflow: hidden;
+          transition: transform 0.18s cubic-bezier(.34,1.56,.64,1),
+                      box-shadow 0.18s ease,
+                      filter 0.18s ease;
+        }
+        .lp-btn-primary::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(90deg,
+            transparent 0%,
+            rgba(255,255,255,0.18) 40%,
+            rgba(255,255,255,0.30) 50%,
+            rgba(255,255,255,0.18) 60%,
+            transparent 100%
+          );
+          transform: translateX(-150%);
+          transition: transform 0s;
+        }
+        .lp-btn-primary:hover:not(:disabled)::after {
+          transform: translateX(150%);
+          transition: transform 0.55s ease;
         }
         .lp-btn-primary:hover:not(:disabled) {
-          transform: translateY(-1px);
-          box-shadow: 0 8px 24px rgba(37,99,235,0.35) !important;
+          transform: translateY(-2px);
+          box-shadow: 0 12px 32px rgba(99,57,206,0.45) !important;
+          filter: brightness(1.05);
         }
         .lp-btn-primary:active:not(:disabled) {
-          transform: translateY(0px);
+          transform: translateY(0);
+          box-shadow: 0 4px 12px rgba(99,57,206,0.25) !important;
         }
         .lp-btn-primary:disabled {
-          opacity: 0.7;
+          opacity: 0.65;
           cursor: not-allowed;
+        }
+
+        @keyframes lp-spin {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
+        }
+        .lp-spinner {
+          animation: lp-spin 0.75s linear infinite;
         }
       `}</style>
     </div>
   );
 }
 
-/* ────────────────────────────────────────────────────────────
+/* ──────────────────────────────────────────────────────────
    LOGIN FORM
-──────────────────────────────────────────────────────────── */
+────────────────────────────────────────────────────────── */
 interface LoginFormProps {
   users: ErpUser[];
-  username: string;
-  setUsername: (v: string) => void;
-  pin: string;
-  setPin: (v: string) => void;
-  showPin: boolean;
-  setShowPin: (v: boolean) => void;
-  error: string;
-  setError: (v: string) => void;
+  username: string; setUsername: (v: string) => void;
+  pin: string; setPin: (v: string) => void;
+  showPin: boolean; setShowPin: (v: boolean) => void;
+  error: string; setError: (v: string) => void;
   loading: boolean;
-  focused: "username" | "pin" | null;
-  setFocused: (v: "username" | "pin" | null) => void;
+  focused: "username" | "pin" | null; setFocused: (v: "username" | "pin" | null) => void;
   usernameRef: React.RefObject<HTMLInputElement | null>;
-  pinRef: React.RefObject<HTMLInputElement | null>;
+  pinRef:      React.RefObject<HTMLInputElement | null>;
   onSubmit: (e: React.FormEvent) => void;
 }
 
@@ -383,9 +531,7 @@ function LoginForm({
 }: LoginFormProps) {
 
   const matchedUser = users.find(
-    (u) =>
-      u.username.toLowerCase() === username.trim().toLowerCase() ||
-      u.name === username.trim()
+    (u) => u.username.toLowerCase() === username.trim().toLowerCase() || u.name === username.trim()
   );
 
   const errorRef = useRef<HTMLDivElement>(null);
@@ -404,26 +550,35 @@ function LoginForm({
     <form onSubmit={onSubmit} noValidate>
 
       {/* Heading */}
-      <div style={{ marginBottom: "28px" }}>
-        <h2 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", marginBottom: "6px" }}>
+      <div style={{ marginBottom: "32px" }}>
+        <h2 style={{
+          fontSize: "26px", fontWeight: 900, color: "#0f0c29",
+          marginBottom: "8px", letterSpacing: "-0.4px", lineHeight: 1.2,
+        }}>
           مرحباً بك 👋
         </h2>
-        <p style={{ fontSize: "13.5px", color: "#64748b" }}>
-          سجّل دخولك للمتابعة إلى لوحة التحكم
+        <p style={{ fontSize: "14px", color: "#7c6fa0", lineHeight: 1.6 }}>
+          سجّل دخولك للوصول إلى لوحة التحكم
         </p>
       </div>
 
-      {/* Username field */}
-      <div style={{ marginBottom: "16px" }}>
-        <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "6px" }}>
+      {/* ── Username ─────────────────────────────────── */}
+      <div style={{ marginBottom: "18px" }}>
+        <label style={{
+          display: "block", fontSize: "13px", fontWeight: 700,
+          color: "#3b2d6e", marginBottom: "8px",
+        }}>
           اسم المستخدم
         </label>
         <div style={{ position: "relative" }}>
+          {/* Icon */}
           <span style={{
-            position: "absolute", top: "50%", right: "14px",
+            position: "absolute", top: "50%", right: "16px",
             transform: "translateY(-50%)",
-            fontSize: "16px", color: focused === "username" ? "#3b82f6" : "#94a3b8",
-            pointerEvents: "none", transition: "color 0.2s",
+            fontSize: "17px",
+            color: focused === "username" ? "#7c3aed" : "#c4b5fd",
+            pointerEvents: "none",
+            transition: "color 0.2s",
           }}>
             👤
           </span>
@@ -440,54 +595,57 @@ function LoginForm({
             className="lp-input"
             style={{
               width: "100%", boxSizing: "border-box",
-              padding: "12px 44px 12px 40px",
-              borderRadius: "12px",
-              border: `1.5px solid ${focused === "username" ? "#3b82f6" : "#e2e8f0"}`,
-              fontSize: "14px", color: "#0f172a",
-              background: loading ? "#f8fafc" : "#fff",
+              padding: "15px 50px 15px 46px",
+              borderRadius: "14px",
+              border: `1.5px solid ${focused === "username" ? "#7c3aed" : "#e5e0f8"}`,
+              fontSize: "14.5px", color: "#0f0c29",
+              background: loading ? "#f9f8ff" : "#fefcff",
               fontFamily: "inherit",
               direction: "rtl",
+              height: "54px",
             }}
           />
-          {/* User match indicator */}
+          {/* Match indicator */}
           {username.trim() && (
             <span style={{
-              position: "absolute", top: "50%", left: "14px",
+              position: "absolute", top: "50%", left: "16px",
               transform: "translateY(-50%)",
-              fontSize: "14px",
+              fontSize: "15px",
             }}>
               {matchedUser ? "✅" : "❌"}
             </span>
           )}
         </div>
-        {/* User suggestion */}
+
+        {/* Matched user pill */}
         {matchedUser && (
           <div style={{
-            marginTop: "6px",
-            display: "flex", alignItems: "center", gap: "8px",
-            padding: "7px 11px",
-            background: "#eff6ff",
-            border: "1px solid #bfdbfe",
-            borderRadius: "8px",
-            fontSize: "12.5px", color: "#1d4ed8",
+            marginTop: "8px",
+            display: "flex", alignItems: "center", gap: "10px",
+            padding: "9px 14px",
+            background: "linear-gradient(135deg,#f5f3ff,#ede9fe)",
+            border: "1px solid #ddd6fe",
+            borderRadius: "12px",
+            fontSize: "12.5px", color: "#5b21b6",
           }}>
             <span style={{
-              background: "linear-gradient(135deg,#1d4ed8,#3b82f6)",
+              background: "linear-gradient(135deg,#4f46e5,#7c3aed)",
               color: "#fff",
-              width: "24px", height: "24px",
-              borderRadius: "7px",
+              width: "28px", height: "28px",
+              borderRadius: "8px",
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: "11px", fontWeight: 800, flexShrink: 0,
+              fontSize: "12px", fontWeight: 800, flexShrink: 0,
             }}>
               {matchedUser.name.charAt(0)}
             </span>
-            <span>{matchedUser.name}</span>
+            <span style={{ fontWeight: 600 }}>{matchedUser.name}</span>
             <span style={{
               marginRight: "auto",
-              background: "#dbeafe",
-              borderRadius: "6px",
-              padding: "2px 8px",
-              fontSize: "11px", fontWeight: 600,
+              background: "linear-gradient(135deg,#4f46e5,#7c3aed)",
+              color: "#fff",
+              borderRadius: "7px",
+              padding: "2px 10px",
+              fontSize: "11px", fontWeight: 700,
             }}>
               {ROLE_LABELS[matchedUser.role] || matchedUser.role}
             </span>
@@ -495,17 +653,22 @@ function LoginForm({
         )}
       </div>
 
-      {/* PIN / Password field */}
-      <div style={{ marginBottom: "20px" }}>
-        <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "6px" }}>
+      {/* ── PIN ──────────────────────────────────────── */}
+      <div style={{ marginBottom: "22px" }}>
+        <label style={{
+          display: "block", fontSize: "13px", fontWeight: 700,
+          color: "#3b2d6e", marginBottom: "8px",
+        }}>
           الرقم السري
         </label>
         <div style={{ position: "relative" }}>
           <span style={{
-            position: "absolute", top: "50%", right: "14px",
+            position: "absolute", top: "50%", right: "16px",
             transform: "translateY(-50%)",
-            fontSize: "16px", color: focused === "pin" ? "#3b82f6" : "#94a3b8",
-            pointerEvents: "none", transition: "color 0.2s",
+            fontSize: "17px",
+            color: focused === "pin" ? "#7c3aed" : "#c4b5fd",
+            pointerEvents: "none",
+            transition: "color 0.2s",
           }}>
             🔒
           </span>
@@ -523,31 +686,31 @@ function LoginForm({
             className="lp-input"
             style={{
               width: "100%", boxSizing: "border-box",
-              padding: "12px 44px 12px 44px",
-              borderRadius: "12px",
-              border: `1.5px solid ${focused === "pin" ? "#3b82f6" : "#e2e8f0"}`,
-              fontSize: "14px", color: "#0f172a",
-              background: loading ? "#f8fafc" : "#fff",
+              padding: "15px 50px 15px 50px",
+              borderRadius: "14px",
+              border: `1.5px solid ${focused === "pin" ? "#7c3aed" : "#e5e0f8"}`,
+              fontSize: "14.5px", color: "#0f0c29",
+              background: loading ? "#f9f8ff" : "#fefcff",
               fontFamily: "inherit",
               direction: "ltr",
-              letterSpacing: pin && !showPin ? "0.3em" : "normal",
+              letterSpacing: pin && !showPin ? "0.35em" : "normal",
+              height: "54px",
             }}
           />
-          {/* Show/hide toggle */}
+          {/* Show/hide */}
           <button
             type="button"
             onClick={() => setShowPin(!showPin)}
             tabIndex={-1}
             style={{
-              position: "absolute", top: "50%", left: "14px",
+              position: "absolute", top: "50%", left: "16px",
               transform: "translateY(-50%)",
               background: "none", border: "none", cursor: "pointer",
-              fontSize: "16px", color: "#94a3b8", padding: "2px",
-              lineHeight: 1,
-              transition: "color 0.2s",
+              fontSize: "17px", color: "#c4b5fd", padding: "2px",
+              lineHeight: 1, transition: "color 0.2s",
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "#3b82f6")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "#94a3b8")}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#7c3aed")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "#c4b5fd")}
             title={showPin ? "إخفاء" : "إظهار"}
           >
             {showPin ? "🙈" : "👁"}
@@ -555,204 +718,181 @@ function LoginForm({
         </div>
       </div>
 
-      {/* Error message */}
+      {/* ── Error ────────────────────────────────────── */}
       {error && (
         <div
           ref={errorRef}
           style={{
-            marginBottom: "16px",
-            display: "flex", alignItems: "center", gap: "8px",
-            padding: "11px 14px",
-            background: "#fef2f2",
+            marginBottom: "18px",
+            display: "flex", alignItems: "center", gap: "10px",
+            padding: "12px 16px",
+            background: "#fff5f5",
             border: "1.5px solid #fecaca",
-            borderRadius: "10px",
-            fontSize: "13px", color: "#dc2626",
-            fontWeight: 500,
+            borderRadius: "12px",
+            fontSize: "13.5px", color: "#dc2626",
+            fontWeight: 600,
           }}
         >
-          <span style={{ flexShrink: 0 }}>⚠️</span>
+          <span style={{ flexShrink: 0, fontSize: "16px" }}>⚠️</span>
           <span>{error}</span>
         </div>
       )}
 
-      {/* Submit button */}
+      {/* ── Submit button ─────────────────────────────── */}
       <button
         type="submit"
         disabled={loading}
         className="lp-btn-primary"
         style={{
           width: "100%",
-          padding: "13px 0",
-          borderRadius: "12px",
+          height: "54px",
+          borderRadius: "14px",
           border: "none",
           cursor: loading ? "not-allowed" : "pointer",
-          fontSize: "15px", fontWeight: 700,
+          fontSize: "15.5px", fontWeight: 800,
           color: "#fff",
-          background: "linear-gradient(135deg, #1d4ed8 0%, #2563eb 60%, #3b82f6 100%)",
-          boxShadow: "0 4px 14px rgba(37,99,235,0.3)",
+          background: "linear-gradient(135deg, #4f46e5 0%, #6d28d9 50%, #7c3aed 100%)",
+          boxShadow: "0 6px 20px rgba(99,57,206,0.35), 0 2px 6px rgba(0,0,0,0.1)",
           display: "flex", alignItems: "center", justifyContent: "center", gap: "10px",
-          marginBottom: "20px",
+          marginBottom: "22px",
+          letterSpacing: "0.02em",
         }}
       >
         {loading ? (
           <>
-            <span style={{
-              width: "18px", height: "18px",
-              border: "2.5px solid rgba(255,255,255,0.3)",
-              borderTopColor: "#fff",
-              borderRadius: "50%",
-              display: "inline-block",
-              animation: "spin 0.8s linear infinite",
-            }} />
-            جاري التحقق…
+            <span
+              className="lp-spinner"
+              style={{
+                width: "20px", height: "20px",
+                border: "2.5px solid rgba(255,255,255,0.25)",
+                borderTopColor: "#fff",
+                borderRadius: "50%",
+                display: "inline-block",
+              }}
+            />
+            <span>جاري التحقق...</span>
           </>
         ) : (
-          <>
-            <span>تسجيل الدخول</span>
-            <span style={{ fontSize: "16px" }}>←</span>
-          </>
+          <span>دخول إلى النظام ←</span>
         )}
       </button>
 
-      {/* Divider */}
-      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
-        <div style={{ flex: 1, height: "1px", background: "#e2e8f0" }} />
-        <span style={{ fontSize: "12px", color: "#94a3b8", whiteSpace: "nowrap" }}>أو</span>
-        <div style={{ flex: 1, height: "1px", background: "#e2e8f0" }} />
-      </div>
-
-      {/* Users quick-select */}
+      {/* ── Quick-select chips ────────────────────────── */}
       {users.length > 0 && (
         <div>
-          <p style={{ fontSize: "12px", color: "#94a3b8", marginBottom: "10px", textAlign: "center" }}>
-            اختر حسابك مباشرة
-          </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", justifyContent: "center" }}>
-            {users.filter((u) => u.active !== false).slice(0, 5).map((u) => (
+          <div style={{
+            fontSize: "12px", color: "#a89cc8", textAlign: "center",
+            marginBottom: "12px", fontWeight: 500,
+          }}>
+            اختر مستخدماً بسرعة
+          </div>
+          <div style={{
+            display: "flex", flexWrap: "wrap", gap: "8px", justifyContent: "center",
+          }}>
+            {users.map((u) => (
               <button
                 key={u.id}
                 type="button"
-                disabled={loading}
-                onClick={() => { setUsername(u.username); setError(""); pinRef.current?.focus(); }}
+                onClick={() => { setUsername(u.username); pinRef.current?.focus(); }}
                 style={{
-                  display: "flex", alignItems: "center", gap: "7px",
-                  padding: "6px 12px 6px 10px",
-                  borderRadius: "100px",
-                  border: username === u.username ? "1.5px solid #3b82f6" : "1.5px solid #e2e8f0",
-                  background: username === u.username ? "#eff6ff" : "#f8fafc",
+                  padding: "7px 14px",
+                  borderRadius: "20px",
+                  border: `1.5px solid ${username === u.username ? "#7c3aed" : "#e5e0f8"}`,
+                  background: username === u.username
+                    ? "linear-gradient(135deg,#ede9fe,#ddd6fe)"
+                    : "#fafaf8",
+                  color: username === u.username ? "#5b21b6" : "#7c6fa0",
+                  fontSize: "12.5px", fontWeight: 700,
                   cursor: "pointer",
-                  fontSize: "12.5px", fontWeight: 600,
-                  color: username === u.username ? "#1d4ed8" : "#64748b",
-                  transition: "all 0.15s",
+                  transition: "all 0.18s ease",
+                  fontFamily: "inherit",
+                }}
+                onMouseEnter={(e) => {
+                  if (username !== u.username) {
+                    e.currentTarget.style.borderColor = "#c4b5fd";
+                    e.currentTarget.style.color = "#5b21b6";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (username !== u.username) {
+                    e.currentTarget.style.borderColor = "#e5e0f8";
+                    e.currentTarget.style.color = "#7c6fa0";
+                  }
                 }}
               >
-                <span style={{
-                  width: "22px", height: "22px",
-                  borderRadius: "7px",
-                  background: "linear-gradient(135deg,#1d4ed8,#60a5fa)",
-                  color: "#fff",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: "11px", fontWeight: 800, flexShrink: 0,
-                }}>
-                  {u.name.charAt(0)}
-                </span>
                 {u.name}
               </button>
             ))}
           </div>
         </div>
       )}
-
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </form>
   );
 }
 
-/* ────────────────────────────────────────────────────────────
-   REGISTER INFO (ERP systems use admin-created accounts)
-──────────────────────────────────────────────────────────── */
+/* ──────────────────────────────────────────────────────────
+   REGISTER INFO (info only — accounts created by admin)
+────────────────────────────────────────────────────────── */
 function RegisterInfo({ onSwitch }: { onSwitch: () => void }) {
   return (
-    <div style={{ textAlign: "center" }}>
-      <div style={{ marginBottom: "28px" }}>
-        <h2 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", marginBottom: "6px" }}>
-          إنشاء حساب جديد
-        </h2>
-        <p style={{ fontSize: "13.5px", color: "#64748b" }}>
-          حسابات النظام تُدار من قِبَل المدير
-        </p>
-      </div>
-
-      {/* Info card */}
+    <div style={{ textAlign: "center" }} dir="rtl">
       <div style={{
-        background: "#eff6ff",
-        border: "1.5px solid #bfdbfe",
-        borderRadius: "16px",
-        padding: "28px 24px",
-        marginBottom: "24px",
+        width: "72px", height: "72px", borderRadius: "20px",
+        background: "linear-gradient(135deg,#ede9fe,#ddd6fe)",
+        border: "1.5px solid #c4b5fd",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        margin: "0 auto 20px",
+        fontSize: "32px",
       }}>
-        <div style={{ fontSize: "48px", marginBottom: "14px" }}>🔐</div>
-        <p style={{ fontSize: "14px", color: "#1e40af", fontWeight: 600, marginBottom: "8px" }}>
-          هذا نظام ERP مؤسسي
-        </p>
-        <p style={{ fontSize: "13px", color: "#3b82f6", lineHeight: 1.7 }}>
-          لا يتاح تسجيل الحسابات بشكل مفتوح.
-          <br />
-          لإنشاء حساب جديد، تواصل مع مدير النظام
-          <br />
-          عبر صفحة <strong>الإعدادات ← المستخدمون</strong>.
-        </p>
+        🔐
       </div>
+      <h3 style={{ fontSize: "18px", fontWeight: 800, color: "#0f0c29", marginBottom: "12px" }}>
+        إنشاء الحسابات
+      </h3>
+      <p style={{
+        fontSize: "13.5px", color: "#7c6fa0", lineHeight: 1.8, marginBottom: "28px",
+      }}>
+        يتم إنشاء الحسابات حصرياً من قِبَل المدير عبر لوحة الإعدادات.
+        تواصل مع مدير النظام للحصول على بيانات الدخول.
+      </p>
 
-      {/* Steps */}
       <div style={{
-        background: "#f8fafc",
-        borderRadius: "12px",
-        padding: "16px",
+        display: "flex", flexDirection: "column", gap: "12px",
+        background: "linear-gradient(135deg,#f5f3ff,#ede9fe)",
+        border: "1px solid #ddd6fe",
+        borderRadius: "16px", padding: "20px",
         marginBottom: "24px",
         textAlign: "right",
       }}>
         {[
-          ["1", "تواصل مع المدير"],
-          ["2", "يُنشئ المدير حسابك"],
-          ["3", "تستلم اسم المستخدم والرقم السري"],
-          ["4", "سجّل دخولك 🎉"],
-        ].map(([num, text]) => (
-          <div key={num} style={{
-            display: "flex", alignItems: "center", gap: "12px",
-            padding: "8px 0",
-            borderBottom: num !== "4" ? "1px solid #e2e8f0" : "none",
-          }}>
-            <span style={{
-              width: "24px", height: "24px", borderRadius: "8px",
-              background: "linear-gradient(135deg,#1d4ed8,#3b82f6)",
-              color: "#fff", fontSize: "12px", fontWeight: 800,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              flexShrink: 0,
-            }}>
-              {num}
-            </span>
-            <span style={{ fontSize: "13px", color: "#374151" }}>{text}</span>
+          ["👤", "اسم المستخدم", "يحدده المدير"],
+          ["🔑", "الرقم السري", "4-6 أرقام"],
+          ["🛡", "الصلاحيات",  "تُعيَّن حسب الدور"],
+        ].map(([icon, label, value]) => (
+          <div key={label} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ fontSize: "20px" }}>{icon}</span>
+            <div>
+              <div style={{ fontSize: "12px", color: "#7c6fa0", fontWeight: 600 }}>{label}</div>
+              <div style={{ fontSize: "13.5px", color: "#3b2d6e", fontWeight: 700 }}>{value}</div>
+            </div>
           </div>
         ))}
       </div>
 
       <button
         onClick={onSwitch}
+        className="lp-btn-primary"
         style={{
-          width: "100%", padding: "13px 0",
-          borderRadius: "12px",
-          border: "1.5px solid #3b82f6",
-          background: "transparent",
+          width: "100%", height: "54px",
+          borderRadius: "14px", border: "none",
           cursor: "pointer",
-          fontSize: "14px", fontWeight: 700,
-          color: "#1d4ed8",
-          transition: "background 0.15s",
+          fontSize: "15px", fontWeight: 800, color: "#fff",
+          background: "linear-gradient(135deg, #4f46e5 0%, #6d28d9 50%, #7c3aed 100%)",
+          boxShadow: "0 6px 20px rgba(99,57,206,0.35)",
+          fontFamily: "inherit",
         }}
-        onMouseEnter={(e) => { e.currentTarget.style.background = "#eff6ff"; }}
-        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
       >
-        ← العودة لتسجيل الدخول
+        العودة إلى تسجيل الدخول ←
       </button>
     </div>
   );
