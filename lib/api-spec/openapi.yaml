@@ -951,6 +951,12 @@ components:
         supplier_id:
           type: integer
           nullable: true
+        customer_id:
+          type: integer
+          nullable: true
+        customer_name:
+          type: string
+          nullable: true
         payment_type:
           type: string
           enum: [cash, credit, partial]

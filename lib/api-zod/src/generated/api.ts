@@ -342,6 +342,8 @@ export const GetPurchasesResponse = zod.array(GetPurchasesResponseItem);
 export const CreatePurchaseBody = zod.object({
   supplier_name: zod.string().nullish(),
   supplier_id: zod.number().nullish(),
+  customer_id: zod.number().nullish(),
+  customer_name: zod.string().nullish(),
   payment_type: zod.enum(["cash", "credit", "partial"]),
   total_amount: zod.number(),
   paid_amount: zod.number(),

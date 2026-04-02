@@ -394,8 +394,9 @@ router.post("/sales/:id/cancel", wrap(async (req, res) => {
     }
   }
 
-  // ── فحص 2: الإلغاء سيجعل رصيد العميل سالباً (من دفتر الأستاذ AR) ────────
-  if (sale.customer_id && Number(sale.remaining_amount) > 0.001) {
+  // ── فحص 2: الإلغاء سيجعل رصيد العميل المحاسبي سالباً (مرحَّلة فقط) ────────
+  // لا نفحص المسوّدات لأنها لم تُرحَّل بعد (لا قيود محاسبية بعد)
+  if (sale.posting_status === "posted" && sale.customer_id && Number(sale.remaining_amount) > 0.001) {
     const [custRow] = await db
       .select({ account_id: customersTable.account_id, name: customersTable.name })
       .from(customersTable)
@@ -539,7 +540,37 @@ router.post("/sales/:id/cancel", wrap(async (req, res) => {
       });
     }
 
-    // ── 5. تحديث حالة الفاتورة ────────────────────────────────────────────
+    // ── 5. عكس قيود دفتر الأستاذ (مصدر الحقيقة الوحيد) ──────────────────
+    // بدلاً من حذف القيود القديمة، نُدرج قيوداً عكسية للشفافية
+    if (sale.customer_id) {
+      const totalAmt = Number(sale.total_amount);
+      if (totalAmt > 0) {
+        await tx.insert(customerLedgerTable).values({
+          customer_id: sale.customer_id,
+          type: "sale_cancel",
+          amount: String(-totalAmt),
+          reference_type: "sale",
+          reference_id: sale.id,
+          reference_no: sale.invoice_no,
+          description: `إلغاء فاتورة مبيعات ${sale.invoice_no}`,
+          date: today,
+        });
+      }
+      if (paidAmt > 0) {
+        await tx.insert(customerLedgerTable).values({
+          customer_id: sale.customer_id,
+          type: "sale_cancel",
+          amount: String(paidAmt),
+          reference_type: "sale",
+          reference_id: sale.id,
+          reference_no: sale.invoice_no,
+          description: `إلغاء دفعة فاتورة ${sale.invoice_no}`,
+          date: today,
+        });
+      }
+    }
+
+    // ── 6. تحديث حالة الفاتورة ────────────────────────────────────────────
     await tx.update(salesTable)
       .set({ posting_status: "cancelled" })
       .where(eq(salesTable.id, id));

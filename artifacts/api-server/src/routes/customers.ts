@@ -43,17 +43,17 @@ async function getNextCustomerCode(): Promise<number> {
 }
 
 router.get("/customers", wrap(async (_req, res) => {
+  // مصدر الحقيقة الوحيد: جدول customer_ledger
+  // الرصيد = SUM(amount) لكل عميل
+  // موجب = العميل مدين لنا (عليه) — سالب = نحن مدينون له (له علينا)
   const rows = await db.execute(sql`
     SELECT
-      c.id, c.name, c.customer_code, c.phone, c.balance AS stored_balance,
-      c.is_supplier, c.account_id, c.normalized_name,
-      c.created_at,
-      COALESCE(SUM(CAST(jel.debit  AS FLOAT8)), 0)
-    - COALESCE(SUM(CAST(jel.credit AS FLOAT8)), 0) AS ledger_balance
+      c.id, c.name, c.customer_code, c.phone,
+      c.is_supplier, c.account_id, c.normalized_name, c.created_at,
+      COALESCE(SUM(CAST(cl.amount AS FLOAT8)), 0) AS ledger_balance
     FROM customers c
-    LEFT JOIN journal_entry_lines jel ON jel.account_id = c.account_id
-    LEFT JOIN journal_entries je ON je.id = jel.entry_id AND je.status = 'posted'
-    GROUP BY c.id, c.name, c.customer_code, c.phone, c.balance,
+    LEFT JOIN customer_ledger cl ON cl.customer_id = c.id
+    GROUP BY c.id, c.name, c.customer_code, c.phone,
              c.is_supplier, c.account_id, c.normalized_name, c.created_at
     ORDER BY c.customer_code
   `);
@@ -105,6 +105,20 @@ router.post("/customers", wrap(async (req, res) => {
     .set({ account_id: acct.id })
     .where(eq(customersTable.id, customer.id))
     .returning();
+
+  // الرصيد الافتتاحي → دفتر الأستاذ (مصدر الحقيقة الوحيد)
+  const openingBalance = Number(parsed.data.balance ?? 0);
+  if (openingBalance !== 0) {
+    await db.insert(customerLedgerTable).values({
+      customer_id: updated.id,
+      type: "opening_balance",
+      amount: String(openingBalance),
+      reference_type: null,
+      reference_no: `OPEN-${newCode}`,
+      description: `رصيد افتتاحي — ${parsed.data.name.trim()}`,
+      date: new Date().toISOString().split("T")[0],
+    });
+  }
 
   void writeAuditLog({
     action: "create",
@@ -333,12 +347,14 @@ router.post("/customers/:id/supplier-payment", wrap(async (req, res) => {
   const id = parseInt(req.params.id as string);
   if (isNaN(id)) throw httpError(400, "معرّف غير صحيح");
 
-  const { amount, safe_id, notes } = req.body;
+  const { amount, safe_id, notes, date } = req.body;
   const amt = parseFloat(amount);
   if (!amt || amt <= 0) throw httpError(400, "أدخل مبلغاً صحيحاً");
   const safeId = parseInt(safe_id);
   if (isNaN(safeId)) throw httpError(400, "اختر الخزينة");
 
+  const txDate = date ?? new Date().toISOString().split("T")[0];
+  const paymentNo = `SPAY-${Date.now()}`;
   let resultCustomer: typeof customersTable.$inferSelect | undefined;
 
   await db.transaction(async (tx) => {
@@ -354,9 +370,8 @@ router.post("/customers/:id/supplier-payment", wrap(async (req, res) => {
       .set({ balance: String(Number(safe.balance) - amt) })
       .where(eq(safesTable.id, safe.id));
 
-    const newBalance = Number(customer.balance) + amt;
     const [updated] = await tx.update(customersTable)
-      .set({ balance: String(newBalance) })
+      .set({ balance: String(Number(customer.balance) + amt) })
       .where(eq(customersTable.id, id))
       .returning();
 
@@ -369,14 +384,25 @@ router.post("/customers/:id/supplier-payment", wrap(async (req, res) => {
       safe_name: safe.name,
       amount: String(amt),
       description: notes || `تسديد دفعة للمورد - ${customer.name}`,
-      date: new Date().toISOString().split("T")[0],
+      date: txDate,
+    });
+
+    // دفتر الأستاذ: تسديد للمورد يُقلّل ما يدين به لنا (أو يزيد دينه علينا)
+    // الرصيد السالب = ندين له، التسديد يُقلّل ما علينا → +amt في دفتر الأستاذ
+    await tx.insert(customerLedgerTable).values({
+      customer_id: id,
+      type: "supplier_payment",
+      amount: String(amt), // يُزيد رصيده (يُقلّل ما ندين به)
+      reference_type: "supplier_payment",
+      reference_no: paymentNo,
+      description: notes ? `${notes}` : `تسديد للمورد ${paymentNo} — ${customer.name}`,
+      date: txDate,
     });
 
     resultCustomer = updated;
   });
 
-  const ledgerBal = await getCustomerLedgerBalance(resultCustomer!.account_id);
-  res.json({ success: true, customer: formatCustomer(resultCustomer!, ledgerBal) });
+  res.json({ success: true, customer: formatCustomer(resultCustomer!) });
 }));
 
 export default router;

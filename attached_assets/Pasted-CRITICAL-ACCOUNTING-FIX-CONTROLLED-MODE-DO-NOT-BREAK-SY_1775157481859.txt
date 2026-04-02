@@ -1,0 +1,222 @@
+CRITICAL ACCOUNTING FIX — CONTROLLED MODE (DO NOT BREAK SYSTEM)
+
+This is a precision fix.
+Do NOT rewrite everything.
+Do NOT assume architecture.
+Audit first, then fix ONLY what is broken.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — AUDIT CURRENT SYSTEM (MANDATORY)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Identify EXACTLY how balances are calculated today:
+
+For EACH of the following:
+	•	customers page
+	•	customer ledger (customer_ledger table)
+	•	receipts (receipt-vouchers)
+	•	sales (sales.ts)
+	•	purchases
+	•	returns
+
+Find:
+	1.	Source of truth for customer balance:
+	•	Is it customers.balance?
+	•	OR customer_ledger?
+	•	OR computed from invoices?
+	2.	For each:
+	•	File name + function
+	•	Current logic (show code)
+	•	Is it consistent with others?
+
+DO NOT FIX before this audit.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — ROOT CAUSE (CRITICAL)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Investigate this real issue:
+
+CASE:
+	•	Customer “322”
+	•	Received 400 cash from him
+	•	But customers page shows “متسوي”
+
+Find EXACT reason:
+	•	Is receipt not linked to customer_id?
+	•	Is receipt written to ledger but page reads from another source?
+	•	Is hybrid (customer/supplier) splitting balances?
+
+Explain ROOT CAUSE clearly.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3 — UNIFY BALANCE SOURCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Fix rule:
+
+There must be ONE source of truth only.
+
+Choose ONE:
+A) customer_ledger (preferred)
+OR
+B) customers.balance
+
+Then enforce:
+
+ALL of these MUST write to same source:
+	•	sales (invoice post)
+	•	receipt vouchers
+	•	returns
+	•	opening balance
+	•	purchases (if customer is_supplier=true)
+
+ALL of these MUST read from same source:
+	•	customers list page
+	•	customer statement
+	•	reports
+
+❗ DO NOT mix two systems
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4 — HYBRID CUSTOMER/SUPPLIER FIX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Customer can:
+	•	buy from us
+	•	sell to us
+
+Verify:
+	•	Is same person using same ID?
+	•	Or duplicated in customers + suppliers?
+
+Fix:
+	•	Ensure ONE identity
+	•	Ensure balance reflects BOTH:
+sales → increases what they owe
+purchases from them → increases what we owe
+
+Final balance must allow:
+	•	positive = عليه
+	•	negative = له
+
+DO NOT lose balance due to role split.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 5 — RECEIPT VOUCHER FIX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+For every receipt:
+	•	MUST store correct customer_id
+	•	MUST affect same balance source
+
+Test scenario:
+	1.	Create customer
+	2.	Receive 400 WITHOUT invoice
+
+Expected:
+	•	safe increases +400
+	•	customer balance changes (NOT zero)
+	•	customer must NOT show “متسوي”
+
+Fix logic accordingly.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 6 — PRODUCT PROFIT BUG (IMPORTANT)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Current issue:
+	•	Product profit = 0
+	•	Product analysis = empty
+
+Fix:
+
+Ensure:
+	•	sale_items.cost_total is saved correctly
+	•	reports read from sale_items (NOT products table)
+
+Correct formula:
+gross_profit =
+SUM(sale_items.total_price)
+	•	SUM(sale_items.cost_total)
+	•	SUM(returns.total_price)
+
+	•	SUM(returns.cost_total)
+
+Check:
+	•	date filtering uses invoice date (NOT created_at)
+	•	joins between sales and sale_items are correct
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 7 — POSTING ISSUE (IMPORTANT)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Problem:
+“After posting invoice → customer becomes 200 unexpectedly”
+
+Audit:
+	•	What happens on POST (ترحيل) exactly?
+	•	Is it duplicating entry?
+	•	Is it writing twice (draft + post)?
+
+Fix:
+	•	Posting must write ONCE only
+	•	No duplicate ledger entries
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 8 — OPTIONAL AUTO POST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Add setting:
+
+auto_post_sales = true/false
+
+If true:
+	•	invoice saves → automatically posted
+
+If false:
+	•	keep current manual behavior
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 9 — VALIDATION (MANDATORY)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Run and show results:
+
+TEST 1:
+Receive 400 from customer without invoice
+→ balance must change (not zero)
+
+TEST 2:
+Customer buys 100 (آجل)
+→ balance = +100
+
+TEST 3:
+We buy from same customer 300
+→ balance = -200
+
+TEST 4:
+Check product profit after sale
+→ must NOT be zero
+
+TEST 5:
+Post invoice once
+→ no duplicate balance
+
+Return:
+	•	DB values
+	•	API responses
+	•	explanation
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FINAL RULE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DO NOT:
+	•	rewrite system blindly
+	•	introduce new balance logic without understanding current system
+
+ONLY:
+	•	fix inconsistencies
+	•	unify logic
+	•	keep system stable

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { db, receiptVouchersTable, customersTable, safesTable, transactionsTable, accountsTable, customerLedgerTable } from "@workspace/db";
 
 import { wrap, httpError } from "../lib/async-handler";
@@ -193,6 +193,13 @@ router.delete("/receipt-vouchers/:id", wrap(async (req, res) => {
     if (v.customer_id) {
       const [cust] = await tx.select().from(customersTable).where(eq(customersTable.id, v.customer_id));
       if (cust) await tx.update(customersTable).set({ balance: String(Number(cust.balance) + Number(v.amount)) }).where(eq(customersTable.id, cust.id));
+
+      // عكس دفتر الأستاذ: حذف قيد القبض المرتبط بهذا السند
+      await tx.delete(customerLedgerTable)
+        .where(and(
+          eq(customerLedgerTable.reference_type, "receipt_voucher"),
+          eq(customerLedgerTable.reference_id, id),
+        ));
     }
     await tx.delete(receiptVouchersTable).where(eq(receiptVouchersTable.id, id));
   });

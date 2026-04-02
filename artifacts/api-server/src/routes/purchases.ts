@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, gt, not, inArray } from "drizzle-orm";
-import { db, purchasesTable, purchaseItemsTable, productsTable, customersTable, suppliersTable, safesTable, transactionsTable, stockMovementsTable, accountsTable, purchaseReturnsTable, journalEntriesTable, journalEntryLinesTable } from "@workspace/db";
+import { db, purchasesTable, purchaseItemsTable, productsTable, customersTable, suppliersTable, safesTable, transactionsTable, stockMovementsTable, accountsTable, purchaseReturnsTable, journalEntriesTable, journalEntryLinesTable, customerLedgerTable } from "@workspace/db";
 import {
   GetPurchasesResponse,
   CreatePurchaseBody,
@@ -190,7 +190,34 @@ router.post("/purchases", wrap(async (req, res) => {
           description: `مشتريات آجل من ${customer_name ?? "عميل"} — فاتورة ${invoiceNo}`,
           date: today,
         });
+
+        // دفتر الأستاذ: الشراء منه على حساب آجل يعني نحن مدينون له → رصيده يصبح سالباً
+        // مبلغ سالب = ندين له (له علينا)
+        await tx.insert(customerLedgerTable).values({
+          customer_id: customer_id,
+          type: "purchase",
+          amount: String(-customerDebt),
+          reference_type: "purchase",
+          reference_id: newPurchase.id,
+          reference_no: invoiceNo,
+          description: `مشتريات آجل ${invoiceNo} — ${customer_name ?? "مورد"}`,
+          date: today,
+        });
       }
+    }
+
+    // دفع نقدي للمورد-العميل (بدون آجل) — نسجّل في دفتر الأستاذ كتسوية فورية
+    if (cashOut > 0 && customer_id && payment_type === "cash") {
+      await tx.insert(customerLedgerTable).values({
+        customer_id: customer_id,
+        type: "purchase",
+        amount: String(-cashOut),
+        reference_type: "purchase",
+        reference_id: newPurchase.id,
+        reference_no: invoiceNo,
+        description: `مشتريات نقدي ${invoiceNo} — ${customer_name ?? "مورد"}`,
+        date: today,
+      });
     }
 
     return newPurchase;

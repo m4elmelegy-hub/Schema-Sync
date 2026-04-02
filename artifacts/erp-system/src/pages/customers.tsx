@@ -218,12 +218,15 @@ interface CustomerLedger {
 }
 
 const LEDGER_TYPE_LABELS: Record<string, { label: string; color: string; bg: string }> = {
-  sale:            { label: "فاتورة مبيعات",  color: "text-amber-400",   bg: "bg-amber-500/10 border-amber-500/20" },
-  sale_return:     { label: "مرتجع مبيعات",   color: "text-blue-400",    bg: "bg-blue-500/10 border-blue-500/20" },
-  receipt_voucher: { label: "سند قبض",        color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" },
-  payment:         { label: "سداد مباشر",     color: "text-cyan-400",    bg: "bg-cyan-500/10 border-cyan-500/20" },
-  adjustment:      { label: "تسوية",          color: "text-purple-400",  bg: "bg-purple-500/10 border-purple-500/20" },
-  opening_balance: { label: "رصيد افتتاحي",  color: "text-yellow-400",  bg: "bg-yellow-500/10 border-yellow-500/20" },
+  sale:             { label: "فاتورة مبيعات",   color: "text-amber-400",   bg: "bg-amber-500/10 border-amber-500/20" },
+  sale_return:      { label: "مرتجع مبيعات",    color: "text-blue-400",    bg: "bg-blue-500/10 border-blue-500/20" },
+  sale_cancel:      { label: "إلغاء فاتورة",    color: "text-red-400",     bg: "bg-red-500/10 border-red-500/20" },
+  receipt_voucher:  { label: "سند قبض",         color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" },
+  payment:          { label: "سداد مباشر",      color: "text-cyan-400",    bg: "bg-cyan-500/10 border-cyan-500/20" },
+  purchase:         { label: "مشتريات منه",     color: "text-purple-400",  bg: "bg-purple-500/10 border-purple-500/20" },
+  supplier_payment: { label: "تسديد للمورد",    color: "text-orange-400",  bg: "bg-orange-500/10 border-orange-500/20" },
+  adjustment:       { label: "تسوية",           color: "text-gray-400",    bg: "bg-gray-500/10 border-gray-500/20" },
+  opening_balance:  { label: "رصيد افتتاحي",   color: "text-yellow-400",  bg: "bg-yellow-500/10 border-yellow-500/20" },
 };
 
 /* ─── كشف الحساب ─── */
