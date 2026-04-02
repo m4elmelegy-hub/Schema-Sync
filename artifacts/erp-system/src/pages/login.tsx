@@ -3,95 +3,44 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/auth";
 import { useAppSettings } from "@/contexts/app-settings";
 import { useLocation } from "wouter";
-import { animate, createTimeline, stagger } from "animejs";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
 
-/* ─── Types ────────────────────────────────────────────────── */
 interface ErpUser {
   id: number; name: string; username: string;
   pinLength: number; role: string; active: boolean;
 }
-interface Star {
-  x: number; y: number; r: number;
-  opacity: number; twinklePhase: number;
-  twinkleSpeed: number; depth: number;
-}
-interface Meteor {
-  x: number; y: number; vx: number; vy: number;
-  trail: Array<{ x: number; y: number }>;
-  life: number; maxLife: number;
-}
 
-/* ─── Constants ────────────────────────────────────────────── */
 const ROLE_LABELS: Record<string, string> = {
   admin: "مدير", manager: "مشرف",
   cashier: "كاشير", salesperson: "مندوب مبيعات",
 };
 
-const AVATAR_COLORS: [string, string][] = [
-  ["#667eea", "#764ba2"],
-  ["#f6d365", "#d97706"],
-  ["#4facfe", "#00c9ff"],
-  ["#43e97b", "#08d9a0"],
-  ["#fa709a", "#fee140"],
-  ["#a18cd1", "#fbc2eb"],
+const FEATURES = [
+  { icon: "⚡", label: "مبيعات فورية", desc: "نقطة بيع سريعة وسهلة" },
+  { icon: "📊", label: "تقارير ذكية", desc: "تحليلات مالية شاملة" },
+  { icon: "🔒", label: "أمان تام",     desc: "صلاحيات متعددة المستويات" },
+  { icon: "🏪", label: "إدارة المخزون", desc: "تتبع دقيق للمنتجات" },
 ];
 
-const BADGES = [
-  { icon: "⚡", label: "مبيعات فورية" },
-  { icon: "📊", label: "تقارير ذكية" },
-  { icon: "🔒", label: "أمان تام" },
-  { icon: "🏪", label: "إدارة المخزون" },
-];
-
-const KEYS = ["1","2","3","4","5","6","7","8","9","⌫","0","✓"];
-const MAX_PIN_DOTS = 6;
-const STAR_COUNT = 260;
-const MAX_CONST_DIST = 75;
-const PARALLAX_STR = 22;
-
-/* ─── Helpers ──────────────────────────────────────────────── */
-function makeStars(w: number, h: number): Star[] {
-  return Array.from({ length: STAR_COUNT }, () => ({
-    x: Math.random() * w,
-    y: Math.random() * h,
-    r: Math.pow(Math.random(), 2) * 2.2 + 0.25,
-    opacity: Math.random() * 0.55 + 0.3,
-    twinklePhase: Math.random() * Math.PI * 2,
-    twinkleSpeed: Math.random() * 0.018 + 0.004,
-    depth: Math.random() * 0.82 + 0.18,
-  }));
-}
-
-/* ════════════════════════════════════════════════════════════
-   LOGIN COMPONENT
-════════════════════════════════════════════════════════════ */
 export default function Login() {
-  const { login } = useAuth();
-  const { settings } = useAppSettings();
-  const [, setLocation] = useLocation();
+  const { login }        = useAuth();
+  const { settings }     = useAppSettings();
+  const [, setLocation]  = useLocation();
 
-  const [selectedUserId, setSelectedUserId] = useState<string>("");
-  const [pin, setPin] = useState<string>("");
-  const [error, setError] = useState<string>("");
-  const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState<"user" | "pin">("user");
+  const [mode, setMode]           = useState<"login" | "register">("login");
+  const [username, setUsername]   = useState("");
+  const [pin, setPin]             = useState("");
+  const [showPin, setShowPin]     = useState(false);
+  const [error, setError]         = useState("");
+  const [loading, setLoading]     = useState(false);
+  const [focused, setFocused]     = useState<"username" | "pin" | null>(null);
 
-  const canvasRef   = useRef<HTMLCanvasElement>(null);
-  const starsRef    = useRef<Star[]>([]);
-  const meteorsRef  = useRef<Meteor[]>([]);
-  const rafRef      = useRef<number>(0);
-  const mouseRef    = useRef({ x: 0, y: 0 });
-  const mountedRef  = useRef(false);
-  const cardsAnimRef= useRef(false);
-  const lastMeteorRef      = useRef(0);
-  const nextMeteorDelayRef = useRef(2500 + Math.random() * 1500);
+  const usernameRef = useRef<HTMLInputElement>(null);
+  const pinRef      = useRef<HTMLInputElement>(null);
 
-  /* stale-closure guards */
-  const pinRef          = useRef(pin);
-  const selectedUserRef = useRef<ErpUser | undefined>(undefined);
+  const logoSrc = settings.customLogo || `${import.meta.env.BASE_URL}logo.png`;
 
   const { data: users = [] } = useQuery<ErpUser[]>({
     queryKey: ["/api/auth/users"],
@@ -102,374 +51,45 @@ export default function Login() {
       }),
   });
 
-  const activeUsers  = users.filter((u) => u.active !== false);
-  const selectedUser = activeUsers.find((u) => String(u.id) === selectedUserId);
-  const logoSrc      = settings.customLogo || `${import.meta.env.BASE_URL}logo.png`;
-  const pinLength    = selectedUser ? Math.min(Math.max(selectedUser.pinLength ?? 4, 4), MAX_PIN_DOTS) : 4;
+  const activeUsers = users.filter((u) => u.active !== false);
 
-  pinRef.current          = pin;
-  selectedUserRef.current = selectedUser;
-
-  /* ══ 1. Star-field canvas ════════════════════════════════════ */
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const resize = () => {
-      const dpr = devicePixelRatio || 1;
-      const w = canvas.offsetWidth, h = canvas.offsetHeight;
-      canvas.width = w * dpr; canvas.height = h * dpr;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      starsRef.current = makeStars(w, h);
-    };
-    resize();
-    const ro = new ResizeObserver(resize);
-    ro.observe(canvas);
-
-    const onMouse = (e: MouseEvent) => {
-      const r = canvas.getBoundingClientRect();
-      mouseRef.current = {
-        x: (e.clientX - r.left - r.width  / 2) / r.width,
-        y: (e.clientY - r.top  - r.height / 2) / r.height,
-      };
-    };
-    window.addEventListener("mousemove", onMouse);
-
-    const tick = (now: number) => {
-      const w = canvas.offsetWidth, h = canvas.offsetHeight;
-
-      /* canvas is hidden (display:none on mobile) — skip all drawing */
-      if (!w || !h) {
-        rafRef.current = requestAnimationFrame(tick);
-        return;
-      }
-
-      try {
-      ctx.clearRect(0, 0, w, h);
-
-      const stars   = starsRef.current;
-      const meteors = meteorsRef.current;
-      const mx = mouseRef.current.x;
-      const my = mouseRef.current.y;
-
-      /* — constellation lines — */
-      for (let i = 0; i < stars.length; i++) {
-        for (let j = i + 1; j < stars.length; j++) {
-          const si = stars[i], sj = stars[j];
-          const dx = si.x - sj.x, dy = si.y - sj.y;
-          const d  = Math.sqrt(dx * dx + dy * dy);
-          if (d < MAX_CONST_DIST) {
-            const alpha = (1 - d / MAX_CONST_DIST) * 0.12;
-            ctx.beginPath();
-            ctx.moveTo(si.x + mx * PARALLAX_STR * si.depth, si.y + my * PARALLAX_STR * si.depth);
-            ctx.lineTo(sj.x + mx * PARALLAX_STR * sj.depth, sj.y + my * PARALLAX_STR * sj.depth);
-            ctx.strokeStyle = `rgba(160,170,220,${alpha})`;
-            ctx.lineWidth = 0.45;
-            ctx.stroke();
-          }
-        }
-      }
-
-      /* — stars — */
-      stars.forEach((s) => {
-        s.twinklePhase += s.twinkleSpeed;
-        const tw = Math.sin(s.twinklePhase) * 0.28 + 0.72;
-        const px = s.x + mx * PARALLAX_STR * s.depth;
-        const py = s.y + my * PARALLAX_STR * s.depth;
-
-        /* glow for brighter stars */
-        if (s.r > 1.1) {
-          const g = ctx.createRadialGradient(px, py, 0, px, py, s.r * 4);
-          g.addColorStop(0, `rgba(190,210,255,${s.opacity * 0.18 * tw})`);
-          g.addColorStop(1, "rgba(190,210,255,0)");
-          ctx.beginPath();
-          ctx.arc(px, py, s.r * 4, 0, Math.PI * 2);
-          ctx.fillStyle = g;
-          ctx.fill();
-        }
-
-        ctx.beginPath();
-        ctx.arc(px, py, s.r * tw, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(215,225,255,${s.opacity * tw})`;
-        ctx.fill();
-      });
-
-      /* — spawn meteors every 2-4 s — */
-      if (now - lastMeteorRef.current > nextMeteorDelayRef.current) {
-        lastMeteorRef.current      = now;
-        nextMeteorDelayRef.current = 2000 + Math.random() * 2000;
-        const fromTop = Math.random() < 0.6;
-        const sx = fromTop ? Math.random() * w * 0.8 : -20;
-        const sy = fromTop ? -15 : Math.random() * h * 0.45;
-        const spd = 5.5 + Math.random() * 5;
-        const ang = ((25 + Math.random() * 35) * Math.PI) / 180;
-        meteors.push({
-          x: sx, y: sy,
-          vx: Math.cos(ang) * spd,
-          vy: Math.sin(ang) * spd,
-          trail: [], life: 0,
-          maxLife: 38 + Math.random() * 22,
-        });
-      }
-
-      /* — draw meteors — */
-      for (let i = meteors.length - 1; i >= 0; i--) {
-        const m = meteors[i];
-        m.trail.push({ x: m.x, y: m.y });
-        if (m.trail.length > 22) m.trail.shift();
-        m.x += m.vx; m.y += m.vy; m.life++;
-
-        if (m.life > m.maxLife || m.x > w + 60 || m.y > h + 60) {
-          meteors.splice(i, 1); continue;
-        }
-
-        const prog  = m.life / m.maxLife;
-        const alpha = Math.sin(prog * Math.PI) * 0.92;
-
-        /* trail */
-        for (let ti = 1; ti < m.trail.length; ti++) {
-          const ta = (ti / m.trail.length) * alpha;
-          ctx.beginPath();
-          ctx.moveTo(m.trail[ti-1].x, m.trail[ti-1].y);
-          ctx.lineTo(m.trail[ti].x,   m.trail[ti].y);
-          ctx.strokeStyle = `rgba(200,220,255,${ta * 0.65})`;
-          ctx.lineWidth   = (ti / m.trail.length) * 2.2;
-          ctx.stroke();
-        }
-
-        /* head */
-        const g = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, 4);
-        g.addColorStop(0, `rgba(240,245,255,${alpha})`);
-        g.addColorStop(1, "rgba(160,200,255,0)");
-        ctx.beginPath();
-        ctx.arc(m.x, m.y, 4, 0, Math.PI * 2);
-        ctx.fillStyle = g;
-        ctx.fill();
-      }
-
-      } catch (_) { /* swallow canvas draw errors (e.g. Safari on hidden canvas) */ }
-
-      rafRef.current = requestAnimationFrame(tick);
-    };
-
-    rafRef.current = requestAnimationFrame(tick);
-
-    return () => {
-      cancelAnimationFrame(rafRef.current);
-      ro.disconnect();
-      window.removeEventListener("mousemove", onMouse);
-    };
+    setTimeout(() => usernameRef.current?.focus(), 300);
   }, []);
 
-  /* ══ 2. Entrance choreography ════════════════════════════════ */
-  useEffect(() => {
-    if (mountedRef.current) return;
-    mountedRef.current = true;
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
 
-    try {
-      const tl = createTimeline();
+    const trimmed = username.trim();
+    if (!trimmed) { setError("أدخل اسم المستخدم"); usernameRef.current?.focus(); return; }
+    if (!pin)     { setError("أدخل الرقم السري");  pinRef.current?.focus(); return; }
 
-      tl.add("#lp-brand", {
-        translateX: ["-100%", "0%"],
-        opacity: [0, 1],
-        duration: 900,
-        easing: "easeOutExpo",
-      });
-
-      tl.add("#lp-logo", {
-        scale: [0, 1],
-        opacity: [0, 1],
-        duration: 800,
-        easing: "easeOutElastic(1, .6)",
-      }, 150);
-
-      tl.add("#lp-title", {
-        translateY: [28, 0],
-        opacity: [0, 1],
-        duration: 600,
-        easing: "easeOutExpo",
-      }, 480);
-
-      tl.add("#lp-tagline", {
-        translateY: [18, 0],
-        opacity: [0, 1],
-        duration: 500,
-        easing: "easeOutExpo",
-      }, 650);
-
-      tl.add(".lp-badge", {
-        translateY: [20, 0],
-        opacity: [0, 1],
-        scale: [0.82, 1],
-        delay: stagger(90),
-        duration: 420,
-        easing: "easeOutBack",
-      }, 800);
-
-      tl.add("#lp-panel", {
-        translateX: ["4%", "0%"],
-        opacity: [0, 1],
-        duration: 700,
-        easing: "easeOutExpo",
-      }, 100);
-    } catch (_) { /* swallow entrance animation errors on mobile */ }
-
-  }, []);
-
-  /* ══ 2b. Cards cascade — runs once when users load ═══════════ */
-  useEffect(() => {
-    if (activeUsers.length === 0 || cardsAnimRef.current) return;
-    cardsAnimRef.current = true;
-    setTimeout(() =>
-      animate(".account-card", {
-        translateX: [24, 0],
-        opacity: [0, 1],
-        delay: stagger(100),
-        duration: 480,
-        easing: "easeOutExpo",
-      }), 200
+    const matchedUser = activeUsers.find(
+      (u) =>
+        u.username.toLowerCase() === trimmed.toLowerCase() ||
+        u.name === trimmed
     );
-  }, [activeUsers.length]);
 
-  /* ══ 3. Error shake ══════════════════════════════════════════ */
-  useEffect(() => {
-    if (!error) return;
-    /* CSS-class shake — avoids multi-value keyframe issues in animejs v4 */
-    const el = document.getElementById("lp-error");
-    if (el) {
-      el.style.animation = "none";
-      void el.offsetWidth; /* force reflow */
-      el.style.animation = "lp-shake 0.55s ease-in-out";
+    if (!matchedUser) {
+      setError("اسم المستخدم غير موجود");
+      usernameRef.current?.focus();
+      return;
     }
-    try {
-      animate(".pin-dot", {
-        scale: [1, 1.18, 1],
-        delay: stagger(40),
-        duration: 320,
-        easing: "easeOutBack",
-      });
-    } catch (_) { /* ignore */ }
-  }, [error]);
 
-  /* ══ 4. Keyboard support ═════════════════════════════════════ */
-  useEffect(() => {
-    if (step !== "pin") return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key >= "0" && e.key <= "9") handleKeyPress(e.key);
-      else if (e.key === "Backspace") handleKeyPress("⌫");
-      else if (e.key === "Enter") handleKeyPress("✓");
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [step, pin, loading]);
-
-  /* ══ 5. Auto-submit when PIN is complete ════════════════════ */
-  useEffect(() => {
-    if (step !== "pin" || loading || pin.length === 0) return undefined;
-    if (pin.length === pinLength) {
-      const t = setTimeout(() => triggerLogin(), 180);
-      return () => clearTimeout(t);
-    }
-    return undefined;
-  }, [pin, pinLength, step, loading]);
-
-  /* ══ Step transitions ════════════════════════════════════════ */
-  const selectUser = (id: string) => {
-    setSelectedUserId(id);
-    setError(""); setPin("");
-    try {
-      animate("#lp-user-step", {
-        translateX: [0, 36], opacity: [1, 0], duration: 250, easing: "easeInCubic",
-        onComplete: () => {
-          setStep("pin");
-          requestAnimationFrame(() => {
-            try {
-              animate("#lp-pin-step", {
-                translateX: [-36, 0], opacity: [0, 1], duration: 320, easing: "easeOutCubic",
-              });
-            } catch (_) { /* ignore */ }
-          });
-        },
-      });
-    } catch (_) { setStep("pin"); }
-  };
-
-  const backToUser = () => {
-    try {
-      animate("#lp-pin-step", {
-        translateX: [0, 36], opacity: [1, 0], duration: 250, easing: "easeInCubic",
-        onComplete: () => {
-          setStep("user"); setPin(""); setError("");
-          requestAnimationFrame(() => {
-            try {
-              animate("#lp-user-step", {
-                translateX: [-36, 0], opacity: [0, 1], duration: 320, easing: "easeOutCubic",
-              });
-              setTimeout(() =>
-                animate(".account-card", {
-                  translateX: [18, 0],
-                  opacity: [0, 1],
-                  delay: stagger(90),
-                  duration: 380,
-                  easing: "easeOutExpo",
-                }), 80
-              );
-            } catch (_) { /* ignore */ }
-          });
-        },
-      });
-    } catch (_) { setStep("user"); setPin(""); setError(""); }
-  };
-
-  /* ══ PIN key press ═══════════════════════════════════════════ */
-  const handleKeyPress = useCallback((key: string) => {
-    if (loading) return;
-    if (key === "⌫") { setPin((p) => p.slice(0, -1)); setError(""); return; }
-    if (key === "✓") { triggerLogin(); return; }
-    setPin((prev) => {
-      if (prev.length >= MAX_PIN_DOTS) return prev;
-      const next = prev + key;
-      setError("");
-      const idx = next.length - 1;
-      requestAnimationFrame(() => {
-        try {
-          const dot = document.querySelector(`.pin-dot-${idx}`);
-          if (dot) animate(dot as HTMLElement, { scale: [0.3, 1], duration: 280, easing: "easeOutBack" });
-        } catch (_) { /* ignore */ }
-      });
-      return next;
-    });
-  }, [loading]);
-
-  /* ══ Key button with bounce ══════════════════════════════════ */
-  const handleKeyBtn = useCallback((key: string, el: HTMLElement) => {
-    try { animate(el, { scale: [0.87, 1], duration: 200, easing: "easeOutBack" }); } catch (_) { /* ignore */ }
-    handleKeyPress(key);
-  }, [handleKeyPress]);
-
-  /* ══ Login logic ═════════════════════════════════════════════ */
-  const triggerLogin = async () => {
-    const currentUser = selectedUserRef.current;
-    const currentPin  = pinRef.current;
-    if (!currentUser) { setError("اختر المستخدم أولاً"); return; }
-    if (!currentPin)  { setError("أدخل الرقم السري");   return; }
-    if (loading) return;
-
-    setLoading(true); setError("");
-
+    setLoading(true);
     try {
       const res = await fetch(api("/api/auth/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: currentUser.id, pin: currentPin }),
+        body: JSON.stringify({ userId: matchedUser.id, pin }),
       });
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setError(data.error || "الرقم السري غير صحيح");
-        setPin(""); setLoading(false);
+        setPin("");
+        pinRef.current?.focus();
         return;
       }
 
@@ -478,565 +98,662 @@ export default function Login() {
         token: string;
       };
 
-      /* success exit */
-      try {
-        animate("#lp-panel", { scale: [1, 1.03], duration: 180, easing: "easeOutCubic" });
-        setTimeout(() =>
-          animate("#lp-panel", {
-            translateX: ["0%", "6%"], opacity: [1, 0], duration: 300, easing: "easeInCubic",
-            onComplete: () => { login(authedUser, token); setLocation("/"); },
-          }), 280
-        );
-      } catch (_) {
-        login(authedUser, token);
-        setLocation("/");
-      }
+      login(authedUser, token);
+      setLocation("/");
     } catch {
       setError("تعذّر الاتصال بالخادم");
+    } finally {
       setLoading(false);
     }
-  };
+  }, [username, pin, activeUsers, login, setLocation]);
 
-  /* ══ Render ══════════════════════════════════════════════════ */
   return (
-    <div className="min-h-screen flex overflow-hidden" style={{ direction: "ltr", background: "#05050b" }}>
+    <div className="min-h-screen flex" style={{ direction: "rtl", background: "#f0f4ff" }}>
 
-      {/* ════════ LEFT — Star-field brand panel ════════ */}
-      <div
-        id="lp-brand"
-        className="hidden lg:flex w-[52%] relative flex-col items-center justify-center overflow-hidden"
-        style={{ background: "linear-gradient(160deg, #07070f 0%, #05050a 100%)" }}
-      >
-        {/* Star canvas */}
-        <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
+      {/* ═══════════════════════════════════════════════
+          LEFT — Brand panel
+      ═══════════════════════════════════════════════ */}
+      <div className="hidden lg:flex w-[46%] relative flex-col items-center justify-center overflow-hidden"
+        style={{ background: "linear-gradient(145deg, #1e40af 0%, #1d4ed8 40%, #2563eb 70%, #3b82f6 100%)" }}>
 
-        {/* Ambient light washes */}
-        <div className="absolute inset-0 pointer-events-none" style={{
-          background:
-            "radial-gradient(ellipse 60% 55% at 28% 35%, rgba(100,80,200,0.09) 0%, transparent 70%)," +
-            "radial-gradient(ellipse 50% 45% at 74% 72%, rgba(245,158,11,0.07) 0%, transparent 60%)," +
-            "radial-gradient(ellipse 40% 35% at 55% 8%,  rgba(130,100,220,0.05) 0%, transparent 55%)",
+        {/* Decorative blobs */}
+        <div style={{
+          position: "absolute", top: "-80px", left: "-80px",
+          width: "360px", height: "360px", borderRadius: "50%",
+          background: "rgba(255,255,255,0.06)",
+        }} />
+        <div style={{
+          position: "absolute", bottom: "-60px", right: "-60px",
+          width: "300px", height: "300px", borderRadius: "50%",
+          background: "rgba(255,255,255,0.05)",
+        }} />
+        <div style={{
+          position: "absolute", top: "40%", left: "60%",
+          width: "180px", height: "180px", borderRadius: "50%",
+          background: "rgba(255,255,255,0.04)",
         }} />
 
-        {/* Subtle grid */}
-        <div className="absolute inset-0 pointer-events-none" style={{
+        {/* Grid pattern */}
+        <div style={{
+          position: "absolute", inset: 0, pointerEvents: "none",
           backgroundImage:
-            "linear-gradient(rgba(120,100,200,0.025) 1px, transparent 1px)," +
-            "linear-gradient(90deg, rgba(120,100,200,0.025) 1px, transparent 1px)",
-          backgroundSize: "64px 64px",
+            "linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px)," +
+            "linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)",
+          backgroundSize: "48px 48px",
         }} />
 
-        {/* Right edge separator */}
-        <div className="absolute top-0 right-0 bottom-0 w-px"
-          style={{ background: "linear-gradient(to bottom, transparent, rgba(245,158,11,0.22) 30%, rgba(245,158,11,0.22) 70%, transparent)" }} />
-        <div className="absolute top-0 right-0 bottom-0 w-12 pointer-events-none"
-          style={{ background: "linear-gradient(to left, rgba(5,5,11,0.5), transparent)" }} />
-
-        {/* Brand content */}
-        <div className="relative z-10 text-center px-14 max-w-[480px]" dir="rtl">
+        {/* Content */}
+        <div className="relative z-10 text-center px-12 max-w-[420px]" dir="rtl">
 
           {/* Logo */}
-          <div id="lp-logo" className="flex justify-center mb-9" style={{ opacity: 0 }}>
-            <div className="relative">
-              {/* Pulse rings */}
-              <div className="absolute inset-0 rounded-[28px] pointer-events-none"
-                style={{
-                  animation: "lp-ring1 3s ease-in-out infinite",
-                  border: "1.5px solid rgba(245,158,11,0.22)",
-                  transform: "scale(1.12)",
-                }} />
-              <div className="absolute inset-0 rounded-[28px] pointer-events-none"
-                style={{
-                  animation: "lp-ring2 3s ease-in-out infinite 0.8s",
-                  border: "1px solid rgba(245,158,11,0.12)",
-                  transform: "scale(1.28)",
-                }} />
+          <div className="flex justify-center mb-8">
+            <div style={{
+              width: "88px", height: "88px", borderRadius: "24px",
+              background: "rgba(255,255,255,0.15)",
+              backdropFilter: "blur(12px)",
+              border: "1.5px solid rgba(255,255,255,0.25)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.2), 0 2px 8px rgba(0,0,0,0.1)",
+            }}>
               <img
                 src={logoSrc}
                 alt="Logo"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                style={{
-                  width: "100px", height: "100px",
-                  borderRadius: "28px",
-                  objectFit: "contain",
-                  background: "rgba(255,255,255,0.04)",
-                  border: "1.5px solid rgba(245,158,11,0.28)",
-                  boxShadow: "0 0 40px rgba(245,158,11,0.14), 0 12px 40px rgba(0,0,0,0.5)",
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
+                  const parent = (e.target as HTMLImageElement).parentElement;
+                  if (parent) parent.innerHTML = '<span style="font-size:38px">🏪</span>';
                 }}
+                style={{ width: "56px", height: "56px", objectFit: "contain" }}
               />
             </div>
           </div>
 
-          {/* Company name */}
-          <h1 id="lp-title" className="font-black mb-3 leading-tight" style={{
-            opacity: 0,
-            fontSize: "clamp(26px, 3.2vw, 42px)",
-            color: "#fff",
-            textShadow: "0 2px 24px rgba(245,158,11,0.2)",
-            letterSpacing: "-0.5px",
+          {/* App name */}
+          <h1 style={{
+            fontSize: "32px", fontWeight: 900, color: "#fff",
+            marginBottom: "10px", letterSpacing: "-0.5px",
+            textShadow: "0 2px 12px rgba(0,0,0,0.15)",
           }}>
-            {settings.companyName || "Halal Tech"}
+            {settings.companyName || "Halal Tech ERP"}
           </h1>
 
           {/* Tagline */}
-          <p id="lp-tagline" style={{ opacity: 0, fontSize: "14px", color: "rgba(255,255,255,0.38)", marginBottom: "32px", letterSpacing: "0.4px" }}>
-            {settings.companySlogan || "نظام إدارة متكامل لمحلات صيانة الجوال"}
+          <p style={{
+            fontSize: "15px", color: "rgba(255,255,255,0.75)",
+            marginBottom: "40px", lineHeight: 1.6,
+          }}>
+            {settings.companySlogan || "أدِر عملك باحترافية وثقة كاملة"}
           </p>
 
-          {/* Feature badges */}
-          <div className="flex flex-wrap gap-2.5 justify-center">
-            {BADGES.map((b) => (
-              <div
-                key={b.label}
-                className="lp-badge"
-                style={{
-                  opacity: 0,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  padding: "7px 14px",
-                  borderRadius: "100px",
-                  fontSize: "12.5px",
-                  fontWeight: 600,
-                  color: "rgba(255,255,255,0.62)",
-                  background: "rgba(255,255,255,0.042)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  backdropFilter: "blur(8px)",
-                }}
-              >
-                <span>{b.icon}</span>
-                <span>{b.label}</span>
+          {/* Feature list */}
+          <div className="flex flex-col gap-3">
+            {FEATURES.map((f) => (
+              <div key={f.label} style={{
+                display: "flex", alignItems: "center", gap: "14px",
+                background: "rgba(255,255,255,0.1)",
+                backdropFilter: "blur(8px)",
+                border: "1px solid rgba(255,255,255,0.15)",
+                borderRadius: "14px",
+                padding: "12px 16px",
+                textAlign: "right",
+              }}>
+                <span style={{ fontSize: "22px", flexShrink: 0 }}>{f.icon}</span>
+                <div>
+                  <div style={{ fontSize: "13px", fontWeight: 700, color: "#fff" }}>{f.label}</div>
+                  <div style={{ fontSize: "11.5px", color: "rgba(255,255,255,0.6)", marginTop: "1px" }}>{f.desc}</div>
+                </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Version tag */}
-        <p className="absolute bottom-5 text-[10px] tracking-[0.2em]" style={{ color: "rgba(255,255,255,0.1)" }}>
+        {/* Version badge */}
+        <div style={{
+          position: "absolute", bottom: "24px",
+          fontSize: "11px", color: "rgba(255,255,255,0.35)",
+          letterSpacing: "0.12em", fontWeight: 500,
+        }}>
           HALAL TECH ERP v2.0
-        </p>
+        </div>
       </div>
 
-      {/* ════════ RIGHT — Accounts + PIN panel ════════ */}
-      <div
-        id="lp-panel"
-        className="flex-1 flex flex-col items-center justify-center relative"
-        style={{
-          opacity: 0,
-          background: "linear-gradient(160deg, #09090f 0%, #070710 100%)",
-          minHeight: "100vh",
-        }}
-      >
-        {/* Subtle top glow */}
-        <div className="absolute inset-x-0 top-0 h-px pointer-events-none"
-          style={{ background: "linear-gradient(to right, transparent, rgba(245,158,11,0.18), transparent)" }} />
+      {/* ═══════════════════════════════════════════════
+          RIGHT — Auth form
+      ═══════════════════════════════════════════════ */}
+      <div className="flex-1 flex flex-col items-center justify-center px-5 py-10"
+        style={{ background: "#f0f4ff", minHeight: "100vh" }}>
 
-        <div className="w-full max-w-[420px] px-7 py-12" dir="rtl">
+        {/* Mobile logo */}
+        <div className="flex lg:hidden flex-col items-center mb-8">
+          <div style={{
+            width: "64px", height: "64px", borderRadius: "18px",
+            background: "linear-gradient(145deg, #1e40af, #3b82f6)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            marginBottom: "10px",
+            boxShadow: "0 6px 20px rgba(37,99,235,0.3)",
+          }}>
+            <img
+              src={logoSrc}
+              alt="Logo"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+                const parent = (e.target as HTMLImageElement).parentElement;
+                if (parent) parent.innerHTML = '<span style="font-size:28px">🏪</span>';
+              }}
+              style={{ width: "42px", height: "42px", objectFit: "contain" }}
+            />
+          </div>
+          <div style={{ fontSize: "18px", fontWeight: 800, color: "#1e3a8a" }}>
+            {settings.companyName || "Halal Tech ERP"}
+          </div>
+        </div>
 
-          {/* ─── STEP: User selection ─── */}
-          {step === "user" && (
-            <div id="lp-user-step">
-              <div className="mb-8">
-                <h2 className="text-[22px] font-black text-white mb-1.5">مرحباً بك 👋</h2>
-                <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.35)" }}>
-                  اختر حسابك للمتابعة
-                </p>
-              </div>
+        {/* Card */}
+        <div style={{
+          width: "100%", maxWidth: "440px",
+          background: "#fff",
+          borderRadius: "24px",
+          boxShadow: "0 4px 6px rgba(0,0,0,0.04), 0 20px 60px rgba(37,99,235,0.08), 0 8px 24px rgba(0,0,0,0.06)",
+          padding: "40px 36px",
+          border: "1px solid rgba(219,234,254,0.8)",
+        }}>
 
-              <div className="flex flex-col gap-3">
-                {activeUsers.map((user, idx) => {
-                  const [c1, c2] = AVATAR_COLORS[idx % AVATAR_COLORS.length];
-                  return (
-                    <AccountCard
-                      key={user.id}
-                      user={user}
-                      colorFrom={c1}
-                      colorTo={c2}
-                      onSelect={() => selectUser(String(user.id))}
-                    />
-                  );
-                })}
+          {/* Tab toggle */}
+          <div style={{
+            display: "flex",
+            background: "#f1f5f9",
+            borderRadius: "12px",
+            padding: "4px",
+            marginBottom: "32px",
+            gap: "4px",
+          }}>
+            {([["login", "تسجيل الدخول"], ["register", "إنشاء حساب"]] as const).map(([m, label]) => (
+              <button
+                key={m}
+                onClick={() => { setMode(m); setError(""); }}
+                style={{
+                  flex: 1,
+                  padding: "9px 0",
+                  borderRadius: "9px",
+                  fontSize: "13.5px",
+                  fontWeight: 700,
+                  border: "none",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                  background: mode === m ? "#fff" : "transparent",
+                  color: mode === m ? "#1d4ed8" : "#64748b",
+                  boxShadow: mode === m ? "0 1px 4px rgba(0,0,0,0.1), 0 0 0 1px rgba(219,234,254,0.8)" : "none",
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
 
-                {activeUsers.length === 0 && (
-                  <div style={{ textAlign: "center", padding: "48px 0", color: "rgba(255,255,255,0.2)", fontSize: "13px" }}>
-                    جاري تحميل الحسابات…
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ─── STEP: PIN entry ─── */}
-          {step === "pin" && (
-            <div id="lp-pin-step">
-
-              {/* Header row: back + user chip */}
-              <div className="flex items-center gap-3 mb-8">
-                <button
-                  onClick={backToUser}
-                  className="back-btn"
-                  style={{
-                    width: "38px", height: "38px",
-                    borderRadius: "12px",
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    color: "rgba(255,255,255,0.35)",
-                    fontSize: "17px",
-                    cursor: "pointer",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    flexShrink: 0,
-                    transition: "background 0.15s, color 0.15s, transform 0.15s",
-                  }}
-                  onMouseEnter={(e) => {
-                    const el = e.currentTarget;
-                    el.style.background = "rgba(255,255,255,0.07)";
-                    el.style.color = "rgba(255,255,255,0.75)";
-                    try { animate(el, { translateX: [0, 4], duration: 200, easing: "easeOutBack" }); } catch (_) { /* ignore */ }
-                  }}
-                  onMouseLeave={(e) => {
-                    const el = e.currentTarget;
-                    el.style.background = "rgba(255,255,255,0.04)";
-                    el.style.color = "rgba(255,255,255,0.35)";
-                  }}
-                >
-                  →
-                </button>
-
-                {selectedUser && (
-                  <div className="flex items-center gap-2.5">
-                    <div style={{
-                      width: "38px", height: "38px", borderRadius: "12px",
-                      background: `linear-gradient(135deg, ${AVATAR_COLORS[activeUsers.indexOf(selectedUser) % AVATAR_COLORS.length][0]}, ${AVATAR_COLORS[activeUsers.indexOf(selectedUser) % AVATAR_COLORS.length][1]})`,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: "15px", fontWeight: 800, color: "#fff",
-                      flexShrink: 0,
-                    }}>
-                      {selectedUser.name.charAt(0)}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: "14px", fontWeight: 700, color: "#fff", lineHeight: 1.2 }}>{selectedUser.name}</div>
-                      <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.35)" }}>{ROLE_LABELS[selectedUser.role] || selectedUser.role}</div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* PIN heading */}
-              <div className="mb-6">
-                <h2 style={{ fontSize: "21px", fontWeight: 900, color: "#fff", marginBottom: "4px" }}>الرقم السري</h2>
-                <p style={{ fontSize: "12.5px", color: "rgba(255,255,255,0.3)" }}>
-                  اضغط على الأرقام أدناه
-                </p>
-              </div>
-
-              {/* PIN dots */}
-              <div className="flex justify-center gap-4 mb-6" dir="ltr">
-                {Array.from({ length: pinLength }).map((_, i) => {
-                  const filled = i < pin.length;
-                  return (
-                    <div
-                      key={i}
-                      className={`pin-dot pin-dot-${i}`}
-                      style={{
-                        width: "14px", height: "14px", borderRadius: "50%",
-                        background: filled
-                          ? "linear-gradient(135deg, #F59E0B, #D97706)"
-                          : "rgba(255,255,255,0.08)",
-                        border: filled ? "none" : "1.5px solid rgba(255,255,255,0.12)",
-                        boxShadow: filled
-                          ? "0 0 16px rgba(245,158,11,0.65), 0 0 32px rgba(245,158,11,0.2)"
-                          : "none",
-                        transition: "background 0.15s, box-shadow 0.15s",
-                      }}
-                    />
-                  );
-                })}
-              </div>
-
-              {/* Error */}
-              {error && (
-                <div
-                  id="lp-error"
-                  className="mb-5 flex items-center gap-2 rounded-xl px-4 py-3"
-                  style={{
-                    background: "rgba(239,68,68,0.07)",
-                    border: "1px solid rgba(239,68,68,0.18)",
-                    color: "#f87171", fontSize: "12.5px",
-                  }}
-                >
-                  <span>⚠</span><span>{error}</span>
-                </div>
-              )}
-
-              {/* Loading overlay */}
-              {loading && (
-                <div className="flex items-center justify-center gap-3 mb-5 py-2"
-                  style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px" }}>
-                  <span
-                    className="animate-spin rounded-full"
-                    style={{
-                      width: "18px", height: "18px", flexShrink: 0,
-                      border: "2px solid rgba(245,158,11,0.18)",
-                      borderTopColor: "#F59E0B",
-                      display: "inline-block",
-                    }}
-                  />
-                  جاري التحقق…
-                </div>
-              )}
-
-              {/* PIN keypad */}
-              <div className="grid grid-cols-3 gap-2.5" dir="ltr">
-                {KEYS.map((key) => {
-                  const isConfirm  = key === "✓";
-                  const isDelete   = key === "⌫";
-                  const confirmOn  = isConfirm && pin.length > 0;
-
-                  return (
-                    <button
-                      key={key}
-                      disabled={loading}
-                      onClick={(e) => handleKeyBtn(key, e.currentTarget)}
-                      style={{
-                        height: "56px",
-                        borderRadius: "16px",
-                        fontWeight: 700,
-                        fontSize: isConfirm || isDelete ? "18px" : "21px",
-                        background: confirmOn
-                          ? "linear-gradient(135deg, #F59E0B 0%, #D97706 60%, #B45309 100%)"
-                          : isConfirm
-                          ? "rgba(245,158,11,0.05)"
-                          : isDelete
-                          ? "rgba(239,68,68,0.06)"
-                          : "rgba(255,255,255,0.04)",
-                        border: confirmOn
-                          ? "1.5px solid rgba(245,158,11,0.5)"
-                          : isConfirm
-                          ? "1.5px solid rgba(245,158,11,0.12)"
-                          : isDelete
-                          ? "1.5px solid rgba(239,68,68,0.15)"
-                          : "1.5px solid rgba(255,255,255,0.06)",
-                        color: confirmOn
-                          ? "#060608"
-                          : isConfirm
-                          ? "rgba(245,158,11,0.35)"
-                          : isDelete
-                          ? "#f87171"
-                          : "rgba(255,255,255,0.82)",
-                        boxShadow: confirmOn
-                          ? "0 6px 24px rgba(245,158,11,0.3), 0 2px 8px rgba(245,158,11,0.15)"
-                          : "none",
-                        cursor: loading ? "not-allowed" : "pointer",
-                        opacity: loading ? 0.5 : 1,
-                        transition: "background 0.18s, border-color 0.18s, box-shadow 0.18s",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                      }}
-                    >
-                      {loading && isConfirm ? (
-                        <span className="animate-spin rounded-full" style={{
-                          width: "20px", height: "20px",
-                          border: "2.5px solid rgba(6,6,8,0.15)",
-                          borderTopColor: "#060608",
-                          display: "inline-block",
-                        }} />
-                      ) : key}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+          {mode === "login" ? (
+            <LoginForm
+              users={activeUsers}
+              username={username}
+              setUsername={setUsername}
+              pin={pin}
+              setPin={setPin}
+              showPin={showPin}
+              setShowPin={setShowPin}
+              error={error}
+              setError={setError}
+              loading={loading}
+              focused={focused}
+              setFocused={setFocused}
+              usernameRef={usernameRef}
+              pinRef={pinRef}
+              onSubmit={handleSubmit}
+            />
+          ) : (
+            <RegisterInfo onSwitch={() => setMode("login")} />
           )}
         </div>
 
-        {/* Bottom version on mobile */}
-        <p className="lg:hidden absolute bottom-5 text-[10px] tracking-widest" style={{ color: "rgba(255,255,255,0.1)" }}>
-          HALAL TECH ERP v2.0
+        {/* Footer */}
+        <p style={{ marginTop: "24px", fontSize: "12px", color: "#94a3b8", textAlign: "center" }}>
+          {settings.companyName || "Halal Tech ERP"} &copy; {new Date().getFullYear()}
         </p>
       </div>
 
-      {/* Keyframe styles */}
       <style>{`
-        @keyframes lp-ring1 {
-          0%, 100% { opacity: 0.7; transform: scale(1.12); }
-          50%       { opacity: 0.3; transform: scale(1.22); }
-        }
-        @keyframes lp-ring2 {
-          0%, 100% { opacity: 0.4; transform: scale(1.28); }
-          50%       { opacity: 0.1; transform: scale(1.42); }
-        }
-        @keyframes lp-breathe {
-          0%, 100% { box-shadow: 0 0 0 0 transparent, 0 8px 32px rgba(245,158,11,0.18); }
-          50%       { box-shadow: 0 0 0 6px rgba(245,158,11,0.06), 0 12px 40px rgba(245,158,11,0.28); }
-        }
-        @keyframes lp-shimmer {
-          0%   { transform: translateX(-110%); }
-          100% { transform: translateX(110%); }
-        }
         @keyframes lp-shake {
-          0%, 100% { transform: translateX(0); }
-          15%       { transform: translateX(-9px); }
-          30%       { transform: translateX(8px); }
-          45%       { transform: translateX(-7px); }
-          60%       { transform: translateX(6px); }
-          75%       { transform: translateX(-4px); }
-          90%       { transform: translateX(3px); }
+          0%,100% { transform: translateX(0); }
+          15%      { transform: translateX(-8px); }
+          30%      { transform: translateX(7px); }
+          45%      { transform: translateX(-6px); }
+          60%      { transform: translateX(5px); }
+          75%      { transform: translateX(-3px); }
+          90%      { transform: translateX(2px); }
+        }
+        .lp-input {
+          transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .lp-input:focus {
+          outline: none;
+          border-color: #3b82f6 !important;
+          box-shadow: 0 0 0 3px rgba(59,130,246,0.12) !important;
+        }
+        .lp-btn-primary {
+          transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+        }
+        .lp-btn-primary:hover:not(:disabled) {
+          transform: translateY(-1px);
+          box-shadow: 0 8px 24px rgba(37,99,235,0.35) !important;
+        }
+        .lp-btn-primary:active:not(:disabled) {
+          transform: translateY(0px);
+        }
+        .lp-btn-primary:disabled {
+          opacity: 0.7;
+          cursor: not-allowed;
         }
       `}</style>
     </div>
   );
 }
 
-/* ════════════════════════════════════════════════════════════
-   ACCOUNT CARD — sub-component
-════════════════════════════════════════════════════════════ */
-interface AccountCardProps {
-  user: ErpUser;
-  colorFrom: string;
-  colorTo: string;
-  onSelect: () => void;
+/* ────────────────────────────────────────────────────────────
+   LOGIN FORM
+──────────────────────────────────────────────────────────── */
+interface LoginFormProps {
+  users: ErpUser[];
+  username: string;
+  setUsername: (v: string) => void;
+  pin: string;
+  setPin: (v: string) => void;
+  showPin: boolean;
+  setShowPin: (v: boolean) => void;
+  error: string;
+  setError: (v: string) => void;
+  loading: boolean;
+  focused: "username" | "pin" | null;
+  setFocused: (v: "username" | "pin" | null) => void;
+  usernameRef: React.RefObject<HTMLInputElement | null>;
+  pinRef: React.RefObject<HTMLInputElement | null>;
+  onSubmit: (e: React.FormEvent) => void;
 }
 
-const ROLE_LABELS_MAP: Record<string, string> = {
-  admin: "مدير", manager: "مشرف",
-  cashier: "كاشير", salesperson: "مندوب مبيعات",
-};
+function LoginForm({
+  users, username, setUsername, pin, setPin, showPin, setShowPin,
+  error, setError, loading, focused, setFocused, usernameRef, pinRef, onSubmit,
+}: LoginFormProps) {
 
-function AccountCard({ user, colorFrom, colorTo, onSelect }: AccountCardProps) {
-  const cardRef    = useRef<HTMLDivElement>(null);
-  const shimmerRef = useRef<HTMLDivElement>(null);
-  const arrowRef   = useRef<HTMLDivElement>(null);
-  const [pressed, setPressed] = useState(false);
+  const matchedUser = users.find(
+    (u) =>
+      u.username.toLowerCase() === username.trim().toLowerCase() ||
+      u.name === username.trim()
+  );
 
-  const handleEnter = () => {
-    const el = cardRef.current;
-    if (!el) return;
-    el.style.transform   = "translateY(-5px)";
-    el.style.borderColor = "rgba(245,158,11,0.3)";
-    el.style.boxShadow   = "0 16px 48px rgba(245,158,11,0.14), 0 4px 16px rgba(0,0,0,0.4)";
+  const errorRef = useRef<HTMLDivElement>(null);
 
-    /* shimmer sweep */
-    if (shimmerRef.current) {
-      animate(shimmerRef.current, {
-        translateX: ["-110%", "110%"],
-        duration: 540,
-        easing: "easeInOutSine",
-      });
-    }
-
-    /* elastic arrow */
-    if (arrowRef.current) {
-      try {
-        animate(arrowRef.current, {
-          translateX: [0, -5],
-          duration: 240,
-          easing: "easeOutBack",
-        });
-      } catch (_) { /* ignore */ }
-    }
-  };
-
-  const handleLeave = () => {
-    const el = cardRef.current;
-    if (!el) return;
-    el.style.transform   = "translateY(0)";
-    el.style.borderColor = "rgba(255,255,255,0.07)";
-    el.style.boxShadow   = "none";
-  };
-
-  const handleClick = () => {
-    setPressed(true);
-    const el = cardRef.current;
+  useEffect(() => {
+    if (!error) return;
+    const el = errorRef.current;
     if (el) {
-      try { animate(el, { scale: [1, 0.96], duration: 120, easing: "easeInCubic" }); } catch (_) { /* ignore */ }
+      el.style.animation = "none";
+      void el.offsetWidth;
+      el.style.animation = "lp-shake 0.5s ease";
     }
-    setTimeout(() => { setPressed(false); onSelect(); }, 180);
-  };
+  }, [error]);
 
   return (
-    <div
-      ref={cardRef}
-      className="account-card"
-      onClick={handleClick}
-      onMouseEnter={handleEnter}
-      onMouseLeave={handleLeave}
-      style={{
-        position: "relative",
-        overflow: "hidden",
-        cursor: "pointer",
-        borderRadius: "18px",
-        padding: "16px 18px",
-        background: pressed
-          ? "rgba(255,255,255,0.06)"
-          : "rgba(255,255,255,0.035)",
-        border: "1.5px solid rgba(255,255,255,0.07)",
-        transition: "transform 0.22s cubic-bezier(.22,.68,0,1.5), box-shadow 0.22s ease, border-color 0.22s, background 0.12s",
-        userSelect: "none",
-        opacity: 0,
-      }}
-    >
-      {/* Shimmer overlay */}
-      <div
-        ref={shimmerRef}
-        style={{
-          position: "absolute",
-          inset: 0,
-          background: "linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.055) 50%, transparent 65%)",
-          transform: "translateX(-110%)",
-          pointerEvents: "none",
-          zIndex: 1,
-        }}
-      />
+    <form onSubmit={onSubmit} noValidate>
 
-      <div style={{ position: "relative", zIndex: 2, display: "flex", alignItems: "center", gap: "14px" }}>
-        {/* Avatar + online dot */}
-        <div style={{ position: "relative", flexShrink: 0 }}>
-          <div style={{
-            width: "54px", height: "54px",
-            borderRadius: "16px",
-            background: `linear-gradient(135deg, ${colorFrom} 0%, ${colorTo} 100%)`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: "22px", fontWeight: 900, color: "#fff",
-            boxShadow: `0 6px 20px ${colorFrom}40`,
+      {/* Heading */}
+      <div style={{ marginBottom: "28px" }}>
+        <h2 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", marginBottom: "6px" }}>
+          مرحباً بك 👋
+        </h2>
+        <p style={{ fontSize: "13.5px", color: "#64748b" }}>
+          سجّل دخولك للمتابعة إلى لوحة التحكم
+        </p>
+      </div>
+
+      {/* Username field */}
+      <div style={{ marginBottom: "16px" }}>
+        <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "6px" }}>
+          اسم المستخدم
+        </label>
+        <div style={{ position: "relative" }}>
+          <span style={{
+            position: "absolute", top: "50%", right: "14px",
+            transform: "translateY(-50%)",
+            fontSize: "16px", color: focused === "username" ? "#3b82f6" : "#94a3b8",
+            pointerEvents: "none", transition: "color 0.2s",
           }}>
-            {user.name.charAt(0)}
-          </div>
-
-          {/* Online dot */}
-          <div style={{
-            position: "absolute",
-            bottom: "2px", left: "2px",
-            width: "12px", height: "12px",
-            borderRadius: "50%",
-            background: "#22c55e",
-            border: "2.5px solid #07070f",
-            boxShadow: "0 0 8px rgba(34,197,94,0.7)",
-          }} />
-        </div>
-
-        {/* Name + role */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: "15px", fontWeight: 700, color: "#fff", lineHeight: 1.25, marginBottom: "3px" }}>
-            {user.name}
-          </div>
-          <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.38)", display: "flex", alignItems: "center", gap: "6px" }}>
+            👤
+          </span>
+          <input
+            ref={usernameRef}
+            type="text"
+            value={username}
+            autoComplete="username"
+            placeholder="أدخل اسم المستخدم"
+            disabled={loading}
+            onChange={(e) => { setUsername(e.target.value); setError(""); }}
+            onFocus={() => setFocused("username")}
+            onBlur={() => setFocused(null)}
+            className="lp-input"
+            style={{
+              width: "100%", boxSizing: "border-box",
+              padding: "12px 44px 12px 40px",
+              borderRadius: "12px",
+              border: `1.5px solid ${focused === "username" ? "#3b82f6" : "#e2e8f0"}`,
+              fontSize: "14px", color: "#0f172a",
+              background: loading ? "#f8fafc" : "#fff",
+              fontFamily: "inherit",
+              direction: "rtl",
+            }}
+          />
+          {/* User match indicator */}
+          {username.trim() && (
             <span style={{
-              display: "inline-block",
-              padding: "2px 8px",
-              borderRadius: "100px",
-              background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              fontSize: "11px",
+              position: "absolute", top: "50%", left: "14px",
+              transform: "translateY(-50%)",
+              fontSize: "14px",
             }}>
-              {ROLE_LABELS_MAP[user.role] || user.role}
+              {matchedUser ? "✅" : "❌"}
+            </span>
+          )}
+        </div>
+        {/* User suggestion */}
+        {matchedUser && (
+          <div style={{
+            marginTop: "6px",
+            display: "flex", alignItems: "center", gap: "8px",
+            padding: "7px 11px",
+            background: "#eff6ff",
+            border: "1px solid #bfdbfe",
+            borderRadius: "8px",
+            fontSize: "12.5px", color: "#1d4ed8",
+          }}>
+            <span style={{
+              background: "linear-gradient(135deg,#1d4ed8,#3b82f6)",
+              color: "#fff",
+              width: "24px", height: "24px",
+              borderRadius: "7px",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: "11px", fontWeight: 800, flexShrink: 0,
+            }}>
+              {matchedUser.name.charAt(0)}
+            </span>
+            <span>{matchedUser.name}</span>
+            <span style={{
+              marginRight: "auto",
+              background: "#dbeafe",
+              borderRadius: "6px",
+              padding: "2px 8px",
+              fontSize: "11px", fontWeight: 600,
+            }}>
+              {ROLE_LABELS[matchedUser.role] || matchedUser.role}
             </span>
           </div>
-        </div>
+        )}
+      </div>
 
-        {/* Elastic arrow */}
-        <div ref={arrowRef} style={{ color: "rgba(255,255,255,0.18)", fontSize: "20px", flexShrink: 0 }}>
-          ←
+      {/* PIN / Password field */}
+      <div style={{ marginBottom: "20px" }}>
+        <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "6px" }}>
+          الرقم السري
+        </label>
+        <div style={{ position: "relative" }}>
+          <span style={{
+            position: "absolute", top: "50%", right: "14px",
+            transform: "translateY(-50%)",
+            fontSize: "16px", color: focused === "pin" ? "#3b82f6" : "#94a3b8",
+            pointerEvents: "none", transition: "color 0.2s",
+          }}>
+            🔒
+          </span>
+          <input
+            ref={pinRef}
+            type={showPin ? "text" : "password"}
+            value={pin}
+            autoComplete="current-password"
+            placeholder="أدخل الرقم السري"
+            disabled={loading}
+            inputMode="numeric"
+            onChange={(e) => { setPin(e.target.value.replace(/\D/g, "").slice(0, 6)); setError(""); }}
+            onFocus={() => setFocused("pin")}
+            onBlur={() => setFocused(null)}
+            className="lp-input"
+            style={{
+              width: "100%", boxSizing: "border-box",
+              padding: "12px 44px 12px 44px",
+              borderRadius: "12px",
+              border: `1.5px solid ${focused === "pin" ? "#3b82f6" : "#e2e8f0"}`,
+              fontSize: "14px", color: "#0f172a",
+              background: loading ? "#f8fafc" : "#fff",
+              fontFamily: "inherit",
+              direction: "ltr",
+              letterSpacing: pin && !showPin ? "0.3em" : "normal",
+            }}
+          />
+          {/* Show/hide toggle */}
+          <button
+            type="button"
+            onClick={() => setShowPin(!showPin)}
+            tabIndex={-1}
+            style={{
+              position: "absolute", top: "50%", left: "14px",
+              transform: "translateY(-50%)",
+              background: "none", border: "none", cursor: "pointer",
+              fontSize: "16px", color: "#94a3b8", padding: "2px",
+              lineHeight: 1,
+              transition: "color 0.2s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#3b82f6")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "#94a3b8")}
+            title={showPin ? "إخفاء" : "إظهار"}
+          >
+            {showPin ? "🙈" : "👁"}
+          </button>
         </div>
       </div>
+
+      {/* Error message */}
+      {error && (
+        <div
+          ref={errorRef}
+          style={{
+            marginBottom: "16px",
+            display: "flex", alignItems: "center", gap: "8px",
+            padding: "11px 14px",
+            background: "#fef2f2",
+            border: "1.5px solid #fecaca",
+            borderRadius: "10px",
+            fontSize: "13px", color: "#dc2626",
+            fontWeight: 500,
+          }}
+        >
+          <span style={{ flexShrink: 0 }}>⚠️</span>
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* Submit button */}
+      <button
+        type="submit"
+        disabled={loading}
+        className="lp-btn-primary"
+        style={{
+          width: "100%",
+          padding: "13px 0",
+          borderRadius: "12px",
+          border: "none",
+          cursor: loading ? "not-allowed" : "pointer",
+          fontSize: "15px", fontWeight: 700,
+          color: "#fff",
+          background: "linear-gradient(135deg, #1d4ed8 0%, #2563eb 60%, #3b82f6 100%)",
+          boxShadow: "0 4px 14px rgba(37,99,235,0.3)",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: "10px",
+          marginBottom: "20px",
+        }}
+      >
+        {loading ? (
+          <>
+            <span style={{
+              width: "18px", height: "18px",
+              border: "2.5px solid rgba(255,255,255,0.3)",
+              borderTopColor: "#fff",
+              borderRadius: "50%",
+              display: "inline-block",
+              animation: "spin 0.8s linear infinite",
+            }} />
+            جاري التحقق…
+          </>
+        ) : (
+          <>
+            <span>تسجيل الدخول</span>
+            <span style={{ fontSize: "16px" }}>←</span>
+          </>
+        )}
+      </button>
+
+      {/* Divider */}
+      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
+        <div style={{ flex: 1, height: "1px", background: "#e2e8f0" }} />
+        <span style={{ fontSize: "12px", color: "#94a3b8", whiteSpace: "nowrap" }}>أو</span>
+        <div style={{ flex: 1, height: "1px", background: "#e2e8f0" }} />
+      </div>
+
+      {/* Users quick-select */}
+      {users.length > 0 && (
+        <div>
+          <p style={{ fontSize: "12px", color: "#94a3b8", marginBottom: "10px", textAlign: "center" }}>
+            اختر حسابك مباشرة
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", justifyContent: "center" }}>
+            {users.filter((u) => u.active !== false).slice(0, 5).map((u) => (
+              <button
+                key={u.id}
+                type="button"
+                disabled={loading}
+                onClick={() => { setUsername(u.username); setError(""); pinRef.current?.focus(); }}
+                style={{
+                  display: "flex", alignItems: "center", gap: "7px",
+                  padding: "6px 12px 6px 10px",
+                  borderRadius: "100px",
+                  border: username === u.username ? "1.5px solid #3b82f6" : "1.5px solid #e2e8f0",
+                  background: username === u.username ? "#eff6ff" : "#f8fafc",
+                  cursor: "pointer",
+                  fontSize: "12.5px", fontWeight: 600,
+                  color: username === u.username ? "#1d4ed8" : "#64748b",
+                  transition: "all 0.15s",
+                }}
+              >
+                <span style={{
+                  width: "22px", height: "22px",
+                  borderRadius: "7px",
+                  background: "linear-gradient(135deg,#1d4ed8,#60a5fa)",
+                  color: "#fff",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: "11px", fontWeight: 800, flexShrink: 0,
+                }}>
+                  {u.name.charAt(0)}
+                </span>
+                {u.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </form>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────
+   REGISTER INFO (ERP systems use admin-created accounts)
+──────────────────────────────────────────────────────────── */
+function RegisterInfo({ onSwitch }: { onSwitch: () => void }) {
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ marginBottom: "28px" }}>
+        <h2 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", marginBottom: "6px" }}>
+          إنشاء حساب جديد
+        </h2>
+        <p style={{ fontSize: "13.5px", color: "#64748b" }}>
+          حسابات النظام تُدار من قِبَل المدير
+        </p>
+      </div>
+
+      {/* Info card */}
+      <div style={{
+        background: "#eff6ff",
+        border: "1.5px solid #bfdbfe",
+        borderRadius: "16px",
+        padding: "28px 24px",
+        marginBottom: "24px",
+      }}>
+        <div style={{ fontSize: "48px", marginBottom: "14px" }}>🔐</div>
+        <p style={{ fontSize: "14px", color: "#1e40af", fontWeight: 600, marginBottom: "8px" }}>
+          هذا نظام ERP مؤسسي
+        </p>
+        <p style={{ fontSize: "13px", color: "#3b82f6", lineHeight: 1.7 }}>
+          لا يتاح تسجيل الحسابات بشكل مفتوح.
+          <br />
+          لإنشاء حساب جديد، تواصل مع مدير النظام
+          <br />
+          عبر صفحة <strong>الإعدادات ← المستخدمون</strong>.
+        </p>
+      </div>
+
+      {/* Steps */}
+      <div style={{
+        background: "#f8fafc",
+        borderRadius: "12px",
+        padding: "16px",
+        marginBottom: "24px",
+        textAlign: "right",
+      }}>
+        {[
+          ["1", "تواصل مع المدير"],
+          ["2", "يُنشئ المدير حسابك"],
+          ["3", "تستلم اسم المستخدم والرقم السري"],
+          ["4", "سجّل دخولك 🎉"],
+        ].map(([num, text]) => (
+          <div key={num} style={{
+            display: "flex", alignItems: "center", gap: "12px",
+            padding: "8px 0",
+            borderBottom: num !== "4" ? "1px solid #e2e8f0" : "none",
+          }}>
+            <span style={{
+              width: "24px", height: "24px", borderRadius: "8px",
+              background: "linear-gradient(135deg,#1d4ed8,#3b82f6)",
+              color: "#fff", fontSize: "12px", fontWeight: 800,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              flexShrink: 0,
+            }}>
+              {num}
+            </span>
+            <span style={{ fontSize: "13px", color: "#374151" }}>{text}</span>
+          </div>
+        ))}
+      </div>
+
+      <button
+        onClick={onSwitch}
+        style={{
+          width: "100%", padding: "13px 0",
+          borderRadius: "12px",
+          border: "1.5px solid #3b82f6",
+          background: "transparent",
+          cursor: "pointer",
+          fontSize: "14px", fontWeight: 700,
+          color: "#1d4ed8",
+          transition: "background 0.15s",
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = "#eff6ff"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+      >
+        ← العودة لتسجيل الدخول
+      </button>
     </div>
   );
 }
