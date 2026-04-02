@@ -39,7 +39,7 @@ const DAILY_CHECK_KEY = "erp_daily_alert_check";
 const TYPE_ICONS: Record<string, string> = {
   low_stock:        "📦",
   customer_debt:    "👤",
-  supplier_payable: "🏭",
+  supplier_payable: "💳",
   cash_low:         "💰",
   health:           "🩺",
 };

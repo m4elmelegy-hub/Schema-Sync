@@ -138,7 +138,7 @@ export default function Dashboard() {
       badge:    { up: false, label: "مستحقة" },
     },
     {
-      label:    "ديون الموردين",
+      label:    "مستحقات لعملاء",
       value:    stats.total_supplier_debts ?? 0,
       icon:     Truck,
       gradient: "linear-gradient(135deg, #164e63 0%, #155e75 40%, #0e7490 100%)",

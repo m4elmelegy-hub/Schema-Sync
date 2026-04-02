@@ -1176,10 +1176,10 @@ function PurchasesInvoicesReport() {
       <div className="grid grid-cols-3 gap-4">
         <div className="glass-panel rounded-2xl p-4 border border-red-500/10"><p className="text-red-400 text-xs mb-1">إجمالي المشتريات</p><p className="text-2xl font-black text-white">{formatCurrency(totalPurchases)}</p><p className="text-white/30 text-xs">{filtered.length} فاتورة</p></div>
         <div className="glass-panel rounded-2xl p-4 border border-emerald-500/10"><p className="text-emerald-400 text-xs mb-1">المدفوع</p><p className="text-2xl font-black text-white">{formatCurrency(totalPaid)}</p></div>
-        <div className="glass-panel rounded-2xl p-4 border border-amber-500/10"><p className="text-amber-400 text-xs mb-1">المتبقي للموردين</p><p className="text-2xl font-black text-white">{formatCurrency(totalRemaining)}</p></div>
+        <div className="glass-panel rounded-2xl p-4 border border-amber-500/10"><p className="text-amber-400 text-xs mb-1">المتبقي للعملاء</p><p className="text-2xl font-black text-white">{formatCurrency(totalRemaining)}</p></div>
       </div>
       <div className="flex gap-3 flex-wrap items-center">
-        <div className="relative flex-1 max-w-xs"><Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" /><input className="glass-input w-full pr-9 text-sm" placeholder="بحث برقم الفاتورة أو المورد..." value={search} onChange={e => setSearch(e.target.value)} /></div>
+        <div className="relative flex-1 max-w-xs"><Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" /><input className="glass-input w-full pr-9 text-sm" placeholder="بحث برقم الفاتورة أو العميل..." value={search} onChange={e => setSearch(e.target.value)} /></div>
         <div className="flex gap-1">{[{ v: "", l: "الكل" }, { v: "cash", l: "نقدي" }, { v: "credit", l: "آجل" }, { v: "partial", l: "جزئي" }].map(opt => (<button key={opt.v} onClick={() => setPayFilter(opt.v)} className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${payFilter === opt.v ? "bg-amber-500/20 border-amber-500/40 text-amber-400" : "glass-panel border-white/10 text-white/50 hover:text-white"}`}>{opt.l}</button>))}</div>
         <div className="flex gap-2 mr-auto">
           <button onClick={() => exportPurchasesExcel(filtered)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/30 transition-all"><FileDown className="w-3.5 h-3.5" /> Excel</button>
@@ -1189,7 +1189,7 @@ function PurchasesInvoicesReport() {
       <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
         <div className="overflow-x-auto">
           <table className="w-full text-right text-sm whitespace-nowrap">
-            <thead className="bg-white/5 border-b border-white/10"><tr><th className="p-3 text-white/50">رقم الفاتورة</th><th className="p-3 text-white/50">المورد / العميل</th><th className="p-3 text-white/50">الإجمالي</th><th className="p-3 text-white/50">المدفوع</th><th className="p-3 text-white/50">المتبقي</th><th className="p-3 text-white/50">الدفع</th><th className="p-3 text-white/50">الحالة</th><th className="p-3 text-white/50">التاريخ</th><th className="p-3 text-white/50">فاتورة</th></tr></thead>
+            <thead className="bg-white/5 border-b border-white/10"><tr><th className="p-3 text-white/50">رقم الفاتورة</th><th className="p-3 text-white/50">العميل</th><th className="p-3 text-white/50">الإجمالي</th><th className="p-3 text-white/50">المدفوع</th><th className="p-3 text-white/50">المتبقي</th><th className="p-3 text-white/50">الدفع</th><th className="p-3 text-white/50">الحالة</th><th className="p-3 text-white/50">التاريخ</th><th className="p-3 text-white/50">فاتورة</th></tr></thead>
             <tbody>
               {isLoading ? <TableSkeleton cols={9} rows={5} />
                 : filtered.length === 0 ? <tr><td colSpan={9} className="p-12 text-center text-white/40">لا توجد مشتريات</td></tr>
@@ -1690,120 +1690,6 @@ function CustomerStatementReport() {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
- *  TAB: كشف حساب مورد
- * ───────────────────────────────────────────────────────────────────────────── */
-
-interface SupplierStatementData {
-  supplier: { id: number; name: string; balance: number };
-  opening_balance: number;
-  statement: StatementRow[];
-  closing_balance: number;
-}
-
-const SUP_TYPE_MAP: Record<string, { label: string; cls: string }> = {
-  opening_balance:  { label: "رصيد أول المدة",  cls: "text-amber-400" },
-  purchase:         { label: "فاتورة شراء",      cls: "text-blue-400" },
-  payment:          { label: "سند دفع",          cls: "text-emerald-400" },
-  purchase_return:  { label: "مرتجع مشتريات",   cls: "text-orange-400" },
-};
-
-function SupplierStatementReport() {
-  const [supplierId, setSupplierId] = useState<string>("");
-  const [mode, setMode]             = useState<DateMode>("month");
-  const [customFrom, setCustomFrom] = useState(thisMonthStart());
-  const [customTo,   setCustomTo]   = useState(todayStr());
-  const [dateFrom, dateTo]          = getDateRange(mode, customFrom, customTo);
-
-  const { data: suppliers = [] } = useQuery<any[]>({
-    queryKey: ["/api/suppliers"],
-    queryFn: () => authFetch<any[]>(api("/api/suppliers")),
-    staleTime: 120_000,
-  });
-
-  const { data, isLoading, isFetching } = useQuery<SupplierStatementData>({
-    queryKey: ["/api/reports/supplier-statement", supplierId, dateFrom, dateTo],
-    queryFn: () => authFetch<SupplierStatementData>(api(`/api/reports/supplier-statement?supplier_id=${supplierId}&date_from=${dateFrom}&date_to=${dateTo}`)),
-    enabled: !!supplierId,
-    staleTime: 30_000,
-  });
-
-  const stmt = data?.statement ?? [];
-
-  return (
-    <div className="space-y-4" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
-      <div className="flex flex-wrap gap-3 items-center">
-        <select value={supplierId} onChange={e => setSupplierId(e.target.value)}
-          className="glass-input rounded-xl px-3 py-2 text-sm text-white min-w-[200px]">
-          <option value="">اختر المورد...</option>
-          {suppliers.map((s: any) => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
-        </select>
-        <DateFilterBar mode={mode} setMode={setMode} customFrom={customFrom} setCustomFrom={setCustomFrom} customTo={customTo} setCustomTo={setCustomTo} />
-      </div>
-
-      {!supplierId ? (
-        <div className="glass-panel rounded-2xl p-12 text-center border border-white/5">
-          <Truck className="w-10 h-10 text-white/20 mx-auto mb-3" />
-          <p className="text-white/40 font-bold">اختر موردًا لعرض كشف حسابه</p>
-        </div>
-      ) : (
-        <>
-          {data && (
-            <div className="grid grid-cols-3 gap-3">
-              <div className="glass-panel rounded-2xl p-4 border border-white/5">
-                <p className="text-white/40 text-xs mb-1">رصيد أول المدة</p>
-                <p className={`text-lg font-black ${data.opening_balance >= 0 ? "text-amber-400" : "text-red-400"}`}>{formatCurrency(data.opening_balance)}</p>
-              </div>
-              <div className="glass-panel rounded-2xl p-4 border border-white/5">
-                <p className="text-white/40 text-xs mb-1">رصيد الختام</p>
-                <p className={`text-lg font-black ${data.closing_balance >= 0 ? "text-emerald-400" : "text-red-400"}`}>{formatCurrency(data.closing_balance)}</p>
-              </div>
-              <div className="glass-panel rounded-2xl p-4 border border-white/5">
-                <p className="text-white/40 text-xs mb-1">الرصيد الفعلي (الدفتر)</p>
-                <p className={`text-lg font-black ${data.supplier.balance >= 0 ? "text-blue-400" : "text-red-400"}`}>{formatCurrency(data.supplier.balance)}</p>
-              </div>
-            </div>
-          )}
-
-          <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
-            <div className="overflow-x-auto">
-              <table className="w-full text-right text-sm whitespace-nowrap">
-                <thead className="bg-white/5 border-b border-white/10">
-                  <tr>
-                    <th className="p-3 text-white/50">التاريخ</th>
-                    <th className="p-3 text-white/50">النوع</th>
-                    <th className="p-3 text-white/50">البيان</th>
-                    <th className="p-3 text-white/50">مدين (دفع)</th>
-                    <th className="p-3 text-white/50">دائن (شراء)</th>
-                    <th className="p-3 text-white/50">الرصيد</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(isLoading || isFetching) ? <TableSkeleton cols={6} rows={5} /> :
-                   stmt.length === 0 ? <tr><td colSpan={6} className="p-12 text-center text-white/40">لا توجد حركات في هذه الفترة</td></tr> :
-                   stmt.map((row, i) => {
-                    const meta = SUP_TYPE_MAP[row.type] ?? { label: row.type, cls: "text-white/50" };
-                    return (
-                      <tr key={i} className="border-b border-white/5 erp-table-row">
-                        <td className="p-3 font-mono text-white/60 text-xs">{row.date}</td>
-                        <td className="p-3"><span className={`text-xs font-bold ${meta.cls}`}>{meta.label}</span></td>
-                        <td className="p-3 text-white/70">{row.description}</td>
-                        <td className="p-3 text-emerald-400 font-bold">{row.debit > 0 ? formatCurrency(row.debit) : "—"}</td>
-                        <td className="p-3 text-blue-400 font-bold">{row.credit > 0 ? formatCurrency(row.credit) : "—"}</td>
-                        <td className={`p-3 font-black ${row.balance >= 0 ? "text-white" : "text-red-400"}`}>{formatCurrency(row.balance)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
  *  TAB: التدفق النقدي
  * ───────────────────────────────────────────────────────────────────────────── */
 
@@ -1977,10 +1863,10 @@ function TopReportsTab() {
             { key: "invoice_count",  label: "الفواتير",  cls: "text-white/50" },
           ]} />
 
-        <TopTable title="أكثر الموردين تعاملاً" icon={<Truck className="w-4 h-4 text-purple-400" />}
+        <TopTable title="أكثر العملاء بمشتريات" icon={<Truck className="w-4 h-4 text-purple-400" />}
           rows={topSuppliers}
           cols={[
-            { key: "supplier_name",   label: "المورد" },
+            { key: "supplier_name",   label: "العميل" },
             { key: "total_purchases", label: "المشتريات", fmt: v => formatCurrency(v), cls: "text-blue-400" },
             { key: "invoice_count",   label: "الفواتير",   cls: "text-white/50" },
           ]} />
@@ -2014,7 +1900,7 @@ interface HealthCheckData {
 
 const GROUP_LABELS: Record<string, string> = {
   customer_issues:   "مشاكل العملاء",
-  supplier_issues:   "مشاكل الموردين",
+  supplier_issues:   "مشاكل العملاء (مشتريات)",
   inventory_issues:  "مشاكل المخزون",
   accounting_issues: "مشاكل المحاسبة",
   cash_issues:       "مشاكل النقدية",
@@ -2254,7 +2140,7 @@ function HealthCheckReport() {
  *  Main Reports — full tab set
  * ───────────────────────────────────────────────────────────────────────────── */
 
-type Tab = "pl" | "daily" | "products" | "analysis" | "customer" | "supplier" | "cashflow" | "top" | "inventory" | "purchases" | "sales" | "health";
+type Tab = "pl" | "daily" | "products" | "analysis" | "customer" | "cashflow" | "top" | "inventory" | "purchases" | "sales" | "health";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "health",    label: "🩺 صحة النظام" },
@@ -2263,7 +2149,6 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "products",  label: "📦 ربحية المنتجات" },
   { id: "analysis",  label: "📈 تحليل المبيعات" },
   { id: "customer",  label: "👤 كشف عميل" },
-  { id: "supplier",  label: "🏭 كشف مورد" },
   { id: "cashflow",  label: "💰 تدفق نقدي" },
   { id: "top",       label: "🏆 الأعلى" },
   { id: "inventory", label: "🏪 المخزون" },
@@ -2294,7 +2179,6 @@ export default function Reports() {
           {tab === "products"  && <ProductProfitReport />}
           {tab === "analysis"  && <SalesAnalysisReport />}
           {tab === "customer"  && <CustomerStatementReport />}
-          {tab === "supplier"  && <SupplierStatementReport />}
           {tab === "cashflow"  && <CashFlowReport />}
           {tab === "top"       && <TopReportsTab />}
           {tab === "inventory" && <InventoryReport />}

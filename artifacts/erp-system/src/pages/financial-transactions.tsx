@@ -52,7 +52,7 @@ const TYPE_LABELS: Record<string, string> = {
   receipt_voucher:        "سند قبض",
   payment_voucher:        "سند صرف",
   deposit_voucher:        "إيداع",
-  supplier_payment:       "تسديد مورد",
+  supplier_payment:       "تسديد دفعة",
   safe_transfer:          "تحويل خزينة",
   transfer_in:            "تحويل وارد",
   transfer_out:           "تحويل صادر",
@@ -60,7 +60,7 @@ const TYPE_LABELS: Record<string, string> = {
   income:                 "إيراد",
   opening_balance:        "رصيد أول المدة",
   customer_opening:       "رصيد أول مدة عميل",
-  supplier_opening:       "رصيد أول مدة مورد",
+  supplier_opening:       "رصيد أول مدة عميل",
   balance_credit:         "خصم رصيد",
   adjustment:             "تسوية",
 };
@@ -79,7 +79,7 @@ const REF_TYPE_LABELS: Record<string, string> = {
   payment_voucher:  "سند صرف",
   deposit_voucher:  "إيداع",
   safe_transfer:    "تحويل خزينة",
-  supplier_payment: "تسديد مورد",
+  supplier_payment: "تسديد دفعة",
 };
 
 const FILTER_TYPES = [
@@ -94,13 +94,13 @@ const FILTER_TYPES = [
   { value: "receipt_voucher",   label: "سند قبض" },
   { value: "payment_voucher",   label: "سند صرف" },
   { value: "deposit_voucher",   label: "إيداع" },
-  { value: "supplier_payment",  label: "تسديد مورد" },
+  { value: "supplier_payment",  label: "تسديد دفعة" },
   { value: "safe_transfer",     label: "تحويل خزينة" },
   { value: "expense",           label: "مصروف" },
   { value: "income",            label: "إيراد" },
   { value: "opening_balance",   label: "رصيد أول المدة" },
   { value: "customer_opening",  label: "رصيد أول مدة عميل" },
-  { value: "supplier_opening",  label: "رصيد أول مدة مورد" },
+  { value: "supplier_opening",  label: "رصيد أول مدة عميل" },
 ];
 
 /* ─── Badge styles per type ──────────────────────────────────────────────── */

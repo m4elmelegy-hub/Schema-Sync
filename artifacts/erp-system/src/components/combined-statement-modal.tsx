@@ -46,7 +46,7 @@ const rowTypeConfig: Record<string, { label: string; icon: string; credit_color:
   purchase_return: { label: "مرتجع مشتريات", icon: "↪", credit_color: "text-white/50", debit_color: "text-blue-400" },
   receipt_voucher: { label: "سند قبض",       icon: "💰", credit_color: "text-white/50", debit_color: "text-emerald-400" },
   payment_voucher: { label: "سند صرف",       icon: "💸", credit_color: "text-orange-400", debit_color: "text-white/50" },
-  supplier_payment:{ label: "سداد للمورد",   icon: "🏦", credit_color: "text-white/50", debit_color: "text-blue-400" },
+  supplier_payment:{ label: "تسديد دفعة",   icon: "🏦", credit_color: "text-white/50", debit_color: "text-blue-400" },
 };
 
 export function CombinedStatementModal({

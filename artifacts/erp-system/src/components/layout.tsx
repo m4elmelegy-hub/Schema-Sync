@@ -10,7 +10,7 @@ import { AlertBell } from "@/components/alert-bell";
 
 const NAV_SECTIONS = [
   { label: "الرئيسية",   hrefs: ["/", "/tasks"] },
-  { label: "التجارة",    hrefs: ["/sales", "/purchases", "/suppliers", "/products", "/inventory", "/customers"] },
+  { label: "التجارة",    hrefs: ["/sales", "/purchases", "/products", "/inventory", "/customers"] },
   { label: "المالية",    hrefs: ["/profits", "/financial-transactions", "/reports"] },
   { label: "النظام",     hrefs: ["/settings"] },
 ];

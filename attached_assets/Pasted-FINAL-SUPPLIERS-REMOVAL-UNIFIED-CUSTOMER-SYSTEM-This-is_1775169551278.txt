@@ -1,0 +1,152 @@
+FINAL SUPPLIERS REMOVAL & UNIFIED CUSTOMER SYSTEM
+
+This is a controlled cleanup.
+Goal: Remove the concept of "suppliers" completely from the system,
+while keeping correct accounting using a unified customer model.
+
+DO NOT break existing logic.
+DO NOT remove working accounting behavior.
+ONLY simplify and unify.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PHASE 1 — REMOVE SUPPLIER CONCEPT FROM UI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Frontend:
+
+1. Remove ALL visible text:
+- "مورد"
+- "الموردين"
+- "Suppliers"
+
+2. Replace with:
+- "عميل"
+- "تسديد دفعة"
+- "قبض دفعة"
+- "كشف حساب"
+
+3. Remove:
+- suppliers page بالكامل
+- any route: /suppliers
+- sidebar link for suppliers
+
+4. Keep purchases page but:
+- label it as "مشتريات"
+- use customers list internally
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PHASE 2 — KEEP ONE DATA MODEL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Use ONLY customers table.
+
+Keep:
+- is_supplier (boolean)
+
+Meaning:
+- false → normal customer
+- true → customer we can also purchase from
+
+DO NOT create or restore suppliers table.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PHASE 3 — UNIFY BACKEND LOGIC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. All purchases MUST use:
+customer_id (NOT supplier_id)
+
+2. Remove ANY remaining references:
+- supplier_id
+- suppliersTable
+- supplier_balance
+- supplier routes
+
+3. If any legacy route exists:
+- /api/suppliers → redirect to:
+  /api/customers?is_supplier=true
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PHASE 4 — ACCOUNTING CONSISTENCY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Balance rule (STRICT):
+
+- Positive balance = customer owes us (عليه)
+- Negative balance = we owe customer (له)
+
+Operations:
+
+- Sale → +balance
+- Purchase → -balance
+- Receipt (قبض) → -balance
+- Payment (تسديد) → +balance
+- Sales return → -balance
+- Purchase return → +balance
+
+ALL operations must write to:
+customer_ledger ONLY
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PHASE 5 — CLEAN REPORTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Remove any supplier-based reports
+
+2. All reports must use:
+customer_ledger
+
+3. Purchases must appear as:
+"مشتريات من عميل"
+
+NOT supplier
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PHASE 6 — UI IMPROVEMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+In customers list:
+
+If is_supplier = true:
+- show small badge:
+  "يتم الشراء منه"
+
+Buttons:
+- كشف حساب
+- قبض دفعة
+- تسديد دفعة
+
+NO reference to supplier word
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PHASE 7 — VALIDATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Test scenario:
+
+1. Customer created
+2. Sale 100 → balance = +100
+3. Purchase 300 → balance = -200
+4. Receipt 50 → balance = -250
+5. Payment 100 → balance = -150
+
+Ensure:
+- Same balance everywhere (list + ledger + reports)
+- No duplicate logic
+- No supplier references
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FINAL RESULT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+System must:
+
+- Have ONE entity: customers
+- Have NO supplier UI or logic
+- Keep full accounting accuracy
+- Be clean, simple, and production-ready
+
+Return:
+- list of removed files
+- list of updated files
+- confirmation no supplier references remain

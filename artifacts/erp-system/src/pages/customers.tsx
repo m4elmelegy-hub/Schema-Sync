@@ -224,7 +224,7 @@ const LEDGER_TYPE_LABELS: Record<string, { label: string; color: string; bg: str
   receipt_voucher:  { label: "سند قبض",         color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" },
   payment:          { label: "سداد مباشر",      color: "text-cyan-400",    bg: "bg-cyan-500/10 border-cyan-500/20" },
   purchase:         { label: "مشتريات منه",     color: "text-purple-400",  bg: "bg-purple-500/10 border-purple-500/20" },
-  supplier_payment: { label: "تسديد للمورد",    color: "text-orange-400",  bg: "bg-orange-500/10 border-orange-500/20" },
+  supplier_payment: { label: "تسديد دفعة",      color: "text-cyan-400",    bg: "bg-cyan-500/10 border-cyan-500/20" },
   adjustment:       { label: "تسوية",           color: "text-gray-400",    bg: "bg-gray-500/10 border-gray-500/20" },
   opening_balance:  { label: "رصيد افتتاحي",   color: "text-yellow-400",  bg: "bg-yellow-500/10 border-yellow-500/20" },
 };
@@ -323,7 +323,7 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
   purchases.forEach(p => rows.push({ date: p.created_at, type: "purchase", label: "فاتورة مشتريات", ref: p.invoice_no ?? `P-${p.id}`, debit: 0, credit: Number(p.remaining_amount ?? p.total_amount) }));
   receipts.forEach(v => rows.push({ date: v.date ?? v.created_at, type: "receipt", label: "سند قبض", ref: v.voucher_no, debit: 0, credit: Number(v.amount) }));
   payments.forEach(v => rows.push({ date: v.date ?? v.created_at, type: "payment", label: "سند توريد", ref: v.voucher_no, debit: Number(v.amount), credit: 0 }));
-  supplierPayments.forEach(v => rows.push({ date: v.date ?? v.created_at, type: "supplier_payment", label: "تسديد للمورد", ref: `SP-${v.id}`, debit: Number(v.amount), credit: 0 }));
+  supplierPayments.forEach(v => rows.push({ date: v.date ?? v.created_at, type: "supplier_payment", label: "تسديد دفعة", ref: `SP-${v.id}`, debit: Number(v.amount), credit: 0 }));
   purchaseReturns.forEach(r => rows.push({ date: r.date ?? r.created_at, type: "purchase_return", label: "مرتجع مشتريات", ref: r.return_no, debit: Number(r.total_amount), credit: 0 }));
   returns_.filter(r => r.refund_type !== "cash").forEach(r => rows.push({ date: r.date ?? r.created_at, type: "return_credit", label: "مرتجع مبيعات (رصيد)", ref: r.return_no, debit: 0, credit: Number(r.total_amount) }));
   returns_.filter(r => r.refund_type === "cash").forEach(r => rows.push({ date: r.date ?? r.created_at, type: "return_cash", label: "مرتجع مبيعات (نقدي)", ref: r.return_no, debit: 0, credit: 0 }));
@@ -349,7 +349,7 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
     { label: "القبض",     value: totalReceipts,  count: receipts.length },
     ...(totalPurchases > 0        ? [{ label: "المشتريات",        value: totalPurchases,        count: purchases.length        }] : []),
     ...(totalPayments > 0         ? [{ label: "التوريد",          value: totalPayments,         count: payments.length         }] : []),
-    ...(totalSupplierPayments > 0 ? [{ label: "تسديد للمورد",     value: totalSupplierPayments, count: supplierPayments.length  }] : []),
+    ...(totalSupplierPayments > 0 ? [{ label: "تسديد دفعة",       value: totalSupplierPayments, count: supplierPayments.length  }] : []),
     ...(totalPurchaseReturns > 0  ? [{ label: "مرتجع مشتريات",   value: totalPurchaseReturns,  count: purchaseReturns.length   }] : []),
     ...(totalReturns > 0          ? [{ label: "مرتجع مبيعات",    value: totalReturns,          count: returns_.length          }] : []),
   ];
@@ -377,7 +377,7 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-2xl font-black text-white">كشف حساب</h3>
-              {isSupplier && <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-blue-500/15 text-blue-400 border border-blue-500/25">عميل-مورد</span>}
+              {isSupplier && <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-blue-500/15 text-blue-400 border border-blue-500/25">يتم الشراء منه</span>}
             </div>
             <p className="text-amber-400 font-bold text-lg mt-0.5">{customerName}</p>
             {customerPhone && <p className="text-white/40 text-xs mt-0.5">📞 {customerPhone}</p>}
@@ -598,7 +598,7 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
           <div className="flex flex-wrap gap-2 text-xs">
             {Object.entries(typeConfig).map(([key, cfg]) => (
               <span key={key} className={`px-2 py-0.5 rounded-lg border ${cfg.bg} ${cfg.color}`}>
-                {cfg.icon} {key === "sale" ? "مبيعات" : key === "purchase" ? "مشتريات" : key === "receipt" ? "قبض" : key === "payment" ? "توريد" : key === "supplier_payment" ? "تسديد للمورد" : key === "purchase_return" ? "مرتجع مشتريات" : key === "return_credit" ? "مرتجع مبيعات" : "مرتجع نقدي"}
+                {cfg.icon} {key === "sale" ? "مبيعات" : key === "purchase" ? "مشتريات" : key === "receipt" ? "قبض" : key === "payment" ? "توريد" : key === "supplier_payment" ? "تسديد دفعة" : key === "purchase_return" ? "مرتجع مشتريات" : key === "return_credit" ? "مرتجع مبيعات" : "مرتجع نقدي"}
               </span>
             ))}
           </div>
@@ -766,7 +766,7 @@ export default function Customers() {
     });
   };
 
-  // ─── تسديد دفعة للمورد ───
+  // ─── تسديد دفعة ───
   const supplierPaymentMutation = useMutation({
     mutationFn: async (data: { customer_id: number; safe_id: string; amount: string; notes: string }) => {
       const r = await authFetch(api(`/api/customers/${data.customer_id}/supplier-payment`), {
@@ -913,7 +913,7 @@ export default function Customers() {
                   🔄 يمكن الشراء منه أيضاً
                 </button>
                 {formData.is_supplier && (
-                  <p className="text-white/40 text-xs mt-2 pr-7">سيظهر في قائمة الموردين عند تسجيل فاتورة مشتريات</p>
+                  <p className="text-white/40 text-xs mt-2 pr-7">سيظهر في قائمة المشتريات عند إضافة فاتورة</p>
                 )}
               </div>
             </div>
@@ -1002,13 +1002,13 @@ export default function Customers() {
         </div>
       )}
 
-      {/* ─── تسديد دفعة للمورد ─── */}
+      {/* ─── تسديد دفعة ─── */}
       {showSupplierPayment !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm modal-overlay">
           <form onSubmit={handleSupplierPayment} className="glass-panel rounded-3xl p-8 w-full max-w-md border border-white/10 space-y-5">
             <div className="flex justify-between items-center">
               <div>
-                <h3 className="text-2xl font-bold text-white">تسديد دفعة للمورد</h3>
+                <h3 className="text-2xl font-bold text-white">تسديد دفعة</h3>
                 <p className="text-white/50 text-sm mt-1">سداد مستحقات <span className="text-cyan-400 font-bold">{showSupplierPayment.name}</span></p>
               </div>
               <button type="button" onClick={() => setShowSupplierPayment(null)} className="p-2 rounded-xl bg-white/10 hover:bg-white/20">
@@ -1096,7 +1096,7 @@ export default function Customers() {
                   <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all shrink-0 ${editFormData.is_supplier ? "bg-blue-500 border-blue-500" : "border-white/30"}`}>
                     {editFormData.is_supplier && <span className="text-white text-xs font-black">✓</span>}
                   </div>
-                  🔄 يمكن الشراء منه أيضاً (عميل-مورد)
+                  🔄 يمكن الشراء منه أيضاً
                 </button>
               </div>
             </div>
@@ -1168,7 +1168,7 @@ export default function Customers() {
                       <div className="flex items-center gap-2">
                         {customer.name}
                         {customer.is_supplier && (
-                          <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-blue-500/15 text-blue-400 border border-blue-500/25 shrink-0">عميل-مورد</span>
+                          <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-blue-500/15 text-blue-400 border border-blue-500/25 shrink-0">يتم الشراء منه</span>
                         )}
                       </div>
                     </td>

@@ -61,11 +61,11 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
       value: `c:${s.id}`,
       label: `${s.customer_code ? `[${s.customer_code}] ` : ""}${s.name}${Number(s.balance) !== 0 ? ` (رصيد: ${Number(s.balance).toFixed(0)})` : ""}`,
       searchKeys: [String(s.customer_code ?? ""), s.name],
-      group: "الموردون",
+      group: "العملاء (يُشترى منهم)",
     }));
   }, [suppliers]);
 
-  // تحليل الطرف المختار (جميع الموردون الآن من جدول العملاء)
+  // تحليل الطرف المختار (جميع العملاء من جدول العملاء)
   const selectedParty = useMemo(() => {
     if (!partyKey) return null;
     if (partyKey.startsWith("c:")) {
@@ -252,9 +252,9 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
 
         {/* Footer */}
         <div className="p-3 border-t border-white/10 bg-black/40 space-y-2">
-          {/* المورد / الطرف الآخر */}
+          {/* العميل / الطرف الآخر */}
           <div className="grid grid-cols-1 gap-1.5">
-            {selectRow("المورد / الطرف", <User className="w-3.5 h-3.5" />,
+            {selectRow("العميل / الطرف", <User className="w-3.5 h-3.5" />,
               <SearchableSelect
                 items={partyItems}
                 value={partyKey}
@@ -542,7 +542,7 @@ function PurchaseHistoryPanel() {
           <thead className="bg-white/5 border-b border-white/10">
             <tr>
               <th className="p-3 font-medium">رقم الفاتورة</th>
-              <th className="p-3 font-medium">المورد</th>
+              <th className="p-3 font-medium">العميل</th>
               <th className="p-3 font-medium">الإجمالي</th>
               <th className="p-3 font-medium">نوع الدفع</th>
               <th className="p-3 font-medium">حالة الترحيل</th>

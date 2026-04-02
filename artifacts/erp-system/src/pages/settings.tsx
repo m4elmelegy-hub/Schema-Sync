@@ -1198,10 +1198,10 @@ function CurrencyTab() {
    ══════════════════════════════════════════════════════════════════ */
 const BACKUP_MODULES_LIST = [
   { key: "sales",     icon: "🛍️", label: "المبيعات",         sub: "الفواتير، العملاء، المرتجعات",       url: "/api/sales" },
-  { key: "purchases", icon: "🛒", label: "المشتريات",         sub: "فواتير الموردين، المرتجعات",         url: "/api/purchases" },
+  { key: "purchases", icon: "🛒", label: "المشتريات",         sub: "فواتير المشتريات، المرتجعات",         url: "/api/purchases" },
   { key: "products",  icon: "📦", label: "المخزن",            sub: "الأصناف، الكميات، الحركات",          url: "/api/products" },
   { key: "treasury",  icon: "💰", label: "الخزينة",           sub: "الإيرادات، المصروفات، السندات",      url: "/api/financial-transactions" },
-  { key: "customers", icon: "👥", label: "العملاء والموردين", sub: "الأرصدة والبيانات",                  url: "/api/customers" },
+  { key: "customers", icon: "👥", label: "العملاء",            sub: "الأرصدة والبيانات",                  url: "/api/customers" },
   { key: "settings",  icon: "⚙️", label: "الإعدادات",         sub: "العملة والتفضيلات",                  url: null },
   { key: "reports",   icon: "📊", label: "التقارير المحفوظة", sub: "الإحصائيات والبيانات التاريخية",     url: null },
 ] as const;
@@ -2308,8 +2308,8 @@ function BackupImportTab() {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <FieldLabel>المورد (اختياري)</FieldLabel>
-                      <SInput placeholder="اسم المورد" value={purSupplier} onChange={e => setPurSupplier(e.target.value)} />
+                      <FieldLabel>العميل (اختياري)</FieldLabel>
+                      <SInput placeholder="اسم العميل" value={purSupplier} onChange={e => setPurSupplier(e.target.value)} />
                     </div>
                     <div>
                       <FieldLabel>طريقة الدفع</FieldLabel>
@@ -2655,7 +2655,7 @@ function FullResetSection() {
               </div>
             ))}
             <div className="mt-2 pt-2 border-t border-red-500/10">
-              <p className="text-white/40 text-xs">يتم الاحتفاظ بـ: المنتجات، العملاء، الموردين، الإعدادات</p>
+              <p className="text-white/40 text-xs">يتم الاحتفاظ بـ: المنتجات، العملاء، الإعدادات</p>
             </div>
           </div>
 
@@ -2706,7 +2706,7 @@ const OB_SUB_TABS: { id: OBSubTab; label: string; icon: string }[] = [
   { id: "treasury",  label: "الخزائن",   icon: "🏛️" },
   { id: "products",  label: "المنتجات",  icon: "📦" },
   { id: "customers", label: "العملاء",   icon: "👥" },
-  { id: "suppliers", label: "الموردون",  icon: "🚚" },
+  { id: "suppliers", label: "عملاء (يُشترى منهم)",  icon: "🚚" },
 ];
 
 interface OBEntry {
@@ -3042,7 +3042,7 @@ function OBSuppliersTab() {
   const handleSelect = (s: any) => { setForm(f => ({ ...f, supplier_id: String(s.id) })); setSearch(s.name); };
 
   const handleSubmit = async () => {
-    if (!form.supplier_id || !form.amount) { toast({ title: "المورد والمبلغ مطلوبان", variant: "destructive" }); return; }
+    if (!form.supplier_id || !form.amount) { toast({ title: "العميل والمبلغ مطلوبان", variant: "destructive" }); return; }
     setSaving(true);
     try {
       const res = await authFetch(`${BASE}/api/opening-balance/supplier`, {
@@ -3051,7 +3051,7 @@ function OBSuppliersTab() {
       });
       const data = await res.json();
       if (!res.ok) { toast({ title: data.error ?? "فشل الحفظ", variant: "destructive" }); return; }
-      toast({ title: `✅ تم تسجيل رصيد أول المدة لـ ${selectedSupplier?.name ?? "المورد"}` });
+      toast({ title: `✅ تم تسجيل رصيد أول المدة لـ ${selectedSupplier?.name ?? "العميل"}` });
       setForm(f => ({ ...f, supplier_id: "", amount: "", notes: "" })); setSearch(""); reload();
     } catch { toast({ title: "خطأ في الاتصال", variant: "destructive" }); }
     finally { setSaving(false); }
@@ -3060,11 +3060,11 @@ function OBSuppliersTab() {
   return (
     <div className="space-y-5">
       <div className="bg-[#1A2235] border border-amber-500/20 rounded-2xl p-5 space-y-4">
-        <h4 className="font-bold text-amber-400 text-sm flex items-center gap-2"><Truck className="w-4 h-4" /> إضافة رصيد افتتاحي لمورد</h4>
+        <h4 className="font-bold text-amber-400 text-sm flex items-center gap-2"><Truck className="w-4 h-4" /> إضافة رصيد افتتاحي لعميل (يُشترى منه)</h4>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="relative">
-            <FieldLabel>المورد</FieldLabel>
-            <SInput placeholder="ابحث عن مورد..." value={search} onChange={e => { setSearch(e.target.value); setForm(f => ({ ...f, supplier_id: "" })); }} />
+            <FieldLabel>العميل</FieldLabel>
+            <SInput placeholder="ابحث عن عميل..." value={search} onChange={e => { setSearch(e.target.value); setForm(f => ({ ...f, supplier_id: "" })); }} />
             {search && !form.supplier_id && filteredSuppliers.length > 0 && (
               <div className="absolute top-full mt-1 right-0 left-0 z-20 bg-[#111827] border border-white/10 rounded-xl max-h-48 overflow-y-auto shadow-2xl">
                 {filteredSuppliers.slice(0, 10).map((s: any) => (
@@ -3096,11 +3096,11 @@ function OBSuppliersTab() {
 
       <div className="bg-[#111827] rounded-2xl overflow-hidden border border-white/5">
         <div className="p-4 border-b border-white/8 flex items-center justify-between">
-          <h4 className="font-bold text-white/60 text-sm">أرصدة الموردين المسجلة</h4>
+          <h4 className="font-bold text-white/60 text-sm">أرصدة العملاء المسجلة</h4>
           <span className="text-white/30 text-xs bg-white/5 px-2 py-0.5 rounded-lg">{entries.length}</span>
         </div>
         <OBEntryTable entries={entries} loading={loading} columns={[
-          { label: "المورد",  render: e => <span className="font-bold text-white">{e.description?.split("—")[1]?.trim() ?? `مورد #${e.id}`}</span> },
+          { label: "العميل",  render: e => <span className="font-bold text-white">{e.description?.split("—")[1]?.trim() ?? `عميل #${e.id}`}</span> },
           { label: "المبلغ",  render: e => <span className="text-orange-400 font-mono">{Number(e.amount).toLocaleString("ar-EG", { minimumFractionDigits: 2 })} ج.م</span> },
           { label: "التاريخ", render: e => <span className="text-white/40 text-xs">{e.date}</span> },
           { label: "البيان",  render: e => <span className="text-white/30 text-xs">{e.description}</span> },
@@ -3125,7 +3125,7 @@ function OpeningBalanceTab() {
           <p className="text-amber-400 font-bold text-sm">قيود أول المدة</p>
           <p className="text-amber-300/60 text-xs mt-0.5 leading-relaxed">
             سجّل هنا الأرصدة الافتتاحية عند بدء استخدام النظام لأول مرة.
-            قيود الخزائن والعملاء والموردين تُضاف للأرصدة الحالية مباشرة.
+            قيود الخزائن والعملاء تُضاف للأرصدة الحالية مباشرة.
             قيود المنتجات تُسجَّل مرة واحدة فقط لكل منتج وتُحسب التكلفة المرجّحة تلقائياً.
           </p>
         </div>
