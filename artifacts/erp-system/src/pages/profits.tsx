@@ -44,6 +44,36 @@ interface ProfitsData {
   by_month: MonthProfit[];
 }
 
+/* ─── صندوق الملخص المالي الرئيسي ─── */
+function FinancialSummaryBox({ revenue, cogs, netProfit }: { revenue: number; cogs: number; netProfit: number }) {
+  const isProfit = netProfit >= 0;
+  return (
+    <div className="grid grid-cols-3 gap-4">
+      <div className="glass-panel rounded-2xl p-5 border border-emerald-500/40 bg-emerald-500/5 flex flex-col">
+        <p className="text-emerald-400/80 text-xs font-semibold mb-2 uppercase tracking-wide">الإيرادات</p>
+        <p className="text-emerald-400 font-black text-2xl leading-none" style={{ fontFeatureSettings: '"tnum"' }}>
+          {formatCurrency(revenue)}
+        </p>
+      </div>
+      <div className="glass-panel rounded-2xl p-5 border border-red-500/40 bg-red-500/5 flex flex-col">
+        <p className="text-red-400/80 text-xs font-semibold mb-2 uppercase tracking-wide">تكلفة البضاعة</p>
+        <p className="text-red-400 font-black text-2xl leading-none" style={{ fontFeatureSettings: '"tnum"' }}>
+          {formatCurrency(cogs)}
+        </p>
+      </div>
+      <div className={`glass-panel rounded-2xl p-5 border flex flex-col ${isProfit ? "border-green-500/40 bg-green-500/5" : "border-red-500/40 bg-red-500/5"}`}>
+        <p className={`text-xs font-semibold mb-2 uppercase tracking-wide ${isProfit ? "text-green-400/80" : "text-red-400/80"}`}>صافي الربح</p>
+        <p className={`font-black text-2xl leading-none ${isProfit ? "text-green-400" : "text-red-400"}`} style={{ fontFeatureSettings: '"tnum"' }}>
+          {formatCurrency(netProfit)}
+        </p>
+        <p className={`text-xs mt-2 font-bold ${isProfit ? "text-green-400/60" : "text-red-400/60"}`}>
+          {isProfit ? "▲ ربح" : "▼ خسارة"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 /* ─── بطاقة ملخص ─── */
 function SummaryCard({ label, value, sub, color, icon: Icon, hint }: {
   label: string; value: string; sub?: string;
@@ -292,7 +322,10 @@ export default function Profits() {
         <div className="text-center py-12 text-white/30">لا توجد بيانات للعرض</div>
       ) : (
         <>
-          {/* ── بطاقات الملخص ── */}
+          {/* ── صندوق الملخص المالي ── */}
+          <FinancialSummaryBox revenue={data.total_revenue} cogs={data.total_cost} netProfit={data.net_profit} />
+
+          {/* ── بطاقات الملخص التفصيلية ── */}
           <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
             <SummaryCard
               label="إجمالي الإيرادات"
@@ -421,13 +454,13 @@ export default function Profits() {
                     <tr>
                       <th className="p-4 text-white/60 font-semibold">#</th>
                       <th className="p-4 text-white/60 font-semibold">الصنف</th>
-                      <th className="p-4 text-white/60 font-semibold text-center">الكمية</th>
-                      <th className="p-4 text-white/60 font-semibold text-center">متوسط التكلفة</th>
-                      <th className="p-4 text-white/60 font-semibold text-center">متوسط سعر البيع</th>
-                      <th className="p-4 text-white/60 font-semibold text-center">الإيراد</th>
-                      <th className="p-4 text-white/60 font-semibold text-center">التكلفة</th>
-                      <th className="p-4 text-white/60 font-semibold text-center">الربح</th>
-                      <th className="p-4 text-white/60 font-semibold text-center">الهامش</th>
+                      <th className="p-4 text-white/60 font-semibold text-right">الكمية</th>
+                      <th className="p-4 text-white/60 font-semibold text-right">متوسط التكلفة</th>
+                      <th className="p-4 text-white/60 font-semibold text-right">متوسط سعر البيع</th>
+                      <th className="p-4 text-white/60 font-semibold text-right">الإيرادات</th>
+                      <th className="p-4 text-white/60 font-semibold text-right">تكلفة البضاعة</th>
+                      <th className="p-4 text-white/60 font-semibold text-right">الربح</th>
+                      <th className="p-4 text-white/60 font-semibold text-right">الهامش</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -439,19 +472,19 @@ export default function Profits() {
                           <ProfitBar value={Math.abs(p.profit)} max={maxProfit}
                             color={p.profit >= 0 ? "bg-emerald-500" : "bg-red-500"} />
                         </td>
-                        <td className="p-4 text-center text-white/70">{p.qty_sold}</td>
-                        <td className="p-4 text-center text-orange-400">{formatCurrency(p.avg_cost_price)}</td>
-                        <td className="p-4 text-center text-blue-400">{formatCurrency(p.avg_sale_price)}</td>
-                        <td className="p-4 text-center font-bold text-white">{formatCurrency(p.revenue)}</td>
-                        <td className="p-4 text-center text-orange-400">{formatCurrency(p.cost)}</td>
-                        <td className="p-4 text-center font-black">
-                          <span className={p.profit >= 0 ? "text-emerald-400" : "text-red-400"}>
+                        <td className="p-4 text-right text-white/70 tabular-nums">{p.qty_sold}</td>
+                        <td className="p-4 text-right text-orange-400 tabular-nums">{formatCurrency(p.avg_cost_price)}</td>
+                        <td className="p-4 text-right text-blue-400 tabular-nums">{formatCurrency(p.avg_sale_price)}</td>
+                        <td className="p-4 text-right font-bold text-emerald-400 tabular-nums">{formatCurrency(p.revenue)}</td>
+                        <td className="p-4 text-right text-red-400 tabular-nums">{formatCurrency(p.cost)}</td>
+                        <td className="p-4 text-right font-black tabular-nums">
+                          <span className={p.profit >= 0 ? "text-green-400" : "text-red-400"}>
                             {formatCurrency(p.profit)}
                           </span>
                         </td>
-                        <td className="p-4 text-center">
+                        <td className="p-4 text-right">
                           <span className={`px-2 py-1 rounded-lg text-xs font-bold border ${
-                            (p.profit_margin ?? 0) >= 30 ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' :
+                            (p.profit_margin ?? 0) >= 30 ? 'text-green-400 bg-green-500/10 border-green-500/30' :
                             (p.profit_margin ?? 0) >= 15 ? 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30' :
                             (p.profit_margin ?? 0) >= 0  ? 'text-orange-400 bg-orange-500/10 border-orange-500/30' :
                                                            'text-red-400 bg-red-500/10 border-red-500/30'}`}>
@@ -461,15 +494,17 @@ export default function Profits() {
                       </tr>
                     ))}
                   </tbody>
-                  <tfoot className="bg-white/5 border-t border-white/10">
+                  <tfoot className="border-t-2 border-amber-500/30 bg-gradient-to-l from-amber-500/10 via-amber-500/5 to-transparent">
                     <tr>
-                      <td colSpan={5} className="p-4 text-white/60 font-bold">الإجمالي</td>
-                      <td className="p-4 text-center font-black text-white">{formatCurrency(data.total_revenue)}</td>
-                      <td className="p-4 text-center font-black text-orange-400">{formatCurrency(data.total_cost)}</td>
-                      <td className="p-4 text-center font-black text-emerald-400">{formatCurrency(data.gross_profit)}</td>
-                      <td className="p-4 text-center">
+                      <td colSpan={5} className="p-4 text-amber-400 font-black text-sm">الإجمالي الكلي</td>
+                      <td className="p-4 text-right font-black text-emerald-400 tabular-nums text-sm">{formatCurrency(data.total_revenue)}</td>
+                      <td className="p-4 text-right font-black text-red-400 tabular-nums text-sm">{formatCurrency(data.total_cost)}</td>
+                      <td className="p-4 text-right font-black tabular-nums text-sm">
+                        <span className={data.gross_profit >= 0 ? "text-green-400" : "text-red-400"}>{formatCurrency(data.gross_profit)}</span>
+                      </td>
+                      <td className="p-4 text-right">
                         <span className={`px-2 py-1 rounded-lg text-xs font-black border ${
-                          data.profit_margin >= 20 ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' :
+                          data.profit_margin >= 20 ? 'text-green-400 bg-green-500/10 border-green-500/30' :
                                                      'text-yellow-400 bg-yellow-500/10 border-yellow-500/30'}`}>
                           {data.profit_margin.toFixed(1)}%
                         </span>

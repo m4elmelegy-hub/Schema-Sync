@@ -389,11 +389,11 @@ function TrendAreaChart({ by_month, by_day }: { by_month: ProfitsData["by_month"
   const chartData = useMemo(() => {
     if (view === "day") {
       return [...by_day].sort((a, b) => a.day.localeCompare(b.day)).map(d => ({
-        name: fmtDay(d.day), مبيعات: +d.revenue.toFixed(2), تكلفة: +d.cost.toFixed(2), ربح: +d.profit.toFixed(2),
+        name: fmtDay(d.day), الإيرادات: +d.revenue.toFixed(2), تكلفة: +d.cost.toFixed(2), ربح: +d.profit.toFixed(2),
       }));
     }
     return [...by_month].sort((a, b) => a.month.localeCompare(b.month)).map(m => ({
-      name: fmtMonth(m.month), مبيعات: +m.revenue.toFixed(2), تكلفة: +m.cost.toFixed(2), ربح: +m.profit.toFixed(2),
+      name: fmtMonth(m.month), الإيرادات: +m.revenue.toFixed(2), تكلفة: +m.cost.toFixed(2), ربح: +m.profit.toFixed(2),
     }));
   }, [view, by_month, by_day]);
 
@@ -436,7 +436,7 @@ function TrendAreaChart({ by_month, by_day }: { by_month: ProfitsData["by_month"
             <XAxis dataKey="name" tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 10, fontFamily: "Tajawal, Cairo, sans-serif" }} />
             <YAxis tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 10 }} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} width={42} />
             <Tooltip content={<ChartTooltip />} />
-            <Area type="monotone" dataKey="مبيعات" stroke="#10b981" strokeWidth={2} fill="url(#gRev)"    dot={false} />
+            <Area type="monotone" dataKey="الإيرادات" stroke="#10b981" strokeWidth={2} fill="url(#gRev)"    dot={false} />
             <Area type="monotone" dataKey="تكلفة"  stroke="#ef4444" strokeWidth={2} fill="url(#gCost)"  dot={false} />
             <Area type="monotone" dataKey="ربح"    stroke="#f59e0b" strokeWidth={2} fill="url(#gProfit)" dot={false} />
           </AreaChart>
@@ -449,7 +449,7 @@ function TrendAreaChart({ by_month, by_day }: { by_month: ProfitsData["by_month"
       )}
 
       <div className="flex justify-center gap-5 mt-3">
-        {[{ color: "#10b981", label: "مبيعات" }, { color: "#ef4444", label: "تكلفة" }, { color: "#f59e0b", label: "ربح" }].map(l => (
+        {[{ color: "#10b981", label: "الإيرادات" }, { color: "#ef4444", label: "تكلفة البضاعة" }, { color: "#f59e0b", label: "صافي الربح" }].map(l => (
           <div key={l.label} className="flex items-center gap-1.5 text-xs text-white/40">
             <div className="w-3 h-0.5 rounded-full" style={{ background: l.color }} />
             {l.label}
@@ -659,12 +659,31 @@ function ProfitLossReport() {
         </button>
       </div>
 
+      {/* ── صندوق الملخص المالي ── */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="glass-panel rounded-2xl p-5 border border-emerald-500/40 bg-emerald-500/5 flex flex-col">
+          <p className="text-emerald-400/80 text-xs font-semibold mb-2 tracking-wide">الإيرادات</p>
+          <p className="text-emerald-400 font-black text-2xl leading-none tabular-nums">{formatCurrency(pl.total_revenue)}</p>
+          <p className="text-emerald-400/40 text-xs mt-2">{pl.invoice_count} فاتورة</p>
+        </div>
+        <div className="glass-panel rounded-2xl p-5 border border-red-500/40 bg-red-500/5 flex flex-col">
+          <p className="text-red-400/80 text-xs font-semibold mb-2 tracking-wide">تكلفة البضاعة</p>
+          <p className="text-red-400 font-black text-2xl leading-none tabular-nums">{formatCurrency(pl.total_cost)}</p>
+          <p className="text-red-400/40 text-xs mt-2">{pl.total_revenue > 0 ? `${((pl.total_cost / pl.total_revenue) * 100).toFixed(1)}% من الإيرادات` : "—"}</p>
+        </div>
+        <div className={`glass-panel rounded-2xl p-5 border flex flex-col ${pl.net_profit >= 0 ? "border-green-500/40 bg-green-500/5" : "border-red-500/40 bg-red-500/5"}`}>
+          <p className={`text-xs font-semibold mb-2 tracking-wide ${pl.net_profit >= 0 ? "text-green-400/80" : "text-red-400/80"}`}>صافي الربح</p>
+          <p className={`font-black text-2xl leading-none tabular-nums ${pl.net_profit >= 0 ? "text-green-400" : "text-red-400"}`}>{formatCurrency(pl.net_profit)}</p>
+          <p className={`text-xs mt-2 font-bold ${pl.net_profit >= 0 ? "text-green-400/60" : "text-red-400/60"}`}>{pl.net_profit >= 0 ? "▲ ربح" : "▼ خسارة"} · هامش {pl.profit_margin.toFixed(1)}%</p>
+        </div>
+      </div>
+
       {/* ── Hero KPI Cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <HeroKPICard index={0} label="إجمالي المبيعات" value={pl.total_revenue} prevValue={prev.total_revenue}
           sub={`${pl.invoice_count} فاتورة · ${pl.item_count} صنف`}
           border="border-r-emerald-500/70" icon={<TrendingUp className="w-4 h-4 text-emerald-400" />} />
-        <HeroKPICard index={1} label="تكلفة البضاعة COGS" value={pl.total_cost} prevValue={prev.total_cost}
+        <HeroKPICard index={1} label="تكلفة البضاعة" value={pl.total_cost} prevValue={prev.total_cost}
           sub={pl.total_revenue > 0 ? `${((pl.total_cost / pl.total_revenue) * 100).toFixed(1)}% من المبيعات` : "—"}
           border="border-r-red-500/70" icon={<TrendingDown className="w-4 h-4 text-red-400" />} valueColor="text-red-400" />
         <HeroKPICard index={2} label="مجمل الربح" value={pl.gross_profit} prevValue={prev.gross_profit}
