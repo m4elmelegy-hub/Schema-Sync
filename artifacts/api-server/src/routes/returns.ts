@@ -451,7 +451,7 @@ router.post("/purchase-returns", wrap(async (req, res) => {
       if (supplier_id) {
         const [supp] = await tx.select().from(suppliersTable).where(eq(suppliersTable.id, parseInt(supplier_id)));
         if (supp) {
-          const newBal = Math.max(0, Number(supp.balance) - total);
+          const newBal = Number(supp.balance) - total;
           await tx.update(suppliersTable)
             .set({ balance: String(newBal) })
             .where(eq(suppliersTable.id, supp.id));

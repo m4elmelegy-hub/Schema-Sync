@@ -498,7 +498,7 @@ router.post("/purchases/:id/cancel", wrap(async (req, res) => {
     if (remainingAmt > 0 && purchase.supplier_id) {
       const [supp] = await tx.select().from(suppliersTable).where(eq(suppliersTable.id, purchase.supplier_id));
       if (supp) {
-        const newBal = Math.max(0, Number(supp.balance) - remainingAmt);
+        const newBal = Number(supp.balance) - remainingAmt;
         await tx.update(suppliersTable)
           .set({ balance: String(newBal) })
           .where(eq(suppliersTable.id, supp.id));

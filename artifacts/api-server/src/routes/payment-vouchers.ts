@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
-import { db, paymentVouchersTable, safesTable, customersTable, transactionsTable, accountsTable } from "@workspace/db";
+import { db, paymentVouchersTable, safesTable, customersTable, transactionsTable, accountsTable, customerLedgerTable } from "@workspace/db";
 
 import { wrap, httpError } from "../lib/async-handler";
 import { assertPeriodOpen } from "../lib/period-lock";
@@ -57,6 +57,7 @@ router.post("/payment-vouchers", wrap(async (req, res) => {
     }).returning();
 
     // 4. الحركة المالية المركزية
+    const txDate = date ?? new Date().toISOString().split("T")[0];
     await tx.insert(transactionsTable).values({
       type: "payment_voucher",
       reference_type: "payment_voucher",
@@ -67,9 +68,24 @@ router.post("/payment-vouchers", wrap(async (req, res) => {
       customer_name,
       amount: String(amt),
       direction: "out",
-      description: `سند توريد ${voucher_no} — ${customer_name} (تسديد ما علينا)`,
-      date: date ?? new Date().toISOString().split("T")[0],
+      description: `سند دفع ${voucher_no} — ${customer_name} (تسديد ما علينا)`,
+      date: txDate,
     });
+
+    // 5. دفتر أستاذ العميل — سند الدفع يُقلّل ما ندين به (رصيد سالب يرتفع نحو الصفر)
+    // +amt لأن الدفع يُعيد الرصيد نحو الإيجابية (يُقلّل ما علينا)
+    if (customer_id) {
+      await tx.insert(customerLedgerTable).values({
+        customer_id: parseInt(customer_id),
+        type: "payment_voucher",
+        amount: String(amt),
+        reference_type: "payment_voucher",
+        reference_id: v.id,
+        reference_no: voucher_no,
+        description: `سند دفع ${voucher_no} — ${customer_name}`,
+        date: txDate,
+      });
+    }
 
     return v;
   });
@@ -178,10 +194,20 @@ router.delete("/payment-vouchers/:id", wrap(async (req, res) => {
     const [safe] = await tx.select().from(safesTable).where(eq(safesTable.id, v.safe_id));
     if (safe) await tx.update(safesTable).set({ balance: String(Number(safe.balance) + Number(v.amount)) }).where(eq(safesTable.id, safe.id));
 
-    // عكس رصيد العميل
+    // عكس رصيد العميل + دفتر الأستاذ
     if (v.customer_id) {
       const [cust] = await tx.select().from(customersTable).where(eq(customersTable.id, v.customer_id));
       if (cust) await tx.update(customersTable).set({ balance: String(Number(cust.balance) - Number(v.amount)) }).where(eq(customersTable.id, cust.id));
+      await tx.insert(customerLedgerTable).values({
+        customer_id: v.customer_id,
+        type: "payment_voucher",
+        amount: String(-Number(v.amount)),
+        reference_type: "payment_voucher_cancel",
+        reference_id: v.id,
+        reference_no: v.voucher_no,
+        description: `إلغاء سند دفع ${v.voucher_no}`,
+        date: new Date().toISOString().split("T")[0],
+      });
     }
 
     await tx.delete(paymentVouchersTable).where(eq(paymentVouchersTable.id, id));

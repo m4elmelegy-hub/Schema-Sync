@@ -151,6 +151,145 @@ router.delete("/settings/safes/:id", authenticate, requireRole("admin"), async (
   }
 });
 
+/* ── إقفال الخزينة (اليومي) — POST /settings/safes/:id/close ────────────────
+   يُسجّل رصيد الإقفال ويُظهر ملخص حركات الخزينة في الفترة المحددة.
+   إذا أُرسل actual_balance → يُسجَّل الفرق كتسوية عجز/زيادة.
+──────────────────────────────────────────────────────────────────────────── */
+router.post("/settings/safes/:id/close", authenticate, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { date, actual_balance, notes } = req.body;
+    const closeDate = date ?? new Date().toISOString().split("T")[0];
+
+    const [safe] = await db.select().from(safesTable).where(eq(safesTable.id, id));
+    if (!safe) { res.status(404).json({ error: "الخزينة غير موجودة" }); return; }
+
+    const systemBalance = Number(safe.balance);
+    const closing_no = `CLO-${id}-${Date.now()}`;
+
+    // جلب كل حركات هذا اليوم
+    const todayTx = await db.select().from(transactionsTable)
+      .where(eq(transactionsTable.safe_id, id))
+      .orderBy(desc(transactionsTable.created_at));
+
+    const dayTx = todayTx.filter(t => (t.date ?? "") === closeDate);
+    const totalIn  = dayTx.filter(t => t.direction === "in").reduce((s, t) => s + Number(t.amount), 0);
+    const totalOut = dayTx.filter(t => t.direction === "out").reduce((s, t) => s + Number(t.amount), 0);
+
+    // تسوية الفرق إذا وُجد رصيد فعلي مختلف
+    let difference = 0;
+    let adjustmentNote = null;
+    if (actual_balance !== undefined && actual_balance !== null) {
+      const actualBal = Number(actual_balance);
+      difference = actualBal - systemBalance;
+      if (Math.abs(difference) > 0.001) {
+        adjustmentNote = difference > 0
+          ? `زيادة خزينة ${difference.toFixed(2)} — تم التسجيل في إقفال ${closing_no}`
+          : `عجز خزينة ${Math.abs(difference).toFixed(2)} — تم التسجيل في إقفال ${closing_no}`;
+
+        // تسجيل حركة التسوية
+        await db.insert(transactionsTable).values({
+          type: "safe_adjustment",
+          reference_type: "safe_closing",
+          safe_id: id,
+          safe_name: safe.name,
+          amount: String(Math.abs(difference)),
+          direction: difference > 0 ? "in" : "out",
+          description: adjustmentNote,
+          date: closeDate,
+        });
+
+        // تحديث رصيد الخزينة
+        await db.update(safesTable)
+          .set({ balance: String(actualBal) })
+          .where(eq(safesTable.id, id));
+      }
+    }
+
+    // تسجيل حركة الإقفال
+    await db.insert(transactionsTable).values({
+      type: "safe_closing",
+      reference_type: "safe_closing",
+      safe_id: id,
+      safe_name: safe.name,
+      amount: String(actual_balance !== undefined ? Number(actual_balance) : systemBalance),
+      direction: "in",
+      description: notes ? `${notes} — إقفال ${closing_no}` : `إقفال خزينة ${safe.name} — ${closeDate}`,
+      date: closeDate,
+    });
+
+    res.json({
+      success: true,
+      closing_no,
+      safe_id: id,
+      safe_name: safe.name,
+      date: closeDate,
+      system_balance: systemBalance,
+      actual_balance: actual_balance !== undefined ? Number(actual_balance) : systemBalance,
+      difference: Math.round(difference * 100) / 100,
+      adjustment_note: adjustmentNote,
+      summary: {
+        total_in: Math.round(totalIn * 100) / 100,
+        total_out: Math.round(totalOut * 100) / 100,
+        net: Math.round((totalIn - totalOut) * 100) / 100,
+        transaction_count: dayTx.length,
+      },
+    });
+  } catch (e) {
+    console.error("Safe close error:", e);
+    res.status(500).json({ error: "فشل إقفال الخزينة" });
+  }
+});
+
+/* ── كشف حساب الخزينة — GET /settings/safes/:id/statement ───────────────── */
+router.get("/settings/safes/:id/statement", authenticate, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { date_from, date_to } = req.query as { date_from?: string; date_to?: string };
+
+    const [safe] = await db.select().from(safesTable).where(eq(safesTable.id, id));
+    if (!safe) { res.status(404).json({ error: "الخزينة غير موجودة" }); return; }
+
+    let txList = await db.select().from(transactionsTable)
+      .where(eq(transactionsTable.safe_id, id))
+      .orderBy(transactionsTable.date, transactionsTable.created_at);
+
+    if (date_from) txList = txList.filter(t => (t.date ?? "") >= date_from);
+    if (date_to)   txList = txList.filter(t => (t.date ?? "") <= date_to);
+
+    let running = 0;
+    const rows = txList.map(t => {
+      const amt = Number(t.amount);
+      running += t.direction === "in" ? amt : -amt;
+      return {
+        id: t.id,
+        type: t.type,
+        direction: t.direction,
+        amount: amt,
+        balance_after: Math.round(running * 100) / 100,
+        description: t.description,
+        date: t.date,
+        created_at: t.created_at?.toISOString(),
+      };
+    });
+
+    const totalIn  = txList.filter(t => t.direction === "in").reduce((s, t) => s + Number(t.amount), 0);
+    const totalOut = txList.filter(t => t.direction === "out").reduce((s, t) => s + Number(t.amount), 0);
+
+    res.json({
+      safe_id: id,
+      safe_name: safe.name,
+      current_balance: Number(safe.balance),
+      total_in: Math.round(totalIn * 100) / 100,
+      total_out: Math.round(totalOut * 100) / 100,
+      net: Math.round((totalIn - totalOut) * 100) / 100,
+      rows,
+    });
+  } catch (e) {
+    res.status(500).json({ error: "فشل جلب كشف حساب الخزينة" });
+  }
+});
+
 // ─── SAFE TRANSFERS (REMOVED — use /api/safe-transfers instead) ──────────────
 
 // ─── WAREHOUSES ───────────────────────────────────────────────────────────────

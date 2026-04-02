@@ -37,7 +37,7 @@ router.post("/receipt-vouchers", wrap(async (req, res) => {
     if (customer_id) {
       const [cust] = await tx.select().from(customersTable).where(eq(customersTable.id, parseInt(customer_id)));
       if (cust) {
-        const newBalance = Math.max(0, Number(cust.balance) - amt);
+        const newBalance = Number(cust.balance) - amt;
         await tx.update(customersTable).set({ balance: String(newBalance) }).where(eq(customersTable.id, cust.id));
       }
     }

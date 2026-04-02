@@ -1,0 +1,174 @@
+IMPORTANT:
+This prompt solved the hybrid customer/supplier issue before.
+Keep the same architecture that was already working.
+
+Do NOT remove:
+- "يمكن الشراء منه أيضًا"
+- customer negative balance support
+- hybrid customer/supplier behavior
+- "قبض من العميل" button
+- "توريد للعميل" button
+
+Do NOT split the same person into separate identities.
+Use the same customer identity for buy/sell flows.
+
+Before changing anything:
+1. show audit results first
+2. list affected files/functions
+3. preserve working modules
+4. only fix inconsistencies
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STRICT PRODUCTION MODE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+This is the most critical fix in the entire system.
+The accounting engine must be mathematically perfect.
+Do NOT skip anything. Do NOT simplify.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AUDIT FIRST — Read before fixing
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Scan ALL routes and find every place that:
+1. Updates customers.balance
+2. Updates suppliers.balance
+3. Updates safes.balance
+4. Creates a transaction record
+5. Updates product quantity or cost_price
+
+For each location found, show:
+- File name + line number
+- Current logic (show the actual code)
+- Is it correct or wrong?
+
+Do this BEFORE writing any fixes.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 1: Customer Balance — Remove ALL caps
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+RULE: Customer balance can go NEGATIVE.
+Negative = we owe them money (they overpaid or we bought from them as supplier)
+Positive = they owe us money
+
+Find and fix EVERY instance of:
+  Math.max(0, balance - amount)  ← WRONG
+  if (balance < amount) reject   ← WRONG for customers
+
+Replace ALL with:
+  new_balance = current_balance - amount
+  (no floor, no cap, allow negative)
+
+Apply to:
+- POST /api/receipt-vouchers
+- POST /api/customers/:id/payment (if exists)
+- Any sales return that refunds to customer balance
+- Any purchase that adds to customer-supplier balance
+
+For is_supplier=true customers specifically:
+  When purchase saved (آجل):
+    customer.balance -= invoice_total
+
+  When receipt voucher (قبض):
+    customer.balance -= amount
+
+  When payment voucher (تسديد):
+    customer.balance += amount  
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 2: Supplier Balance — Same logic
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+RULE: Supplier balance = what WE owe THEM
+Positive = we owe them
+Negative = they owe us (overpaid)
+
+When purchase saved (آجل):
+  supplier.balance += invoice_total
+
+When supplier payment:
+  supplier.balance -= amount
+  Allow negative (overpayment scenario)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 3: Safe Balance — Keep cap
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+RULE: Safe balance CANNOT go negative.
+
+Keep this check on ALL safe deductions:
+  if (safe.balance < amount) {
+    return 400 error: "رصيد الخزينة غير كافٍ"
+  }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 4: Partial Payment (جزئي) Logic
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+On sale (partial):
+  safe.balance += paid_amount
+  customer.balance += remaining
+
+On purchase (partial):
+  safe.balance -= paid_amount  
+  supplier.balance += remaining
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 5: Returns — Correct Balance Reversal
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Sales Return:
+  customer.balance -= returned_amount
+
+Purchase Return:
+  supplier.balance -= returned_amount
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 6: Opening Balance Logic
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Customer:
+  customer.balance += opening_amount
+
+Supplier:
+  supplier.balance += opening_amount
+
+Safe:
+  safe.balance += opening_amount
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 7: Customer Statement Accuracy
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GET /api/customers/:id/statement
+
+Must return running balance per row.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 8: Profit Calculation Accuracy
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+gross_profit =
+  SUM(sale_items.total_price)
+  - SUM(sale_items.cost_total)
+  - SUM(returns.total_price)
+  + SUM(returns.cost_total)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 9: Treasury Closing
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Add safe closing endpoint and calculation.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VALIDATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Run tests and show DB results.
+
+FAIL CONDITIONS:
+- Balance capped at 0 anywhere = FAIL
+- Safe goes negative = FAIL  
+- Running balance wrong = FAIL
+- Profit ignores returns = FAI

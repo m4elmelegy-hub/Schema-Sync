@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
-import { db, depositVouchersTable, safesTable, customersTable, transactionsTable, accountsTable } from "@workspace/db";
+import { db, depositVouchersTable, safesTable, customersTable, transactionsTable, accountsTable, customerLedgerTable } from "@workspace/db";
 
 import { wrap, httpError } from "../lib/async-handler";
 import { assertPeriodOpen } from "../lib/period-lock";
@@ -39,7 +39,7 @@ router.post("/deposit-vouchers", wrap(async (req, res) => {
       if (cust) {
         custId = cust.id;
         custName = cust.name;
-        const newBalance = Math.max(0, Number(cust.balance) - amt);
+        const newBalance = Number(cust.balance) - amt;
         await tx.update(customersTable).set({ balance: String(newBalance) }).where(eq(customersTable.id, cust.id));
       }
     }
@@ -59,9 +59,10 @@ router.post("/deposit-vouchers", wrap(async (req, res) => {
     }).returning();
 
     // 4. الحركة المالية
+    const txDate = date ?? new Date().toISOString().split("T")[0];
     const descr = custName
-      ? `سند توريد ${voucher_no} — ${custName}`
-      : `سند توريد ${voucher_no}${source ? ` — ${source}` : ""}`;
+      ? `سند إيداع ${voucher_no} — ${custName}`
+      : `سند إيداع ${voucher_no}${source ? ` — ${source}` : ""}`;
 
     await tx.insert(transactionsTable).values({
       type: "receipt",
@@ -74,8 +75,22 @@ router.post("/deposit-vouchers", wrap(async (req, res) => {
       amount: String(amt),
       direction: "in",
       description: descr,
-      date: date ?? new Date().toISOString().split("T")[0],
+      date: txDate,
     });
+
+    // 5. دفتر أستاذ العميل — الإيداع يُقلّل الدين (سالب = أقل ما عليه)
+    if (custId) {
+      await tx.insert(customerLedgerTable).values({
+        customer_id: custId,
+        type: "deposit_voucher",
+        amount: String(-amt),
+        reference_type: "deposit_voucher",
+        reference_id: v.id,
+        reference_no: voucher_no,
+        description: descr,
+        date: txDate,
+      });
+    }
 
     return v;
   });
@@ -184,10 +199,20 @@ router.delete("/deposit-vouchers/:id", wrap(async (req, res) => {
     const [safe] = await tx.select().from(safesTable).where(eq(safesTable.id, v.safe_id));
     if (safe) await tx.update(safesTable).set({ balance: String(Number(safe.balance) - Number(v.amount)) }).where(eq(safesTable.id, safe.id));
 
-    // عكس رصيد العميل
+    // عكس رصيد العميل + دفتر الأستاذ
     if (v.customer_id) {
       const [cust] = await tx.select().from(customersTable).where(eq(customersTable.id, v.customer_id));
       if (cust) await tx.update(customersTable).set({ balance: String(Number(cust.balance) + Number(v.amount)) }).where(eq(customersTable.id, cust.id));
+      await tx.insert(customerLedgerTable).values({
+        customer_id: v.customer_id,
+        type: "deposit_voucher",
+        amount: String(Number(v.amount)),
+        reference_type: "deposit_voucher_cancel",
+        reference_id: v.id,
+        reference_no: v.voucher_no,
+        description: `إلغاء سند إيداع ${v.voucher_no}`,
+        date: new Date().toISOString().split("T")[0],
+      });
     }
 
     await tx.delete(depositVouchersTable).where(eq(depositVouchersTable.id, id));

@@ -330,8 +330,8 @@ router.post("/customers/:id/payment", wrap(async (req, res) => {
       date: txDate,
     });
 
-    // 3. تحديث رصيد العميل المحفوظ
-    const newBalance = Math.max(0, Number(customer.balance) - amt);
+    // 3. تحديث رصيد العميل المحفوظ (يمكن أن يصبح سالباً إذا سدّد أكثر مما عليه)
+    const newBalance = Number(customer.balance) - amt;
     await tx.update(customersTable)
       .set({ balance: String(newBalance) })
       .where(eq(customersTable.id, id));
