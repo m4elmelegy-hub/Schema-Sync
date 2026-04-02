@@ -50,8 +50,6 @@ export const purchaseReturnsTable = pgTable("purchase_returns", {
   purchase_id: integer("purchase_id"),
   customer_id: integer("customer_id"),
   customer_name: text("customer_name"),
-  supplier_id: integer("supplier_id"),
-  supplier_name: text("supplier_name"),
   total_amount: numeric("total_amount", { precision: 12, scale: 2 }).notNull().default("0"),
   refund_type: text("refund_type").default("balance_credit"),
   safe_id: integer("safe_id"),

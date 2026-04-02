@@ -11,9 +11,9 @@
 import { eq, and, sql, isNull, or } from "drizzle-orm";
 import {
   db, alertsTable, productsTable, safesTable,
-  customersTable, suppliersTable, systemSettingsTable,
+  customersTable, systemSettingsTable,
 } from "@workspace/db";
-import { getCustomerLedgerBalance, getSupplierLedgerBalance } from "./ledger-balance";
+import { getCustomerLedgerBalance } from "./ledger-balance";
 
 /* ── Thresholds ─────────────────────────────────────────────── */
 const CUSTOMER_DEBT_LIMIT = 10_000;
@@ -146,11 +146,11 @@ export async function checkCustomerDebt(customerId?: number, mode: "event" | "da
 
 export async function checkSupplierPayable(supplierId?: number, mode: "event" | "daily" = "event") {
   const rows = supplierId
-    ? await db.select().from(suppliersTable).where(eq(suppliersTable.id, supplierId))
-    : await db.select().from(suppliersTable);
+    ? await db.select().from(customersTable).where(eq(customersTable.id, supplierId))
+    : await db.select().from(customersTable).where(eq(customersTable.is_supplier, true));
 
   for (const s of rows) {
-    const balance = await getSupplierLedgerBalance(s.id);
+    const balance = await getCustomerLedgerBalance(s.id);
     if (balance > SUPPLIER_DEBT_LIMIT) {
       await upsertAlert("supplier_payable", String(s.id), "WARNING",
         `المستحقات للمورد ${s.name} تجاوزت الحد المسموح (${balance.toLocaleString("ar-EG")} ج.م)`, mode);

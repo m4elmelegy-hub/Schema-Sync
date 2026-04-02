@@ -12,7 +12,6 @@ import {
   purchasesTable,
   purchaseItemsTable,
   customersTable,
-  suppliersTable,
   expensesTable,
   incomeTable,
   transactionsTable,
@@ -403,7 +402,6 @@ router.post("/settings/reset", authenticate, requireRole("admin"), async (req, r
 
     // تصفير الأرصدة
     await db.update(customersTable).set({ balance: "0" });
-    await db.update(suppliersTable).set({ balance: "0" });
     await db.update(productsTable).set({ quantity: "0" });
     await db.update(safesTable).set({ balance: "0" });
 

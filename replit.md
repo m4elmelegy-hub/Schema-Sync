@@ -45,11 +45,25 @@ The system is built as a monorepo using pnpm workspaces. The architecture separa
 
 - **Auto-Generated Codes:** Customers get sequential codes starting at **1001**, suppliers start at **2001**. New codes auto-increment from the current max.
 - **Normalized Name Deduplication:** On create and update, names are normalized (trimmed, whitespace collapsed, Arabic diacritics unified: أإآ→ا, ة→ه, ى→ي) and compared against the `normalized_name` column — the backend returns a clear Arabic error if a duplicate is detected.
-- **DB Schema:** `customer_code INTEGER UNIQUE` and `normalized_name TEXT` added to `customersTable`; `supplier_code INTEGER UNIQUE` and `normalized_name TEXT` added to `suppliersTable`. Existing records backfilled.
+- **DB Schema:** `customer_code INTEGER UNIQUE`, `normalized_name TEXT`, and `is_supplier BOOLEAN` added to `customersTable`.
 - **Zod Schemas Updated:** `GetCustomersResponseItem`, `UpdateCustomerResponse`, `GetSuppliersResponseItem`, `UpdateSupplierResponse` all expose the new code fields.
 - **Customers Page:** Added "الكود" column showing amber-tinted code badge; search now also matches by code number.
-- **Suppliers Page:** Added "الكود" column showing violet-tinted code badge; search now also matches by code number.
+- **Suppliers Page:** Shows customers with `is_supplier=true`; added "الكود" column with violet-tinted code badge.
 - **All Dropdowns Updated:** Customer dropdowns in Sales, Sales Returns, Receipt Vouchers, Payment Vouchers, and Supplier dropdowns in Purchases all show `[CODE]` prefix before the name for quick identification.
+
+## Suppliers → Customers Refactoring (April 2026)
+
+Major architectural change: **the `suppliers` table is deprecated in favor of `customers` with `is_supplier=true`.**
+
+- **DB:** `supplier_id` column dropped from `purchases` table. Purchases now link to `customer_id` (FK to `customers`). `supplier_name` kept as free-text display field.
+- **Backend `suppliers.ts`:** Rewritten as a shim — all `/api/suppliers` endpoints query `customersTable WHERE is_supplier=true`. Supplier codes start at 1001 (same sequence as customers). AP account created as `AP-C-{customer_code}` via `getOrCreateCustomerPayableAccount()`.
+- **Backend `contacts.ts`:** Rewritten as customer-only with `is_supplier` support.
+- **Backend `purchases.ts`:** Uses `customer_id` FK only; `supplier_name` set from `customer_name` for display. Ledger balance uses `AP-C-{customer_code}` accounts.
+- **Backend `reports.ts`:** `supplier-statement` report queries `customersTable` with `is_supplier=true`; `top_suppliers` uses `customer_id`.
+- **Backend `admin.ts`, `system.ts`, `settings.ts`, `opening-balance.ts`, `alert-service.ts`, `backup-service.ts`:** All cleaned of `suppliersTable` references; use `customersTable WHERE is_supplier=true` instead.
+- **Frontend `purchases.tsx`:** Removed `useGetSuppliers` hook; derives supplier list from `customers.filter(is_supplier)`.
+- **Balance convention:** positive balance = customer/supplier owes us (عليه); negative = we owe them (له).
+- **OpenAPI spec + Zod codegen:** `supplier_id` removed from all Purchase schemas; codegen regenerated.
 
 ## Advanced Accounting Completion (April 2026)
 

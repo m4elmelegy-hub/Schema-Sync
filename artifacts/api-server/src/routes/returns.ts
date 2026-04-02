@@ -3,7 +3,7 @@ import { eq, desc, and, sql } from "drizzle-orm";
 import {
   db, salesReturnsTable, saleReturnItemsTable,
   purchaseReturnsTable, purchaseReturnItemsTable,
-  productsTable, customersTable, suppliersTable, safesTable, transactionsTable, stockMovementsTable,
+  productsTable, customersTable, safesTable, transactionsTable, stockMovementsTable,
   saleItemsTable, purchaseItemsTable, customerLedgerTable,
 } from "@workspace/db";
 
@@ -407,7 +407,7 @@ router.get("/purchase-returns/:id", wrap(async (req, res) => {
  */
 router.post("/purchase-returns", wrap(async (req, res) => {
   const {
-    purchase_id, supplier_id, customer_id, customer_name, supplier_name,
+    purchase_id, customer_id, customer_name, supplier_name,
     items, reason, notes, date,
     refund_type, safe_id,
   } = req.body;
@@ -447,15 +447,25 @@ router.post("/purchase-returns", wrap(async (req, res) => {
         date: txDate,
       });
     } else {
-      // ── خصم من رصيد المورد ────────────────────────────────────────────────
-      if (supplier_id) {
-        const [supp] = await tx.select().from(suppliersTable).where(eq(suppliersTable.id, parseInt(supplier_id)));
-        if (supp) {
-          const newBal = Number(supp.balance) - total;
-          await tx.update(suppliersTable)
-            .set({ balance: String(newBal) })
-            .where(eq(suppliersTable.id, supp.id));
+      // ── خصم من رصيد العميل-المورد في دفتر الأستاذ ─────────────────────────
+      if (customer_id) {
+        const custId = parseInt(customer_id);
+        const [cust] = await tx.select().from(customersTable).where(eq(customersTable.id, custId));
+        if (cust) {
+          await tx.update(customersTable)
+            .set({ balance: String(Number(cust.balance) + total) })
+            .where(eq(customersTable.id, custId));
         }
+        await tx.insert(customerLedgerTable).values({
+          customer_id: custId,
+          type: "purchase_return",
+          amount: String(total),
+          reference_type: "purchase_return",
+          reference_id: 0,
+          reference_no: return_no,
+          description: `مرتجع مشتريات ${return_no}${customer_name ? ` — ${customer_name}` : ""}`,
+          date: txDate,
+        });
       }
     }
 
@@ -464,9 +474,7 @@ router.post("/purchase-returns", wrap(async (req, res) => {
       return_no,
       purchase_id: purchase_id ?? null,
       customer_id: customer_id ? parseInt(customer_id) : null,
-      customer_name: customer_name ?? null,
-      supplier_id: supplier_id ? parseInt(supplier_id) : null,
-      supplier_name: supplier_name ?? null,
+      customer_name: customer_name ?? supplier_name ?? null,
       total_amount: String(total),
       refund_type: rtype,
       safe_id: safeIdInt,
@@ -668,13 +676,24 @@ router.delete("/purchase-returns/:id", wrap(async (req, res) => {
           .where(eq(safesTable.id, ret.safe_id));
       }
     } else if (ret.refund_type === "balance_credit" || !ret.refund_type) {
-      if (ret.supplier_id) {
-        const [supp] = await tx.select().from(suppliersTable).where(eq(suppliersTable.id, ret.supplier_id));
-        if (supp) {
-          await tx.update(suppliersTable)
-            .set({ balance: String(Number(supp.balance) + total) })
-            .where(eq(suppliersTable.id, ret.supplier_id));
+      // عكس: المرتجع كان يُضاف لرصيد العميل-المورد → نخصمه الآن
+      if (ret.customer_id) {
+        const [cust] = await tx.select().from(customersTable).where(eq(customersTable.id, ret.customer_id));
+        if (cust) {
+          await tx.update(customersTable)
+            .set({ balance: String(Number(cust.balance) - total) })
+            .where(eq(customersTable.id, ret.customer_id));
         }
+        await tx.insert(customerLedgerTable).values({
+          customer_id: ret.customer_id,
+          type: "purchase_return_cancel",
+          amount: String(-total),
+          reference_type: "purchase_return_cancel",
+          reference_id: ret.id,
+          reference_no: ret.return_no,
+          description: `إلغاء مرتجع مشتريات ${ret.return_no}`,
+          date: new Date().toISOString().split("T")[0],
+        });
       }
     }
 

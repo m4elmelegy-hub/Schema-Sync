@@ -7,7 +7,6 @@ import {
   safesTable,
   transactionsTable,
   customersTable,
-  suppliersTable,
 } from "@workspace/db";
 import { wrap, httpError } from "../lib/async-handler";
 
@@ -250,14 +249,14 @@ router.post("/opening-balance/customer", wrap(async (req, res) => {
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SUPPLIER OPENING BALANCE
+// SUPPLIER OPENING BALANCE (uses customers with is_supplier = true)
 // ─────────────────────────────────────────────────────────────────────────────
 
 router.get("/opening-balance/supplier", wrap(async (_req, res) => {
   const txns = await db
     .select()
     .from(transactionsTable)
-    .where(eq(transactionsTable.reference_type, "supplier_opening"));
+    .where(eq(transactionsTable.reference_type, "customer_opening"));
   res.json(
     txns.map((t) => ({
       ...t,
@@ -268,9 +267,10 @@ router.get("/opening-balance/supplier", wrap(async (_req, res) => {
 }));
 
 router.post("/opening-balance/supplier", wrap(async (req, res) => {
-  const { supplier_id, amount, date, notes } = req.body;
+  const { supplier_id, customer_id: qCustId, amount, date, notes } = req.body;
+  const rawId = supplier_id ?? qCustId;
 
-  if (!supplier_id || amount === undefined) {
+  if (!rawId || amount === undefined) {
     res.status(400).json({ error: "المورد والمبلغ مطلوبان" });
     return;
   }
@@ -281,34 +281,36 @@ router.post("/opening-balance/supplier", wrap(async (req, res) => {
     return;
   }
 
-  const suppId = parseInt(supplier_id);
-  const [supplier] = await db
+  const custId = parseInt(rawId);
+  const [customer] = await db
     .select()
-    .from(suppliersTable)
-    .where(eq(suppliersTable.id, suppId));
-  if (!supplier) {
+    .from(customersTable)
+    .where(eq(customersTable.id, custId));
+  if (!customer) {
     res.status(404).json({ error: "المورد غير موجود" });
     return;
   }
 
   await db.transaction(async (tx) => {
     await tx
-      .update(suppliersTable)
-      .set({ balance: String(Number(supplier.balance) + amt) })
-      .where(eq(suppliersTable.id, suppId));
+      .update(customersTable)
+      .set({ balance: String(Number(customer.balance) + amt) })
+      .where(eq(customersTable.id, custId));
 
     await tx.insert(transactionsTable).values({
       type: "opening_balance",
-      reference_type: "supplier_opening",
-      reference_id: suppId,
+      reference_type: "customer_opening",
+      reference_id: custId,
+      customer_id: custId,
+      customer_name: customer.name,
       amount: String(amt),
       direction: "none",
-      description: notes ?? `رصيد أول المدة — ${supplier.name}`,
+      description: notes ?? `رصيد أول المدة — ${customer.name}`,
       date: date ?? new Date().toISOString().split("T")[0],
     });
   });
 
-  res.status(201).json({ success: true, supplier_id: suppId, supplier_name: supplier.name, amount: amt });
+  res.status(201).json({ success: true, supplier_id: custId, supplier_name: customer.name, amount: amt });
 }));
 
 export default router;

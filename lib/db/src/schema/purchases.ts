@@ -7,11 +7,8 @@ export const purchasesTable = pgTable("purchases", {
   id: serial("id").primaryKey(),
   invoice_no: text("invoice_no").notNull(),
   supplier_name: text("supplier_name"),
-  supplier_id: integer("supplier_id"),
-  // customer_id / customer_name: إذا كانت المشتريات على حساب عميل (pass-through)
   customer_id: integer("customer_id"),
   customer_name: text("customer_name"),
-  // customer_payment_type REMOVED — كان نسخة مكررة من payment_type، لا يُقرأ في أي مكان
   payment_type: text("payment_type").notNull(),
   total_amount: numeric("total_amount", { precision: 12, scale: 2 }).notNull().default("0"),
   paid_amount: numeric("paid_amount", { precision: 12, scale: 2 }).notNull().default("0"),
@@ -22,7 +19,6 @@ export const purchasesTable = pgTable("purchases", {
   date: text("date"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
-  index("purchases_supplier_id_idx").on(t.supplier_id),
   index("purchases_customer_id_idx").on(t.customer_id),
   index("purchases_status_idx").on(t.status),
   index("purchases_created_at_idx").on(t.created_at),

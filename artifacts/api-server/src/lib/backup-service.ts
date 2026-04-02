@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import {
   db,
   backupsTable,
-  productsTable, customersTable, suppliersTable,
+  productsTable, customersTable,
   salesTable, saleItemsTable,
   purchasesTable, purchaseItemsTable,
   salesReturnsTable, saleReturnItemsTable,
@@ -45,7 +45,7 @@ const MAX_BACKUPS = 20;
 /* ── Build the backup JSON object (same structure as system.ts) ── */
 export async function buildBackupPayload() {
   const [
-    products, customers, suppliers,
+    products, customers,
     sales, saleItems,
     purchases, purchaseItems,
     salesReturns, saleReturnItems,
@@ -61,7 +61,6 @@ export async function buildBackupPayload() {
   ] = await Promise.all([
     db.select().from(productsTable),
     db.select().from(customersTable),
-    db.select().from(suppliersTable),
     db.select().from(salesTable),
     db.select().from(saleItemsTable),
     db.select().from(purchasesTable),
@@ -95,7 +94,7 @@ export async function buildBackupPayload() {
     app: "Halal Tech ERP",
     created_at: new Date().toISOString(),
     data: {
-      products, customers, suppliers,
+      products, customers,
       sales, sale_items: saleItems,
       purchases, purchase_items: purchaseItems,
       sales_returns: salesReturns, sale_return_items: saleReturnItems,

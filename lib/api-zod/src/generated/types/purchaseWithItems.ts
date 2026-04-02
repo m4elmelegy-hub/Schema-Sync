@@ -13,7 +13,8 @@ export interface PurchaseWithItems {
   id: number;
   invoice_no: string;
   supplier_name?: string | null;
-  supplier_id?: number | null;
+  customer_id?: number | null;
+  customer_name?: string | null;
   payment_type: PurchaseWithItemsPaymentType;
   total_amount: number;
   paid_amount: number;

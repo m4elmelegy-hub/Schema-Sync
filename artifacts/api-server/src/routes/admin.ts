@@ -7,12 +7,12 @@ import { db,
   expensesTable, incomeTable,
   receiptVouchersTable, depositVouchersTable, transactionsTable,
   productsTable, stockMovementsTable,
-  customersTable, suppliersTable,
+  customersTable,
 } from "@workspace/db";
 import { sql, isNull } from "drizzle-orm";
 import { wrap } from "../lib/async-handler";
 import { authenticate, requireRole } from "../middleware/auth";
-import { getOrCreateCustomerAccount, getOrCreateSupplierAccount } from "../lib/auto-account";
+import { getOrCreateCustomerAccount, getOrCreateCustomerPayableAccount } from "../lib/auto-account";
 
 const router: IRouter = Router();
 
@@ -45,9 +45,6 @@ const TABLES: Record<string, () => Promise<void>> = {
   customers: async () => {
     await db.delete(customersTable);
   },
-  suppliers: async () => {
-    await db.delete(suppliersTable);
-  },
 };
 
 router.post("/admin/clear", authenticate, requireRole("admin"), wrap(async (req, res) => {
@@ -63,40 +60,32 @@ router.post("/admin/clear", authenticate, requireRole("admin"), wrap(async (req,
     return;
   }
 
-  // ترتيب الحذف الآمن: المبيعات والمشتريات أولاً (تحذف items)، ثم المنتجات، ثم العملاء والموردون
-  const ORDER = ["sales", "purchases", "expenses", "income", "receipt_vouchers", "deposit_vouchers", "transactions", "products", "customers", "suppliers"];
+  const ORDER = ["sales", "purchases", "expenses", "income", "receipt_vouchers", "deposit_vouchers", "transactions", "products", "customers"];
   const sorted = ORDER.filter(t => tables.includes(t));
 
   for (const t of sorted) await TABLES[t]();
   res.json({ success: true, cleared: sorted });
 }));
 
-/* ── ربط تلقائي: إنشاء حسابات للعملاء والموردين الموجودين ────────────────
- *  POST /api/admin/backfill-accounts
- *  يُنشئ حساباً محاسبياً لكل عميل/مورد لا يملك account_id بعد.
- */
+/* ── ربط تلقائي: إنشاء حسابات للعملاء الموجودين ──────────────────────────── */
 router.post("/admin/backfill-accounts", [authenticate, requireRole("admin", "manager")], wrap(async (_req, res) => {
   const customers = await db.select().from(customersTable).where(isNull(customersTable.account_id));
-  const suppliers = await db.select().from(suppliersTable).where(isNull(suppliersTable.account_id));
 
   let customersLinked = 0;
-  let suppliersLinked = 0;
 
   for (const c of customers) {
     if (!c.customer_code) continue;
     const acct = await getOrCreateCustomerAccount(c.customer_code, c.name);
     await db.update(customersTable).set({ account_id: acct.id }).where(sql`id = ${c.id}`);
     customersLinked++;
+
+    // إذا كان عميل-مورد، أنشئ حساب AP أيضاً
+    if (c.is_supplier) {
+      await getOrCreateCustomerPayableAccount(c.customer_code, c.name);
+    }
   }
 
-  for (const s of suppliers) {
-    if (!s.supplier_code) continue;
-    const acct = await getOrCreateSupplierAccount(s.supplier_code, s.name);
-    await db.update(suppliersTable).set({ account_id: acct.id }).where(sql`id = ${s.id}`);
-    suppliersLinked++;
-  }
-
-  res.json({ success: true, customersLinked, suppliersLinked });
+  res.json({ success: true, customersLinked });
 }));
 
 export default router;

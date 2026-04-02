@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, gt, not, inArray } from "drizzle-orm";
-import { db, purchasesTable, purchaseItemsTable, productsTable, customersTable, suppliersTable, safesTable, transactionsTable, stockMovementsTable, accountsTable, purchaseReturnsTable, journalEntriesTable, journalEntryLinesTable, customerLedgerTable } from "@workspace/db";
+import { db, purchasesTable, purchaseItemsTable, productsTable, customersTable, safesTable, transactionsTable, stockMovementsTable, accountsTable, purchaseReturnsTable, journalEntriesTable, journalEntryLinesTable, customerLedgerTable } from "@workspace/db";
 import {
   GetPurchasesResponse,
   CreatePurchaseBody,
@@ -10,12 +10,11 @@ import {
 import { wrap, httpError } from "../lib/async-handler";
 import { triggerBackup } from "../lib/backup-service";
 import { assertPeriodOpen } from "../lib/period-lock";
-import { getSupplierLedgerBalance } from "../lib/ledger-balance";
 import { runAllChecks } from "../lib/alert-service";
 import {
   getOrCreateInventoryAccount,
   getOrCreateSafeAccount,
-  getOrCreateSupplierAccount,
+  getOrCreateCustomerPayableAccount,
   createJournalEntry,
   type JournalLine,
 } from "../lib/auto-account";
@@ -60,7 +59,6 @@ router.post("/purchases", wrap(async (req, res) => {
     paid_amount,
     items,
     supplier_name,
-    supplier_id,
     customer_id,
     customer_name,
     safe_id,
@@ -77,14 +75,13 @@ router.post("/purchases", wrap(async (req, res) => {
   else if (remaining > 0) status = "partial";
 
   const invoiceNo = `PUR-${Date.now()}`;
-
   const today = date ?? new Date().toISOString().split("T")[0];
+  const displayName = customer_name ?? supplier_name ?? null;
 
   const purchase = await db.transaction(async (tx) => {
     const [newPurchase] = await tx.insert(purchasesTable).values({
       invoice_no: invoiceNo,
-      supplier_name: supplier_name ?? null,
-      supplier_id: supplier_id ?? null,
+      supplier_name: displayName,
       customer_id: customer_id ?? null,
       customer_name: customer_name ?? null,
       payment_type,
@@ -135,7 +132,7 @@ router.post("/purchases", wrap(async (req, res) => {
           reference_type: "purchase",
           reference_id: newPurchase.id,
           reference_no: invoiceNo,
-          notes: supplier_name ? `مشتريات من ${supplier_name}` : "فاتورة مشتريات",
+          notes: displayName ? `مشتريات من ${displayName}` : "فاتورة مشتريات",
           date: today,
         });
       }
@@ -162,15 +159,16 @@ router.post("/purchases", wrap(async (req, res) => {
           safe_id: safe.id,
           safe_name: safe.name,
           customer_id: customer_id ?? null,
-          customer_name: customer_name ?? null,
+          customer_name: displayName,
           amount: String(cashOut),
           direction: "out",
-          description: `دفع نقدي — فاتورة مشتريات ${invoiceNo}${customer_name ? ` (${customer_name})` : ""}`,
+          description: `دفع نقدي — فاتورة مشتريات ${invoiceNo}${displayName ? ` (${displayName})` : ""}`,
           date: today,
         });
       }
     }
 
+    // آجل أو جزئي: رصيد العميل-المورد يصبح سالباً (نحن مدينون له)
     if (customerDebt > 0 && customer_id) {
       const [cust] = await tx.select().from(customersTable).where(eq(customersTable.id, customer_id));
       if (cust) {
@@ -184,15 +182,13 @@ router.post("/purchases", wrap(async (req, res) => {
           safe_id: null,
           safe_name: null,
           customer_id: customer_id,
-          customer_name: customer_name ?? null,
+          customer_name: displayName,
           amount: String(customerDebt),
           direction: "out",
-          description: `مشتريات آجل من ${customer_name ?? "عميل"} — فاتورة ${invoiceNo}`,
+          description: `مشتريات آجل من ${displayName ?? "مورد"} — فاتورة ${invoiceNo}`,
           date: today,
         });
 
-        // دفتر الأستاذ: الشراء منه على حساب آجل يعني نحن مدينون له → رصيده يصبح سالباً
-        // مبلغ سالب = ندين له (له علينا)
         await tx.insert(customerLedgerTable).values({
           customer_id: customer_id,
           type: "purchase",
@@ -200,30 +196,15 @@ router.post("/purchases", wrap(async (req, res) => {
           reference_type: "purchase",
           reference_id: newPurchase.id,
           reference_no: invoiceNo,
-          description: `مشتريات آجل ${invoiceNo} — ${customer_name ?? "مورد"}`,
+          description: `مشتريات آجل ${invoiceNo} — ${displayName ?? "مورد"}`,
           date: today,
         });
       }
     }
 
-    // دفع نقدي للمورد-العميل (بدون آجل) — نسجّل في دفتر الأستاذ كتسوية فورية
-    if (cashOut > 0 && customer_id && payment_type === "cash") {
-      await tx.insert(customerLedgerTable).values({
-        customer_id: customer_id,
-        type: "purchase",
-        amount: String(-cashOut),
-        reference_type: "purchase",
-        reference_id: newPurchase.id,
-        reference_no: invoiceNo,
-        description: `مشتريات نقدي ${invoiceNo} — ${customer_name ?? "مورد"}`,
-        date: today,
-      });
-    }
-
     return newPurchase;
   });
 
-  // القيد المحاسبي يُنشأ عند الترحيل (POST /purchases/:id/post) — ليس عند الإنشاء
   res.status(201).json(formatPurchase(purchase));
 }));
 
@@ -249,9 +230,6 @@ router.get("/purchases/:id", wrap(async (req, res) => {
 }));
 
 /* ── بناء قيود المشتريات ────────────────────────────────────────────────── */
-// القيد الصحيح للمشتريات التي تدخل المخزون:
-//   مدين:  حساب المخزون (ASSET-INVENTORY) ← تزيد قيمة الأصول
-//   دائن:  خزينة (SAFE) أو ذمم مورد (AP)  ← نقص السيولة أو زيادة الالتزامات
 async function buildPurchaseJournalLines(purchase: typeof purchasesTable.$inferSelect): Promise<JournalLine[]> {
   const total       = Number(purchase.total_amount);
   const paid        = Number(purchase.paid_amount);
@@ -261,7 +239,6 @@ async function buildPurchaseJournalLines(purchase: typeof purchasesTable.$inferS
   const inventoryAcct = await getOrCreateInventoryAccount();
   lines.push({ account: inventoryAcct, debit: total, credit: 0 });
 
-  // استرجاع الخزينة من جدول الحركات (safe_id غير مخزّن مباشرةً في purchasesTable)
   if (paid > 0) {
     const [txRow] = await db.select({ safe_id: transactionsTable.safe_id, safe_name: transactionsTable.safe_name })
       .from(transactionsTable)
@@ -277,15 +254,29 @@ async function buildPurchaseJournalLines(purchase: typeof purchasesTable.$inferS
     }
   }
 
-  if (supplierDebt > 0 && purchase.supplier_id) {
-    const [supp] = await db.select().from(suppliersTable).where(eq(suppliersTable.id, purchase.supplier_id));
-    if (supp?.account_id) {
-      const [acctRow] = await db.select({ id: accountsTable.id, code: accountsTable.code, name: accountsTable.name })
-        .from(accountsTable).where(eq(accountsTable.id, supp.account_id));
-      if (acctRow) lines.push({ account: acctRow, debit: 0, credit: supplierDebt });
-    } else if (supp?.supplier_code) {
-      const suppAcct = await getOrCreateSupplierAccount(supp.supplier_code, supp.name);
-      lines.push({ account: suppAcct, debit: 0, credit: supplierDebt });
+  // الجزء الآجل: حساب ذمم مورد (AP) مرتبط بالعميل-المورد
+  if (supplierDebt > 0 && purchase.customer_id) {
+    const [cust] = await db.select({ customer_code: customersTable.customer_code, name: customersTable.name, account_id: customersTable.account_id })
+      .from(customersTable)
+      .where(eq(customersTable.id, purchase.customer_id));
+
+    if (cust) {
+      let apAcct: { id: number; code: string; name: string } | undefined;
+      if (cust.account_id) {
+        const [a] = await db.select({ id: accountsTable.id, code: accountsTable.code, name: accountsTable.name })
+          .from(accountsTable).where(eq(accountsTable.id, cust.account_id));
+        // نبحث عن حساب AP خاص بالعميل-المورد
+        const [apRow] = await db.select({ id: accountsTable.id, code: accountsTable.code, name: accountsTable.name })
+          .from(accountsTable).where(eq(accountsTable.code, `AP-C-${cust.customer_code ?? purchase.customer_id}`));
+        apAcct = apRow ?? (cust.customer_code ? undefined : a);
+      }
+      if (!apAcct) {
+        apAcct = await getOrCreateCustomerPayableAccount(
+          cust.customer_code ?? purchase.customer_id,
+          cust.name,
+        );
+      }
+      lines.push({ account: apAcct, debit: 0, credit: supplierDebt });
     }
   }
 
@@ -319,22 +310,19 @@ router.post("/purchases/:id/post", wrap(async (req, res) => {
     .where(eq(purchasesTable.id, id))
     .returning();
 
-  // Fire-and-forget alert checks after posting
   const purchaseItems = await db.select({ product_id: purchaseItemsTable.product_id })
     .from(purchaseItemsTable).where(eq(purchaseItemsTable.purchase_id, id));
-  const supplierIdForAlert = updated.supplier_id ?? undefined;
-  void runAllChecks({ supplierId: supplierIdForAlert });
+  void runAllChecks({});
   for (const item of purchaseItems) {
     if (item.product_id) void runAllChecks({ productId: item.product_id });
   }
 
-  // Fire-and-forget backup after purchase post
   void triggerBackup("purchase_post");
 
   res.json(formatPurchase(updated));
 }));
 
-/* ── إلغاء فاتورة المشتريات → عكس كامل (مخزون + أرصدة + قيد محاسبي) ─── */
+/* ── إلغاء فاتورة المشتريات ─────────────────────────────────────────────── */
 router.post("/purchases/:id/cancel", wrap(async (req, res) => {
   const id = parseInt(req.params.id as string);
   if (isNaN(id)) throw httpError(400, "معرّف غير صحيح");
@@ -343,7 +331,6 @@ router.post("/purchases/:id/cancel", wrap(async (req, res) => {
   if (!purchase) throw httpError(404, "الفاتورة غير موجودة");
   if (purchase.posting_status === "cancelled") throw httpError(400, "الفاتورة ملغاة بالفعل");
 
-  // ── التحقق: لا يمكن إلغاء فاتورة بها مرتجعات ────────────────────────────
   const existingReturns = await db.select({ id: purchaseReturnsTable.id })
     .from(purchaseReturnsTable)
     .where(eq(purchaseReturnsTable.purchase_id, id));
@@ -351,25 +338,16 @@ router.post("/purchases/:id/cancel", wrap(async (req, res) => {
     throw httpError(400, "لا يمكن إلغاء فاتورة مرتبطة بمرتجعات — يجب حذف المرتجعات أولاً");
   }
 
-  // ── فحص 1: المخزون سيصبح سالباً ─────────────────────────────────────────
-  // إلغاء الشراء يزيل الكميات من المخزون — إذا لم تكن الكميات كافية → توقف
+  // فحص: المخزون سيصبح سالباً
   {
     const itemsToCheck = await db
-      .select({
-        product_id:   purchaseItemsTable.product_id,
-        product_name: purchaseItemsTable.product_name,
-        quantity:     purchaseItemsTable.quantity,
-      })
+      .select({ product_id: purchaseItemsTable.product_id, product_name: purchaseItemsTable.product_name, quantity: purchaseItemsTable.quantity })
       .from(purchaseItemsTable)
       .where(eq(purchaseItemsTable.purchase_id, id));
 
     for (const item of itemsToCheck) {
       const cancelQty = Number(item.quantity);
-      const [prod] = await db
-        .select({ quantity: productsTable.quantity })
-        .from(productsTable)
-        .where(eq(productsTable.id, item.product_id));
-
+      const [prod] = await db.select({ quantity: productsTable.quantity }).from(productsTable).where(eq(productsTable.id, item.product_id));
       if (prod && Number(prod.quantity) < cancelQty - 0.001) {
         throw httpError(400,
           `لا يمكن الإلغاء: المخزون الحالي لـ "${item.product_name}" (${Number(prod.quantity).toFixed(3)}) أقل من كمية الشراء المُراد عكسها (${cancelQty.toFixed(3)}) — الإلغاء سيجعل الكمية سالبة`
@@ -378,40 +356,20 @@ router.post("/purchases/:id/cancel", wrap(async (req, res) => {
     }
   }
 
-  // ── فحص 2: رصيد المورد سيصبح سالباً (من دفتر الأستاذ AP) ──────────────
-  // إلغاء الشراء يُنقص ذمة المورد بـ remaining_amount
-  if (purchase.supplier_id && Number(purchase.remaining_amount) > 0.001) {
-    const [suppRow] = await db
-      .select({ account_id: suppliersTable.account_id, name: suppliersTable.name })
-      .from(suppliersTable)
-      .where(eq(suppliersTable.id, purchase.supplier_id));
-    if (suppRow) {
-      const ledgerBal = await getSupplierLedgerBalance(suppRow.account_id);
-      if (ledgerBal < Number(purchase.remaining_amount) - 0.001) {
-        throw httpError(400,
-          `لا يمكن الإلغاء: رصيد دفتر الأستاذ للمورد (${ledgerBal.toFixed(2)}) أقل من الذمة المُراد عكسها (${Number(purchase.remaining_amount).toFixed(2)}) — توجد مدفوعات مُقيَّدة على هذا المورد`
-        );
-      }
-    }
-  }
-
-  // ── فحص 3: قيود محاسبية لاحقة على نفس الحسابات ─────────────────────────
+  // فحص: قيود محاسبية لاحقة
   if (purchase.posting_status === "posted") {
-    const [purchJE] = await db
-      .select({ id: journalEntriesTable.id })
+    const [purchJE] = await db.select({ id: journalEntriesTable.id })
       .from(journalEntriesTable)
       .where(eq(journalEntriesTable.reference, purchase.invoice_no));
 
     if (purchJE) {
-      const jeLines = await db
-        .select({ account_id: journalEntryLinesTable.account_id })
+      const jeLines = await db.select({ account_id: journalEntryLinesTable.account_id })
         .from(journalEntryLinesTable)
         .where(eq(journalEntryLinesTable.entry_id, purchJE.id));
 
       const accountIds = [...new Set(jeLines.map(l => l.account_id))];
       if (accountIds.length > 0) {
-        const laterLines = await db
-          .select({ entry_id: journalEntryLinesTable.entry_id })
+        const laterLines = await db.select({ entry_id: journalEntryLinesTable.entry_id })
           .from(journalEntryLinesTable)
           .innerJoin(journalEntriesTable, eq(journalEntryLinesTable.entry_id, journalEntriesTable.id))
           .where(and(
@@ -423,7 +381,7 @@ router.post("/purchases/:id/cancel", wrap(async (req, res) => {
 
         if (laterLines.length > 0) {
           throw httpError(400,
-            "لا يمكن العكس: توجد قيود محاسبية لاحقة مبنية على نفس حسابات هذه الفاتورة — راجع دفتر الأستاذ قبل الإلغاء"
+            "لا يمكن العكس: توجد قيود محاسبية لاحقة مبنية على نفس حسابات هذه الفاتورة"
           );
         }
       }
@@ -435,7 +393,7 @@ router.post("/purchases/:id/cancel", wrap(async (req, res) => {
   const today = new Date().toISOString().split("T")[0];
 
   await db.transaction(async (tx) => {
-    // ── 1. عكس القيد المحاسبي (للفواتير المرحَّلة فقط) ──────────────────
+    // 1. عكس القيد المحاسبي
     if (purchase.posting_status === "posted") {
       const lines = await buildPurchaseJournalLines(purchase);
       if (lines.length >= 2) {
@@ -449,67 +407,66 @@ router.post("/purchases/:id/cancel", wrap(async (req, res) => {
       }
     }
 
-    // ── 2. إزالة بنود الشراء من المخزون + تعديل WAC ───────────────────────
-    // نستخدم unit_price المحفوظ في purchase_items (= تكلفة الشراء الأصلية)
-    const purchaseItems = await tx.select().from(purchaseItemsTable)
-      .where(eq(purchaseItemsTable.purchase_id, purchase.id));
-
+    // 2. إزالة بنود الشراء من المخزون
+    const purchaseItems = await tx.select().from(purchaseItemsTable).where(eq(purchaseItemsTable.purchase_id, purchase.id));
     for (const item of purchaseItems) {
-      const qty            = Number(item.quantity);
+      const qty = Number(item.quantity);
       const purchaseUnitCost = Number(item.unit_price);
-
       const [prod] = await tx.select().from(productsTable).where(eq(productsTable.id, item.product_id));
       if (prod) {
         const oldQty = Number(prod.quantity);
         const oldWAC = Number(prod.cost_price);
         const newQty = Math.max(0, oldQty - qty);
-
-        // عند إزالة مشتريات: NewWAC = (oldValue - removedValue) / newQty
         let newWAC = oldWAC;
         if (newQty > 0) {
-          const oldValue     = oldQty * oldWAC;
-          const removedValue = qty * purchaseUnitCost;
-          newWAC = Math.max(0, (oldValue - removedValue) / newQty);
+          newWAC = Math.max(0, (oldQty * oldWAC - qty * purchaseUnitCost) / newQty);
         }
-
         await tx.update(productsTable)
           .set({ quantity: String(newQty), cost_price: String(newWAC.toFixed(4)) })
           .where(eq(productsTable.id, item.product_id));
 
         await tx.insert(stockMovementsTable).values({
-          product_id:      item.product_id,
-          product_name:    item.product_name,
-          movement_type:   "adjustment",
-          quantity:        String(-qty),
+          product_id: item.product_id,
+          product_name: item.product_name,
+          movement_type: "adjustment",
+          quantity: String(-qty),
           quantity_before: String(oldQty),
-          quantity_after:  String(newQty),
-          unit_cost:       String(purchaseUnitCost),
-          reference_type:  "purchase_cancel",
-          reference_id:    purchase.id,
-          reference_no:    purchase.invoice_no,
-          notes:           `إلغاء فاتورة مشتريات ${purchase.invoice_no}`,
-          date:            today,
+          quantity_after: String(newQty),
+          unit_cost: String(purchaseUnitCost),
+          reference_type: "purchase_cancel",
+          reference_id: purchase.id,
+          reference_no: purchase.invoice_no,
+          notes: `إلغاء فاتورة مشتريات ${purchase.invoice_no}`,
+          date: today,
         });
       }
     }
 
-    // ── 3. عكس رصيد المورد (الآجل / الجزئي) ─────────────────────────────
+    // 3. عكس رصيد العميل-المورد (الآجل)
     const remainingAmt = Number(purchase.remaining_amount);
-    if (remainingAmt > 0 && purchase.supplier_id) {
-      const [supp] = await tx.select().from(suppliersTable).where(eq(suppliersTable.id, purchase.supplier_id));
-      if (supp) {
-        const newBal = Number(supp.balance) - remainingAmt;
-        await tx.update(suppliersTable)
-          .set({ balance: String(newBal) })
-          .where(eq(suppliersTable.id, supp.id));
+    if (remainingAmt > 0 && purchase.customer_id) {
+      const [cust] = await tx.select().from(customersTable).where(eq(customersTable.id, purchase.customer_id));
+      if (cust) {
+        await tx.update(customersTable)
+          .set({ balance: String(Number(cust.balance) + remainingAmt) })
+          .where(eq(customersTable.id, cust.id));
+
+        await tx.insert(customerLedgerTable).values({
+          customer_id: purchase.customer_id,
+          type: "purchase_cancel",
+          amount: String(remainingAmt),
+          reference_type: "purchase_cancel",
+          reference_id: purchase.id,
+          reference_no: purchase.invoice_no,
+          description: `إلغاء فاتورة مشتريات ${purchase.invoice_no}`,
+          date: today,
+        });
       }
     }
 
-    // ── 4. عكس رصيد الخزينة (النقدي / الجزئي) ────────────────────────────
-    // نستخدم paid_amount المخزون في سجل الشراء
+    // 4. عكس رصيد الخزينة (النقدي)
     const paidAmt = Number(purchase.paid_amount);
     if (paidAmt > 0) {
-      // نجلب الخزينة من جدول الحركات (safe_id غير مخزّن في purchasesTable)
       const [txRow] = await db.select({ safe_id: transactionsTable.safe_id, safe_name: transactionsTable.safe_name })
         .from(transactionsTable)
         .where(and(
@@ -526,20 +483,20 @@ router.post("/purchases/:id/cancel", wrap(async (req, res) => {
             .where(eq(safesTable.id, safe.id));
         }
         await tx.insert(transactionsTable).values({
-          type:           "purchase_cancel",
+          type: "purchase_cancel",
           reference_type: "purchase_cancel",
-          reference_id:   purchase.id,
-          safe_id:        txRow.safe_id,
-          safe_name:      txRow.safe_name ?? "",
-          amount:         String(paidAmt),
-          direction:      "in",
-          description:    `إلغاء فاتورة مشتريات ${purchase.invoice_no}`,
-          date:           today,
+          reference_id: purchase.id,
+          safe_id: txRow.safe_id,
+          safe_name: txRow.safe_name ?? "",
+          amount: String(paidAmt),
+          direction: "in",
+          description: `إلغاء فاتورة مشتريات ${purchase.invoice_no}`,
+          date: today,
         });
       }
     }
 
-    // ── 5. تحديث حالة الفاتورة ────────────────────────────────────────────
+    // 5. تحديث حالة الفاتورة
     await tx.update(purchasesTable)
       .set({ posting_status: "cancelled" })
       .where(eq(purchasesTable.id, id));

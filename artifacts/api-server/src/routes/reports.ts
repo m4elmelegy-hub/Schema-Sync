@@ -429,34 +429,30 @@ router.get("/reports/customer-statement", wrap(async (req, res) => {
 }));
 
 /* ─────────────────────────────────────────────────────────────────────────
- * 5. كشف حساب مورد (محسّن مع فلتر التاريخ)
+ * 5. كشف حساب مورد (يستخدم جدول العملاء مع is_supplier = true)
  * GET /api/reports/supplier-statement?supplier_id=&date_from=&date_to=
+ * ─────────────────────────────────────────────────────────────────────────
+ * supplier_id هنا = customer_id للعميل الذي is_supplier = true
  * ───────────────────────────────────────────────────────────────────────── */
 router.get("/reports/supplier-statement", wrap(async (req, res) => {
-  const { supplier_id, date_from, date_to } = req.query as Record<string, string | undefined>;
-  if (!supplier_id) { res.status(400).json({ error: "يجب تحديد المورد" }); return; }
-  const sid = parseInt(supplier_id);
+  const { supplier_id, customer_id: qCustId, date_from, date_to } = req.query as Record<string, string | undefined>;
+  const rawId = supplier_id ?? qCustId;
+  if (!rawId) { res.status(400).json({ error: "يجب تحديد المورد" }); return; }
+  const sid = parseInt(rawId);
   if (isNaN(sid)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
 
-  const supRow = await db.execute(sql.raw(`
-    SELECT s.id, s.name,
-           COALESCE(SUM(CAST(jel.credit AS FLOAT8)), 0)
-         - COALESCE(SUM(CAST(jel.debit  AS FLOAT8)), 0) AS balance
-    FROM suppliers s
-    LEFT JOIN journal_entry_lines jel ON jel.account_id = s.account_id
-    LEFT JOIN journal_entries je ON je.id = jel.entry_id AND je.status = 'posted'
-    WHERE s.id = ${sid}
-    GROUP BY s.id, s.name
+  const custRow = await db.execute(sql.raw(`
+    SELECT id, name, CAST(balance AS FLOAT8) AS balance FROM customers WHERE id = ${sid}
   `));
-  if (!supRow.rows.length) { res.status(404).json({ error: "المورد غير موجود" }); return; }
-  const supplier = supRow.rows[0] as any;
+  if (!custRow.rows.length) { res.status(404).json({ error: "المورد غير موجود" }); return; }
+  const supplier = custRow.rows[0] as any;
 
   type StatRow = { date: string; type: string; description: string; debit: number; credit: number; reference_no?: string | null };
   const rows: StatRow[] = [];
 
   // رصيد أول المدة
   const openRows = await db.execute(sql.raw(`
-    SELECT date, amount FROM transactions WHERE reference_type = 'supplier_opening' AND reference_id = ${sid}
+    SELECT date, amount FROM transactions WHERE reference_type = 'customer_opening' AND reference_id = ${sid}
   `));
   for (const r of openRows.rows as any[]) {
     rows.push({ date: r.date ?? "1900-01-01", type: "opening_balance", description: "رصيد أول المدة", debit: 0, credit: Number(r.amount) });
@@ -465,7 +461,7 @@ router.get("/reports/supplier-statement", wrap(async (req, res) => {
   // فواتير الشراء (مرحّلة)
   const purRows = await db.execute(sql.raw(`
     SELECT date, invoice_no, CAST(total_amount AS FLOAT8) AS total_amount
-    FROM purchases WHERE supplier_id = ${sid} AND posting_status = 'posted'
+    FROM purchases WHERE customer_id = ${sid} AND posting_status = 'posted'
   `));
   for (const r of purRows.rows as any[]) {
     rows.push({ date: r.date, type: "purchase", description: `فاتورة شراء ${r.invoice_no}`, debit: 0, credit: Number(r.total_amount), reference_no: r.invoice_no });
@@ -489,6 +485,15 @@ router.get("/reports/supplier-statement", wrap(async (req, res) => {
     rows.push({ date: r.date, type: "payment", description: `سند دفع ${r.voucher_no}`, debit: Number(r.amount), credit: 0, reference_no: r.voucher_no });
   }
 
+  // سداد الموردين
+  const spRows = await db.execute(sql.raw(`
+    SELECT date, CAST(amount AS FLOAT8) AS amount, description
+    FROM transactions WHERE reference_type = 'supplier_payment' AND reference_id = ${sid}
+  `));
+  for (const r of spRows.rows as any[]) {
+    rows.push({ date: r.date ?? "1900-01-01", type: "supplier_payment", description: r.description ?? "سداد للمورد", debit: Number(r.amount), credit: 0 });
+  }
+
   rows.sort((a, b) => a.date.localeCompare(b.date));
 
   let openingBalance = 0;
@@ -509,25 +514,15 @@ router.get("/reports/supplier-statement", wrap(async (req, res) => {
     return { ...row, balance: Math.round(runningBalance * 100) / 100 };
   });
 
-  // ── تحقق: الافتتاح + الفواتير - المدفوعات - المرتجعات = رصيد الإغلاق ──────
-  const supPeriodPurchases = periodRows.filter(r => r.type === "purchase")
-    .reduce((s, r) => s + r.credit, 0);
-  const supPeriodPayments  = periodRows.filter(r => r.type === "payment")
-    .reduce((s, r) => s + r.debit, 0);
-  const supPeriodReturns   = periodRows.filter(r => r.type === "purchase_return")
-    .reduce((s, r) => s + r.debit, 0);
-  const supOpeningCredit   = periodRows.filter(r => r.type === "opening_balance")
-    .reduce((s, r) => s + r.credit, 0);
+  const supPeriodPurchases = periodRows.filter(r => r.type === "purchase").reduce((s, r) => s + r.credit, 0);
+  const supPeriodPayments  = periodRows.filter(r => r.type === "payment" || r.type === "supplier_payment").reduce((s, r) => s + r.debit, 0);
+  const supPeriodReturns   = periodRows.filter(r => r.type === "purchase_return").reduce((s, r) => s + r.debit, 0);
+  const supOpeningCredit   = periodRows.filter(r => r.type === "opening_balance").reduce((s, r) => s + r.credit, 0);
 
   const supplierValidation = buildValidation([
     {
       name: "الافتتاح + فواتير الشراء - المدفوعات - المرتجعات = رصيد الإغلاق",
       expected: r2(openingBalance) + r2(supOpeningCredit) + r2(supPeriodPurchases) - r2(supPeriodPayments) - r2(supPeriodReturns),
-      actual:   r2(runningBalance),
-    },
-    {
-      name: "رصيد المورد في النظام = رصيد الإغلاق (بلا فلتر تاريخ)",
-      expected: !(date_from || date_to) ? r2(Number(supplier.balance)) : r2(runningBalance),
       actual:   r2(runningBalance),
     },
   ]);
@@ -694,12 +689,12 @@ router.get("/reports/top", wrap(async (req, res) => {
   `));
 
   const topSuppliers = await db.execute(sql.raw(`
-    SELECT p.supplier_id, COALESCE(p.customer_name, 'مورد') AS supplier_name,
+    SELECT p.customer_id AS supplier_id, COALESCE(p.customer_name, 'مورد') AS supplier_name,
       COALESCE(SUM(CAST(p.total_amount AS FLOAT8)), 0) AS total_purchases,
       COUNT(*) AS invoice_count
     FROM purchases p
     WHERE p.posting_status = 'posted' ${dfP}
-    GROUP BY p.supplier_id, p.customer_name
+    GROUP BY p.customer_id, p.customer_name
     ORDER BY total_purchases DESC
     LIMIT ${LIMIT}
   `));
@@ -808,42 +803,33 @@ router.get("/reports/health-check", wrap(async (req, res) => {
       ORDER BY ABS(COALESCE(al.ar_bal,0) - (COALESCE(cs.tot,0) - COALESCE(cr.tot,0) - COALESCE(cret.tot,0))) DESC
     `)),
 
-    /* 2. فحص أرصدة الموردين — مقارنة رصيد AP (دفتر الأستاذ) بالفواتير المرحّلة */
+    /* 2. فحص أرصدة عملاء-الموردين — مقارنة فواتير الشراء مع المدفوعات */
     db.execute(sql.raw(`
       WITH
-        ap_ledger AS (
-          SELECT s.id AS supplier_id,
-                 COALESCE(SUM(CAST(jel.credit AS FLOAT8)), 0)
-               - COALESCE(SUM(CAST(jel.debit  AS FLOAT8)), 0) AS ap_bal
-          FROM suppliers s
-          LEFT JOIN journal_entry_lines jel ON jel.account_id = s.account_id
-          LEFT JOIN journal_entries je ON je.id = jel.entry_id AND je.status = 'posted'
-          GROUP BY s.id
-        ),
         sup_purchases AS (
-          SELECT supplier_id, COALESCE(SUM(CAST(total_amount AS FLOAT8)),0) AS tot
-          FROM purchases WHERE posting_status='posted' GROUP BY supplier_id
+          SELECT customer_id, COALESCE(SUM(CAST(total_amount AS FLOAT8)),0) AS tot
+          FROM purchases WHERE posting_status='posted' AND customer_id IS NOT NULL GROUP BY customer_id
         ),
         sup_payments AS (
-          SELECT customer_id AS supplier_id, COALESCE(SUM(CAST(amount AS FLOAT8)),0) AS tot
+          SELECT customer_id, COALESCE(SUM(CAST(amount AS FLOAT8)),0) AS tot
           FROM payment_vouchers WHERE posting_status='posted' GROUP BY customer_id
         ),
         sup_returns AS (
-          SELECT customer_id AS supplier_id, COALESCE(SUM(CAST(total_amount AS FLOAT8)),0) AS tot
-          FROM purchase_returns GROUP BY customer_id
+          SELECT customer_id, COALESCE(SUM(CAST(total_amount AS FLOAT8)),0) AS tot
+          FROM purchase_returns WHERE customer_id IS NOT NULL GROUP BY customer_id
         )
-      SELECT s.id, s.name,
-             COALESCE(al.ap_bal, 0)                                           AS system_balance,
-             COALESCE(sp.tot,0) - COALESCE(spv.tot,0) - COALESCE(sret.tot,0) AS ledger_balance,
+      SELECT c.id, c.name,
+             COALESCE(sp.tot,0)                                                AS system_balance,
+             COALESCE(sp.tot,0) - COALESCE(spv.tot,0) - COALESCE(sret.tot,0)  AS ledger_balance,
              COALESCE(sp.tot,0) AS total_purchases,
              COALESCE(spv.tot,0) AS total_payments,
              COALESCE(sret.tot,0) AS total_returns
-      FROM suppliers s
-      LEFT JOIN ap_ledger     al   ON al.supplier_id  = s.id
-      LEFT JOIN sup_purchases sp   ON sp.supplier_id  = s.id
-      LEFT JOIN sup_payments  spv  ON spv.supplier_id = s.id
-      LEFT JOIN sup_returns   sret ON sret.supplier_id = s.id
-      ORDER BY ABS(COALESCE(al.ap_bal,0) - (COALESCE(sp.tot,0) - COALESCE(spv.tot,0) - COALESCE(sret.tot,0))) DESC
+      FROM customers c
+      JOIN sup_purchases sp   ON sp.customer_id = c.id
+      LEFT JOIN sup_payments  spv  ON spv.customer_id = c.id
+      LEFT JOIN sup_returns   sret ON sret.customer_id = c.id
+      WHERE c.is_supplier = true
+      ORDER BY total_purchases DESC
     `)),
 
     /* 3. فحص تطابق كميات المخزون */
@@ -914,27 +900,26 @@ router.get("/reports/health-check", wrap(async (req, res) => {
     });
   }
 
-  /* ── معالجة نتائج الموردين ───────────────────────────────────────────── */
+  /* ── معالجة نتائج عملاء-الموردين ────────────────────────────────────── */
   for (const r of supRows.rows as any[]) {
-    const apLedger        = r2(Number(r.system_balance));   // رصيد AP من دفتر الأستاذ
-    const invoiceComputed = r2(Number(r.ledger_balance));   // مجموع الفواتير المرحّلة
-    const diff = Math.abs(apLedger - invoiceComputed);
-    if (diff <= TOL) continue;
-    const sev = diffSeverity(apLedger - invoiceComputed);
+    const totalPurchases = r2(Number(r.total_purchases));
+    const totalPayments  = r2(Number(r.total_payments));
+    const totalReturns   = r2(Number(r.total_returns));
+    const outstanding    = r2(totalPurchases - totalPayments - totalReturns);
+    if (Math.abs(outstanding) <= TOL) continue;
+    const sev = diffSeverity(outstanding);
     issues.push({
       id: nextId(), group: "supplier_issues", type: "supplier_balance",
       severity: sev, color: colorOf(sev),
-      message:  `فارق في رصيد AP — ${r.name}`,
-      action:   "رصيد حساب AP في دفتر الأستاذ لا يطابق مجموع فواتير الشراء المرحّلة — راجع القيود المحاسبية",
+      message:  `رصيد مستحق للمورد — ${r.name}`,
+      action:   "راجع فواتير الشراء والمدفوعات لهذا المورد",
       details: {
-        supplier_id:      Number(r.id),
-        supplier_name:    String(r.name),
-        ap_ledger_balance: apLedger,
-        invoice_computed:  invoiceComputed,
-        difference:        r2(apLedger - invoiceComputed),
-        total_purchases:   r2(Number(r.total_purchases)),
-        total_payments:    r2(Number(r.total_payments)),
-        total_returns:     r2(Number(r.total_returns)),
+        customer_id:     Number(r.id),
+        supplier_name:   String(r.name),
+        total_purchases: totalPurchases,
+        total_payments:  totalPayments,
+        total_returns:   totalReturns,
+        outstanding,
       },
     });
   }
@@ -942,7 +927,7 @@ router.get("/reports/health-check", wrap(async (req, res) => {
     issues.push({
       id: nextId(), group: "supplier_issues", type: "supplier_balance",
       severity: "OK", color: "green",
-      message:  "جميع أرصدة الموردين متطابقة مع دفتر الأستاذ",
+      message:  "جميع أرصدة الموردين (عملاء-موردين) متوازنة",
       action:   "لا يلزم أي إجراء",
       details:  { checked: (supRows.rows as any[]).length },
     });

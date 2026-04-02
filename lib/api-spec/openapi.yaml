@@ -859,8 +859,11 @@ components:
         supplier_name:
           type: string
           nullable: true
-        supplier_id:
+        customer_id:
           type: integer
+          nullable: true
+        customer_name:
+          type: string
           nullable: true
         payment_type:
           type: string
@@ -920,8 +923,11 @@ components:
         supplier_name:
           type: string
           nullable: true
-        supplier_id:
+        customer_id:
           type: integer
+          nullable: true
+        customer_name:
+          type: string
           nullable: true
         payment_type:
           type: string
@@ -951,9 +957,6 @@ components:
       properties:
         supplier_name:
           type: string
-          nullable: true
-        supplier_id:
-          type: integer
           nullable: true
         customer_id:
           type: integer

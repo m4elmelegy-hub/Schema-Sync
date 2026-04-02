@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db,
-  productsTable, customersTable, suppliersTable,
+  productsTable, customersTable,
   salesTable, saleItemsTable,
   purchasesTable, purchaseItemsTable,
   salesReturnsTable, saleReturnItemsTable,
@@ -25,7 +25,7 @@ const router: IRouter = Router();
    ══════════════════════════════════════════════════════════════════════════ */
 router.post("/system/backup", authenticate, requireRole("admin"), wrap(async (_req, res) => {
   const [
-    products, customers, suppliers,
+    products, customers,
     sales, saleItems,
     purchases, purchaseItems,
     salesReturns, saleReturnItems,
@@ -41,7 +41,6 @@ router.post("/system/backup", authenticate, requireRole("admin"), wrap(async (_r
   ] = await Promise.all([
     db.select().from(productsTable),
     db.select().from(customersTable),
-    db.select().from(suppliersTable),
     db.select().from(salesTable),
     db.select().from(saleItemsTable),
     db.select().from(purchasesTable),
@@ -75,7 +74,7 @@ router.post("/system/backup", authenticate, requireRole("admin"), wrap(async (_r
     app: "Halal Tech ERP",
     created_at: new Date().toISOString(),
     data: {
-      products, customers, suppliers,
+      products, customers,
       sales, sale_items: saleItems,
       purchases, purchase_items: purchaseItems,
       sales_returns: salesReturns, sale_return_items: saleReturnItems,
@@ -146,7 +145,7 @@ router.post("/system/restore", authenticate, requireRole("admin"), wrap(async (r
     isLegacy = true;
   }
 
-  const required = ["products", "customers", "suppliers", "sales"];
+  const required = ["products", "customers", "sales"];
   const missing  = required.filter(k => !Array.isArray(tables[k]));
   if (missing.length > 0) {
     res.status(400).json({ error: `ملف غير مكتمل — مفاتيح مفقودة: ${missing.join(", ")}` });
@@ -199,7 +198,6 @@ router.post("/system/restore", authenticate, requireRole("admin"), wrap(async (r
     await tx.delete(accountsTable);
     await tx.delete(productsTable);
     await tx.delete(customersTable);
-    await tx.delete(suppliersTable);
     await tx.delete(safesTable);
     await tx.delete(warehousesTable);
 
@@ -212,7 +210,6 @@ router.post("/system/restore", authenticate, requireRole("admin"), wrap(async (r
     await ins(warehousesTable,           get("warehouses"));
     await ins(productsTable,             get("products"));
     await ins(customersTable,            get("customers"));
-    await ins(suppliersTable,            get("suppliers"));
     await ins(accountsTable,             get("accounts"));
     await ins(salesTable,                get("sales"));
     await ins(saleItemsTable,            get("sale_items"));

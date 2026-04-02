@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useCreatePurchase, useGetProducts, useGetCustomers, useGetSuppliers, useCreateProduct, useDeleteProduct, useGetSettingsSafes, useGetSettingsWarehouses } from "@workspace/api-client-react";
+import { useCreatePurchase, useGetProducts, useGetCustomers, useCreateProduct, useDeleteProduct, useGetSettingsSafes, useGetSettingsWarehouses } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
 import { Search, Plus, Minus, Trash2, ShoppingBag, Package, User, Vault, AlertTriangle, CheckCircle, XCircle, ClipboardList } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -25,7 +25,7 @@ interface CartItem {
 function NewPurchasePanel({ onDone }: { onDone: () => void }) {
   const { data: products = [] } = useGetProducts();
   const { data: customers = [] } = useGetCustomers();
-  const { data: suppliers = [] } = useGetSuppliers();
+  const suppliers = customers.filter(c => c.is_supplier);
   const { data: safes = [] } = useGetSettingsSafes();
   const { data: warehouses = [] } = useGetSettingsWarehouses();
   const createMutation = useCreatePurchase();
@@ -36,7 +36,7 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [paymentType, setPaymentType] = useState<"cash" | "credit" | "partial">("cash");
   const [paidAmount, setPaidAmount] = useState<string>("");
-  // partyKey = "c:{id}" for customer, "s:{id}" for supplier
+  // partyKey = "c:{id}" for supplier-customer
   const [partyKey, setPartyKey] = useState<string>("");
   const [customerId, setCustomerId] = useState<string>("");
   const [safeId, setSafeId] = useState<string>("");
@@ -57,36 +57,24 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
   const cartTotal = useMemo(() => cart.reduce((s, i) => s + i.total_price, 0), [cart]);
 
   const partyItems = useMemo(() => {
-    const supplierItems = suppliers.map(s => ({
-      value: `s:${s.id}`,
-      label: `${s.supplier_code ? `[${s.supplier_code}] ` : ""}${s.name}${s.balance > 0 ? ` (مستحق: ${Number(s.balance).toFixed(0)})` : ""}`,
-      searchKeys: [String(s.supplier_code ?? ""), s.name],
+    return suppliers.map(s => ({
+      value: `c:${s.id}`,
+      label: `${s.customer_code ? `[${s.customer_code}] ` : ""}${s.name}${Number(s.balance) !== 0 ? ` (رصيد: ${Number(s.balance).toFixed(0)})` : ""}`,
+      searchKeys: [String(s.customer_code ?? ""), s.name],
       group: "الموردون",
     }));
-    const supplierCustomers = customers.filter(c => c.is_supplier).map(c => ({
-      value: `c:${c.id}`,
-      label: `${c.customer_code ? `[${c.customer_code}] ` : ""}${c.name} [عميل-مورد]`,
-      searchKeys: [String(c.customer_code ?? ""), c.name],
-      group: "عملاء-موردون",
-    }));
-    return [...supplierItems, ...supplierCustomers];
-  }, [suppliers, customers]);
+  }, [suppliers]);
 
-  // تحليل الطرف المختار
+  // تحليل الطرف المختار (جميع الموردون الآن من جدول العملاء)
   const selectedParty = useMemo(() => {
     if (!partyKey) return null;
-    if (partyKey.startsWith("s:")) {
-      const id = parseInt(partyKey.slice(2));
-      const s = suppliers.find(x => x.id === id);
-      return s ? { type: "supplier" as const, id: s.id, name: s.name, balance: s.balance } : null;
-    }
     if (partyKey.startsWith("c:")) {
       const id = parseInt(partyKey.slice(2));
       const c = customers.find(x => x.id === id);
       return c ? { type: "customer" as const, id: c.id, name: c.name, balance: Number(c.balance) } : null;
     }
     return null;
-  }, [partyKey, suppliers, customers]);
+  }, [partyKey, customers]);
 
   const selectedCustomer = useMemo(() => {
     if (customerId) return customers.find(c => c.id === parseInt(customerId)) ?? null;
@@ -131,25 +119,16 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
     }
     const actualPaid = paymentType === "cash" ? cartTotal : paymentType === "credit" ? 0 : parseFloat(paidAmount) || 0;
 
-    // تحديد supplier_id و customer_id بناءً على الطرف المختار
-    let finalSupplierId: number | null = null;
-    let finalSupplierName: string | null = null;
+    // تحديد customer_id بناءً على الطرف المختار
     let finalCustomerId: number | null = null;
     let finalCustomerName: string | null = null;
-
-    if (selectedParty?.type === "supplier") {
-      finalSupplierId = selectedParty.id;
-      finalSupplierName = selectedParty.name;
-    } else if (selectedParty?.type === "customer") {
-      // عميل-مورد: تُسجَّل الفاتورة بـ customer_id فقط
+    if (selectedParty?.type === "customer") {
       finalCustomerId = selectedParty.id;
       finalCustomerName = selectedParty.name;
     }
 
     createMutation.mutate({
       data: {
-        supplier_id: finalSupplierId,
-        supplier_name: finalSupplierName,
         customer_id: finalCustomerId,
         customer_name: finalCustomerName,
         safe_id: safeId ? parseInt(safeId) : null,

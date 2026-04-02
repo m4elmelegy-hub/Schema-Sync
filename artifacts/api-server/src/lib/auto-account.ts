@@ -80,7 +80,19 @@ export async function getOrCreateCustomerAccount(
   });
 }
 
-/** حساب ذمم دائنة للمورد (liability — ما ندين به للمورد) */
+/** حساب ذمم دائنة للعميل-المورد (liability — ما ندين به للعميل كمورد) */
+export async function getOrCreateCustomerPayableAccount(
+  customerCode: number,
+  customerName: string,
+): Promise<AccountRef> {
+  return getOrCreateAccount({
+    code: `AP-C-${customerCode}`,
+    name: `مورد - ${customerName}`,
+    type: "liability",
+  });
+}
+
+/** @deprecated Use getOrCreateCustomerPayableAccount. Kept for backward-compat with old journal entries. */
 export async function getOrCreateSupplierAccount(
   supplierCode: number,
   supplierName: string,

@@ -1,0 +1,153 @@
+STRICT REFACTOR MODE — REMOVE SUPPLIERS AND RE-LINK PURCHASES TO CUSTOMERS
+
+Do NOT explain. Do NOT ask questions.
+Just audit, implement, migrate, and test.
+
+Goal:
+The system must stop using the suppliers table completely.
+All purchase-related flows must use customers table only, with:
+is_supplier = true
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PHASE 1 — REMOVE SUPPLIER DEPENDENCY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Remove all backend usage of:
+- suppliers table
+- supplier_id
+- supplier balance logic
+- supplier routes
+- supplier reports
+- supplier APIs
+
+2. Remove all frontend usage of:
+- suppliers page
+- suppliers sidebar item
+- supplier dropdowns
+- supplier filters
+- supplier statement UI
+
+3. Remove or disable any OpenAPI / Zod / types related to suppliers.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PHASE 2 — USE CUSTOMERS AS SUPPLIERS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Use customers table only.
+
+Rules:
+- customer.is_supplier = true means this customer can also be used in purchases
+- all purchases must reference customer_id
+- all purchase returns must reference customer_id
+- all supplier payments must reference customer_id
+- all supplier statements must come from customer ledger / customer statement logic
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PHASE 3 — DATABASE MIGRATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Audit the database and migrate safely.
+
+1. Add customer_id to:
+- purchases
+- purchase_returns
+- any related payment/transaction tables still using supplier_id
+
+2. If old supplier_id exists:
+- map old suppliers to matching customers if possible
+- migrate data
+- then remove supplier_id columns
+
+3. Drop suppliers table completely after migration.
+
+4. Ensure proper foreign keys to customers(id)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PHASE 4 — BALANCE LOGIC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Use ONE balance rule across the system:
+
+- positive balance = عليه لنا
+- negative balance = له علينا
+
+Effects:
+- sale → +balance
+- purchase from that person → -balance
+- receipt from customer → -balance
+- payment to that customer/supplier → +balance
+- sales return → -balance
+- purchase return → +balance
+
+Do NOT use Math.max(0, ...)
+Do NOT split balance between customer and supplier systems
+Use ONE ledger source only
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PHASE 5 — PURCHASES UI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+In purchases page:
+- replace supplier selector with customers where is_supplier = true
+- label can remain supplier wording in Arabic if needed for user clarity
+- selected value must save as customer_id
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PHASE 6 — CUSTOMER STATEMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+For any customer with is_supplier = true:
+statement must include all merged operations:
+- sales
+- purchases
+- receipts
+- payments
+- sales returns
+- purchase returns
+- opening balance
+
+Show one combined running balance only.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PHASE 7 — CLEANUP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Remove all dead code related to suppliers.
+Clean imports, schemas, routes, components, types, and reports.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PHASE 8 — VALIDATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Run these tests and show exact results:
+
+1. Create customer with is_supplier = true
+2. Purchase from him for 1000
+→ balance = -1000
+
+3. Pay him 300
+→ balance = -700
+
+4. Sell to him for 200
+→ balance = -500
+
+5. Receive 100 from him
+→ balance = -600
+
+6. Customer statement must show all operations merged in correct chronological order
+
+7. No suppliers page exists
+8. No supplier_id remains in active app logic
+9. No report depends on suppliers table
+10. System builds without errors
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FINAL OUTPUT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Return:
+- list of changed files
+- migrated tables/columns
+- deleted supplier code
+- proof that purchases now use customer_id
+- test results
