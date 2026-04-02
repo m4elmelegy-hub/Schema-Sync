@@ -198,16 +198,80 @@ function openWhatsApp(phone: string, customerName: string, balance: number, rowC
   window.open(`https://wa.me/${intlPhone}?text=${encodeURIComponent(text)}`, "_blank");
 }
 
+/* ─── نوع دفتر الأستاذ ─── */
+interface LedgerEntry {
+  id: number;
+  type: string;
+  amount: number;
+  balance_after: number;
+  reference_type: string | null;
+  reference_no: string | null;
+  description: string | null;
+  date: string | null;
+  created_at: string;
+}
+interface CustomerLedger {
+  customer_id: number;
+  customer_name: string;
+  balance: number;
+  entries: LedgerEntry[];
+}
+
+const LEDGER_TYPE_LABELS: Record<string, { label: string; color: string; bg: string }> = {
+  sale:            { label: "فاتورة مبيعات",  color: "text-amber-400",   bg: "bg-amber-500/10 border-amber-500/20" },
+  sale_return:     { label: "مرتجع مبيعات",   color: "text-blue-400",    bg: "bg-blue-500/10 border-blue-500/20" },
+  receipt_voucher: { label: "سند قبض",        color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" },
+  payment:         { label: "سداد مباشر",     color: "text-cyan-400",    bg: "bg-cyan-500/10 border-cyan-500/20" },
+  adjustment:      { label: "تسوية",          color: "text-purple-400",  bg: "bg-purple-500/10 border-purple-500/20" },
+  opening_balance: { label: "رصيد افتتاحي",  color: "text-yellow-400",  bg: "bg-yellow-500/10 border-yellow-500/20" },
+};
+
 /* ─── كشف الحساب ─── */
-function CustomerStatementModal({ customerId, customerName, customerPhone, customerBalance, isSupplier, onClose }: {
+function CustomerStatementModal({ customerId, customerName, customerPhone, customerBalance: initialBalance, isSupplier, onClose, safes }: {
   customerId: number;
   customerName: string;
   customerPhone: string;
   customerBalance: number;
   isSupplier: boolean;
   onClose: () => void;
+  safes: Array<{ id: number; name: string; balance: number }>;
 }) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState<"statement" | "ledger">("ledger");
+  const [showDirectPayment, setShowDirectPayment] = useState(false);
+  const [directPayForm, setDirectPayForm] = useState({ amount: "", safe_id: "", notes: "" });
+
+  // دفتر الأستاذ من الجدول المخصص
+  const { data: ledgerData, isLoading: ledgerLoading } = useQuery<CustomerLedger>({
+    queryKey: [`/api/customers/${customerId}/ledger`],
+    queryFn: () => authFetch(api(`/api/customers/${customerId}/ledger`)).then(r => { if (!r.ok) throw new Error("خطأ"); return r.json(); }),
+  });
+
+  const customerBalance = ledgerData ? ledgerData.balance : initialBalance;
+
+  // سداد مباشر
+  const directPayMutation = useMutation({
+    mutationFn: async (data: { amount: string; safe_id: string; notes: string }) => {
+      const r = await authFetch(api(`/api/customers/${customerId}/payment`), {
+        method: "POST",
+        body: JSON.stringify({ amount: parseFloat(data.amount), safe_id: data.safe_id ? parseInt(data.safe_id) : undefined, notes: data.notes || null }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "خطأ في تسجيل السداد");
+      return j;
+    },
+    onSuccess: () => {
+      toast({ title: "✅ تم تسجيل السداد في دفتر الأستاذ" });
+      queryClient.invalidateQueries({ queryKey: [`/api/customers/${customerId}/ledger`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/safes"] });
+      setShowDirectPayment(false);
+      setDirectPayForm({ amount: "", safe_id: "", notes: "" });
+    },
+    onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
+  });
+
   const { data: allSales = [] } = useGetSales();
   const { data: allPurchases = [] } = useGetPurchases();
   const { data: receiptVouchers = [] } = useQuery<ReceiptVoucher[]>({
@@ -412,6 +476,121 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
             )}
           </div>
 
+          {/* ─── تبويبات ─── */}
+          <div className="flex gap-1 rounded-xl bg-white/5 p-1">
+            <button onClick={() => setActiveTab("ledger")} className={`flex-1 py-1.5 rounded-lg text-sm font-bold transition-all ${activeTab === "ledger" ? "bg-violet-600 text-white" : "text-white/50 hover:text-white"}`}>
+              📒 دفتر الأستاذ
+            </button>
+            <button onClick={() => setActiveTab("statement")} className={`flex-1 py-1.5 rounded-lg text-sm font-bold transition-all ${activeTab === "statement" ? "bg-violet-600 text-white" : "text-white/50 hover:text-white"}`}>
+              📋 كشف الحساب التفصيلي
+            </button>
+          </div>
+
+          {/* ─── محتوى دفتر الأستاذ ─── */}
+          {activeTab === "ledger" && (
+            <div className="space-y-4">
+              {/* زر السداد المباشر */}
+              {!isSupplier && (
+                <div className="flex justify-end">
+                  <button onClick={() => setShowDirectPayment(v => !v)} className="erp-btn erp-btn-primary text-sm px-4 py-2">
+                    💳 تسجيل سداد مباشر
+                  </button>
+                </div>
+              )}
+              {/* نموذج السداد */}
+              {showDirectPayment && (
+                <form onSubmit={(e) => { e.preventDefault(); directPayMutation.mutate(directPayForm); }} className="bg-white/5 rounded-2xl p-4 border border-white/10 space-y-3">
+                  <p className="font-bold text-cyan-400">💳 تسجيل سداد مباشر في دفتر الأستاذ</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-white/60 mb-1 block">المبلغ (ج.م)</label>
+                      <input type="number" min="0.01" step="0.01" required value={directPayForm.amount} onChange={e => setDirectPayForm(f => ({ ...f, amount: e.target.value }))} placeholder="0.00" className="erp-input w-full" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-white/60 mb-1 block">الخزينة (اختياري)</label>
+                      <select value={directPayForm.safe_id} onChange={e => setDirectPayForm(f => ({ ...f, safe_id: e.target.value }))} className="erp-input w-full">
+                        <option value="">— بدون خزينة —</option>
+                        {safes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-white/60 mb-1 block">ملاحظات</label>
+                    <input type="text" value={directPayForm.notes} onChange={e => setDirectPayForm(f => ({ ...f, notes: e.target.value }))} placeholder="سبب السداد..." className="erp-input w-full" />
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="submit" disabled={directPayMutation.isPending} className="erp-btn erp-btn-primary flex-1">
+                      {directPayMutation.isPending ? "جاري التسجيل..." : "تأكيد السداد"}
+                    </button>
+                    <button type="button" onClick={() => setShowDirectPayment(false)} className="erp-btn flex-1">إلغاء</button>
+                  </div>
+                </form>
+              )}
+
+              {/* جدول دفتر الأستاذ */}
+              {ledgerLoading ? (
+                <div className="text-center py-8 text-white/40">جاري تحميل دفتر الأستاذ...</div>
+              ) : !ledgerData || ledgerData.entries.length === 0 ? (
+                <div className="text-center py-12 text-white/30">
+                  <p className="text-4xl mb-2">📒</p>
+                  <p>لا توجد حركات مسجلة في دفتر الأستاذ</p>
+                  <p className="text-xs mt-1 text-white/20">ستظهر هنا الفواتير والإيصالات والمرتجعات تلقائياً</p>
+                </div>
+              ) : (
+                <div className="rounded-2xl overflow-hidden border border-white/10">
+                  <table className="w-full text-right text-sm">
+                    <thead className="bg-white/5 border-b border-white/10">
+                      <tr>
+                        <th className="p-3 text-white/60 font-semibold">التاريخ</th>
+                        <th className="p-3 text-white/60 font-semibold">نوع الحركة</th>
+                        <th className="p-3 text-white/60 font-semibold">البيان</th>
+                        <th className="p-3 text-white/60 font-semibold text-center">مدين</th>
+                        <th className="p-3 text-white/60 font-semibold text-center">دائن</th>
+                        <th className="p-3 text-white/60 font-semibold text-center">الرصيد</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ledgerData.entries.map((entry) => {
+                        const cfg = LEDGER_TYPE_LABELS[entry.type] ?? { label: entry.type, color: "text-white/60", bg: "bg-white/5 border-white/10" };
+                        const isDebit = entry.amount > 0;
+                        return (
+                          <tr key={entry.id} className="border-b border-white/5 erp-table-row">
+                            <td className="p-3 text-white/50 text-xs whitespace-nowrap">{entry.date ?? "—"}</td>
+                            <td className="p-3">
+                              <span className={`px-2 py-0.5 rounded-lg text-xs font-bold border ${cfg.bg} ${cfg.color}`}>{cfg.label}</span>
+                            </td>
+                            <td className="p-3 text-white/60 text-xs">{entry.description ?? entry.reference_no ?? "—"}</td>
+                            <td className="p-3 text-center font-bold text-amber-400">{isDebit ? formatCurrency(entry.amount) : "—"}</td>
+                            <td className="p-3 text-center font-bold text-emerald-400">{!isDebit ? formatCurrency(Math.abs(entry.amount)) : "—"}</td>
+                            <td className="p-3 text-center font-black">
+                              <span className={entry.balance_after > 0 ? "text-amber-400" : entry.balance_after < 0 ? "text-blue-400" : "text-white/40"}>
+                                {entry.balance_after !== 0 ? `${formatCurrency(Math.abs(entry.balance_after))} ${entry.balance_after > 0 ? "عليه" : "دائن"}` : "صفر"}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="bg-white/5 border-t border-white/10">
+                      <tr>
+                        <td colSpan={3} className="p-3 text-white/60 font-bold text-right">الرصيد الحالي</td>
+                        <td className="p-3 text-center font-black text-amber-400">{formatCurrency(ledgerData.entries.filter(e => e.amount > 0).reduce((s, e) => s + e.amount, 0))}</td>
+                        <td className="p-3 text-center font-black text-emerald-400">{formatCurrency(Math.abs(ledgerData.entries.filter(e => e.amount < 0).reduce((s, e) => s + e.amount, 0)))}</td>
+                        <td className="p-3 text-center font-black">
+                          <span className={ledgerData.balance > 0 ? "text-amber-400" : ledgerData.balance < 0 ? "text-blue-400" : "text-white/40"}>
+                            {ledgerData.balance !== 0 ? `${formatCurrency(Math.abs(ledgerData.balance))} ${ledgerData.balance > 0 ? "عليه" : "دائن"}` : "صفر"}
+                          </span>
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ─── محتوى كشف الحساب التفصيلي ─── */}
+          {activeTab === "statement" && <>
           {/* ─── دليل الرموز ─── */}
           <div className="flex flex-wrap gap-2 text-xs">
             {Object.entries(typeConfig).map(([key, cfg]) => (
@@ -491,6 +670,7 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
               </table>
             </div>
           )}
+          </>}
         </div>
       </div>
     </div>
@@ -697,6 +877,7 @@ export default function Customers() {
           customerBalance={showStatement.balance}
           isSupplier={showStatement.isSupplier}
           onClose={() => setShowStatement(null)}
+          safes={safes}
         />
       )}
 

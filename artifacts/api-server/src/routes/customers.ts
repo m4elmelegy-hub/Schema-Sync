@@ -1,7 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, ne, max } from "drizzle-orm";
-import { db, customersTable, transactionsTable, safesTable } from "@workspace/db";
-import { sql } from "drizzle-orm";
+import { eq, ne, max, asc, sql } from "drizzle-orm";
+import { db, customersTable, transactionsTable, safesTable, customerLedgerTable } from "@workspace/db";
 import { writeAuditLog } from "../lib/audit-log";
 import { getCustomerLedgerBalance } from "../lib/ledger-balance";
 import {
@@ -220,6 +219,114 @@ router.post("/customers/:id/receipt", wrap(async (req, res) => {
 
   const ledgerBal = await getCustomerLedgerBalance(updated.account_id);
   res.json(CreateCustomerReceiptResponse.parse(formatCustomer(updated, ledgerBal)));
+}));
+
+/* ── دفتر أستاذ العميل — جلب كل الحركات مع الرصيد المتراكم ──────────────── */
+router.get("/customers/:id/ledger", wrap(async (req, res) => {
+  const id = parseInt(req.params.id as string);
+  if (isNaN(id)) throw httpError(400, "معرّف غير صحيح");
+
+  const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, id));
+  if (!customer) throw httpError(404, "العميل غير موجود");
+
+  const entries = await db
+    .select()
+    .from(customerLedgerTable)
+    .where(eq(customerLedgerTable.customer_id, id))
+    .orderBy(asc(customerLedgerTable.date), asc(customerLedgerTable.created_at));
+
+  let running = 0;
+  const rows = entries.map(e => {
+    const amt = Number(e.amount);
+    running += amt;
+    return {
+      id: e.id,
+      type: e.type,
+      amount: amt,
+      balance_after: Math.round(running * 100) / 100,
+      reference_type: e.reference_type,
+      reference_id: e.reference_id,
+      reference_no: e.reference_no,
+      description: e.description,
+      date: e.date,
+      created_at: e.created_at.toISOString(),
+    };
+  });
+
+  const balance = Math.round(running * 100) / 100;
+
+  res.json({
+    customer_id: id,
+    customer_name: customer.name,
+    balance,
+    entries: rows,
+  });
+}));
+
+/* ── سداد مباشر من العميل (بدون فاتورة) ──────────────────────────────────── */
+router.post("/customers/:id/payment", wrap(async (req, res) => {
+  const id = parseInt(req.params.id as string);
+  if (isNaN(id)) throw httpError(400, "معرّف غير صحيح");
+
+  const { amount, safe_id, notes, date } = req.body;
+  const amt = parseFloat(amount);
+  if (!amt || amt <= 0) throw httpError(400, "أدخل مبلغاً صحيحاً");
+
+  const txDate = date ?? new Date().toISOString().split("T")[0];
+  const paymentNo = `PAY-${Date.now()}`;
+
+  await db.transaction(async (tx) => {
+    const [customer] = await tx.select().from(customersTable).where(eq(customersTable.id, id));
+    if (!customer) throw httpError(404, "العميل غير موجود");
+
+    // 1. خصم من رصيد الخزينة إن وُجدت
+    if (safe_id) {
+      const safeIdInt = parseInt(safe_id);
+      const [safe] = await tx.select().from(safesTable).where(eq(safesTable.id, safeIdInt));
+      if (safe) {
+        await tx.update(safesTable)
+          .set({ balance: String(Number(safe.balance) + amt) })
+          .where(eq(safesTable.id, safeIdInt));
+
+        // الحركة المالية المركزية
+        await tx.insert(transactionsTable).values({
+          type: "receipt_voucher",
+          reference_type: "customer_payment",
+          reference_id: id,
+          safe_id: safeIdInt,
+          safe_name: safe.name,
+          customer_id: id,
+          customer_name: customer.name,
+          amount: String(amt),
+          direction: "in",
+          description: notes ? `${notes} — ${customer.name}` : `سداد مباشر ${paymentNo} — ${customer.name}`,
+          date: txDate,
+        });
+      }
+    }
+
+    // 2. دفتر الأستاذ — تسجيل السداد (يُقلّل الدين)
+    await tx.insert(customerLedgerTable).values({
+      customer_id: id,
+      type: "payment",
+      amount: String(-amt),
+      reference_type: "manual_payment",
+      reference_no: paymentNo,
+      description: notes ? `${notes}` : `سداد مباشر ${paymentNo}`,
+      date: txDate,
+    });
+
+    // 3. تحديث رصيد العميل المحفوظ
+    const newBalance = Math.max(0, Number(customer.balance) - amt);
+    await tx.update(customersTable)
+      .set({ balance: String(newBalance) })
+      .where(eq(customersTable.id, id));
+  });
+
+  // إعادة الرصيد المحدّث
+  const [updated] = await db.select().from(customersTable).where(eq(customersTable.id, id));
+  const ledgerBal = await getCustomerLedgerBalance(updated.account_id);
+  res.json({ success: true, customer: formatCustomer(updated, ledgerBal) });
 }));
 
 router.post("/customers/:id/supplier-payment", wrap(async (req, res) => {

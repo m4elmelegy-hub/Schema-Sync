@@ -4,7 +4,7 @@ import {
   db, salesReturnsTable, saleReturnItemsTable,
   purchaseReturnsTable, purchaseReturnItemsTable,
   productsTable, customersTable, suppliersTable, safesTable, transactionsTable, stockMovementsTable,
-  saleItemsTable, purchaseItemsTable,
+  saleItemsTable, purchaseItemsTable, customerLedgerTable,
 } from "@workspace/db";
 
 import { wrap, httpError } from "../lib/async-handler";
@@ -238,6 +238,20 @@ router.post("/sales-returns", wrap(async (req, res) => {
         amount: String(total),
         direction: "out",
         description: `مرتجع مبيعات نقدي ${return_no}${customer_name ? ` — ${customer_name}` : ""}`,
+        date: txDate,
+      });
+    }
+
+    // ── دفتر أستاذ العميل — تسجيل مرتجع المبيعات (يُقلّل الدين) ─────────
+    if (customer_id) {
+      await tx.insert(customerLedgerTable).values({
+        customer_id: parseInt(customer_id),
+        type: "sale_return",
+        amount: String(-total),
+        reference_type: "sale_return",
+        reference_id: ret.id,
+        reference_no: return_no,
+        description: `مرتجع مبيعات ${return_no}${customer_name ? ` — ${customer_name}` : ""}`,
         date: txDate,
       });
     }

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, gt, ne, not, inArray } from "drizzle-orm";
-import { db, salesTable, saleItemsTable, productsTable, customersTable, transactionsTable, safesTable, warehousesTable, erpUsersTable, stockMovementsTable, accountsTable, salesReturnsTable, receiptVouchersTable, journalEntriesTable, journalEntryLinesTable } from "@workspace/db";
+import { db, salesTable, saleItemsTable, productsTable, customersTable, transactionsTable, safesTable, warehousesTable, erpUsersTable, stockMovementsTable, accountsTable, salesReturnsTable, receiptVouchersTable, journalEntriesTable, journalEntryLinesTable, customerLedgerTable } from "@workspace/db";
 import {
   GetSalesResponse,
   CreateSaleBody,
@@ -181,7 +181,37 @@ router.post("/sales", wrap(async (req, res) => {
           .where(eq(safesTable.id, safe.id));
       }
 
-      // 6. الحركة المالية المركزية
+      // 6. دفتر أستاذ العميل — تسجيل فوري بصرف النظر عن الترحيل
+      if (customer_id) {
+        // أ. الدين المتبقي على العميل (إجمالي البيع أو المتبقي)
+        if (total_amount > 0) {
+          await tx.insert(customerLedgerTable).values({
+            customer_id,
+            type: "sale",
+            amount: String(total_amount),
+            reference_type: "sale",
+            reference_id: newSale.id,
+            reference_no: invoiceNo,
+            description: `فاتورة مبيعات ${invoiceNo}`,
+            date: date ?? new Date().toISOString().split("T")[0],
+          });
+        }
+        // ب. الدفعة الفورية (نقدي / جزئي) → تُقلّل الدين
+        if (paid_amount > 0) {
+          await tx.insert(customerLedgerTable).values({
+            customer_id,
+            type: "payment",
+            amount: String(-paid_amount),
+            reference_type: "sale",
+            reference_id: newSale.id,
+            reference_no: invoiceNo,
+            description: `دفعة فورية على فاتورة ${invoiceNo}`,
+            date: date ?? new Date().toISOString().split("T")[0],
+          });
+        }
+      }
+
+      // 7. الحركة المالية المركزية
       const txType = payment_type === "credit" ? "sale_credit" : payment_type === "partial" ? "sale_partial" : "sale_cash";
       await tx.insert(transactionsTable).values({
         type: txType,

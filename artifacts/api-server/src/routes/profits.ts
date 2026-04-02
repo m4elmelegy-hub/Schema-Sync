@@ -6,7 +6,7 @@
  */
 
 import { Router, type IRouter } from "express";
-import { gte, lte, and, eq } from "drizzle-orm";
+import { gte, lte, and, eq, ne } from "drizzle-orm";
 import {
   db, salesTable, saleItemsTable, expensesTable,
   salesReturnsTable, saleReturnItemsTable,
@@ -23,8 +23,8 @@ router.get("/profits", wrap(async (req, res) => {
     product_id?: string;
   };
 
-  // ── فلتر المبيعات بحقل date النصي (YYYY-MM-DD) ── مرحّلة فقط ──────────
-  const saleConditions = [eq(salesTable.posting_status, "posted")];
+  // ── فلتر المبيعات بحقل date النصي (YYYY-MM-DD) ── غير ملغاة فقط ──────────
+  const saleConditions = [ne(salesTable.posting_status, "cancelled")];
   if (date_from) saleConditions.push(gte(salesTable.date, date_from));
   if (date_to)   saleConditions.push(lte(salesTable.date, date_to));
   const saleWhereClause = saleConditions.length > 0 ? and(...saleConditions) : undefined;

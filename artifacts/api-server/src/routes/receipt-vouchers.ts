@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
-import { db, receiptVouchersTable, customersTable, safesTable, transactionsTable, accountsTable } from "@workspace/db";
+import { db, receiptVouchersTable, customersTable, safesTable, transactionsTable, accountsTable, customerLedgerTable } from "@workspace/db";
 
 import { wrap, httpError } from "../lib/async-handler";
 import { assertPeriodOpen } from "../lib/period-lock";
@@ -69,6 +69,20 @@ router.post("/receipt-vouchers", wrap(async (req, res) => {
       description: `سند قبض ${voucher_no} — ${customer_name}`,
       date: date ?? new Date().toISOString().split("T")[0],
     });
+
+    // 5. دفتر أستاذ العميل — تسجيل القبض (يُقلّل الدين)
+    if (customer_id) {
+      await tx.insert(customerLedgerTable).values({
+        customer_id: parseInt(customer_id),
+        type: "receipt_voucher",
+        amount: String(-amt),
+        reference_type: "receipt_voucher",
+        reference_id: v.id,
+        reference_no: voucher_no,
+        description: `سند قبض ${voucher_no} — ${customer_name}`,
+        date: date ?? new Date().toISOString().split("T")[0],
+      });
+    }
 
     return v;
   });

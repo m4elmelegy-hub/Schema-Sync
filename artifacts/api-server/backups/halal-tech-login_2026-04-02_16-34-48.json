@@ -1,0 +1,48 @@
+{
+  "version": "2.0",
+  "app": "Halal Tech ERP",
+  "created_at": "2026-04-02T16:34:48.217Z",
+  "data": {
+    "products": [],
+    "customers": [],
+    "suppliers": [],
+    "sales": [],
+    "sale_items": [],
+    "purchases": [],
+    "purchase_items": [],
+    "sales_returns": [],
+    "sale_return_items": [],
+    "purchase_returns": [],
+    "purchase_return_items": [],
+    "expenses": [],
+    "income": [],
+    "transactions": [],
+    "accounts": [],
+    "journal_entries": [],
+    "journal_entry_lines": [],
+    "receipt_vouchers": [],
+    "deposit_vouchers": [],
+    "payment_vouchers": [],
+    "treasury_vouchers": [],
+    "safe_transfers": [],
+    "stock_movements": [],
+    "safes": [],
+    "warehouses": [],
+    "users": [
+      {
+        "id": 1,
+        "name": "المدير الافتراضي",
+        "username": "admin",
+        "pin": "123456",
+        "role": "admin",
+        "permissions": "{}",
+        "active": true,
+        "company_id": null,
+        "created_at": "2026-04-02T16:24:41.865Z"
+      }
+    ],
+    "settings": [],
+    "alerts": [],
+    "audit_logs": []
+  }
+}
