@@ -274,6 +274,27 @@ router.post("/sales", wrap(async (req, res) => {
       return newSale;
   });
 
+  // ── ترحيل فوري للكاشير ───────────────────────────────────────────────────
+  // الكاشير لا يعرف مفهوم المسودة — كل فاتورة تُرحَّل فوراً عند الإنشاء
+  if (role === "cashier") {
+    const postLines = await buildSaleJournalLines(sale);
+    await db.transaction(async (tx) => {
+      if (postLines.length >= 2) {
+        await createJournalEntry({
+          date: sale.date ?? new Date().toISOString().split("T")[0],
+          description: `فاتورة مبيعات ${sale.invoice_no}${sale.customer_name ? ` — ${sale.customer_name}` : ""}`,
+          reference: sale.invoice_no,
+          lines: postLines,
+        }, tx);
+      }
+      await tx.update(salesTable).set({ posting_status: "posted" }).where(eq(salesTable.id, sale.id));
+    });
+    const [postedSale] = await db.select().from(salesTable).where(eq(salesTable.id, sale.id));
+    void runAllChecks({ customerId: sale.customer_id ?? undefined });
+    void triggerBackup("sale_post");
+    return res.status(201).json(formatSale(postedSale ?? sale));
+  }
+
   // القيد المحاسبي يُنشأ عند الترحيل (POST /sales/:id/post) — ليس عند الإنشاء
   return res.status(201).json(formatSale(sale));
 }));

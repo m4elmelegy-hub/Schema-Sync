@@ -67,7 +67,8 @@ function SalesReturnsPanel() {
   const totalReturns = returns_.reduce((s, r) => s + r.total_amount, 0);
   const selectedProduct = products.find(p => String(p.id) === form.item_id);
   const selectedCustomer = customers.find(c => String(c.id) === form.customer_id);
-  const itemTotal = (parseInt(form.quantity) || 1) * (parseFloat(form.unit_price) || 0);
+  const returnUnitPrice = selectedProduct ? Number(selectedProduct.sale_price) : (parseFloat(form.unit_price) || 0);
+  const itemTotal = (parseInt(form.quantity) || 1) * returnUnitPrice;
 
   const customerReturnItems = useMemo(() =>
     customers.map(c => ({
@@ -81,7 +82,7 @@ function SalesReturnsPanel() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const qty = parseInt(form.quantity) || 1;
-    const price = parseFloat(form.unit_price) || (selectedProduct ? Number(selectedProduct.sale_price) : 0);
+    const price = selectedProduct ? Number(selectedProduct.sale_price) : (parseFloat(form.unit_price) || 0);
     if (!form.item_id) { toast({ title: "اختر الصنف المرتجع", variant: "destructive" }); return; }
     if (form.refund_type === "cash" && !form.safe_id) { toast({ title: "اختر الخزينة للاسترداد النقدي", variant: "destructive" }); return; }
     createMutation.mutate({
@@ -202,11 +203,14 @@ function SalesReturnsPanel() {
               </div>
               <div>
                 <label className="text-white/60 text-xs mb-1 block">سعر الوحدة</label>
-                <input type="number" step="0.01" min="0" className="glass-input" value={form.unit_price} onChange={e => setForm(f => ({ ...f, unit_price: e.target.value }))} />
+                <div className="glass-input flex items-center gap-2 opacity-80 cursor-not-allowed select-none">
+                  <span className="text-emerald-400 font-bold tabular-nums">{selectedProduct ? formatCurrency(Number(selectedProduct.sale_price)) : "—"}</span>
+                  <span className="text-white/30 text-xs mr-auto">سعر البيع الأصلي 🔒</span>
+                </div>
               </div>
             </div>
 
-            {form.item_id && form.unit_price && (
+            {form.item_id && returnUnitPrice > 0 && (
               <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl px-4 py-2 flex justify-between">
                 <span className="text-white/60 text-sm">إجمالي المرتجع</span>
                 <span className="text-orange-400 font-bold">{formatCurrency(itemTotal)}</span>
@@ -594,6 +598,19 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
   const cartTotal = useMemo(() => cartSubtotal - discountAmount, [cartSubtotal, discountAmount]);
 
   const [recentlyAdded, setRecentlyAdded] = useState<number | null>(null);
+  const [editingPrice, setEditingPrice] = useState<{ pid: number; val: string } | null>(null);
+
+  const updatePrice = (pid: number, rawVal: string) => {
+    const newPrice = parseFloat(rawVal);
+    if (isNaN(newPrice) || newPrice < 0) return;
+    const prod = products.find(p => p.id === pid);
+    const costPrice = prod ? Number(prod.cost_price) : 0;
+    if (costPrice > 0 && newPrice < costPrice - 0.001) {
+      toast({ title: `⚠ السعر (${formatCurrency(newPrice)}) أقل من تكلفة الشراء (${formatCurrency(costPrice)})`, variant: "destructive" });
+      return;
+    }
+    setCart(prev => prev.map(i => i.product_id !== pid ? i : { ...i, unit_price: newPrice, total_price: newPrice * i.quantity }));
+  };
 
   const addToCart = (product: typeof products[0]) => {
     setCart(prev => {
@@ -872,7 +889,10 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
                     <p className="text-xl font-bold text-white/20">السلة فارغة</p>
                     <p className="text-sm text-white/15">اضغط على أي منتج لإضافته</p>
                   </div>
-                ) : cart.map(item => (
+                ) : cart.map(item => {
+                  const origPricePOS = products.find(p => p.id === item.product_id)?.sale_price ?? item.unit_price;
+                  const priceChangedPOS = Math.abs(item.unit_price - Number(origPricePOS)) > 0.001;
+                  return (
                   <div key={item.product_id} className="bg-white/5 border border-white/10 rounded-2xl p-4 transition-all hover:border-white/20">
                     <div className="flex justify-between items-start mb-3">
                       <button
@@ -881,12 +901,31 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
-                      <p className="font-black text-white text-base flex-1 text-right mr-3 truncate leading-tight">{item.product_name}</p>
+                      <div className="flex-1 text-right mr-3 min-w-0">
+                        <p className="font-black text-white text-base truncate leading-tight">{item.product_name}</p>
+                        {priceChangedPOS && <span className="text-amber-400 text-xs">⚠ سعر معدّل</span>}
+                      </div>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="font-black text-emerald-400 text-2xl tabular-nums">{formatCurrency(item.total_price)}</span>
                       <div className="flex items-center gap-2">
-                        <span className="text-white/25 text-sm tabular-nums">× {formatCurrency(item.unit_price)}</span>
+                        {editingPrice?.pid === item.product_id ? (
+                          <input
+                            type="number" step="0.01" autoFocus
+                            className="w-24 bg-white/10 border border-amber-500/50 rounded-lg px-2 py-1 text-white text-sm outline-none tabular-nums"
+                            value={editingPrice.val}
+                            onChange={e => setEditingPrice(p => p ? { ...p, val: e.target.value } : null)}
+                            onBlur={() => { updatePrice(item.product_id, editingPrice.val); setEditingPrice(null); }}
+                            onKeyDown={e => { if (e.key === "Enter") { updatePrice(item.product_id, editingPrice.val); setEditingPrice(null); } if (e.key === "Escape") setEditingPrice(null); }}
+                          />
+                        ) : (
+                          <button
+                            onClick={() => setEditingPrice({ pid: item.product_id, val: String(item.unit_price) })}
+                            className={`text-sm tabular-nums transition-colors hover:text-amber-400 ${priceChangedPOS ? "text-amber-400" : "text-white/25"}`}
+                            title="اضغط لتعديل السعر">
+                            × {formatCurrency(item.unit_price)}
+                          </button>
+                        )}
                         <button onClick={() => updateQty(item.product_id, -1)}
                           className="w-10 h-10 rounded-xl bg-white/8 hover:bg-white/18 flex items-center justify-center text-white font-black text-xl transition-colors border border-white/10">
                           −
@@ -899,7 +938,8 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* قسم الدفع + الإجماليات */}
@@ -1028,7 +1068,7 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
                     ) : (
                       <>
                         <div className="text-xs font-bold opacity-70 mb-0.5">F9</div>
-                        حفظ
+                        إتمام البيع
                       </>
                     )}
                   </button>
@@ -1159,10 +1199,16 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
                 <ShoppingCart className="w-14 h-14 opacity-20" />
                 <p className="text-sm font-bold">اضغط على أي منتج للإضافة</p>
               </div>
-            ) : cart.map(item => (
+            ) : cart.map(item => {
+              const origPrice = products.find(p => p.id === item.product_id)?.sale_price ?? item.unit_price;
+              const priceChanged = Math.abs(item.unit_price - Number(origPrice)) > 0.001;
+              return (
               <div key={item.product_id} className="bg-white/5 border border-white/8 rounded-2xl p-3 transition-all hover:border-white/15 hover:bg-white/7">
                 <div className="flex justify-between items-start mb-2.5">
-                  <p className="font-bold text-white text-sm flex-1 ml-2 truncate leading-tight">{item.product_name}</p>
+                  <div className="flex-1 ml-2 min-w-0">
+                    <p className="font-bold text-white text-sm truncate leading-tight">{item.product_name}</p>
+                    {priceChanged && <span className="text-amber-400 text-xs">⚠ سعر معدّل</span>}
+                  </div>
                   <button onClick={() => setCart(prev => prev.filter(i => i.product_id !== item.product_id))}
                     className="w-7 h-7 rounded-lg bg-red-500/10 hover:bg-red-500/25 text-red-400/60 hover:text-red-400 flex items-center justify-center transition-colors shrink-0">
                     <Trash2 className="w-3.5 h-3.5" />
@@ -1179,12 +1225,29 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
                       className="w-7 h-7 rounded-lg bg-amber-500/18 hover:bg-amber-500/30 border border-amber-500/25 flex items-center justify-center transition-colors">
                       <Plus className="w-3 h-3 text-amber-400" />
                     </button>
-                    <span className="text-white/35 text-xs mr-1 tabular-nums">× {formatCurrency(item.unit_price)}</span>
+                    {editingPrice?.pid === item.product_id ? (
+                      <input
+                        type="number" step="0.01" autoFocus
+                        className="w-20 bg-white/10 border border-amber-500/50 rounded-lg px-2 py-0.5 text-white text-xs outline-none tabular-nums"
+                        value={editingPrice.val}
+                        onChange={e => setEditingPrice(p => p ? { ...p, val: e.target.value } : null)}
+                        onBlur={() => { updatePrice(item.product_id, editingPrice.val); setEditingPrice(null); }}
+                        onKeyDown={e => { if (e.key === "Enter") { updatePrice(item.product_id, editingPrice.val); setEditingPrice(null); } if (e.key === "Escape") setEditingPrice(null); }}
+                      />
+                    ) : (
+                      <button
+                        onClick={() => setEditingPrice({ pid: item.product_id, val: String(item.unit_price) })}
+                        className={`text-xs mr-1 tabular-nums transition-colors hover:text-amber-400 ${priceChanged ? "text-amber-400" : "text-white/35"}`}
+                        title="اضغط لتعديل السعر">
+                        × {formatCurrency(item.unit_price)}
+                      </button>
+                    )}
                   </div>
                   <span className="font-black text-emerald-400 text-base tabular-nums">{formatCurrency(item.total_price)}</span>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Footer: بيانات الدفع */}
@@ -1304,7 +1367,7 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
                 color: "#000",
                 boxShadow: cart.length > 0 ? "0 6px 22px rgba(245,158,11,0.40), 0 1px 3px rgba(0,0,0,0.2)" : "none",
               }}>
-              {checkoutMutation.isPending ? "⏳ جاري التسجيل..." : "✦ إصدار الفاتورة"}
+              {checkoutMutation.isPending ? "⏳ جاري التسجيل..." : "✦ إتمام البيع"}
             </button>
 
             <div className="flex items-center justify-center gap-4 text-xs text-white/20 pb-1">
@@ -1398,7 +1461,7 @@ function SalesHistoryPanel() {
                   <td className="p-3 text-white/50">{s.date || '—'}</td>
                   <td className="p-3">
                     <div className="flex items-center gap-1">
-                      {s.posting_status === "draft" && (
+                      {s.posting_status === "draft" && !isRestricted && (
                         <button onClick={() => postMutation.mutate(s.id)} disabled={postMutation.isPending} title="ترحيل"
                           className="btn-icon text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10">
                           <CheckCircle className="w-4 h-4" />
