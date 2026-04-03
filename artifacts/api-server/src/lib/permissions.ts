@@ -53,10 +53,7 @@ export function hasPermission(
     }
   } catch { /* ignore malformed JSON */ }
 
-  if (permission in perms) {
-    return perms[permission] === true;
-  }
-
-  const roleDefaults = ROLE_DEFAULTS[user.role] ?? ROLE_DEFAULTS.cashier;
-  return roleDefaults[permission] ?? false;
+  // Only block when explicitly set to false; undefined → allow
+  if (perms[permission] === false) return false;
+  return true;
 }
