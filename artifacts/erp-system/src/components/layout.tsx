@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/auth";
@@ -63,6 +63,17 @@ export function AppLayout({ children }: LayoutProps) {
   });
 
   const role = (user?.role ?? "cashier") as UserRole;
+  const canSelectWarehouse = role === "admin" || role === "manager";
+
+  useEffect(() => {
+    if (!canSelectWarehouse && warehouses.length > 0) {
+      const firstId = String(warehouses[0].id);
+      if (currentWarehouseId !== firstId) {
+        setWarehouseId(firstId);
+      }
+    }
+  }, [warehouses, canSelectWarehouse, currentWarehouseId, setWarehouseId]);
+
   const visibleNav = NAV_ITEMS.filter(item => canAccess(role, item.href));
   const visiblePaths = new Set(visibleNav.map(i => i.href));
 
@@ -154,8 +165,8 @@ export function AppLayout({ children }: LayoutProps) {
           </div>
         )}
 
-        {/* Warehouse Selector */}
-        {warehouses.length > 0 && (
+        {/* Warehouse Selector — visible to admin/manager only */}
+        {warehouses.length > 0 && canSelectWarehouse && (
           <div className="mx-3 mt-2 px-3 py-2.5 rounded-xl"
             style={{
               background: isDark ? "rgba(245,158,11,0.06)" : "rgba(180,83,9,0.06)",
