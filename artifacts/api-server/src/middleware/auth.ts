@@ -1,7 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import { db } from "@workspace/db";
-import { erpUsersTable } from "@workspace/db";
+import { db, erpUsersTable, companiesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 if (!process.env.JWT_SECRET) {
@@ -63,6 +62,24 @@ export async function authenticate(
   if (!user || !user.active) {
     res.status(401).json({ error: "الحساب غير موجود أو معطل" });
     return;
+  }
+
+  if (user.company_id) {
+    const [co] = await db
+      .select({ is_active: companiesTable.is_active, end_date: companiesTable.end_date })
+      .from(companiesTable)
+      .where(eq(companiesTable.id, user.company_id));
+    if (co) {
+      if (!co.is_active) {
+        res.status(403).json({ error: "الاشتراك موقوف — يرجى التواصل مع المدير" });
+        return;
+      }
+      const today = new Date().toISOString().slice(0, 10);
+      if (co.end_date < today) {
+        res.status(403).json({ error: "انتهت صلاحية الاشتراك — يرجى تجديد الاشتراك" });
+        return;
+      }
+    }
   }
 
   req.user = user as AuthUser;
