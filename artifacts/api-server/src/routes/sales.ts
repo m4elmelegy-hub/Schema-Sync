@@ -406,6 +406,10 @@ router.post("/sales/:id/post", wrap(async (req, res) => {
 
 /* ── إلغاء الفاتورة → عكس كامل (مخزون + أرصدة + قيد محاسبي) ─────────── */
 router.post("/sales/:id/cancel", wrap(async (req, res) => {
+  const role = req.user?.role ?? "cashier";
+  if (role === "cashier" || role === "salesperson") {
+    res.status(403).json({ error: "غير مصرح بإلغاء الفواتير" }); return;
+  }
   const id = parseInt(req.params.id as string);
   if (isNaN(id)) throw httpError(400, "معرّف غير صحيح");
 
@@ -496,7 +500,6 @@ router.post("/sales/:id/cancel", wrap(async (req, res) => {
 
   await assertPeriodOpen(sale.date, req);
 
-  const role = req.user?.role ?? "cashier";
   const queryWarehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
   const effectiveWarehouseId = (role === "admin" || role === "manager") ? queryWarehouseId : (req.user?.warehouse_id ?? null);
 

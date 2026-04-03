@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { authFetch } from "@/lib/auth-fetch";
+import { useAuth } from "@/contexts/auth";
 import { useGetProducts, useCreateProduct, useDeleteProduct } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
 import { Plus, Search, Trash2, AlertTriangle, Pencil, X, FileDown, Package } from "lucide-react";
@@ -124,6 +125,8 @@ function ProductModal({ title, initial, onSave, onClose, isPending }: {
 /* ─── الصفحة الرئيسية ─── */
 export default function Products() {
   const { data: products = [], isLoading } = useGetProducts();
+  const { user } = useAuth();
+  const isRestricted = user?.role === "cashier" || user?.role === "salesperson";
   const createMutation = useCreateProduct();
   const deleteMutation = useDeleteProduct();
   const queryClient = useQueryClient();
@@ -311,21 +314,25 @@ export default function Products() {
                       </td>
                       <td className="p-4">
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
-                          <button
-                            onClick={() => openEdit(product)}
-                            title="تعديل المنتج"
-                            style={{ display: "flex", alignItems: "center", gap: "4px", padding: "4px 10px", borderRadius: "8px", background: "rgba(59,130,246,0.2)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.4)", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }}
-                          >
-                            <Pencil style={{ width: "14px", height: "14px" }} />
-                            تعديل
-                          </button>
-                          <button
-                            onClick={() => setConfirmDeleteId(product.id)}
-                            title="حذف المنتج"
-                            className="p-2 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-400/10 transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {!isRestricted && (
+                            <button
+                              onClick={() => openEdit(product)}
+                              title="تعديل المنتج"
+                              style={{ display: "flex", alignItems: "center", gap: "4px", padding: "4px 10px", borderRadius: "8px", background: "rgba(59,130,246,0.2)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.4)", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }}
+                            >
+                              <Pencil style={{ width: "14px", height: "14px" }} />
+                              تعديل
+                            </button>
+                          )}
+                          {!isRestricted && (
+                            <button
+                              onClick={() => setConfirmDeleteId(product.id)}
+                              title="حذف المنتج"
+                              className="p-2 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-400/10 transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

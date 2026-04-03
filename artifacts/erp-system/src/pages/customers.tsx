@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAuth } from "@/contexts/auth";
 import { useGetCustomers, useCreateCustomer, useGetSales, useGetPurchases, useGetSettingsSafes } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
 import { authFetch } from "@/lib/auth-fetch";
@@ -683,6 +684,8 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
 /* ─── الصفحة الرئيسية للعملاء ─── */
 export default function Customers() {
   const { data: customers = [], isLoading } = useGetCustomers();
+  const { user } = useAuth();
+  const isRestricted = user?.role === "cashier" || user?.role === "salesperson";
   const createMutation = useCreateCustomer();
   const { data: safes = [] } = useGetSettingsSafes();
   const queryClient = useQueryClient();
@@ -865,9 +868,11 @@ export default function Customers() {
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/30 transition-all whitespace-nowrap">
             <FileDown className="w-4 h-4" /> Excel
           </button>
-          <button onClick={() => setShowAdd(true)} className="btn-primary flex items-center gap-2 whitespace-nowrap">
-            <Plus className="w-5 h-5" /> إضافة عميل
-          </button>
+          {!isRestricted && (
+            <button onClick={() => setShowAdd(true)} className="btn-primary flex items-center gap-2 whitespace-nowrap">
+              <Plus className="w-5 h-5" /> إضافة عميل
+            </button>
+          )}
         </div>
       </div>
 
@@ -1216,23 +1221,27 @@ export default function Customers() {
                             <CreditCard className="w-3.5 h-3.5" /> تسديد دفعة
                           </button>
                         )}
-                        <button
-                          onClick={() => {
-                            setShowEdit({ id: customer.id, name: customer.name, phone: customer.phone || "", is_supplier: customer.is_supplier ?? false });
-                            setEditFormData({ name: customer.name, phone: customer.phone || "", is_supplier: customer.is_supplier ?? false });
-                          }}
-                          className="p-1.5 rounded-lg bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/80 transition-colors border border-white/10"
-                          title="تعديل"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => setDeleteConfirmId(customer.id)}
-                          className="p-1.5 rounded-lg bg-red-500/5 text-red-400/50 hover:bg-red-500/15 hover:text-red-400 transition-colors border border-red-500/10"
-                          title="حذف"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {!isRestricted && (
+                          <button
+                            onClick={() => {
+                              setShowEdit({ id: customer.id, name: customer.name, phone: customer.phone || "", is_supplier: customer.is_supplier ?? false });
+                              setEditFormData({ name: customer.name, phone: customer.phone || "", is_supplier: customer.is_supplier ?? false });
+                            }}
+                            className="p-1.5 rounded-lg bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/80 transition-colors border border-white/10"
+                            title="تعديل"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {!isRestricted && (
+                          <button
+                            onClick={() => setDeleteConfirmId(customer.id)}
+                            className="p-1.5 rounded-lg bg-red-500/5 text-red-400/50 hover:bg-red-500/15 hover:text-red-400 transition-colors border border-red-500/10"
+                            title="حذف"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

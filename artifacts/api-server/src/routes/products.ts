@@ -76,6 +76,10 @@ router.post("/products", wrap(async (req, res) => {
 }));
 
 router.put("/products/:id", wrap(async (req, res) => {
+  const role = req.user?.role ?? "cashier";
+  if (role === "cashier" || role === "salesperson") {
+    res.status(403).json({ error: "غير مصرح بتعديل المنتجات" }); return;
+  }
   const params = UpdateProductParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -103,6 +107,10 @@ router.put("/products/:id", wrap(async (req, res) => {
 }));
 
 router.delete("/products/:id", wrap(async (req, res) => {
+  const role = req.user?.role ?? "cashier";
+  if (role === "cashier" || role === "salesperson") {
+    res.status(403).json({ error: "غير مصرح بحذف المنتجات" }); return;
+  }
   const params = DeleteProductParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });

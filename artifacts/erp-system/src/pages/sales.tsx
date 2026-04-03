@@ -21,6 +21,8 @@ interface SalesReturn {
 }
 
 function SalesReturnsPanel() {
+  const { user: currentUser } = useAuth();
+  const isRestricted = currentUser?.role === "cashier" || currentUser?.role === "salesperson";
   const { toast } = useToast();
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -261,7 +263,7 @@ function SalesReturnsPanel() {
                   </td>
                   <td className="p-4 text-white/50">{r.reason || "—"}</td>
                   <td className="p-4 text-white/40 text-xs">{r.date || formatDate(r.created_at)}</td>
-                  <td className="p-4"><button onClick={() => setConfirmDeleteId(r.id)} className="p-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400"><Trash2 className="w-3.5 h-3.5" /></button></td>
+                  <td className="p-4">{!isRestricted && <button onClick={() => setConfirmDeleteId(r.id)} className="p-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>}</td>
                 </tr>
               ))}
             </tbody>
@@ -1334,6 +1336,8 @@ function SalesPostingBadge({ status }: { status: string }) {
 }
 
 function SalesHistoryPanel() {
+  const { user: currentUser } = useAuth();
+  const isRestricted = currentUser?.role === "cashier" || currentUser?.role === "salesperson";
   const { toast } = useToast();
   const qc = useQueryClient();
   const { currentWarehouseId } = useWarehouse();
@@ -1400,7 +1404,7 @@ function SalesHistoryPanel() {
                           <CheckCircle className="w-4 h-4" />
                         </button>
                       )}
-                      {s.posting_status === "posted" && (
+                      {s.posting_status === "posted" && !isRestricted && (
                         <button onClick={() => cancelMutation.mutate(s.id)} disabled={cancelMutation.isPending} title="إلغاء"
                           className="btn-icon text-amber-400 hover:text-amber-300 hover:bg-amber-500/10">
                           <XCircle className="w-4 h-4" />

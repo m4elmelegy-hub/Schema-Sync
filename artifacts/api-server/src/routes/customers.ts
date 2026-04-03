@@ -75,6 +75,10 @@ router.get("/customers", wrap(async (req, res) => {
 }));
 
 router.post("/customers", wrap(async (req, res) => {
+  const role = req.user?.role ?? "cashier";
+  if (role === "cashier" || role === "salesperson") {
+    res.status(403).json({ error: "غير مصرح بإضافة عملاء" }); return;
+  }
   const parsed = CreateCustomerBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -136,6 +140,10 @@ router.post("/customers", wrap(async (req, res) => {
 }));
 
 router.put("/customers/:id", wrap(async (req, res) => {
+  const role = req.user?.role ?? "cashier";
+  if (role === "cashier" || role === "salesperson") {
+    res.status(403).json({ error: "غير مصرح بتعديل العملاء" }); return;
+  }
   const params = UpdateCustomerParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -186,6 +194,10 @@ router.put("/customers/:id", wrap(async (req, res) => {
 }));
 
 router.delete("/customers/:id", wrap(async (req, res) => {
+  const role = req.user?.role ?? "cashier";
+  if (role === "cashier" || role === "salesperson") {
+    res.status(403).json({ error: "غير مصرح بحذف العملاء" }); return;
+  }
   const params = DeleteCustomerParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });

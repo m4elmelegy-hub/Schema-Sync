@@ -283,13 +283,16 @@ router.post("/sales-returns", wrap(async (req, res) => {
 }));
 
 router.delete("/sales-returns/:id", wrap(async (req, res) => {
+  const role = req.user?.role ?? "cashier";
+  if (role === "cashier" || role === "salesperson") {
+    res.status(403).json({ error: "غير مصرح بحذف المرتجعات" }); return;
+  }
   const id = parseInt(req.params.id as string);
   const [preCheck] = await db.select({ date: salesReturnsTable.date })
     .from(salesReturnsTable).where(eq(salesReturnsTable.id, id));
   if (!preCheck) throw httpError(404, "المرتجع غير موجود");
   await assertPeriodOpen(preCheck.date, req);
 
-  const role = req.user?.role ?? "cashier";
   const queryWarehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
   const effectiveWarehouseId = (role === "admin" || role === "manager") ? queryWarehouseId : (req.user?.warehouse_id ?? null);
 
@@ -651,13 +654,16 @@ router.post("/purchase-returns", wrap(async (req, res) => {
 }));
 
 router.delete("/purchase-returns/:id", wrap(async (req, res) => {
+  const role = req.user?.role ?? "cashier";
+  if (role === "cashier" || role === "salesperson") {
+    res.status(403).json({ error: "غير مصرح بحذف مرتجعات المشتريات" }); return;
+  }
   const id = parseInt(req.params.id as string);
   const [preCheck] = await db.select({ date: purchaseReturnsTable.date })
     .from(purchaseReturnsTable).where(eq(purchaseReturnsTable.id, id));
   if (!preCheck) throw httpError(404, "غير موجود");
   await assertPeriodOpen(preCheck.date, req);
 
-  const role = req.user?.role ?? "cashier";
   const queryWarehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
   const effectiveWarehouseId = (role === "admin" || role === "manager") ? queryWarehouseId : (req.user?.warehouse_id ?? null);
 
