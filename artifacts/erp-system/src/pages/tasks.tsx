@@ -1,27 +1,21 @@
 import { useState, useEffect } from "react";
 import { authFetch } from "@/lib/auth-fetch";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { formatCurrency } from "@/lib/format";
 import {
   Wallet, TrendingUp, HandCoins, ArrowUpFromLine,
-  ArrowLeftRight, CheckCircle2, AlertCircle,
-  Loader2, Lock, Printer, ChevronLeft, ChevronRight,
+  ArrowLeftRight, CheckCircle2, Lock, Printer,
+  ChevronLeft, ChevronRight,
 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
-const post = (url: string, body: object) =>
-  authFetch(api(url), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-    .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "خطأ غير معروف"); return d; });
 
-type Operation = "hub" | "receipt-voucher" | "payment-voucher" | "expense" | "income" | "safe-transfer" | "safe-closing";
+type Operation = "hub" | "safe-closing";
 
 interface Safe { id: number; name: string; balance: number | string; }
-interface Customer { id: number; name: string; balance: number | string; }
 interface Transaction { id: number; type: string; amount: number; direction: string; safe_id: number; description: string; date: string; }
-
-const EXPENSE_CATS = ["إيجار", "رواتب", "كهرباء", "مياه", "إنترنت", "صيانة", "مواصلات", "تسويق", "مشتريات مكتب", "أخرى"];
-const INCOME_SRCS = ["مبيعات نقدية", "خدمة صيانة", "عمولة", "استثمار", "إيراد متنوع", "أخرى"];
 
 export default function Tasks() {
   const [op, setOp] = useState<Operation>("hub");
@@ -31,10 +25,6 @@ export default function Tasks() {
   const { data: safes = [] } = useQuery<Safe[]>({
     queryKey: ["/api/settings/safes"],
     queryFn: () => authFetch(api("/api/settings/safes")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
-  });
-  const { data: customers = [] } = useQuery<Customer[]>({
-    queryKey: ["/api/customers"],
-    queryFn: () => authFetch(api("/api/customers")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
   const { data: stats } = useQuery<Record<string, number>>({
     queryKey: ["/api/dashboard/stats"],
@@ -47,7 +37,7 @@ export default function Tasks() {
     setTimeout(() => { setOp("hub"); setSuccessMsg(""); }, 2000);
   };
 
-  if (op !== "hub") {
+  if (op === "safe-closing") {
     return (
       <div className="space-y-4 max-w-xl mx-auto">
         <button
@@ -57,19 +47,16 @@ export default function Tasks() {
           <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
           العودة للمهام
         </button>
-        {op === "receipt-voucher" && <ReceiptVoucherForm safes={safes} customers={customers} onSuccess={goHub} />}
-        {op === "payment-voucher" && <PaymentVoucherForm safes={safes} customers={customers} onSuccess={goHub} />}
-        {op === "expense" && <ExpenseForm safes={safes} onSuccess={goHub} />}
-        {op === "income" && <IncomeForm safes={safes} onSuccess={goHub} />}
-        {op === "safe-transfer" && <SafeTransferForm safes={safes} onSuccess={goHub} />}
-        {op === "safe-closing" && <SafeClosingForm safes={safes} onSuccess={goHub} />}
+        <SafeClosingForm safes={safes} onSuccess={goHub} />
       </div>
     );
   }
 
-  const cards = [
+  const totalSafes = safes.reduce((s, x) => s + Number(x.balance), 0);
+
+  const navActions = [
     {
-      op: "receipt-voucher" as Operation,
+      href: "/receipt-vouchers",
       title: "سند قبض",
       sub: "استلام من عميل",
       icon: HandCoins,
@@ -80,18 +67,18 @@ export default function Tasks() {
       statLabel: "ديون العملاء",
     },
     {
-      op: "payment-voucher" as Operation,
-      title: "سند توريد",
+      href: "/payment-vouchers",
+      title: "سند صرف",
       sub: "تسديد للعميل",
       icon: ArrowUpFromLine,
       color: "text-orange-400",
       ring: "ring-orange-500/30",
       bg: "bg-orange-500/8",
-      stat: formatCurrency(safes.reduce((s, x) => s + Number(x.balance), 0)),
+      stat: formatCurrency(totalSafes),
       statLabel: "رصيد الخزائن",
     },
     {
-      op: "expense" as Operation,
+      href: "/expenses",
       title: "مصروف",
       sub: "صرف من الخزينة",
       icon: Wallet,
@@ -102,7 +89,7 @@ export default function Tasks() {
       statLabel: "مصروفات اليوم",
     },
     {
-      op: "income" as Operation,
+      href: "/income",
       title: "إيراد",
       sub: "إضافة للخزينة",
       icon: TrendingUp,
@@ -113,26 +100,15 @@ export default function Tasks() {
       statLabel: "إيرادات اليوم",
     },
     {
-      op: "safe-transfer" as Operation,
+      href: "/safe-transfers",
       title: "تحويل خزائن",
       sub: "نقل بين الخزائن",
       icon: ArrowLeftRight,
       color: "text-cyan-400",
       ring: "ring-cyan-500/30",
       bg: "bg-cyan-500/8",
-      stat: formatCurrency(safes.reduce((s, x) => s + Number(x.balance), 0)),
+      stat: formatCurrency(totalSafes),
       statLabel: "إجمالي الخزائن",
-    },
-    {
-      op: "safe-closing" as Operation,
-      title: "إقفال الخزينة",
-      sub: "جرد ومطابقة اليومية",
-      icon: Lock,
-      color: "text-amber-400",
-      ring: "ring-amber-500/30",
-      bg: "bg-amber-500/8",
-      stat: new Date().toLocaleDateString("ar-EG", { day: "2-digit", month: "2-digit", year: "numeric" }),
-      statLabel: "إقفال يوم",
     },
   ];
 
@@ -162,36 +138,62 @@ export default function Tasks() {
         </div>
       )}
 
-      {/* Operations grid — 3 cols mobile / 6 cols desktop */}
+      {/* Section header */}
+      <div className="flex items-center gap-3">
+        <div className="w-1 h-4 rounded-full bg-amber-400" />
+        <h2 className="text-sm font-bold text-white/60 uppercase tracking-widest">العمليات السريعة</h2>
+      </div>
+
+      {/* Quick actions grid — 3 cols mobile / 6 cols desktop */}
       <div className="grid grid-cols-3 lg:grid-cols-6 gap-2">
-        {cards.map(c => {
-          const Icon = c.icon;
+        {navActions.map(a => {
+          const Icon = a.icon;
           return (
-            <button
-              key={c.op}
-              onClick={() => setOp(c.op)}
-              className={`glass-panel rounded-xl text-right ring-1 ${c.ring} ${c.bg} hover:brightness-110 transition-all duration-200 hover:-translate-y-0.5 active:scale-95 group`}
-              style={{ padding: "10px 12px" }}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <Icon className={`w-4 h-4 shrink-0 ${c.color}`} />
-                <ChevronLeft className="w-3 h-3 text-white/20 group-hover:text-white/40 transition-colors" />
+            <Link key={a.href} href={a.href}>
+              <div
+                className={`glass-panel rounded-xl text-right ring-1 ${a.ring} ${a.bg} hover:brightness-110 transition-all duration-200 hover:-translate-y-0.5 active:scale-95 group cursor-pointer`}
+                style={{ padding: "10px 12px" }}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <Icon className={`w-4 h-4 shrink-0 ${a.color}`} />
+                  <ChevronLeft className="w-3 h-3 text-white/20 group-hover:text-white/40 transition-colors" />
+                </div>
+                <p className={`font-bold text-sm leading-tight ${a.color}`}>{a.title}</p>
+                <p className="text-white/40 text-xs mt-0.5 leading-tight">{a.sub}</p>
+                <div className="mt-1.5 pt-1.5 border-t border-white/5">
+                  <p className="text-white/30 text-xs leading-none">{a.statLabel}</p>
+                  <p className={`font-bold text-xs mt-0.5 leading-tight ${a.color}`}>{a.stat}</p>
+                </div>
               </div>
-              <p className={`font-bold text-sm leading-tight ${c.color}`}>{c.title}</p>
-              <p className="text-white/40 text-xs mt-0.5 leading-tight">{c.sub}</p>
-              <div className="mt-1.5 pt-1.5 border-t border-white/5">
-                <p className="text-white/30 text-xs leading-none">{c.statLabel}</p>
-                <p className={`font-bold text-xs mt-0.5 leading-tight ${c.color}`}>{c.stat}</p>
-              </div>
-            </button>
+            </Link>
           );
         })}
+
+        {/* Safe closing — stays inline (no dedicated page yet) */}
+        <button
+          onClick={() => setOp("safe-closing")}
+          className="glass-panel rounded-xl text-right ring-1 ring-amber-500/30 bg-amber-500/8 hover:brightness-110 transition-all duration-200 hover:-translate-y-0.5 active:scale-95 group"
+          style={{ padding: "10px 12px" }}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <Lock className="w-4 h-4 shrink-0 text-amber-400" />
+            <ChevronLeft className="w-3 h-3 text-white/20 group-hover:text-white/40 transition-colors" />
+          </div>
+          <p className="font-bold text-sm leading-tight text-amber-400">إقفال الخزينة</p>
+          <p className="text-white/40 text-xs mt-0.5 leading-tight">جرد ومطابقة اليومية</p>
+          <div className="mt-1.5 pt-1.5 border-t border-white/5">
+            <p className="text-white/30 text-xs leading-none">إقفال يوم</p>
+            <p className="font-bold text-xs mt-0.5 leading-tight text-amber-400">
+              {new Date().toLocaleDateString("ar-EG", { day: "2-digit", month: "2-digit", year: "numeric" })}
+            </p>
+          </div>
+        </button>
       </div>
     </div>
   );
 }
 
-/* ─── Shared helpers ─── */
+/* ─── Shared helpers (used by SafeClosingForm) ─── */
 
 function useFirstSafeId(safes: Safe[]) {
   const [safeId, setSafeId] = useState("");
@@ -199,27 +201,6 @@ function useFirstSafeId(safes: Safe[]) {
     if (safes.length > 0 && !safeId) setSafeId(String(safes[0].id));
   }, [safes, safeId]);
   return [safeId, setSafeId] as const;
-}
-
-function FormShell({ title, icon: Icon, color, children }: {
-  title: string; icon: React.FC<{ className?: string }>; color: string; children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <div className="flex items-center gap-3 mb-5">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/5 border border-white/10">
-          <Icon className={`w-5 h-5 ${color}`} />
-        </div>
-        <div>
-          <h2 className={`text-lg font-black ${color}`}>{title}</h2>
-          <p className="text-white/30 text-xs">أدخل البيانات ثم اضغط حفظ</p>
-        </div>
-      </div>
-      <div className="glass-panel rounded-3xl p-5 border border-white/10 space-y-4">
-        {children}
-      </div>
-    </div>
-  );
 }
 
 function FL({ children }: { children: React.ReactNode }) {
@@ -239,320 +220,6 @@ function SafeSelect({ safes, value, onChange, label }: { safes: Safe[]; value: s
         ))}
       </select>
     </div>
-  );
-}
-
-function ErrRow({ error }: { error: string }) {
-  if (!error) return null;
-  return (
-    <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-2.5">
-      <AlertCircle className="w-4 h-4 shrink-0" /> {error}
-    </div>
-  );
-}
-
-function SaveBtn({ loading, label }: { loading: boolean; label: string }) {
-  return (
-    <button type="submit" disabled={loading}
-      className="w-full btn-primary py-3 font-bold flex items-center justify-center gap-2 disabled:opacity-40 text-sm">
-      {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-      {loading ? "جاري الحفظ..." : label}
-    </button>
-  );
-}
-
-/* ─── Receipt Voucher ─── */
-function ReceiptVoucherForm({ safes, customers, onSuccess }: { safes: Safe[]; customers: Customer[]; onSuccess: (m: string) => void }) {
-  const [customerId, setCustomerId] = useState("");
-  const [customerName, setCustomerName] = useState("");
-  const [safeId, setSafeId] = useFirstSafeId(safes);
-  const [amount, setAmount] = useState("");
-  const [notes, setNotes] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const handleCustomer = (id: string) => {
-    setCustomerId(id);
-    const c = customers.find(x => String(x.id) === id);
-    setCustomerName(c ? c.name : "");
-  };
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!customerName) { setError("اختر العميل أو أدخل الاسم"); return; }
-    if (!safeId) { setError("اختر الخزينة"); return; }
-    if (!amount || Number(amount) <= 0) { setError("أدخل مبلغاً صحيحاً"); return; }
-    setError(""); setLoading(true);
-    try {
-      await post("/api/receipt-vouchers", { customer_id: customerId || undefined, customer_name: customerName, safe_id: safeId, amount: Number(amount), notes });
-      onSuccess(`تم حفظ سند القبض — ${formatCurrency(Number(amount))} ✓`);
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : "خطأ"); }
-    finally { setLoading(false); }
-  };
-
-  return (
-    <FormShell title="سند قبض" icon={HandCoins} color="text-violet-400">
-      <form onSubmit={submit} className="space-y-4">
-        <div>
-          <FL>العميل</FL>
-          <select className="glass-input w-full text-white text-sm" value={customerId} onChange={e => handleCustomer(e.target.value)}>
-            <option value="" className="bg-gray-900">-- اختر العميل --</option>
-            {customers.map(c => (
-              <option key={c.id} value={c.id} className="bg-gray-900">{c.name} — متأخر: {formatCurrency(Number(c.balance))}</option>
-            ))}
-          </select>
-          {!customerId && (
-            <input className="glass-input w-full text-white text-sm mt-2" placeholder="أو أدخل الاسم يدوياً..."
-              value={customerName} onChange={e => setCustomerName(e.target.value)} />
-          )}
-        </div>
-        <SafeSelect safes={safes} value={safeId} onChange={setSafeId} />
-        <div>
-          <FL>المبلغ (ج.م)</FL>
-          <input type="number" min="0.01" step="0.01" className="glass-input w-full text-white text-sm"
-            placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} />
-        </div>
-        <div>
-          <FL>ملاحظات</FL>
-          <input className="glass-input w-full text-white text-sm" placeholder="..." value={notes} onChange={e => setNotes(e.target.value)} />
-        </div>
-        <ErrRow error={error} />
-        <SaveBtn loading={loading} label="حفظ سند القبض" />
-      </form>
-    </FormShell>
-  );
-}
-
-/* ─── Payment Voucher ─── */
-function PaymentVoucherForm({ safes, customers, onSuccess }: { safes: Safe[]; customers: Customer[]; onSuccess: (m: string) => void }) {
-  const [customerId, setCustomerId] = useState("");
-  const [customerName, setCustomerName] = useState("");
-  const [safeId, setSafeId] = useFirstSafeId(safes);
-  const [amount, setAmount] = useState("");
-  const [notes, setNotes] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const handleCustomer = (id: string) => {
-    setCustomerId(id);
-    const c = customers.find(x => String(x.id) === id);
-    setCustomerName(c ? c.name : "");
-  };
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!customerName) { setError("اختر العميل أو أدخل الاسم"); return; }
-    if (!safeId) { setError("اختر الخزينة"); return; }
-    if (!amount || Number(amount) <= 0) { setError("أدخل مبلغاً صحيحاً"); return; }
-    setError(""); setLoading(true);
-    try {
-      await post("/api/payment-vouchers", { customer_id: customerId || undefined, customer_name: customerName, safe_id: safeId, amount: Number(amount), notes });
-      onSuccess(`تم حفظ سند التوريد — ${formatCurrency(Number(amount))} ✓`);
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : "خطأ"); }
-    finally { setLoading(false); }
-  };
-
-  const selectedCust = customers.find(x => String(x.id) === customerId);
-
-  return (
-    <FormShell title="سند توريد" icon={ArrowUpFromLine} color="text-orange-400">
-      <p className="text-xs text-white/50 -mt-2 mb-2">تسديد نقدي للعميل → الخزينة تنزل ورصيد العميل يرتفع</p>
-      <form onSubmit={submit} className="space-y-4">
-        <div>
-          <FL>العميل</FL>
-          <select className="glass-input w-full text-white text-sm" value={customerId} onChange={e => handleCustomer(e.target.value)}>
-            <option value="" className="bg-gray-900">-- اختر العميل --</option>
-            {customers.map(c => (
-              <option key={c.id} value={c.id} className="bg-gray-900">
-                {c.name}{Number(c.balance) < 0 ? ` (علينا له ${formatCurrency(Math.abs(Number(c.balance)))})` : ""}
-              </option>
-            ))}
-          </select>
-          {selectedCust && Number(selectedCust.balance) < 0 && (
-            <p className="text-xs text-orange-400 mt-1">
-              رصيد العميل الحالي: <span className="font-bold">{formatCurrency(Math.abs(Number(selectedCust.balance)))}</span> علينا له
-            </p>
-          )}
-          {!customerId && (
-            <input className="glass-input w-full text-white text-sm mt-2" placeholder="أو أدخل الاسم يدوياً..."
-              value={customerName} onChange={e => setCustomerName(e.target.value)} />
-          )}
-        </div>
-        <SafeSelect safes={safes} value={safeId} onChange={setSafeId} />
-        <div>
-          <FL>المبلغ المُسدَّد</FL>
-          <input type="number" min="0.01" step="0.01" className="glass-input w-full text-white text-sm"
-            placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} />
-        </div>
-        <div>
-          <FL>ملاحظات</FL>
-          <input className="glass-input w-full text-white text-sm" placeholder="..." value={notes} onChange={e => setNotes(e.target.value)} />
-        </div>
-        <ErrRow error={error} />
-        <SaveBtn loading={loading} label="حفظ سند التوريد" />
-      </form>
-    </FormShell>
-  );
-}
-
-/* ─── Expense ─── */
-function ExpenseForm({ safes, onSuccess }: { safes: Safe[]; onSuccess: (m: string) => void }) {
-  const [category, setCategory] = useState(EXPENSE_CATS[0]);
-  const [customCat, setCustomCat] = useState("");
-  const [safeId, setSafeId] = useFirstSafeId(safes);
-  const [amount, setAmount] = useState("");
-  const [description, setDescription] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const cat = category === "أخرى" ? customCat : category;
-    if (!cat) { setError("أدخل التصنيف"); return; }
-    if (!safeId) { setError("اختر الخزينة"); return; }
-    if (!amount || Number(amount) <= 0) { setError("أدخل مبلغاً صحيحاً"); return; }
-    setError(""); setLoading(true);
-    try {
-      await post("/api/expenses", { category: cat, amount: Number(amount), description, safe_id: safeId });
-      onSuccess(`تم حفظ المصروف — ${formatCurrency(Number(amount))} ✓`);
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : "خطأ"); }
-    finally { setLoading(false); }
-  };
-
-  return (
-    <FormShell title="مصروف" icon={Wallet} color="text-red-400">
-      <form onSubmit={submit} className="space-y-4">
-        <div>
-          <FL>التصنيف</FL>
-          <select className="glass-input w-full text-white text-sm" value={category} onChange={e => setCategory(e.target.value)}>
-            {EXPENSE_CATS.map(c => <option key={c} value={c} className="bg-gray-900">{c}</option>)}
-          </select>
-          {category === "أخرى" && (
-            <input className="glass-input w-full text-white text-sm mt-2" placeholder="التصنيف..."
-              value={customCat} onChange={e => setCustomCat(e.target.value)} />
-          )}
-        </div>
-        <SafeSelect safes={safes} value={safeId} onChange={setSafeId} />
-        <div>
-          <FL>المبلغ (ج.م)</FL>
-          <input type="number" min="0.01" step="0.01" className="glass-input w-full text-white text-sm"
-            placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} />
-        </div>
-        <div>
-          <FL>البيان</FL>
-          <input className="glass-input w-full text-white text-sm" placeholder="وصف المصروف..."
-            value={description} onChange={e => setDescription(e.target.value)} />
-        </div>
-        <ErrRow error={error} />
-        <SaveBtn loading={loading} label="حفظ المصروف" />
-      </form>
-    </FormShell>
-  );
-}
-
-/* ─── Income ─── */
-function IncomeForm({ safes, onSuccess }: { safes: Safe[]; onSuccess: (m: string) => void }) {
-  const [source, setSource] = useState(INCOME_SRCS[0]);
-  const [customSrc, setCustomSrc] = useState("");
-  const [safeId, setSafeId] = useFirstSafeId(safes);
-  const [amount, setAmount] = useState("");
-  const [description, setDescription] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const src = source === "أخرى" ? customSrc : source;
-    if (!src) { setError("أدخل المصدر"); return; }
-    if (!safeId) { setError("اختر الخزينة"); return; }
-    if (!amount || Number(amount) <= 0) { setError("أدخل مبلغاً صحيحاً"); return; }
-    setError(""); setLoading(true);
-    try {
-      await post("/api/income", { source: src, amount: Number(amount), description, safe_id: safeId });
-      onSuccess(`تم حفظ الإيراد — ${formatCurrency(Number(amount))} ✓`);
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : "خطأ"); }
-    finally { setLoading(false); }
-  };
-
-  return (
-    <FormShell title="إيراد" icon={TrendingUp} color="text-emerald-400">
-      <form onSubmit={submit} className="space-y-4">
-        <div>
-          <FL>المصدر</FL>
-          <select className="glass-input w-full text-white text-sm" value={source} onChange={e => setSource(e.target.value)}>
-            {INCOME_SRCS.map(s => <option key={s} value={s} className="bg-gray-900">{s}</option>)}
-          </select>
-          {source === "أخرى" && (
-            <input className="glass-input w-full text-white text-sm mt-2" placeholder="المصدر..."
-              value={customSrc} onChange={e => setCustomSrc(e.target.value)} />
-          )}
-        </div>
-        <SafeSelect safes={safes} value={safeId} onChange={setSafeId} />
-        <div>
-          <FL>المبلغ (ج.م)</FL>
-          <input type="number" min="0.01" step="0.01" className="glass-input w-full text-white text-sm"
-            placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} />
-        </div>
-        <div>
-          <FL>البيان</FL>
-          <input className="glass-input w-full text-white text-sm" placeholder="وصف الإيراد..."
-            value={description} onChange={e => setDescription(e.target.value)} />
-        </div>
-        <ErrRow error={error} />
-        <SaveBtn loading={loading} label="حفظ الإيراد" />
-      </form>
-    </FormShell>
-  );
-}
-
-/* ─── Safe Transfer ─── */
-function SafeTransferForm({ safes, onSuccess }: { safes: Safe[]; onSuccess: (m: string) => void }) {
-  const [fromSafeId, setFromSafeId] = useFirstSafeId(safes);
-  const [toSafeId, setToSafeId] = useState("");
-  const [amount, setAmount] = useState("");
-  const [notes, setNotes] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (safes.length >= 2 && !toSafeId) setToSafeId(String(safes[1].id));
-  }, [safes, toSafeId]);
-
-  const fromSafe = safes.find(s => String(s.id) === fromSafeId);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!fromSafeId || !toSafeId) { setError("اختر الخزينتين"); return; }
-    if (fromSafeId === toSafeId) { setError("لا يمكن التحويل لنفس الخزينة"); return; }
-    if (!amount || Number(amount) <= 0) { setError("أدخل مبلغاً صحيحاً"); return; }
-    setError(""); setLoading(true);
-    try {
-      await post("/api/safe-transfers", { from_safe_id: fromSafeId, to_safe_id: toSafeId, amount: Number(amount), notes });
-      onSuccess(`تم تحويل ${formatCurrency(Number(amount))} بين الخزائن ✓`);
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : "خطأ"); }
-    finally { setLoading(false); }
-  };
-
-  return (
-    <FormShell title="تحويل خزائن" icon={ArrowLeftRight} color="text-cyan-400">
-      <form onSubmit={submit} className="space-y-4">
-        <SafeSelect safes={safes} value={fromSafeId} onChange={setFromSafeId} label="من الخزينة" />
-        {fromSafe && <p className="text-white/25 text-xs -mt-2">الرصيد: {formatCurrency(Number(fromSafe.balance))}</p>}
-        <SafeSelect safes={safes} value={toSafeId} onChange={setToSafeId} label="إلى الخزينة" />
-        <div>
-          <FL>المبلغ (ج.م)</FL>
-          <input type="number" min="0.01" step="0.01" className="glass-input w-full text-white text-sm"
-            placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} />
-        </div>
-        <div>
-          <FL>سبب التحويل</FL>
-          <input className="glass-input w-full text-white text-sm" placeholder="..."
-            value={notes} onChange={e => setNotes(e.target.value)} />
-        </div>
-        <ErrRow error={error} />
-        <SaveBtn loading={loading} label="تنفيذ التحويل" />
-      </form>
-    </FormShell>
   );
 }
 
