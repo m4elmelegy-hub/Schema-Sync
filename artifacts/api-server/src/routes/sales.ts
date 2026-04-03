@@ -46,8 +46,11 @@ function formatSaleItem(item: typeof saleItemsTable.$inferSelect) {
   };
 }
 
-router.get("/sales", wrap(async (_req, res) => {
-  const sales = await db.select().from(salesTable).orderBy(salesTable.created_at);
+router.get("/sales", wrap(async (req, res) => {
+  const warehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
+  const sales = warehouseId
+    ? await db.select().from(salesTable).where(eq(salesTable.warehouse_id, warehouseId)).orderBy(salesTable.created_at)
+    : await db.select().from(salesTable).orderBy(salesTable.created_at);
   res.json(GetSalesResponse.parse(sales.map(formatSale)));
 }));
 

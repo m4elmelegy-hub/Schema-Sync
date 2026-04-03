@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { gte, sum, desc, inArray } from "drizzle-orm";
+import { gte, sum, desc, inArray, and, eq } from "drizzle-orm";
 import {
   db, salesTable, saleItemsTable, expensesTable, incomeTable,
   productsTable, transactionsTable,
@@ -10,14 +10,19 @@ import { getTotalCustomerLedgerBalance, getTotalSupplierLedgerBalance } from "..
 
 const router: IRouter = Router();
 
-router.get("/dashboard/stats", wrap(async (_req, res) => {
+router.get("/dashboard/stats", wrap(async (req, res) => {
+  const warehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const todayStr = today.toISOString().split("T")[0];
 
   // ── مبيعات اليوم ─────────────────────────────────────────────────────────
+  const salesDateFilter = warehouseId
+    ? and(gte(salesTable.date, todayStr), eq(salesTable.warehouse_id, warehouseId))
+    : gte(salesTable.date, todayStr);
   const [salesToday] = await db.select({ total: sum(salesTable.total_amount) })
-    .from(salesTable).where(gte(salesTable.date, todayStr));
+    .from(salesTable).where(salesDateFilter);
   const total_sales_today = Number(salesToday?.total ?? 0);
 
   // ── مصاريف اليوم ─────────────────────────────────────────────────────────
@@ -31,7 +36,7 @@ router.get("/dashboard/stats", wrap(async (_req, res) => {
   const total_income_today = Number(incomeToday?.total ?? 0);
 
   // ── صافي الربح: تكلفة المبيعات الفعلية لا إجمالي المبيعات ───────────────
-  const todaySales = await db.select({ id: salesTable.id }).from(salesTable).where(gte(salesTable.date, todayStr));
+  const todaySales = await db.select({ id: salesTable.id }).from(salesTable).where(salesDateFilter);
   let gross_profit_today = 0;
   if (todaySales.length > 0) {
     const todaySaleIds = todaySales.map(s => s.id);
