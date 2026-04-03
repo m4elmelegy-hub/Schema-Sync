@@ -25,6 +25,7 @@ export const salesTable = pgTable("sales", {
   discount_amount: numeric("discount_amount", { precision: 12, scale: 2 }).default("0"),
   notes: text("notes"),
   date: text("date"),
+  company_id: integer("company_id").notNull().default(1),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("sales_customer_id_idx").on(t.customer_id),

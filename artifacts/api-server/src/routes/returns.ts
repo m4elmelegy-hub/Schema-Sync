@@ -81,6 +81,10 @@ router.post("/sales-returns", wrap(async (req, res) => {
   const queryWarehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
   const effectiveWarehouseId = (role === "admin" || role === "manager") ? queryWarehouseId : (req.user?.warehouse_id ?? null);
 
+  if (effectiveWarehouseId === null) {
+    res.status(400).json({ error: "يجب تحديد المخزن" }); return;
+  }
+
   const ret = await db.transaction(async (tx) => {
     let safeName: string | null = null;
     let safeIdInt: number | null = null;
@@ -455,6 +459,10 @@ router.post("/purchase-returns", wrap(async (req, res) => {
   const role = req.user?.role ?? "cashier";
   const queryWarehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
   const effectiveWarehouseId = (role === "admin" || role === "manager") ? queryWarehouseId : (req.user?.warehouse_id ?? null);
+
+  if (effectiveWarehouseId === null) {
+    res.status(400).json({ error: "يجب تحديد المخزن" }); return;
+  }
 
   const ret = await db.transaction(async (tx) => {
     // ── الاسترداد النقدي: إضافة للخزينة ─────────────────────────────────────

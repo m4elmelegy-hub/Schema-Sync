@@ -18,6 +18,7 @@ export const purchasesTable = pgTable("purchases", {
   posting_status: text("posting_status").notNull().default("draft"), // draft | posted | cancelled
   notes: text("notes"),
   date: text("date"),
+  company_id: integer("company_id").notNull().default(1),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("purchases_customer_id_idx").on(t.customer_id),

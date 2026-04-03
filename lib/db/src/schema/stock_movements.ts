@@ -17,6 +17,7 @@ export const stockMovementsTable = pgTable("stock_movements", {
   notes: text("notes"),
   date: text("date"),
   warehouse_id: integer("warehouse_id").notNull().default(1),
+  company_id: integer("company_id").notNull().default(1),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("stock_movements_product_id_idx").on(t.product_id),

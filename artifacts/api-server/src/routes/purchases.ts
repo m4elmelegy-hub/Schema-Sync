@@ -83,6 +83,10 @@ router.post("/purchases", wrap(async (req, res) => {
   const queryWarehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
   const effectiveWarehouseId = (role === "admin" || role === "manager") ? queryWarehouseId : (req.user?.warehouse_id ?? null);
 
+  if (effectiveWarehouseId === null) {
+    res.status(400).json({ error: "يجب تحديد المخزن" }); return;
+  }
+
   let status = "paid";
   if (payment_type === "credit") status = "unpaid";
   else if (remaining > 0) status = "partial";
