@@ -79,13 +79,7 @@ router.post("/sales-returns", wrap(async (req, res) => {
 
   await assertPeriodOpen(txDate, req);
 
-  const role = req.user?.role ?? "cashier";
-  const queryWarehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
-  const effectiveWarehouseId = (role === "admin" || role === "manager") ? queryWarehouseId : (req.user?.warehouse_id ?? null);
-
-  if (effectiveWarehouseId === null) {
-    res.status(400).json({ error: "يجب تحديد المخزن" }); return;
-  }
+  const effectiveWarehouseId = req.user?.warehouse_id ?? null;
 
   const ret = await db.transaction(async (tx) => {
     let safeName: string | null = null;
@@ -296,15 +290,13 @@ router.delete("/sales-returns/:id", wrap(async (req, res) => {
   if (!hasPermission(req.user, "can_cancel_sale")) {
     res.status(403).json({ error: "غير مصرح بحذف المرتجعات" }); return;
   }
-  const role = req.user?.role ?? "cashier";
   const id = parseInt(req.params.id as string);
   const [preCheck] = await db.select({ date: salesReturnsTable.date })
     .from(salesReturnsTable).where(eq(salesReturnsTable.id, id));
   if (!preCheck) throw httpError(404, "المرتجع غير موجود");
   await assertPeriodOpen(preCheck.date, req);
 
-  const queryWarehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
-  const effectiveWarehouseId = (role === "admin" || role === "manager") ? queryWarehouseId : (req.user?.warehouse_id ?? null);
+  const effectiveWarehouseId = req.user?.warehouse_id ?? null;
 
   await db.transaction(async (tx) => {
     const [ret] = await tx.select().from(salesReturnsTable).where(eq(salesReturnsTable.id, id));
@@ -476,13 +468,7 @@ router.post("/purchase-returns", wrap(async (req, res) => {
 
   await assertPeriodOpen(txDate, req);
 
-  const role = req.user?.role ?? "cashier";
-  const queryWarehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
-  const effectiveWarehouseId = (role === "admin" || role === "manager") ? queryWarehouseId : (req.user?.warehouse_id ?? null);
-
-  if (effectiveWarehouseId === null) {
-    res.status(400).json({ error: "يجب تحديد المخزن" }); return;
-  }
+  const effectiveWarehouseId = req.user?.warehouse_id ?? null;
 
   const ret = await db.transaction(async (tx) => {
     // ── الاسترداد النقدي: إضافة للخزينة ─────────────────────────────────────
@@ -682,15 +668,13 @@ router.delete("/purchase-returns/:id", wrap(async (req, res) => {
   if (!hasPermission(req.user, "can_cancel_sale")) {
     res.status(403).json({ error: "غير مصرح بحذف مرتجعات المشتريات" }); return;
   }
-  const role = req.user?.role ?? "cashier";
   const id = parseInt(req.params.id as string);
   const [preCheck] = await db.select({ date: purchaseReturnsTable.date })
     .from(purchaseReturnsTable).where(eq(purchaseReturnsTable.id, id));
   if (!preCheck) throw httpError(404, "غير موجود");
   await assertPeriodOpen(preCheck.date, req);
 
-  const queryWarehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
-  const effectiveWarehouseId = (role === "admin" || role === "manager") ? queryWarehouseId : (req.user?.warehouse_id ?? null);
+  const effectiveWarehouseId = req.user?.warehouse_id ?? null;
 
   await db.transaction(async (tx) => {
     const [ret] = await tx.select().from(purchaseReturnsTable).where(eq(purchaseReturnsTable.id, id));
