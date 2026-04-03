@@ -6,6 +6,8 @@ import {
   LayoutDashboard, ClipboardList, Receipt, CreditCard,
   Package, Warehouse, Users, TrendingUp, Activity,
   FileText, Settings,
+  BookOpen, HandCoins, ArrowDownToLine, ArrowUpFromLine,
+  ArrowLeftRight, ReceiptText,
   type LucideIcon,
 } from "lucide-react";
 
@@ -45,8 +47,16 @@ export const NAV_ITEMS: { name: string; href: string; icon: LucideIcon; roles: A
   { name: "مراجعة المخزون",   href: "/inventory",              icon: Warehouse,       roles: ["admin","manager","cashier","salesperson"] },
   { name: "العملاء",           href: "/customers",              icon: Users,           roles: ["admin","manager","cashier","salesperson"] },
   { name: "الأرباح",           href: "/profits",                icon: TrendingUp,      roles: ["admin","manager"] },
+  { name: "الإيرادات",         href: "/income",                 icon: TrendingUp,      roles: ["admin","manager"] },
+  { name: "المصروفات",         href: "/expenses",               icon: ReceiptText,     roles: ["admin","manager"] },
   { name: "الحركات المالية",   href: "/financial-transactions", icon: Activity,        roles: ["admin"] },
   { name: "التقارير",          href: "/reports",                icon: FileText,        roles: ["admin","manager"] },
+  { name: "شجرة الحسابات",    href: "/accounts",               icon: BookOpen,        roles: ["admin"] },
+  { name: "القيود اليومية",    href: "/journal-entries",        icon: FileText,        roles: ["admin"] },
+  { name: "سندات القبض",       href: "/receipt-vouchers",       icon: HandCoins,       roles: ["admin","manager"] },
+  { name: "سندات التوريد",     href: "/deposit-vouchers",       icon: ArrowDownToLine, roles: ["admin","manager"] },
+  { name: "سندات الصرف",       href: "/payment-vouchers",       icon: ArrowUpFromLine, roles: ["admin","manager"] },
+  { name: "تحويل الخزائن",     href: "/safe-transfers",         icon: ArrowLeftRight,  roles: ["admin","manager"] },
   { name: "الإعدادات",         href: "/settings",               icon: Settings,        roles: ["admin"] },
 ];
 
