@@ -58,7 +58,17 @@ router.get("/sales-returns/:id", wrap(async (req, res) => {
  */
 router.post("/sales-returns", wrap(async (req, res) => {
   const { sale_id, customer_id, customer_name, items, reason, notes, date, refund_type, safe_id } = req.body;
-  if (!items?.length) { res.status(400).json({ error: "أضف أصناف المرتجع" }); return; }
+  if (!items?.length) { return res.status(400).json({ error: "أضف أصناف المرتجع" }); }
+
+  const requestId = req.headers["x-request-id"]
+    ? String(req.headers["x-request-id"])
+    : null;
+
+  if (requestId) {
+    const [existing] = await db.select().from(salesReturnsTable)
+      .where(eq(salesReturnsTable.request_id, requestId)).limit(1);
+    if (existing) return res.json({ ...existing, total_amount: Number(existing.total_amount), created_at: existing.created_at.toISOString() });
+  }
 
   const total: number = items.reduce((s: number, i: { total_price: number }) => s + Number(i.total_price), 0);
   const return_no = `SR-${Date.now()}`;
@@ -78,6 +88,7 @@ router.post("/sales-returns", wrap(async (req, res) => {
     }
 
     const [ret] = await tx.insert(salesReturnsTable).values({
+      request_id: requestId,
       return_no,
       sale_id: sale_id ?? null,
       customer_id: customer_id ? parseInt(customer_id) : null,
@@ -259,7 +270,7 @@ router.post("/sales-returns", wrap(async (req, res) => {
     return ret;
   });
 
-  res.status(201).json({ ...ret, total_amount: Number(ret.total_amount), created_at: ret.created_at.toISOString() });
+  return res.status(201).json({ ...ret, total_amount: Number(ret.total_amount), created_at: ret.created_at.toISOString() });
 }));
 
 router.delete("/sales-returns/:id", wrap(async (req, res) => {
@@ -412,7 +423,17 @@ router.post("/purchase-returns", wrap(async (req, res) => {
     refund_type, safe_id,
   } = req.body;
 
-  if (!items?.length) { res.status(400).json({ error: "أضف أصناف المرتجع" }); return; }
+  if (!items?.length) { return res.status(400).json({ error: "أضف أصناف المرتجع" }); }
+
+  const requestId = req.headers["x-request-id"]
+    ? String(req.headers["x-request-id"])
+    : null;
+
+  if (requestId) {
+    const [existing] = await db.select().from(purchaseReturnsTable)
+      .where(eq(purchaseReturnsTable.request_id, requestId)).limit(1);
+    if (existing) return res.json({ ...existing, total_amount: Number(existing.total_amount), created_at: existing.created_at.toISOString() });
+  }
 
   const total: number = items.reduce((s: number, i: { total_price: number }) => s + Number(i.total_price), 0);
   const return_no = `PR-${Date.now()}`;
@@ -471,6 +492,7 @@ router.post("/purchase-returns", wrap(async (req, res) => {
 
     // ── إنشاء سجل المرتجع ─────────────────────────────────────────────────
     const [ret] = await tx.insert(purchaseReturnsTable).values({
+      request_id: requestId,
       return_no,
       purchase_id: purchase_id ?? null,
       customer_id: customer_id ? parseInt(customer_id) : null,
@@ -602,7 +624,7 @@ router.post("/purchase-returns", wrap(async (req, res) => {
     return ret;
   });
 
-  res.status(201).json({ ...ret, total_amount: Number(ret.total_amount), created_at: ret.created_at.toISOString() });
+  return res.status(201).json({ ...ret, total_amount: Number(ret.total_amount), created_at: ret.created_at.toISOString() });
 }));
 
 router.delete("/purchase-returns/:id", wrap(async (req, res) => {

@@ -20,10 +20,20 @@ router.get("/receipt-vouchers", wrap(async (_req, res) => {
 router.post("/receipt-vouchers", wrap(async (req, res) => {
   const { customer_id, customer_name, safe_id, amount, notes, date } = req.body;
   if (!customer_name || !safe_id || !amount) {
-    res.status(400).json({ error: "البيانات غير مكتملة" }); return;
+    return res.status(400).json({ error: "البيانات غير مكتملة" });
   }
   const amt = Number(amount);
-  if (isNaN(amt) || amt <= 0) { res.status(400).json({ error: "المبلغ غير صحيح" }); return; }
+  if (isNaN(amt) || amt <= 0) { return res.status(400).json({ error: "المبلغ غير صحيح" }); }
+
+  const requestId = req.headers["x-request-id"]
+    ? String(req.headers["x-request-id"])
+    : null;
+
+  if (requestId) {
+    const [existing] = await db.select().from(receiptVouchersTable)
+      .where(eq(receiptVouchersTable.request_id, requestId)).limit(1);
+    if (existing) return res.json(fmt(existing));
+  }
 
   await assertPeriodOpen(date ?? null, req);
 
@@ -45,6 +55,7 @@ router.post("/receipt-vouchers", wrap(async (req, res) => {
     // 3. إنشاء سند القبض (posting_status = 'draft' بالافتراضي)
     const voucher_no = `RCV-${Date.now()}`;
     const [v] = await tx.insert(receiptVouchersTable).values({
+      request_id: requestId,
       voucher_no,
       date: date ?? new Date().toISOString().split("T")[0],
       customer_id: customer_id ? parseInt(customer_id) : null,
@@ -88,7 +99,7 @@ router.post("/receipt-vouchers", wrap(async (req, res) => {
   });
 
   // القيد المحاسبي يُنشأ عند الترحيل (POST /receipt-vouchers/:id/post)
-  res.status(201).json(fmt(voucher));
+  return res.status(201).json(fmt(voucher));
 }));
 
 /* ── مساعد: جلب حساب العميل من السند ──────────────────────────────────── */

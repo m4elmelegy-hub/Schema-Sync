@@ -10,6 +10,15 @@ export type AuthTokenGetter = () => Promise<string | null> | string | null;
 
 const NO_BODY_STATUS = new Set([204, 205, 304]);
 const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
+const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+function generateRequestId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  // Fallback for environments without crypto.randomUUID
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+}
 
 // ---------------------------------------------------------------------------
 // Module-level configuration
@@ -353,6 +362,12 @@ export async function customFetch<T = unknown>(
     if (token) {
       headers.set("authorization", `Bearer ${token}`);
     }
+  }
+
+  // Attach a unique request ID to all mutating requests to enable
+  // server-side idempotency protection (prevent double-submit).
+  if (MUTATING_METHODS.has(method) && !headers.has("x-request-id")) {
+    headers.set("x-request-id", generateRequestId());
   }
 
   const requestInfo = { method, url: resolveUrl(input) };

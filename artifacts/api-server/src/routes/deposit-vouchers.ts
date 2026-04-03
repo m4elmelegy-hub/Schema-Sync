@@ -19,9 +19,19 @@ router.get("/deposit-vouchers", wrap(async (_req, res) => {
 
 router.post("/deposit-vouchers", wrap(async (req, res) => {
   const { safe_id, amount, customer_id, customer_name, source, notes, date } = req.body;
-  if (!safe_id || !amount) { res.status(400).json({ error: "البيانات غير مكتملة" }); return; }
+  if (!safe_id || !amount) { return res.status(400).json({ error: "البيانات غير مكتملة" }); }
   const amt = Number(amount);
-  if (isNaN(amt) || amt <= 0) { res.status(400).json({ error: "المبلغ غير صحيح" }); return; }
+  if (isNaN(amt) || amt <= 0) { return res.status(400).json({ error: "المبلغ غير صحيح" }); }
+
+  const requestId = req.headers["x-request-id"]
+    ? String(req.headers["x-request-id"])
+    : null;
+
+  if (requestId) {
+    const [existing] = await db.select().from(depositVouchersTable)
+      .where(eq(depositVouchersTable.request_id, requestId)).limit(1);
+    if (existing) return res.json(fmt(existing));
+  }
 
   await assertPeriodOpen(date ?? null, req);
 
@@ -47,6 +57,7 @@ router.post("/deposit-vouchers", wrap(async (req, res) => {
     // 3. إنشاء سند التوريد (posting_status = 'draft' بالافتراضي)
     const voucher_no = `DEP-${Date.now()}`;
     const [v] = await tx.insert(depositVouchersTable).values({
+      request_id: requestId,
       voucher_no,
       date: date ?? new Date().toISOString().split("T")[0],
       customer_id: custId,
@@ -96,7 +107,7 @@ router.post("/deposit-vouchers", wrap(async (req, res) => {
   });
 
   // القيد المحاسبي يُنشأ عند الترحيل (POST /deposit-vouchers/:id/post)
-  res.status(201).json(fmt(voucher));
+  return res.status(201).json(fmt(voucher));
 }));
 
 /* ── مساعد: جلب حساب العميل ────────────────────────────────────────────── */

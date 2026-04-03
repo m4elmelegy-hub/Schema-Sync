@@ -1,4 +1,4 @@
-import { pgTable, serial, text, numeric, integer, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, integer, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -6,6 +6,7 @@ import { z } from "zod/v4";
 // العميل يدفع دَيْنه → رصيد العميل ينزل، الخزينة ترتفع
 export const receiptVouchersTable = pgTable("receipt_vouchers", {
   id: serial("id").primaryKey(),
+  request_id: text("request_id"),
   voucher_no: text("voucher_no").notNull(),
   date: text("date").notNull(),
   customer_id: integer("customer_id"),
@@ -21,12 +22,14 @@ export const receiptVouchersTable = pgTable("receipt_vouchers", {
   index("receipt_vouchers_safe_id_idx").on(t.safe_id),
   index("receipt_vouchers_date_idx").on(t.date),
   index("receipt_vouchers_created_at_idx").on(t.created_at),
+  uniqueIndex("receipt_vouchers_request_id_uidx").on(t.request_id),
 ]);
 
 // ── سندات التوريد / الإيداع (Deposit Vouchers) ─────────────────────────────
 // إيداع نقود في الخزينة من عميل أو مصدر خارجي → الخزينة ترتفع، رصيد العميل ينزل
 export const depositVouchersTable = pgTable("deposit_vouchers", {
   id: serial("id").primaryKey(),
+  request_id: text("request_id"),
   voucher_no: text("voucher_no").notNull(),
   date: text("date").notNull(),
   customer_id: integer("customer_id"),
@@ -43,12 +46,14 @@ export const depositVouchersTable = pgTable("deposit_vouchers", {
   index("deposit_vouchers_safe_id_idx").on(t.safe_id),
   index("deposit_vouchers_date_idx").on(t.date),
   index("deposit_vouchers_created_at_idx").on(t.created_at),
+  uniqueIndex("deposit_vouchers_request_id_uidx").on(t.request_id),
 ]);
 
 // ── سندات الصرف (Payment Vouchers) ──────────────────────────────────────────
 // الشركة تصرف نقداً لعميل (استرداد، دفعة عكسية...) → الخزينة تنزل
 export const paymentVouchersTable = pgTable("payment_vouchers", {
   id: serial("id").primaryKey(),
+  request_id: text("request_id"),
   voucher_no: text("voucher_no").notNull(),
   date: text("date").notNull(),
   customer_id: integer("customer_id"),
@@ -64,6 +69,7 @@ export const paymentVouchersTable = pgTable("payment_vouchers", {
   index("payment_vouchers_safe_id_idx").on(t.safe_id),
   index("payment_vouchers_date_idx").on(t.date),
   index("payment_vouchers_created_at_idx").on(t.created_at),
+  uniqueIndex("payment_vouchers_request_id_uidx").on(t.request_id),
 ]);
 
 export const insertReceiptVoucherSchema = createInsertSchema(receiptVouchersTable).omit({ id: true, created_at: true });

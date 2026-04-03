@@ -49,8 +49,17 @@ router.get("/purchases", wrap(async (_req, res) => {
 router.post("/purchases", wrap(async (req, res) => {
   const parsed = CreatePurchaseBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
+    return res.status(400).json({ error: parsed.error.message });
+  }
+
+  const requestId = req.headers["x-request-id"]
+    ? String(req.headers["x-request-id"])
+    : null;
+
+  if (requestId) {
+    const [existing] = await db.select().from(purchasesTable)
+      .where(eq(purchasesTable.request_id, requestId)).limit(1);
+    if (existing) return res.json(formatPurchase(existing));
   }
 
   const {
@@ -80,6 +89,7 @@ router.post("/purchases", wrap(async (req, res) => {
 
   const purchase = await db.transaction(async (tx) => {
     const [newPurchase] = await tx.insert(purchasesTable).values({
+      request_id: requestId,
       invoice_no: invoiceNo,
       supplier_name: displayName,
       customer_id: customer_id ?? null,
@@ -205,7 +215,7 @@ router.post("/purchases", wrap(async (req, res) => {
     return newPurchase;
   });
 
-  res.status(201).json(formatPurchase(purchase));
+  return res.status(201).json(formatPurchase(purchase));
 }));
 
 router.get("/purchases/:id", wrap(async (req, res) => {

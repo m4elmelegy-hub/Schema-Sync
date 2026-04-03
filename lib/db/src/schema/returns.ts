@@ -1,10 +1,11 @@
-import { pgTable, serial, text, numeric, integer, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, integer, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { productsTable } from "./products";
 
 export const salesReturnsTable = pgTable("sales_returns", {
   id: serial("id").primaryKey(),
+  request_id: text("request_id"),
   return_no: text("return_no").notNull(),
   sale_id: integer("sale_id"),
   customer_id: integer("customer_id"),
@@ -24,6 +25,7 @@ export const salesReturnsTable = pgTable("sales_returns", {
   index("sales_returns_customer_id_idx").on(t.customer_id),
   index("sales_returns_sale_id_idx").on(t.sale_id),
   index("sales_returns_created_at_idx").on(t.created_at),
+  uniqueIndex("sales_returns_request_id_uidx").on(t.request_id),
 ]);
 
 export const saleReturnItemsTable = pgTable("sale_return_items", {
@@ -46,6 +48,7 @@ export const saleReturnItemsTable = pgTable("sale_return_items", {
 
 export const purchaseReturnsTable = pgTable("purchase_returns", {
   id: serial("id").primaryKey(),
+  request_id: text("request_id"),
   return_no: text("return_no").notNull(),
   purchase_id: integer("purchase_id"),
   customer_id: integer("customer_id"),
@@ -62,6 +65,7 @@ export const purchaseReturnsTable = pgTable("purchase_returns", {
   index("purchase_returns_purchase_id_idx").on(t.purchase_id),
   index("purchase_returns_customer_id_idx").on(t.customer_id),
   index("purchase_returns_created_at_idx").on(t.created_at),
+  uniqueIndex("purchase_returns_request_id_uidx").on(t.request_id),
 ]);
 
 export const purchaseReturnItemsTable = pgTable("purchase_return_items", {

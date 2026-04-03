@@ -1,10 +1,11 @@
-import { pgTable, serial, text, numeric, integer, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, integer, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { productsTable } from "./products";
 
 export const purchasesTable = pgTable("purchases", {
   id: serial("id").primaryKey(),
+  request_id: text("request_id"),
   invoice_no: text("invoice_no").notNull(),
   supplier_name: text("supplier_name"),
   customer_id: integer("customer_id"),
@@ -23,6 +24,7 @@ export const purchasesTable = pgTable("purchases", {
   index("purchases_status_idx").on(t.status),
   index("purchases_created_at_idx").on(t.created_at),
   index("purchases_date_idx").on(t.date),
+  uniqueIndex("purchases_request_id_uidx").on(t.request_id),
 ]);
 
 export const purchaseItemsTable = pgTable("purchase_items", {
