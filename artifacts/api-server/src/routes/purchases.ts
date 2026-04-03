@@ -87,6 +87,10 @@ router.post("/purchases", wrap(async (req, res) => {
   const today = date ?? new Date().toISOString().split("T")[0];
   const displayName = customer_name ?? supplier_name ?? null;
 
+  if (paid_amount > 0 && !safe_id) {
+    return res.status(400).json({ error: "يجب اختيار الخزينة للمدفوعات النقدية أو الجزئية" });
+  }
+
   const purchase = await db.transaction(async (tx) => {
     const [newPurchase] = await tx.insert(purchasesTable).values({
       request_id: requestId,
