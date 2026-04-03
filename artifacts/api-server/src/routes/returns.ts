@@ -9,6 +9,7 @@ import {
 
 import { wrap, httpError } from "../lib/async-handler";
 import { assertPeriodOpen } from "../lib/period-lock";
+import { writeAuditLog } from "../lib/audit-log";
 
 const router: IRouter = Router();
 
@@ -279,6 +280,14 @@ router.post("/sales-returns", wrap(async (req, res) => {
     return ret;
   });
 
+  void writeAuditLog({
+    action: "create",
+    record_type: "sale_return",
+    record_id: ret.id,
+    new_value: { return_no, total, customer_id: customer_id ?? null, refund_type: rtype, date: txDate },
+    user: { id: req.user?.id, username: req.user?.username },
+  });
+
   return res.status(201).json({ ...ret, total_amount: Number(ret.total_amount), created_at: ret.created_at.toISOString() });
 }));
 
@@ -388,6 +397,13 @@ router.delete("/sales-returns/:id", wrap(async (req, res) => {
 
     await tx.delete(saleReturnItemsTable).where(eq(saleReturnItemsTable.return_id, id));
     await tx.delete(salesReturnsTable).where(eq(salesReturnsTable.id, id));
+  });
+
+  void writeAuditLog({
+    action: "delete",
+    record_type: "sale_return",
+    record_id: id,
+    user: { id: req.user?.id, username: req.user?.username },
   });
 
   res.json({ success: true });
@@ -650,6 +666,14 @@ router.post("/purchase-returns", wrap(async (req, res) => {
     return ret;
   });
 
+  void writeAuditLog({
+    action: "create",
+    record_type: "purchase_return",
+    record_id: ret.id,
+    new_value: { return_no: ret.return_no, total: Number(ret.total_amount) },
+    user: { id: req.user?.id, username: req.user?.username },
+  });
+
   return res.status(201).json({ ...ret, total_amount: Number(ret.total_amount), created_at: ret.created_at.toISOString() });
 }));
 
@@ -756,6 +780,14 @@ router.delete("/purchase-returns/:id", wrap(async (req, res) => {
     await tx.delete(purchaseReturnItemsTable).where(eq(purchaseReturnItemsTable.return_id, id));
     await tx.delete(purchaseReturnsTable).where(eq(purchaseReturnsTable.id, id));
   });
+
+  void writeAuditLog({
+    action: "delete",
+    record_type: "purchase_return",
+    record_id: id,
+    user: { id: req.user?.id, username: req.user?.username },
+  });
+
   res.json({ success: true });
 }));
 

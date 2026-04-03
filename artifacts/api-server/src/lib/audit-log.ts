@@ -7,8 +7,14 @@
 
 import { db, auditLogsTable } from "@workspace/db";
 
-export type AuditAction = "create" | "update" | "delete";
-export type AuditRecordType = "customer" | "supplier";
+export type AuditAction = "create" | "update" | "delete" | "cancel" | "price_override";
+export type AuditRecordType =
+  | "customer"
+  | "supplier"
+  | "sale"
+  | "sale_return"
+  | "purchase_return"
+  | "product";
 
 interface AuditUser {
   id?: number;

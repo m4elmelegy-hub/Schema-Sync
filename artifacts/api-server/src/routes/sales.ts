@@ -12,6 +12,7 @@ import { triggerBackup } from "../lib/backup-service";
 import { assertPeriodOpen } from "../lib/period-lock";
 import { getCustomerLedgerBalance } from "../lib/ledger-balance";
 import { runAllChecks } from "../lib/alert-service";
+import { writeAuditLog } from "../lib/audit-log";
 import {
   getOrCreateSalesRevenueAccount,
   getOrCreateSafeAccount,
@@ -272,6 +273,22 @@ router.post("/sales", wrap(async (req, res) => {
       });
 
       return newSale;
+  });
+
+  // ── تسجيل حدث الإنشاء في سجل المراجعة ───────────────────────────────────
+  void writeAuditLog({
+    action: "create",
+    record_type: "sale",
+    record_id: sale.id,
+    new_value: {
+      invoice_no: sale.invoice_no,
+      total_amount: total_amount,
+      payment_type,
+      customer_name: customer_name ?? null,
+      customer_id: customer_id ?? null,
+      role,
+    },
+    user: { id: req.user?.id, username: req.user?.username },
   });
 
   // ── ترحيل فوري للكاشير ───────────────────────────────────────────────────
@@ -653,6 +670,16 @@ router.post("/sales/:id/cancel", wrap(async (req, res) => {
   });
 
   const [updated] = await db.select().from(salesTable).where(eq(salesTable.id, id));
+
+  void writeAuditLog({
+    action: "cancel",
+    record_type: "sale",
+    record_id: id,
+    old_value: { posting_status: "posted", invoice_no: sale.invoice_no },
+    new_value: { posting_status: "cancelled" },
+    user: { id: req.user?.id, username: req.user?.username },
+  });
+
   res.json(formatSale(updated));
 }));
 

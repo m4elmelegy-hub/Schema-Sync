@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { authFetch } from "@/lib/auth-fetch";
 import { useGetSales, useGetSaleById, useGetProducts, useGetCustomers, useGetSettingsSafes } from "@workspace/api-client-react";
 import { useWarehouse } from "@/contexts/warehouse";
@@ -563,7 +563,7 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
 
   const checkoutMutation = useMutation({
     mutationFn: (data: object) => authFetch(api("/api/sales"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) })
-      .then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error || "خطأ في التسجيل"); return j; }),
+      .then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error || "خطأ غير متوقع في التسجيل"); return j; }),
     onSuccess: (data) => {
       const selectedCustomer = customers.find(c => c.id === parseInt(customerId));
       queryClient.invalidateQueries({ queryKey: ["/api/sales"] });
@@ -571,6 +571,7 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
       queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/settings/safes"] });
+      setCheckoutError(null);
       setSuccessInvoice({
         invoice_no: data.invoice_no,
         total_amount: data.total_amount,
@@ -582,7 +583,10 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
       setCart([]); setPaidAmount(""); setCustomerId(""); setSafeId("");
       setDiscountPct(""); setPaymentType("cash");
     },
-    onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
+    onError: (e: Error) => {
+      setCheckoutError(e.message);
+      toast({ title: "❌ فشل التسجيل", description: e.message, variant: "destructive" });
+    },
   });
 
   const categories = Array.from(new Set(products.map(p => p.category).filter(Boolean)));
@@ -599,8 +603,9 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
 
   const [recentlyAdded, setRecentlyAdded] = useState<number | null>(null);
   const [editingPrice, setEditingPrice] = useState<{ pid: number; val: string } | null>(null);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
-  const updatePrice = (pid: number, rawVal: string) => {
+  const updatePrice = useCallback((pid: number, rawVal: string) => {
     const newPrice = parseFloat(rawVal);
     if (isNaN(newPrice) || newPrice < 0) return;
     const prod = products.find(p => p.id === pid);
@@ -609,8 +614,22 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
       toast({ title: `⚠ السعر (${formatCurrency(newPrice)}) أقل من تكلفة الشراء (${formatCurrency(costPrice)})`, variant: "destructive" });
       return;
     }
-    setCart(prev => prev.map(i => i.product_id !== pid ? i : { ...i, unit_price: newPrice, total_price: newPrice * i.quantity }));
-  };
+    setCart(prev => {
+      const oldItem = prev.find(i => i.product_id === pid);
+      if (oldItem && Math.abs(newPrice - oldItem.unit_price) > 0.001) {
+        console.log("[audit:price_override]", JSON.stringify({
+          user_id: currentUser?.id,
+          username: currentUser?.name,
+          product_id: pid,
+          product_name: oldItem.product_name,
+          old_price: oldItem.unit_price,
+          new_price: newPrice,
+          timestamp: new Date().toISOString(),
+        }));
+      }
+      return prev.map(i => i.product_id !== pid ? i : { ...i, unit_price: newPrice, total_price: newPrice * i.quantity });
+    });
+  }, [products, currentUser, toast]);
 
   const addToCart = (product: typeof products[0]) => {
     setCart(prev => {
@@ -1360,6 +1379,19 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
               </div>
             </div>
 
+            {checkoutError && (
+              <div className="bg-red-500/10 border border-red-500/25 rounded-xl px-3 py-2 flex items-start gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-red-400 text-xs font-bold leading-tight">❌ فشل التسجيل</p>
+                  <p className="text-red-300/70 text-xs mt-0.5 leading-tight">{checkoutError}</p>
+                </div>
+                <button
+                  onClick={handleCheckout}
+                  className="shrink-0 text-xs text-white font-bold px-3 py-1.5 rounded-lg bg-red-500/30 hover:bg-red-500/50 border border-red-500/40 transition-colors">
+                  إعادة المحاولة
+                </button>
+              </div>
+            )}
             <button onClick={handleCheckout} disabled={checkoutMutation.isPending || cart.length === 0}
               className="w-full py-3 rounded-xl font-black text-sm disabled:opacity-40 transition-all active:scale-97 relative overflow-hidden"
               style={{
