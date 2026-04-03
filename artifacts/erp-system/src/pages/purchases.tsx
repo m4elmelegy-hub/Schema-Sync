@@ -132,6 +132,7 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
         customer_id: finalCustomerId,
         customer_name: finalCustomerName,
         safe_id: safeId ? parseInt(safeId) : null,
+        warehouse_id: warehouseId ? parseInt(warehouseId) : null,
         payment_type: paymentType,
         total_amount: cartTotal,
         paid_amount: actualPaid,

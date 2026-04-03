@@ -100,8 +100,8 @@ router.post("/sales", wrap(async (req, res) => {
   await assertPeriodOpen(date, req);
 
   const role = req.user?.role ?? "cashier";
-  const queryWarehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
-  const effectiveWarehouseId = (role === "admin" || role === "manager") ? queryWarehouseId : (req.user?.warehouse_id ?? null);
+  const bodyWarehouseId = warehouse_id ? Number(warehouse_id) : null;
+  const effectiveWarehouseId = (role === "admin" || role === "manager") ? bodyWarehouseId : (req.user?.warehouse_id ?? null);
 
   if (effectiveWarehouseId === null) {
     res.status(400).json({ error: "يجب تحديد المخزن" }); return;
@@ -448,7 +448,6 @@ router.post("/sales/:id/cancel", wrap(async (req, res) => {
   if (!hasPermission(req.user, "can_cancel_sale")) {
     res.status(403).json({ error: "غير مصرح بإلغاء الفواتير" }); return;
   }
-  const role = req.user?.role ?? "cashier";
   const id = parseInt(req.params.id as string);
   if (isNaN(id)) throw httpError(400, "معرّف غير صحيح");
 
@@ -539,8 +538,7 @@ router.post("/sales/:id/cancel", wrap(async (req, res) => {
 
   await assertPeriodOpen(sale.date, req);
 
-  const queryWarehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
-  const effectiveWarehouseId = (role === "admin" || role === "manager") ? queryWarehouseId : (req.user?.warehouse_id ?? null);
+  const effectiveWarehouseId = req.user?.warehouse_id ?? null;
 
   const today = new Date().toISOString().split("T")[0];
 

@@ -1,0 +1,97 @@
+Recovery Phase — Restore Stable Operations First
+
+Goal:
+Bring the ERP back to a fully working state before any more feature work.
+
+Rules:
+- Do NOT add new features
+- Do NOT refactor architecture
+- Do NOT change schema again unless absolutely necessary
+- Focus only on restoring stable daily operations
+- Keep existing good fixes (transaction safety, overselling prevention, safe validation, subscription check, UI cleanup)
+
+Task 1 — Audit current breakages
+Inspect and list ALL currently broken daily flows:
+- sales create
+- purchases create
+- dashboard load
+- customers page
+- products page
+- expenses/income
+- quick tasks
+For each one, identify the exact reason:
+- missing warehouse_id
+- missing company_id
+- permission block
+- bad frontend request
+- backend guard
+Do not guess. Trace each failing request.
+
+Task 2 — Restore warehouse flow correctly
+Apply this rule consistently:
+
+A) admin / manager:
+- may choose warehouse manually from UI
+- if request requires warehouse and none is selected:
+  return clear 400 Arabic message: "يجب اختيار المخزن"
+
+B) cashier / salesperson:
+- must use warehouse_id from user profile automatically
+- frontend should not require manual selection
+- backend should use req.user.warehouse_id if role is cashier/salesperson
+- if req.user.warehouse_id is null:
+  return clear 403 Arabic message: "المستخدم غير مرتبط بمخزن"
+
+Do NOT use hidden fallback to warehouse 1 for cashier operations.
+
+Task 3 — Restore company flow correctly
+Apply this rule consistently:
+
+- if req.user.company_id is null:
+  allow only super-admin flows
+- for normal company users:
+  all create/list routes must use req.user.company_id automatically
+- frontend should not need to manually send company_id for normal users
+
+Do NOT rely on DB default company_id=1 for regular operations.
+
+Task 4 — Permissions must never break operation silently
+Use this exact logic:
+- only block if permission === false explicitly
+- if permission is undefined, allow
+- UI should hide blocked actions, but backend must be the source of truth
+
+Task 5 — Fix purchases end-to-end first
+Make sure purchases create works completely again:
+- selecting supplier/customer
+- selecting warehouse correctly
+- creating purchase
+- stock movement
+- posting status behavior remains correct
+
+Task 6 — Fix sales end-to-end
+Make sure sales create works completely again:
+- product add
+- price edit if allowed
+- return flow
+- posting behavior for cashier remains intentional and consistent
+
+Task 7 — Final verification
+After fixes, verify these flows manually:
+1. admin purchase create
+2. cashier sale create
+3. dashboard load
+4. products list
+5. customers list
+6. expenses page
+7. quick tasks cards
+8. return create
+9. permissions disabled explicitly = action blocked
+10. no generic blank failures
+
+Output required:
+- exact files changed
+- exact root cause for each broken page
+- what was kept
+- what was corrected
+- confirmation that daily operations work again

@@ -83,8 +83,8 @@ router.post("/purchases", wrap(async (req, res) => {
   await assertPeriodOpen(date, req);
 
   const role = req.user?.role ?? "cashier";
-  const queryWarehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
-  const effectiveWarehouseId = (role === "admin" || role === "manager") ? queryWarehouseId : (req.user?.warehouse_id ?? null);
+  const bodyWarehouseId = parsed.data.warehouse_id ? Number(parsed.data.warehouse_id) : null;
+  const effectiveWarehouseId = (role === "admin" || role === "manager") ? bodyWarehouseId : (req.user?.warehouse_id ?? null);
 
   if (effectiveWarehouseId === null) {
     res.status(400).json({ error: "يجب تحديد المخزن" }); return;
@@ -420,9 +420,7 @@ router.post("/purchases/:id/cancel", wrap(async (req, res) => {
 
   await assertPeriodOpen(purchase.date, req);
 
-  const role = req.user?.role ?? "cashier";
-  const queryWarehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
-  const effectiveWarehouseId = (role === "admin" || role === "manager") ? queryWarehouseId : (req.user?.warehouse_id ?? null);
+  const effectiveWarehouseId = req.user?.warehouse_id ?? null;
 
   const today = new Date().toISOString().split("T")[0];
 
