@@ -94,6 +94,10 @@ router.post("/sales", wrap(async (req, res) => {
 
   await assertPeriodOpen(date, req);
 
+  const role = req.user?.role ?? "cashier";
+  const queryWarehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
+  const effectiveWarehouseId = (role === "admin" || role === "manager") ? queryWarehouseId : (req.user?.warehouse_id ?? null);
+
   let status = "paid";
   if (payment_type === "credit") status = "unpaid";
   else if (remaining > 0) status = "partial";
@@ -189,7 +193,7 @@ router.post("/sales", wrap(async (req, res) => {
             reference_no: invoiceNo,
             notes: customer_name ? `مبيعات لـ ${customer_name}` : "فاتورة مبيعات",
             date: new Date().toISOString().split("T")[0],
-            warehouse_id: warehouse_id ?? req.user?.warehouse_id ?? undefined,
+            warehouse_id: warehouse_id ?? effectiveWarehouseId ?? 1,
           });
         }
       }
@@ -484,6 +488,10 @@ router.post("/sales/:id/cancel", wrap(async (req, res) => {
 
   await assertPeriodOpen(sale.date, req);
 
+  const role = req.user?.role ?? "cashier";
+  const queryWarehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
+  const effectiveWarehouseId = (role === "admin" || role === "manager") ? queryWarehouseId : (req.user?.warehouse_id ?? null);
+
   const today = new Date().toISOString().split("T")[0];
 
   await db.transaction(async (tx) => {
@@ -536,7 +544,7 @@ router.post("/sales/:id/cancel", wrap(async (req, res) => {
           reference_no:    sale.invoice_no,
           notes:           `إلغاء فاتورة مبيعات ${sale.invoice_no}`,
           date:            today,
-          warehouse_id:    sale.warehouse_id ?? req.user?.warehouse_id ?? undefined,
+          warehouse_id:    sale.warehouse_id ?? effectiveWarehouseId ?? 1,
         });
       }
     }

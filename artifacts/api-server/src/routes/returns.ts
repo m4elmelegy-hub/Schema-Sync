@@ -77,6 +77,10 @@ router.post("/sales-returns", wrap(async (req, res) => {
 
   await assertPeriodOpen(txDate, req);
 
+  const role = req.user?.role ?? "cashier";
+  const queryWarehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
+  const effectiveWarehouseId = (role === "admin" || role === "manager") ? queryWarehouseId : (req.user?.warehouse_id ?? null);
+
   const ret = await db.transaction(async (tx) => {
     let safeName: string | null = null;
     let safeIdInt: number | null = null;
@@ -217,7 +221,7 @@ router.post("/sales-returns", wrap(async (req, res) => {
           reference_no:    return_no,
           notes: customer_name ? `مرتجع مبيعات من ${customer_name}` : "مرتجع مبيعات",
           date: txDate,
-          warehouse_id: req.user?.warehouse_id ?? undefined,
+          warehouse_id: effectiveWarehouseId ?? 1,
         });
       }
     }
@@ -281,6 +285,10 @@ router.delete("/sales-returns/:id", wrap(async (req, res) => {
   if (!preCheck) throw httpError(404, "المرتجع غير موجود");
   await assertPeriodOpen(preCheck.date, req);
 
+  const role = req.user?.role ?? "cashier";
+  const queryWarehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
+  const effectiveWarehouseId = (role === "admin" || role === "manager") ? queryWarehouseId : (req.user?.warehouse_id ?? null);
+
   await db.transaction(async (tx) => {
     const [ret] = await tx.select().from(salesReturnsTable).where(eq(salesReturnsTable.id, id));
     if (!ret) throw httpError(400, "المرتجع غير موجود");
@@ -336,7 +344,7 @@ router.delete("/sales-returns/:id", wrap(async (req, res) => {
           reference_no:    ret.return_no,
           notes:           `إلغاء مرتجع مبيعات ${ret.return_no}`,
           date:            new Date().toISOString().split("T")[0],
-          warehouse_id:    req.user?.warehouse_id ?? undefined,
+          warehouse_id:    effectiveWarehouseId ?? 1,
         });
       }
     }
@@ -443,6 +451,10 @@ router.post("/purchase-returns", wrap(async (req, res) => {
   const rtype: string = refund_type === "cash" ? "cash" : "balance_credit";
 
   await assertPeriodOpen(txDate, req);
+
+  const role = req.user?.role ?? "cashier";
+  const queryWarehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
+  const effectiveWarehouseId = (role === "admin" || role === "manager") ? queryWarehouseId : (req.user?.warehouse_id ?? null);
 
   const ret = await db.transaction(async (tx) => {
     // ── الاسترداد النقدي: إضافة للخزينة ─────────────────────────────────────
@@ -619,7 +631,7 @@ router.post("/purchase-returns", wrap(async (req, res) => {
           reference_no:    return_no,
           notes: supplier_name ? `مرتجع مشتريات لـ ${supplier_name}` : "مرتجع مشتريات",
           date: txDate,
-          warehouse_id: req.user?.warehouse_id ?? undefined,
+          warehouse_id: effectiveWarehouseId ?? 1,
         });
       }
     }
@@ -636,6 +648,10 @@ router.delete("/purchase-returns/:id", wrap(async (req, res) => {
     .from(purchaseReturnsTable).where(eq(purchaseReturnsTable.id, id));
   if (!preCheck) throw httpError(404, "غير موجود");
   await assertPeriodOpen(preCheck.date, req);
+
+  const role = req.user?.role ?? "cashier";
+  const queryWarehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
+  const effectiveWarehouseId = (role === "admin" || role === "manager") ? queryWarehouseId : (req.user?.warehouse_id ?? null);
 
   await db.transaction(async (tx) => {
     const [ret] = await tx.select().from(purchaseReturnsTable).where(eq(purchaseReturnsTable.id, id));
@@ -687,7 +703,7 @@ router.delete("/purchase-returns/:id", wrap(async (req, res) => {
           reference_no:    ret.return_no,
           notes:           `إلغاء مرتجع مشتريات ${ret.return_no}`,
           date:            new Date().toISOString().split("T")[0],
-          warehouse_id:    req.user?.warehouse_id ?? undefined,
+          warehouse_id:    effectiveWarehouseId ?? 1,
         });
       }
     }

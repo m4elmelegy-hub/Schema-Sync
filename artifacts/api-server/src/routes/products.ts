@@ -36,6 +36,10 @@ router.post("/products", wrap(async (req, res) => {
     return;
   }
 
+  const role = req.user?.role ?? "cashier";
+  const queryWarehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
+  const effectiveWarehouseId = (role === "admin" || role === "manager") ? queryWarehouseId : (req.user?.warehouse_id ?? null);
+
   const [product] = await db.insert(productsTable).values({
     name: parsed.data.name,
     sku: parsed.data.sku ?? null,
@@ -60,7 +64,7 @@ router.post("/products", wrap(async (req, res) => {
       reference_no: `OB-${product.id}`,
       notes: "رصيد افتتاحي",
       date: new Date().toISOString().split("T")[0],
-      warehouse_id: req.user?.warehouse_id ?? undefined,
+      warehouse_id: effectiveWarehouseId ?? 1,
     });
   }
 
