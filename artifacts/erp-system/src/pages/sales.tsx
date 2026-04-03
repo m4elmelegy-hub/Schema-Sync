@@ -529,6 +529,7 @@ function WhatsAppSuccessModal({ invoice, onClose }: { invoice: SuccessInvoice; o
 
 function NewSalePanel({ onDone }: { onDone: () => void }) {
   const { user: currentUser } = useAuth();
+  const canEditPrice = hasPermission(currentUser, "can_edit_price");
   const { data: products = [] } = useGetProducts();
   const { data: customers = [] } = useGetCustomers();
   const { data: safes = [] } = useGetSettingsSafes();
@@ -929,22 +930,28 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
                     <div className="flex items-center justify-between">
                       <span className="font-black text-emerald-400 text-2xl tabular-nums">{formatCurrency(item.total_price)}</span>
                       <div className="flex items-center gap-2">
-                        {editingPrice?.pid === item.product_id ? (
-                          <input
-                            type="number" step="0.01" autoFocus
-                            className="w-24 bg-white/10 border border-amber-500/50 rounded-lg px-2 py-1 text-white text-sm outline-none tabular-nums"
-                            value={editingPrice.val}
-                            onChange={e => setEditingPrice(p => p ? { ...p, val: e.target.value } : null)}
-                            onBlur={() => { updatePrice(item.product_id, editingPrice.val); setEditingPrice(null); }}
-                            onKeyDown={e => { if (e.key === "Enter") { updatePrice(item.product_id, editingPrice.val); setEditingPrice(null); } if (e.key === "Escape") setEditingPrice(null); }}
-                          />
+                        {canEditPrice ? (
+                          editingPrice?.pid === item.product_id ? (
+                            <input
+                              type="number" step="0.01" autoFocus
+                              className="w-24 bg-white/10 border border-amber-500/50 rounded-lg px-2 py-1 text-white text-sm outline-none tabular-nums"
+                              value={editingPrice.val}
+                              onChange={e => setEditingPrice(p => p ? { ...p, val: e.target.value } : null)}
+                              onBlur={() => { updatePrice(item.product_id, editingPrice.val); setEditingPrice(null); }}
+                              onKeyDown={e => { if (e.key === "Enter") { updatePrice(item.product_id, editingPrice.val); setEditingPrice(null); } if (e.key === "Escape") setEditingPrice(null); }}
+                            />
+                          ) : (
+                            <button
+                              onClick={() => setEditingPrice({ pid: item.product_id, val: String(item.unit_price) })}
+                              className={`text-sm tabular-nums transition-colors hover:text-amber-400 ${priceChangedPOS ? "text-amber-400" : "text-white/25"}`}
+                              title="اضغط لتعديل السعر">
+                              × {formatCurrency(item.unit_price)}
+                            </button>
+                          )
                         ) : (
-                          <button
-                            onClick={() => setEditingPrice({ pid: item.product_id, val: String(item.unit_price) })}
-                            className={`text-sm tabular-nums transition-colors hover:text-amber-400 ${priceChangedPOS ? "text-amber-400" : "text-white/25"}`}
-                            title="اضغط لتعديل السعر">
+                          <span className={`text-sm tabular-nums ${priceChangedPOS ? "text-amber-400" : "text-white/25"}`}>
                             × {formatCurrency(item.unit_price)}
-                          </button>
+                          </span>
                         )}
                         <button onClick={() => updateQty(item.product_id, -1)}
                           className="w-10 h-10 rounded-xl bg-white/8 hover:bg-white/18 flex items-center justify-center text-white font-black text-xl transition-colors border border-white/10">
@@ -1245,22 +1252,28 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
                       className="w-7 h-7 rounded-lg bg-amber-500/18 hover:bg-amber-500/30 border border-amber-500/25 flex items-center justify-center transition-colors">
                       <Plus className="w-3 h-3 text-amber-400" />
                     </button>
-                    {editingPrice?.pid === item.product_id ? (
-                      <input
-                        type="number" step="0.01" autoFocus
-                        className="w-20 bg-white/10 border border-amber-500/50 rounded-lg px-2 py-0.5 text-white text-xs outline-none tabular-nums"
-                        value={editingPrice.val}
-                        onChange={e => setEditingPrice(p => p ? { ...p, val: e.target.value } : null)}
-                        onBlur={() => { updatePrice(item.product_id, editingPrice.val); setEditingPrice(null); }}
-                        onKeyDown={e => { if (e.key === "Enter") { updatePrice(item.product_id, editingPrice.val); setEditingPrice(null); } if (e.key === "Escape") setEditingPrice(null); }}
-                      />
+                    {canEditPrice ? (
+                      editingPrice?.pid === item.product_id ? (
+                        <input
+                          type="number" step="0.01" autoFocus
+                          className="w-20 bg-white/10 border border-amber-500/50 rounded-lg px-2 py-0.5 text-white text-xs outline-none tabular-nums"
+                          value={editingPrice.val}
+                          onChange={e => setEditingPrice(p => p ? { ...p, val: e.target.value } : null)}
+                          onBlur={() => { updatePrice(item.product_id, editingPrice.val); setEditingPrice(null); }}
+                          onKeyDown={e => { if (e.key === "Enter") { updatePrice(item.product_id, editingPrice.val); setEditingPrice(null); } if (e.key === "Escape") setEditingPrice(null); }}
+                        />
+                      ) : (
+                        <button
+                          onClick={() => setEditingPrice({ pid: item.product_id, val: String(item.unit_price) })}
+                          className={`text-xs mr-1 tabular-nums transition-colors hover:text-amber-400 ${priceChanged ? "text-amber-400" : "text-white/35"}`}
+                          title="اضغط لتعديل السعر">
+                          × {formatCurrency(item.unit_price)}
+                        </button>
+                      )
                     ) : (
-                      <button
-                        onClick={() => setEditingPrice({ pid: item.product_id, val: String(item.unit_price) })}
-                        className={`text-xs mr-1 tabular-nums transition-colors hover:text-amber-400 ${priceChanged ? "text-amber-400" : "text-white/35"}`}
-                        title="اضغط لتعديل السعر">
+                      <span className={`text-xs mr-1 tabular-nums ${priceChanged ? "text-amber-400" : "text-white/35"}`}>
                         × {formatCurrency(item.unit_price)}
-                      </button>
+                      </span>
                     )}
                   </div>
                   <span className="font-black text-emerald-400 text-base tabular-nums">{formatCurrency(item.total_price)}</span>

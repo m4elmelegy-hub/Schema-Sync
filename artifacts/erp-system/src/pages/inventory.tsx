@@ -2,10 +2,12 @@ import { useState } from "react";
 import { authFetch } from "@/lib/auth-fetch";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useWarehouse } from "@/contexts/warehouse";
+import { useAuth } from "@/contexts/auth";
+import { hasPermission } from "@/lib/permissions";
 import { formatCurrency } from "@/lib/format";
 import {
   Package, AlertTriangle, TrendingDown, TrendingUp,
-  Search, X, RefreshCw, ChevronDown, ChevronUp, Edit3, Check,
+  Search, X, RefreshCw, ChevronDown, ChevronUp, Edit3, Check, ShieldX,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TableSkeleton } from "@/components/skeletons";
@@ -79,7 +81,10 @@ const movementTypeLabel: Record<string, { label: string; color: string; sign: "+
 export default function Inventory() {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
   const { currentWarehouseId } = useWarehouse();
+  const canViewInventory   = hasPermission(user, "can_view_inventory");
+  const canAdjustInventory = hasPermission(user, "can_adjust_inventory");
   const [search, setSearch] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<number | null>(null);
   const [sortKey, setSortKey] = useState<keyof AuditProduct>("name");
@@ -146,6 +151,16 @@ export default function Inventory() {
   const SortIcon = ({ k }: { k: keyof AuditProduct }) => sortKey === k
     ? (sortAsc ? <ChevronUp className="w-3 h-3 inline ms-1" /> : <ChevronDown className="w-3 h-3 inline ms-1" />)
     : null;
+
+  if (!canViewInventory) {
+    return (
+      <div className="p-6 flex flex-col items-center justify-center min-h-[60vh] text-center" dir="rtl">
+        <ShieldX className="w-16 h-16 text-red-400/50 mb-4" />
+        <h2 className="text-xl font-bold text-white/80 mb-2">غير مصرح بالوصول</h2>
+        <p className="text-white/40 text-sm">ليس لديك صلاحية لعرض صفحة مراجعة المخزون</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6 text-right" dir="rtl">
@@ -309,12 +324,14 @@ export default function Inventory() {
                         >
                           الحركات
                         </button>
-                        <button
-                          onClick={() => { setShowAdjust(p.id); setAdjustQty(String(p.actual_qty)); setAdjustNotes(""); }}
-                          className="px-2 py-1 text-xs bg-violet-500/20 text-violet-300 rounded-lg hover:bg-violet-500/30 transition-colors"
-                        >
-                          <Edit3 className="w-3 h-3" />
-                        </button>
+                        {canAdjustInventory && (
+                          <button
+                            onClick={() => { setShowAdjust(p.id); setAdjustQty(String(p.actual_qty)); setAdjustNotes(""); }}
+                            className="px-2 py-1 text-xs bg-violet-500/20 text-violet-300 rounded-lg hover:bg-violet-500/30 transition-colors"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

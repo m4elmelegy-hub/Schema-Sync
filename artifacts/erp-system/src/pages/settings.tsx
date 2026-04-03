@@ -71,6 +71,8 @@ const PERMISSIONS_LIST = [
   { key: "can_edit_price",       label: "تعديل الأسعار" },
   { key: "can_manage_products",  label: "إدارة الأصناف" },
   { key: "can_manage_customers", label: "إدارة العملاء" },
+  { key: "can_view_inventory",   label: "عرض المخزون" },
+  { key: "can_adjust_inventory", label: "تسوية المخزون" },
 ];
 
 /* ─── Shared UI atoms ─── */

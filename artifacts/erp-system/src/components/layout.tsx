@@ -7,6 +7,7 @@ import { useWarehouse } from "@/contexts/warehouse";
 import { authFetch } from "@/lib/auth-fetch";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NAV_ITEMS, canAccess, type UserRole } from "@/lib/rbac";
+import { hasPermission } from "@/lib/permissions";
 import { LogOut, ChevronLeft, Warehouse } from "lucide-react";
 import { PageTransition } from "@/components/page-transition";
 import { AlertBell } from "@/components/alert-bell";
@@ -74,7 +75,11 @@ export function AppLayout({ children }: LayoutProps) {
     }
   }, [warehouses, canSelectWarehouse, currentWarehouseId, setWarehouseId]);
 
-  const visibleNav = NAV_ITEMS.filter(item => canAccess(role, item.href));
+  const visibleNav = NAV_ITEMS.filter(item => {
+    if (!canAccess(role, item.href)) return false;
+    if (item.href === "/inventory" && !hasPermission(user, "can_view_inventory")) return false;
+    return true;
+  });
   const visiblePaths = new Set(visibleNav.map(i => i.href));
 
   const logoSrc = settings.customLogo || `${import.meta.env.BASE_URL}logo.png`;

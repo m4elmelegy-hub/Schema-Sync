@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, sql, and } from "drizzle-orm";
 import { db, stockMovementsTable, productsTable } from "@workspace/db";
 import { wrap } from "../lib/async-handler";
+import { hasPermission } from "../lib/permissions";
 
 interface AuditRow {
   id: unknown;
@@ -36,6 +37,9 @@ function fmtMovement(m: typeof stockMovementsTable.$inferSelect) {
 
 // ── مراجعة المخزون الكاملة ─────────────────────────────────────────────────
 router.get("/inventory/audit", wrap(async (req, res) => {
+  if (!hasPermission(req.user, "can_view_inventory")) {
+    res.status(403).json({ error: "ليس لديك صلاحية عرض المخزون" }); return;
+  }
   const role = req.user?.role ?? "cashier";
   const queryWarehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
   const effectiveWarehouseId = (role === "admin" || role === "manager")
@@ -172,6 +176,9 @@ router.get("/inventory/audit", wrap(async (req, res) => {
 
 // ── كشف حركات منتج واحد ───────────────────────────────────────────────────
 router.get("/inventory/product/:id", wrap(async (req, res) => {
+  if (!hasPermission(req.user, "can_view_inventory")) {
+    res.status(403).json({ error: "ليس لديك صلاحية عرض المخزون" }); return;
+  }
   const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
 
@@ -216,6 +223,9 @@ router.get("/inventory/product/:id", wrap(async (req, res) => {
 
 // ── تسوية يدوية ────────────────────────────────────────────────────────────
 router.post("/inventory/adjustment", wrap(async (req, res) => {
+  if (!hasPermission(req.user, "can_adjust_inventory")) {
+    res.status(403).json({ error: "ليس لديك صلاحية تسوية المخزون" }); return;
+  }
   const { product_id, new_quantity, notes } = req.body;
   if (product_id === undefined || new_quantity === undefined) {
     res.status(400).json({ error: "يجب تحديد المنتج والكمية الجديدة" }); return;
