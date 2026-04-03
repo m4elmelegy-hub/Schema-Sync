@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { useGetProducts, useGetSales, useGetPurchases } from "@workspace/api-client-react";
+import { Link } from "wouter";
 import { formatCurrency, formatDate } from "@/lib/format";
 import {
   TrendingUp, TrendingDown, Package, FileText, DollarSign,
@@ -659,54 +660,13 @@ function ProfitLossReport() {
         </button>
       </div>
 
-      {/* ── صندوق الملخص المالي ── */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="glass-panel rounded-2xl p-5 border border-emerald-500/40 bg-emerald-500/5 flex flex-col">
-          <p className="text-emerald-400/80 text-xs font-semibold mb-2 tracking-wide">الإيرادات</p>
-          <p className="text-emerald-400 font-black text-2xl leading-none tabular-nums">{formatCurrency(pl.total_revenue)}</p>
-          <p className="text-emerald-400/40 text-xs mt-2">{pl.invoice_count} فاتورة</p>
-        </div>
-        <div className="glass-panel rounded-2xl p-5 border border-red-500/40 bg-red-500/5 flex flex-col">
-          <p className="text-red-400/80 text-xs font-semibold mb-2 tracking-wide">تكلفة البضاعة</p>
-          <p className="text-red-400 font-black text-2xl leading-none tabular-nums">{formatCurrency(pl.total_cost)}</p>
-          <p className="text-red-400/40 text-xs mt-2">{pl.total_revenue > 0 ? `${((pl.total_cost / pl.total_revenue) * 100).toFixed(1)}% من الإيرادات` : "—"}</p>
-        </div>
-        <div className={`glass-panel rounded-2xl p-5 border flex flex-col ${pl.net_profit >= 0 ? "border-green-500/40 bg-green-500/5" : "border-red-500/40 bg-red-500/5"}`}>
-          <p className={`text-xs font-semibold mb-2 tracking-wide ${pl.net_profit >= 0 ? "text-green-400/80" : "text-red-400/80"}`}>صافي الربح</p>
-          <p className={`font-black text-2xl leading-none tabular-nums ${pl.net_profit >= 0 ? "text-green-400" : "text-red-400"}`}>{formatCurrency(pl.net_profit)}</p>
-          <p className={`text-xs mt-2 font-bold ${pl.net_profit >= 0 ? "text-green-400/60" : "text-red-400/60"}`}>{pl.net_profit >= 0 ? "▲ ربح" : "▼ خسارة"} · هامش {pl.profit_margin.toFixed(1)}%</p>
-        </div>
-      </div>
-
-      {/* ── Hero KPI Cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <HeroKPICard index={0} label="إجمالي المبيعات" value={pl.total_revenue} prevValue={prev.total_revenue}
-          sub={`${pl.invoice_count} فاتورة · ${pl.item_count} صنف`}
-          border="border-r-emerald-500/70" icon={<TrendingUp className="w-4 h-4 text-emerald-400" />} />
-        <HeroKPICard index={1} label="تكلفة البضاعة" value={pl.total_cost} prevValue={prev.total_cost}
-          sub={pl.total_revenue > 0 ? `${((pl.total_cost / pl.total_revenue) * 100).toFixed(1)}% من المبيعات` : "—"}
-          border="border-r-red-500/70" icon={<TrendingDown className="w-4 h-4 text-red-400" />} valueColor="text-red-400" />
-        <HeroKPICard index={2} label="مجمل الربح" value={pl.gross_profit} prevValue={prev.gross_profit}
-          sub={undefined}
-          border="border-r-amber-500/70" icon={<BarChart3 className="w-4 h-4 text-amber-400" />}
-          extra={
-            <div className="mt-2">
-              <div className="flex items-center justify-between mb-1">
-                <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${pl.profit_margin >= 20 ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"}`}>{pl.profit_margin.toFixed(1)}%</span>
-                <span className="text-white/30 text-xs">الهامش</span>
-              </div>
-              <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                <motion.div className={`h-full rounded-full ${pl.profit_margin >= 20 ? "bg-emerald-500" : "bg-red-500"}`}
-                  initial={{ width: "0%" }} animate={{ width: `${Math.min(pl.profit_margin, 100)}%` }}
-                  transition={{ duration: 1, delay: 0.5 }} />
-              </div>
-            </div>
-          } />
-        <HeroKPICard index={3} label="صافي الربح" value={pl.net_profit} prevValue={prev.net_profit}
-          sub={`بعد خصم ${formatCurrency(pl.total_expenses)} مصروفات`}
-          border={pl.net_profit >= 0 ? "border-r-blue-500/70" : "border-r-red-600/80"}
-          icon={<DollarSign className={`w-4 h-4 ${pl.net_profit >= 0 ? "text-blue-400" : "text-red-400"}`} />}
-          valueColor={pl.net_profit >= 0 ? "text-white" : "text-red-400"} />
+      {/* ── رابط سريع لصفحة الأرباح ── */}
+      <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-amber-500/8 border border-amber-500/20">
+        <TrendingUp className="w-4 h-4 shrink-0 text-amber-400" />
+        <span className="text-amber-300/70 text-xs">للمتابعة السريعة للأرباح انتقل إلى</span>
+        <Link href="/profits" className="text-xs font-bold text-amber-400 hover:text-amber-300 underline underline-offset-2 transition-colors">
+          صفحة الأرباح ←
+        </Link>
       </div>
 
       {/* ── Waterfall P&L Statement ── */}
