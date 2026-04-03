@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { authFetch } from "@/lib/auth-fetch";
 import { useGetSales, useGetSaleById, useGetProducts, useGetCustomers, useGetSettingsSafes } from "@workspace/api-client-react";
+import { useWarehouse } from "@/contexts/warehouse";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { Search, Plus, Minus, Trash2, X, Printer, ShoppingCart, User, Package, Receipt, RotateCcw, Percent, Vault, Lock, CheckCircle, XCircle, ClipboardList, Monitor, Maximize2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -1335,10 +1336,12 @@ function SalesPostingBadge({ status }: { status: string }) {
 function SalesHistoryPanel() {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { currentWarehouseId } = useWarehouse();
+  const warehouseParam = currentWarehouseId ? `?warehouse_id=${currentWarehouseId}` : "";
 
   const { data: sales = [], isLoading } = useQuery<SaleRecord[]>({
-    queryKey: ["/api/sales"],
-    queryFn: () => authFetch(api("/api/sales")).then(r => { if (!r.ok) throw new Error("خطأ"); return r.json(); }),
+    queryKey: ["/api/sales", currentWarehouseId],
+    queryFn: () => authFetch(api(`/api/sales${warehouseParam}`)).then(r => { if (!r.ok) throw new Error("خطأ"); return r.json(); }),
   });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["/api/sales"] });

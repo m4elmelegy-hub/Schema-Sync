@@ -1,4 +1,7 @@
-import { useGetDashboardStats } from "@workspace/api-client-react";
+import { useQuery } from "@tanstack/react-query";
+import { type DashboardStats } from "@workspace/api-client-react";
+import { authFetch } from "@/lib/auth-fetch";
+import { useWarehouse } from "@/contexts/warehouse";
 import { formatCurrency } from "@/lib/format";
 import {
   TrendingUp, TrendingDown, Wallet, Users,
@@ -10,6 +13,9 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar, Cell,
 } from "recharts";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const api = (p: string) => `${BASE}${p}`;
 
 /* ── Transaction meta ─────────────────────────────────────── */
 const TX_LABELS: Record<string, string> = {
@@ -29,7 +35,13 @@ const TX_IS_INCOME = new Set(["sale", "receipt", "income", "deposit", "sale_cash
 
 /* ─────────────────────────────────────────────────────────── */
 export default function Dashboard() {
-  const { data: stats, isLoading, isError } = useGetDashboardStats();
+  const { currentWarehouseId } = useWarehouse();
+  const warehouseParam = currentWarehouseId ? `?warehouse_id=${currentWarehouseId}` : "";
+  const { data: stats, isLoading, isError } = useQuery<DashboardStats>({
+    queryKey: ["/api/dashboard/stats", currentWarehouseId],
+    queryFn: () => authFetch(api(`/api/dashboard/stats${warehouseParam}`))
+      .then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
+  });
 
   /* ── Loading skeleton ─────────────────────────────────── */
   if (isLoading) {

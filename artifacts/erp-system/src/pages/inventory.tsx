@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { authFetch } from "@/lib/auth-fetch";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useWarehouse } from "@/contexts/warehouse";
 import { formatCurrency } from "@/lib/format";
 import {
   Package, AlertTriangle, TrendingDown, TrendingUp,
@@ -78,6 +79,7 @@ const movementTypeLabel: Record<string, { label: string; color: string; sign: "+
 export default function Inventory() {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { currentWarehouseId } = useWarehouse();
   const [search, setSearch] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<number | null>(null);
   const [sortKey, setSortKey] = useState<keyof AuditProduct>("name");
@@ -86,9 +88,11 @@ export default function Inventory() {
   const [adjustQty, setAdjustQty] = useState("");
   const [adjustNotes, setAdjustNotes] = useState("");
 
+  const warehouseParam = currentWarehouseId ? `?warehouse_id=${currentWarehouseId}` : "";
+
   const { data: auditData, isLoading, refetch } = useQuery<{ products: AuditProduct[]; summary: AuditSummary }>({
-    queryKey: ["inventory-audit"],
-    queryFn: () => authFetch(api("/api/inventory/audit")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
+    queryKey: ["inventory-audit", currentWarehouseId],
+    queryFn: () => authFetch(api(`/api/inventory/audit${warehouseParam}`)).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
 
   const { data: productDetail } = useQuery<ProductDetail>({
