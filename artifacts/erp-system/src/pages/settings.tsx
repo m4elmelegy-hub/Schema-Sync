@@ -20,6 +20,7 @@ import {
   Upload, Download, RefreshCcw, Building2, Loader2, CheckCircle2,
   HardDrive, History, BookOpen, Package, UserCircle, Truck, Banknote,
   ChevronDown, ChevronRight, Shield, Store, CaseSensitive, AlignLeft, Sun,
+  Layers, RotateCcw,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -73,6 +74,52 @@ const PERMISSIONS_LIST = [
   { key: "can_manage_customers", label: "إدارة العملاء" },
   { key: "can_view_inventory",   label: "عرض المخزون" },
   { key: "can_adjust_inventory", label: "تسوية المخزون" },
+];
+
+const PERMISSION_TEMPLATES: Record<string, Record<string, boolean>> = {
+  admin: {
+    can_create_sale:      true,
+    can_cancel_sale:      true,
+    can_edit_price:       true,
+    can_manage_products:  true,
+    can_manage_customers: true,
+    can_view_inventory:   true,
+    can_adjust_inventory: true,
+  },
+  manager: {
+    can_create_sale:      true,
+    can_cancel_sale:      true,
+    can_edit_price:       true,
+    can_manage_products:  true,
+    can_manage_customers: true,
+    can_view_inventory:   true,
+    can_adjust_inventory: true,
+  },
+  salesperson: {
+    can_create_sale:      true,
+    can_cancel_sale:      false,
+    can_edit_price:       false,
+    can_manage_products:  false,
+    can_manage_customers: false,
+    can_view_inventory:   false,
+    can_adjust_inventory: false,
+  },
+  cashier: {
+    can_create_sale:      true,
+    can_cancel_sale:      false,
+    can_edit_price:       false,
+    can_manage_products:  false,
+    can_manage_customers: false,
+    can_view_inventory:   false,
+    can_adjust_inventory: false,
+  },
+};
+
+const TEMPLATE_LABELS: { value: string; label: string }[] = [
+  { value: "admin",       label: "مدير النظام — كل الصلاحيات" },
+  { value: "manager",     label: "مشرف — كل الصلاحيات" },
+  { value: "salesperson", label: "مندوب مبيعات — إنشاء فواتير فقط" },
+  { value: "cashier",     label: "كاشير — إنشاء فواتير فقط" },
 ];
 
 /* ─── Shared UI atoms ─── */
@@ -468,23 +515,60 @@ function UsersTab() {
               </div>
             </div>
 
-            <div>
-              <FieldLabel>الصلاحيات</FieldLabel>
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                {PERMISSIONS_LIST.map(p => (
+            <div className="space-y-3 pt-1">
+              {/* ── قالب الصلاحيات ── */}
+              <div>
+                <FieldLabel>نوع المستخدم</FieldLabel>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <SSelect
+                      value=""
+                      onChange={e => {
+                        const tpl = PERMISSION_TEMPLATES[e.target.value];
+                        if (tpl) setForm(f => ({ ...f, permissions: { ...tpl } }));
+                      }}
+                    >
+                      <option value="" disabled>اختر قالباً لملء الصلاحيات تلقائياً...</option>
+                      {TEMPLATE_LABELS.map(t => (
+                        <option key={t.value} value={t.value}>{t.label}</option>
+                      ))}
+                    </SSelect>
+                  </div>
                   <button
-                    key={p.key}
-                    onClick={() => setForm(f => ({ ...f, permissions: { ...f.permissions, [p.key]: !f.permissions[p.key] } }))}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs border transition-all ${
-                      form.permissions[p.key]
-                        ? "bg-amber-500/15 border-amber-500/40 text-amber-400"
-                        : "bg-white/3 border-white/8 text-white/40 hover:border-white/20 hover:text-white/70"
-                    }`}
+                    type="button"
+                    onClick={() => {
+                      const tpl = PERMISSION_TEMPLATES[form.role];
+                      if (tpl) setForm(f => ({ ...f, permissions: { ...tpl } }));
+                    }}
+                    title="إعادة تعيين للصلاحيات الافتراضية بناءً على الدور"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white/50 hover:text-white/80 hover:border-white/25 transition-all text-xs whitespace-nowrap shrink-0"
                   >
-                    {form.permissions[p.key] ? <Check className="w-3 h-3 shrink-0" /> : <X className="w-3 h-3 shrink-0 opacity-40" />}
-                    {p.label}
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    إعادة تعيين
                   </button>
-                ))}
+                </div>
+                <p className="text-[10px] text-white/25 mt-1.5">يملأ مربعات الصلاحيات تلقائياً — يمكنك التعديل بعدها يدوياً</p>
+              </div>
+
+              {/* ── الصلاحيات ── */}
+              <div>
+                <FieldLabel>الصلاحيات</FieldLabel>
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                  {PERMISSIONS_LIST.map(p => (
+                    <button
+                      key={p.key}
+                      onClick={() => setForm(f => ({ ...f, permissions: { ...f.permissions, [p.key]: !f.permissions[p.key] } }))}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs border transition-all ${
+                        form.permissions[p.key]
+                          ? "bg-amber-500/15 border-amber-500/40 text-amber-400"
+                          : "bg-white/3 border-white/8 text-white/40 hover:border-white/20 hover:text-white/70"
+                      }`}
+                    >
+                      {form.permissions[p.key] ? <Check className="w-3 h-3 shrink-0" /> : <X className="w-3 h-3 shrink-0 opacity-40" />}
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
