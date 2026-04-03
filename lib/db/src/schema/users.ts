@@ -9,6 +9,7 @@ export const erpUsersTable = pgTable("erp_users", {
   permissions: text("permissions").default("{}"),
   active: boolean("active").default(true),
   company_id: integer("company_id"),
+  warehouse_id: integer("warehouse_id"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

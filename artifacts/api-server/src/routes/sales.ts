@@ -47,9 +47,13 @@ function formatSaleItem(item: typeof saleItemsTable.$inferSelect) {
 }
 
 router.get("/sales", wrap(async (req, res) => {
-  const warehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
-  const sales = warehouseId
-    ? await db.select().from(salesTable).where(eq(salesTable.warehouse_id, warehouseId)).orderBy(salesTable.created_at)
+  const role = req.user?.role ?? "cashier";
+  const queryWarehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
+  const effectiveWarehouseId = (role === "admin" || role === "manager")
+    ? queryWarehouseId
+    : (req.user?.warehouse_id ?? null);
+  const sales = effectiveWarehouseId
+    ? await db.select().from(salesTable).where(eq(salesTable.warehouse_id, effectiveWarehouseId)).orderBy(salesTable.created_at)
     : await db.select().from(salesTable).orderBy(salesTable.created_at);
   res.json(GetSalesResponse.parse(sales.map(formatSale)));
 }));

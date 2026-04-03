@@ -11,15 +11,19 @@ import { getTotalCustomerLedgerBalance, getTotalSupplierLedgerBalance } from "..
 const router: IRouter = Router();
 
 router.get("/dashboard/stats", wrap(async (req, res) => {
-  const warehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
+  const role = req.user?.role ?? "cashier";
+  const queryWarehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
+  const effectiveWarehouseId = (role === "admin" || role === "manager")
+    ? queryWarehouseId
+    : (req.user?.warehouse_id ?? null);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const todayStr = today.toISOString().split("T")[0];
 
   // ── مبيعات اليوم ─────────────────────────────────────────────────────────
-  const salesDateFilter = warehouseId
-    ? and(gte(salesTable.date, todayStr), eq(salesTable.warehouse_id, warehouseId))
+  const salesDateFilter = effectiveWarehouseId
+    ? and(gte(salesTable.date, todayStr), eq(salesTable.warehouse_id, effectiveWarehouseId))
     : gte(salesTable.date, todayStr);
   const [salesToday] = await db.select({ total: sum(salesTable.total_amount) })
     .from(salesTable).where(salesDateFilter);

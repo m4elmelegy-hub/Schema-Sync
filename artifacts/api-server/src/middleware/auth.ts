@@ -15,6 +15,7 @@ export interface AuthUser {
   role: string;
   permissions: string;
   active: boolean | null;
+  warehouse_id: number | null;
 }
 
 /* Extend Express Request */
