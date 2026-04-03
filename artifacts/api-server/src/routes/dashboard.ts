@@ -16,6 +16,9 @@ router.get("/dashboard/stats", wrap(async (req, res) => {
   const effectiveWarehouseId = (role === "admin" || role === "manager")
     ? queryWarehouseId
     : (req.user?.warehouse_id ?? null);
+  if ((role === "cashier" || role === "salesperson") && effectiveWarehouseId === null) {
+    res.status(403).json({ error: "المستخدم غير مرتبط بمخزن" }); return;
+  }
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);

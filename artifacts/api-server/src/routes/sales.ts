@@ -52,6 +52,9 @@ router.get("/sales", wrap(async (req, res) => {
   const effectiveWarehouseId = (role === "admin" || role === "manager")
     ? queryWarehouseId
     : (req.user?.warehouse_id ?? null);
+  if ((role === "cashier" || role === "salesperson") && effectiveWarehouseId === null) {
+    res.status(403).json({ error: "المستخدم غير مرتبط بمخزن" }); return;
+  }
   const sales = effectiveWarehouseId
     ? await db.select().from(salesTable).where(eq(salesTable.warehouse_id, effectiveWarehouseId)).orderBy(salesTable.created_at)
     : await db.select().from(salesTable).orderBy(salesTable.created_at);
@@ -186,6 +189,7 @@ router.post("/sales", wrap(async (req, res) => {
             reference_no: invoiceNo,
             notes: customer_name ? `مبيعات لـ ${customer_name}` : "فاتورة مبيعات",
             date: new Date().toISOString().split("T")[0],
+            warehouse_id: warehouse_id ?? 1,
           });
         }
       }
@@ -532,6 +536,7 @@ router.post("/sales/:id/cancel", wrap(async (req, res) => {
           reference_no:    sale.invoice_no,
           notes:           `إلغاء فاتورة مبيعات ${sale.invoice_no}`,
           date:            today,
+          warehouse_id:    sale.warehouse_id ?? 1,
         });
       }
     }

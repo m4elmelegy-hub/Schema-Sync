@@ -35,7 +35,20 @@ function fmtMovement(m: typeof stockMovementsTable.$inferSelect) {
 }
 
 // ── مراجعة المخزون الكاملة ─────────────────────────────────────────────────
-router.get("/inventory/audit", wrap(async (_req, res) => {
+router.get("/inventory/audit", wrap(async (req, res) => {
+  const role = req.user?.role ?? "cashier";
+  const queryWarehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
+  const effectiveWarehouseId = (role === "admin" || role === "manager")
+    ? queryWarehouseId
+    : (req.user?.warehouse_id ?? null);
+  if ((role === "cashier" || role === "salesperson") && effectiveWarehouseId === null) {
+    res.status(403).json({ error: "المستخدم غير مرتبط بمخزن" }); return;
+  }
+
+  const warehouseFilter = effectiveWarehouseId
+    ? sql` AND sm.warehouse_id = ${effectiveWarehouseId}`
+    : sql``;
+
   const rows = await db.execute(sql`
     SELECT
       p.id,
@@ -54,7 +67,7 @@ router.get("/inventory/audit", wrap(async (_req, res) => {
       COALESCE(SUM(CASE WHEN sm.movement_type = 'adjustment'       THEN CAST(sm.quantity AS FLOAT8) ELSE 0 END), 0)     AS adjustment_qty,
       COALESCE(SUM(CAST(sm.quantity AS FLOAT8)), 0)                                                                      AS calculated_qty
     FROM products p
-    LEFT JOIN stock_movements sm ON sm.product_id = p.id
+    LEFT JOIN stock_movements sm ON sm.product_id = p.id${warehouseFilter}
     GROUP BY p.id, p.name, p.sku, p.category, p.quantity, p.cost_price, p.sale_price, p.low_stock_threshold
     ORDER BY p.name
   `);
