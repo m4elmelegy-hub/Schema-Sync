@@ -80,13 +80,23 @@ router.get("/dashboard/stats", wrap(async (req, res) => {
     }));
 
   // ── آخر الحركات المالية ───────────────────────────────────────────────────
+  const ALLOWED_TX_TYPES = new Set([
+    "sale","purchase","expense","income","receipt","payment",
+    "sale_return","purchase_return","sale_cash","sale_credit",
+    "sale_partial","purchase_cash","purchase_credit","receipt_voucher",
+    "payment_voucher","sale_cancel","supplier_payment","safe_closing",
+    "safe_adjustment","deposit_voucher",
+  ]);
   const recentTxns = await db.select().from(transactionsTable)
-    .orderBy(desc(transactionsTable.created_at)).limit(10);
-  const recent_transactions = recentTxns.map(t => ({
-    ...t,
-    amount: Number(t.amount),
-    created_at: t.created_at.toISOString(),
-  }));
+    .orderBy(desc(transactionsTable.created_at)).limit(50);
+  const recent_transactions = recentTxns
+    .filter(t => ALLOWED_TX_TYPES.has(t.type))
+    .slice(0, 10)
+    .map(t => ({
+      ...t,
+      amount: Number(t.amount),
+      created_at: t.created_at.toISOString(),
+    }));
 
   res.json(GetDashboardStatsResponse.parse({
     total_sales_today,
