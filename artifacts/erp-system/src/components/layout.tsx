@@ -1,12 +1,18 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/auth";
 import { useAppSettings } from "@/contexts/app-settings";
+import { useWarehouse } from "@/contexts/warehouse";
+import { authFetch } from "@/lib/auth-fetch";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NAV_ITEMS, canAccess, type UserRole } from "@/lib/rbac";
-import { LogOut, ChevronLeft } from "lucide-react";
+import { LogOut, ChevronLeft, Warehouse } from "lucide-react";
 import { PageTransition } from "@/components/page-transition";
 import { AlertBell } from "@/components/alert-bell";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const api = (p: string) => `${BASE}${p}`;
 
 const NAV_SECTIONS = [
   { label: "الرئيسية",   hrefs: ["/", "/tasks"] },
@@ -44,6 +50,17 @@ export function AppLayout({ children }: LayoutProps) {
   const { user, logout } = useAuth();
   const { settings } = useAppSettings();
   const isDark = (settings.theme ?? "dark") === "dark";
+
+  const { currentWarehouseId, setWarehouseId } = useWarehouse();
+
+  const { data: warehouses = [] } = useQuery<{ id: number; name: string }[]>({
+    queryKey: ["/api/settings/warehouses"],
+    queryFn: () => authFetch(api("/api/settings/warehouses")).then(r => {
+      if (!r.ok) throw new Error("خطأ في جلب المخازن");
+      return r.json();
+    }),
+    staleTime: 5 * 60_000,
+  });
 
   const role = (user?.role ?? "cashier") as UserRole;
   const visibleNav = NAV_ITEMS.filter(item => canAccess(role, item.href));
@@ -134,6 +151,36 @@ export function AppLayout({ children }: LayoutProps) {
               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.30)"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}>
               <LogOut className="w-3.5 h-3.5" />
             </button>
+          </div>
+        )}
+
+        {/* Warehouse Selector */}
+        {warehouses.length > 0 && (
+          <div className="mx-3 mt-2 px-3 py-2.5 rounded-xl"
+            style={{
+              background: isDark ? "rgba(245,158,11,0.06)" : "rgba(180,83,9,0.06)",
+              border: isDark ? "1px solid rgba(245,158,11,0.15)" : "1px solid rgba(180,83,9,0.14)",
+            }}>
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <Warehouse className="w-3 h-3" style={{ color: isDark ? "rgba(245,158,11,0.60)" : "rgba(180,83,9,0.60)" }} />
+              <p className="text-[10px] font-bold uppercase tracking-wide"
+                style={{ color: isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.35)" }}>
+                المخزن الحالي
+              </p>
+            </div>
+            <select
+              value={currentWarehouseId}
+              onChange={e => setWarehouseId(e.target.value)}
+              className="w-full bg-transparent text-sm font-semibold appearance-none outline-none cursor-pointer leading-tight"
+              style={{ color: isDark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.80)" }}
+            >
+              <option value="" style={{ background: isDark ? "#111827" : "#fff" }}>كل المخازن</option>
+              {warehouses.map(w => (
+                <option key={w.id} value={String(w.id)} style={{ background: isDark ? "#111827" : "#fff" }}>
+                  {w.name}
+                </option>
+              ))}
+            </select>
           </div>
         )}
 

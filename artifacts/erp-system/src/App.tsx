@@ -7,6 +7,7 @@ import { AppLayout } from "@/components/layout";
 import { SubscriptionBanner } from "@/components/subscription-banner";
 import { AuthProvider, useAuth } from "@/contexts/auth";
 import { AppSettingsProvider } from "@/contexts/app-settings";
+import { WarehouseProvider } from "@/contexts/warehouse";
 import { canAccess, type UserRole } from "@/lib/rbac";
 import { Spinner } from "@/components/ui/spinner";
 import NotFound from "@/pages/not-found";
@@ -117,12 +118,14 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AppSettingsProvider>
-          <AuthProvider>
-            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-              <Router />
-            </WouterRouter>
-            <Toaster />
-          </AuthProvider>
+          <WarehouseProvider>
+            <AuthProvider>
+              <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+                <Router />
+              </WouterRouter>
+              <Toaster />
+            </AuthProvider>
+          </WarehouseProvider>
         </AppSettingsProvider>
       </TooltipProvider>
     </QueryClientProvider>
