@@ -306,19 +306,22 @@ router.post("/purchases/:id/post", wrap(async (req, res) => {
   await assertPeriodOpen(purchase.date, req);
 
   const lines = await buildPurchaseJournalLines(purchase);
-  if (lines.length >= 2) {
-    await createJournalEntry({
-      date: purchase.date ?? new Date().toISOString().split("T")[0],
-      description: `فاتورة مشتريات ${purchase.invoice_no}${purchase.supplier_name ? ` — ${purchase.supplier_name}` : ""}`,
-      reference: purchase.invoice_no,
-      lines,
-    });
-  }
 
-  const [updated] = await db.update(purchasesTable)
-    .set({ posting_status: "posted" })
-    .where(eq(purchasesTable.id, id))
-    .returning();
+  const updated = await db.transaction(async (tx) => {
+    if (lines.length >= 2) {
+      await createJournalEntry({
+        date: purchase.date ?? new Date().toISOString().split("T")[0],
+        description: `فاتورة مشتريات ${purchase.invoice_no}${purchase.supplier_name ? ` — ${purchase.supplier_name}` : ""}`,
+        reference: purchase.invoice_no,
+        lines,
+      }, tx);
+    }
+    const [row] = await tx.update(purchasesTable)
+      .set({ posting_status: "posted" })
+      .where(eq(purchasesTable.id, id))
+      .returning();
+    return row;
+  });
 
   const purchaseItems = await db.select({ product_id: purchaseItemsTable.product_id })
     .from(purchaseItemsTable).where(eq(purchaseItemsTable.purchase_id, id));
@@ -413,7 +416,7 @@ router.post("/purchases/:id/cancel", wrap(async (req, res) => {
           description: `إلغاء فاتورة مشتريات ${purchase.invoice_no}${purchase.supplier_name ? ` — ${purchase.supplier_name}` : ""}`,
           reference: `REV-${purchase.invoice_no}`,
           lines: reversed,
-        });
+        }, tx);
       }
     }
 

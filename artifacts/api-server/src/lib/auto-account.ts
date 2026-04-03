@@ -19,6 +19,9 @@
 import { eq, count, sql } from "drizzle-orm";
 import { db, accountsTable, journalEntriesTable, journalEntryLinesTable } from "@workspace/db";
 
+/** نوع مشترك يقبل `db` أو `tx` داخل transaction */
+type DbOrTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 type AccountType = "asset" | "liability" | "equity" | "revenue" | "expense";
 
 interface AccountSpec {
@@ -168,12 +171,16 @@ export async function getOrCreatePurchasesCostAccount(): Promise<AccountRef> {
  *
  * All lines must balance (total debits === total credits) — caller is responsible.
  */
-export async function createJournalEntry(opts: {
-  date: string;
-  description: string;
-  reference: string;
-  lines: JournalLine[];
-}): Promise<void> {
+export async function createJournalEntry(
+  opts: {
+    date: string;
+    description: string;
+    reference: string;
+    lines: JournalLine[];
+  },
+  tx?: DbOrTx,
+): Promise<void> {
+  const runner: DbOrTx = tx ?? (db as unknown as DbOrTx);
   const { date, description, reference, lines } = opts;
 
   const totalDebit = lines.reduce((s, l) => s + l.debit, 0);
@@ -184,13 +191,13 @@ export async function createJournalEntry(opts: {
   }
   if (totalDebit === 0) return;
 
-  const [{ total }] = await db
+  const [{ total }] = await runner
     .select({ total: count() })
     .from(journalEntriesTable);
 
   const entryNo = `JE-${String(Number(total) + 1).padStart(5, "0")}`;
 
-  const [entry] = await db
+  const [entry] = await runner
     .insert(journalEntriesTable)
     .values({
       entry_no: entryNo,
@@ -203,7 +210,7 @@ export async function createJournalEntry(opts: {
     })
     .returning({ id: journalEntriesTable.id });
 
-  await db.insert(journalEntryLinesTable).values(
+  await runner.insert(journalEntryLinesTable).values(
     lines.map((l) => ({
       entry_id: entry.id,
       account_id: l.account.id,
@@ -217,7 +224,7 @@ export async function createJournalEntry(opts: {
   for (const l of lines) {
     const delta = l.debit - l.credit;
     if (delta === 0) continue;
-    await db
+    await runner
       .update(accountsTable)
       .set({ current_balance: sql`current_balance + ${String(delta)}::numeric` })
       .where(eq(accountsTable.id, l.account.id));

@@ -139,7 +139,15 @@ router.post("/sales", wrap(async (req, res) => {
         const costAtSale = prod ? Number(prod.cost_price) : 0;
         const costTotal = costAtSale * item.quantity;
         const oldQty = prod ? Number(prod.quantity) : 0;
-        const newQty = Math.max(0, oldQty - item.quantity);
+
+        if (oldQty < item.quantity - 0.001) {
+          throw httpError(
+            400,
+            `كمية "${item.product_name}" في المخزون (${oldQty.toFixed(3)}) أقل من الكمية المطلوبة (${item.quantity}) — لا يمكن البيع بكميات تتجاوز المخزون المتاح`,
+          );
+        }
+
+        const newQty = oldQty - item.quantity;
 
         await tx.insert(saleItemsTable).values({
           sale_id: newSale.id,
@@ -341,19 +349,22 @@ router.post("/sales/:id/post", wrap(async (req, res) => {
   await assertPeriodOpen(sale.date, req);
 
   const lines = await buildSaleJournalLines(sale);
-  if (lines.length >= 2) {
-    await createJournalEntry({
-      date: sale.date ?? new Date().toISOString().split("T")[0],
-      description: `فاتورة مبيعات ${sale.invoice_no}${sale.customer_name ? ` — ${sale.customer_name}` : ""}`,
-      reference: sale.invoice_no,
-      lines,
-    });
-  }
 
-  const [updated] = await db.update(salesTable)
-    .set({ posting_status: "posted" })
-    .where(eq(salesTable.id, id))
-    .returning();
+  const updated = await db.transaction(async (tx) => {
+    if (lines.length >= 2) {
+      await createJournalEntry({
+        date: sale.date ?? new Date().toISOString().split("T")[0],
+        description: `فاتورة مبيعات ${sale.invoice_no}${sale.customer_name ? ` — ${sale.customer_name}` : ""}`,
+        reference: sale.invoice_no,
+        lines,
+      }, tx);
+    }
+    const [row] = await tx.update(salesTable)
+      .set({ posting_status: "posted" })
+      .where(eq(salesTable.id, id))
+      .returning();
+    return row;
+  });
 
   // Fire-and-forget alert checks after posting
   const saleItems = await db.select({ product_id: saleItemsTable.product_id })
@@ -475,7 +486,7 @@ router.post("/sales/:id/cancel", wrap(async (req, res) => {
           description: `إلغاء فاتورة مبيعات ${sale.invoice_no}${sale.customer_name ? ` — ${sale.customer_name}` : ""}`,
           reference: `REV-${sale.invoice_no}`,
           lines: reversed,
-        });
+        }, tx);
       }
     }
 
