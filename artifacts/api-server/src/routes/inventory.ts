@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and } from "drizzle-orm";
 import { db, stockMovementsTable, productsTable } from "@workspace/db";
 import { wrap } from "../lib/async-handler";
 
@@ -45,8 +45,12 @@ router.get("/inventory/audit", wrap(async (req, res) => {
     res.status(403).json({ error: "المستخدم غير مرتبط بمخزن" }); return;
   }
 
+  const companyId = req.user?.company_id ?? null;
   const warehouseFilter = effectiveWarehouseId
     ? sql` AND sm.warehouse_id = ${effectiveWarehouseId}`
+    : sql``;
+  const companyWhere = companyId !== null
+    ? sql` WHERE p.company_id = ${companyId}`
     : sql``;
 
   const rows = await db.execute(sql`
@@ -68,6 +72,7 @@ router.get("/inventory/audit", wrap(async (req, res) => {
       COALESCE(SUM(CAST(sm.quantity AS FLOAT8)), 0)                                                                      AS calculated_qty
     FROM products p
     LEFT JOIN stock_movements sm ON sm.product_id = p.id${warehouseFilter}
+    ${companyWhere}
     GROUP BY p.id, p.name, p.sku, p.category, p.quantity, p.cost_price, p.sale_price, p.low_stock_threshold
     ORDER BY p.name
   `);
@@ -244,6 +249,7 @@ router.post("/inventory/adjustment", wrap(async (req, res) => {
       reference_no: `ADJ-${Date.now()}`,
       notes: notes ?? "تسوية يدوية",
       date: new Date().toISOString().split("T")[0],
+      company_id: req.user?.company_id ?? undefined,
     });
   });
 

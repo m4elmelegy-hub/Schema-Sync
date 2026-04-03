@@ -55,9 +55,12 @@ router.get("/sales", wrap(async (req, res) => {
   if ((role === "cashier" || role === "salesperson") && effectiveWarehouseId === null) {
     res.status(403).json({ error: "المستخدم غير مرتبط بمخزن" }); return;
   }
-  const sales = effectiveWarehouseId
-    ? await db.select().from(salesTable).where(eq(salesTable.warehouse_id, effectiveWarehouseId)).orderBy(salesTable.created_at)
-    : await db.select().from(salesTable).orderBy(salesTable.created_at);
+  const companyId = req.user?.company_id ?? null;
+  const salesWhere = and(
+    effectiveWarehouseId ? eq(salesTable.warehouse_id, effectiveWarehouseId) : undefined,
+    companyId !== null ? eq(salesTable.company_id, companyId) : undefined,
+  );
+  const sales = await db.select().from(salesTable).where(salesWhere).orderBy(salesTable.created_at);
   res.json(GetSalesResponse.parse(sales.map(formatSale)));
 }));
 
@@ -149,6 +152,7 @@ router.post("/sales", wrap(async (req, res) => {
         notes: notes ?? null,
         date: date ?? new Date().toISOString().split("T")[0],
         request_id: requestId,
+        company_id: req.user?.company_id ?? undefined,
       }).returning();
 
       // 3. البنود: خصم المخزون + تسجيل التكلفة + حركة مخزون صادر

@@ -42,10 +42,12 @@ async function getNextCustomerCode(): Promise<number> {
   return Math.max(currentMax ?? 0, 1000) + 1;
 }
 
-router.get("/customers", wrap(async (_req, res) => {
+router.get("/customers", wrap(async (req, res) => {
   // مصدر الحقيقة الوحيد: جدول customer_ledger
   // الرصيد = SUM(amount) لكل عميل
   // موجب = العميل مدين لنا (عليه) — سالب = نحن مدينون له (له علينا)
+  const companyId = req.user?.company_id ?? null;
+  const companyFilter = companyId !== null ? sql` WHERE c.company_id = ${companyId}` : sql``;
   const rows = await db.execute(sql`
     SELECT
       c.id, c.name, c.customer_code, c.phone,
@@ -53,6 +55,7 @@ router.get("/customers", wrap(async (_req, res) => {
       COALESCE(SUM(CAST(cl.amount AS FLOAT8)), 0) AS ledger_balance
     FROM customers c
     LEFT JOIN customer_ledger cl ON cl.customer_id = c.id
+    ${companyFilter}
     GROUP BY c.id, c.name, c.customer_code, c.phone,
              c.is_supplier, c.account_id, c.normalized_name, c.created_at
     ORDER BY c.customer_code
@@ -98,6 +101,7 @@ router.post("/customers", wrap(async (req, res) => {
     phone: parsed.data.phone ?? null,
     balance: String(parsed.data.balance ?? 0),
     is_supplier: parsed.data.is_supplier ?? false,
+    company_id: req.user?.company_id ?? undefined,
   }).returning();
 
   const acct = await getOrCreateCustomerAccount(newCode, parsed.data.name.trim());

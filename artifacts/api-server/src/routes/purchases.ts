@@ -41,8 +41,11 @@ function formatPurchaseItem(item: typeof purchaseItemsTable.$inferSelect) {
   };
 }
 
-router.get("/purchases", wrap(async (_req, res) => {
-  const purchases = await db.select().from(purchasesTable).orderBy(purchasesTable.created_at);
+router.get("/purchases", wrap(async (req, res) => {
+  const companyId = req.user?.company_id ?? null;
+  const purchases = await db.select().from(purchasesTable)
+    .where(companyId !== null ? eq(purchasesTable.company_id, companyId) : undefined)
+    .orderBy(purchasesTable.created_at);
   res.json(GetPurchasesResponse.parse(purchases.map(formatPurchase)));
 }));
 
@@ -113,6 +116,7 @@ router.post("/purchases", wrap(async (req, res) => {
       status,
       date: today,
       notes: notes ?? null,
+      company_id: req.user?.company_id ?? undefined,
     }).returning();
 
     for (const item of items) {

@@ -25,9 +25,12 @@ router.get("/dashboard/stats", wrap(async (req, res) => {
   const todayStr = today.toISOString().split("T")[0];
 
   // ── مبيعات اليوم ─────────────────────────────────────────────────────────
-  const salesDateFilter = effectiveWarehouseId
-    ? and(gte(salesTable.date, todayStr), eq(salesTable.warehouse_id, effectiveWarehouseId))
-    : gte(salesTable.date, todayStr);
+  const companyId = req.user?.company_id ?? null;
+  const salesDateFilter = and(
+    gte(salesTable.date, todayStr),
+    effectiveWarehouseId ? eq(salesTable.warehouse_id, effectiveWarehouseId) : undefined,
+    companyId !== null ? eq(salesTable.company_id, companyId) : undefined,
+  );
   const [salesToday] = await db.select({ total: sum(salesTable.total_amount) })
     .from(salesTable).where(salesDateFilter);
   const total_sales_today = Number(salesToday?.total ?? 0);
@@ -64,7 +67,8 @@ router.get("/dashboard/stats", wrap(async (req, res) => {
   ]);
 
   // ── منتجات منخفضة المخزون ────────────────────────────────────────────────
-  const allProducts = await db.select().from(productsTable);
+  const allProducts = await db.select().from(productsTable)
+    .where(companyId !== null ? eq(productsTable.company_id, companyId) : undefined);
   const low_stock_products = allProducts
     .filter(p => p.low_stock_threshold !== null && Number(p.quantity) <= (p.low_stock_threshold ?? 0))
     .map(p => ({

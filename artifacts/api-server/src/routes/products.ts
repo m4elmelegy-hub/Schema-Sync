@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db, productsTable, stockMovementsTable } from "@workspace/db";
 import {
   GetProductsResponse,
@@ -24,8 +24,11 @@ function formatProduct(p: typeof productsTable.$inferSelect) {
   };
 }
 
-router.get("/products", wrap(async (_req, res) => {
-  const products = await db.select().from(productsTable).orderBy(productsTable.created_at);
+router.get("/products", wrap(async (req, res) => {
+  const companyId = req.user?.company_id ?? null;
+  const products = await db.select().from(productsTable)
+    .where(companyId !== null ? eq(productsTable.company_id, companyId) : undefined)
+    .orderBy(productsTable.created_at);
   res.json(GetProductsResponse.parse(products.map(formatProduct)));
 }));
 
@@ -48,6 +51,7 @@ router.post("/products", wrap(async (req, res) => {
     cost_price: String(parsed.data.cost_price),
     sale_price: String(parsed.data.sale_price),
     low_stock_threshold: parsed.data.low_stock_threshold ?? null,
+    company_id: req.user?.company_id ?? undefined,
   }).returning();
 
   // ── تسجيل الرصيد الافتتاحي في جدول حركات المخزون ──
