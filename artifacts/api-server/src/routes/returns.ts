@@ -217,6 +217,7 @@ router.post("/sales-returns", wrap(async (req, res) => {
           reference_no:    return_no,
           notes: customer_name ? `مرتجع مبيعات من ${customer_name}` : "مرتجع مبيعات",
           date: txDate,
+          warehouse_id: req.user?.warehouse_id ?? undefined,
         });
       }
     }
@@ -335,6 +336,7 @@ router.delete("/sales-returns/:id", wrap(async (req, res) => {
           reference_no:    ret.return_no,
           notes:           `إلغاء مرتجع مبيعات ${ret.return_no}`,
           date:            new Date().toISOString().split("T")[0],
+          warehouse_id:    req.user?.warehouse_id ?? undefined,
         });
       }
     }
@@ -617,6 +619,7 @@ router.post("/purchase-returns", wrap(async (req, res) => {
           reference_no:    return_no,
           notes: supplier_name ? `مرتجع مشتريات لـ ${supplier_name}` : "مرتجع مشتريات",
           date: txDate,
+          warehouse_id: req.user?.warehouse_id ?? undefined,
         });
       }
     }
@@ -684,6 +687,7 @@ router.delete("/purchase-returns/:id", wrap(async (req, res) => {
           reference_no:    ret.return_no,
           notes:           `إلغاء مرتجع مشتريات ${ret.return_no}`,
           date:            new Date().toISOString().split("T")[0],
+          warehouse_id:    req.user?.warehouse_id ?? undefined,
         });
       }
     }

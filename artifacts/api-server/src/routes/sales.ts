@@ -189,7 +189,7 @@ router.post("/sales", wrap(async (req, res) => {
             reference_no: invoiceNo,
             notes: customer_name ? `مبيعات لـ ${customer_name}` : "فاتورة مبيعات",
             date: new Date().toISOString().split("T")[0],
-            warehouse_id: warehouse_id ?? 1,
+            warehouse_id: warehouse_id ?? req.user?.warehouse_id ?? undefined,
           });
         }
       }
@@ -536,7 +536,7 @@ router.post("/sales/:id/cancel", wrap(async (req, res) => {
           reference_no:    sale.invoice_no,
           notes:           `إلغاء فاتورة مبيعات ${sale.invoice_no}`,
           date:            today,
-          warehouse_id:    sale.warehouse_id ?? 1,
+          warehouse_id:    sale.warehouse_id ?? req.user?.warehouse_id ?? undefined,
         });
       }
     }

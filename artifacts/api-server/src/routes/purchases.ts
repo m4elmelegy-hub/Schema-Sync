@@ -148,6 +148,7 @@ router.post("/purchases", wrap(async (req, res) => {
           reference_no: invoiceNo,
           notes: displayName ? `مشتريات من ${displayName}` : "فاتورة مشتريات",
           date: today,
+          warehouse_id: req.user?.warehouse_id ?? undefined,
         });
       }
     }
@@ -455,6 +456,7 @@ router.post("/purchases/:id/cancel", wrap(async (req, res) => {
           reference_no: purchase.invoice_no,
           notes: `إلغاء فاتورة مشتريات ${purchase.invoice_no}`,
           date: today,
+          warehouse_id: req.user?.warehouse_id ?? undefined,
         });
       }
     }

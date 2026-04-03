@@ -60,6 +60,7 @@ router.post("/products", wrap(async (req, res) => {
       reference_no: `OB-${product.id}`,
       notes: "رصيد افتتاحي",
       date: new Date().toISOString().split("T")[0],
+      warehouse_id: req.user?.warehouse_id ?? undefined,
     });
   }
 

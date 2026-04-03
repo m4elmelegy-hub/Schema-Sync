@@ -107,6 +107,7 @@ router.post("/inventory/opening-balance", wrap(async (req, res) => {
       reference_no: `OB-${Date.now()}`,
       notes: notes ?? "رصيد أول المدة",
       date: date ?? new Date().toISOString().split("T")[0],
+      warehouse_id: req.user?.warehouse_id ?? undefined,
     });
   });
 
