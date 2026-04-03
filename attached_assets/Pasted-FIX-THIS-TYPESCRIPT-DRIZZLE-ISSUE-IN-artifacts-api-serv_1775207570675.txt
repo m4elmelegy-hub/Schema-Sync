@@ -1,0 +1,70 @@
+FIX THIS TYPESCRIPT/DRIZZLE ISSUE IN artifacts/api-server/src/routes/sales.ts
+
+Current goal:
+Complete idempotency protection for POST /sales without breaking the route.
+
+Problems currently visible:
+1) TypeScript error:
+   "Not all code paths return a value"
+2) TypeScript/Drizzle error on:
+   tx.insert(salesTable).values(...)
+   "No overload matches this call"
+3) request_id was added to sales schema and route, but the route must compile cleanly.
+
+Do the following carefully:
+
+1. In POST /sales route:
+   - Keep request_id duplicate-check logic
+   - Use this safe pattern for header:
+     const requestId = req.headers["x-request-id"]
+       ? String(req.headers["x-request-id"])
+       : null;
+
+2. Fix the validation branch so TypeScript understands execution stops:
+   Replace:
+     res.status(400).json(...)
+     return;
+   With:
+     return res.status(400).json(...);
+
+3. Keep duplicate request check before creating the sale:
+   if (requestId) {
+     const existing = await db
+       .select()
+       .from(salesTable)
+       .where(eq(salesTable.request_id, requestId))
+       .limit(1);
+
+     if (existing.length > 0) {
+       return res.json(existing[0]);
+     }
+   }
+
+4. Fix tx.insert(salesTable).values(...) type mismatch:
+   - Inspect the sales schema in lib/db/src/schema/sales.ts
+   - Make every value passed to .values(...) match the exact schema type
+   - For numeric columns, pass strings if this schema expects strings in inserts
+   - For nullable columns, use ?? null
+   - Ensure request_id is included as:
+     request_id: requestId,
+   - Ensure invoice_no is a string
+   - Ensure date matches schema type
+
+5. Make sure the whole POST /sales route ends with an explicit return response path.
+   TypeScript must stop complaining about missing returns.
+
+6. Do not change business logic except what is necessary to:
+   - fix compilation
+   - keep duplicate prevention
+   - preserve current accounting behavior
+
+7. After fixing:
+   - run/build/typecheck only for the affected backend/package
+   - confirm sales.ts has 0 TypeScript errors
+   - show me exactly what was changed
+
+Important:
+- Do not make broad refactors
+- Do not remove duplicate prevention
+- Do not revert request_id
+- Fix only what is required for this route to compile and work

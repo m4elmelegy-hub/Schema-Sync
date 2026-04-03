@@ -54,10 +54,23 @@ router.get("/sales", wrap(async (_req, res) => {
 router.post("/sales", wrap(async (req, res) => {
   const parsed = CreateSaleBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
+    return res.status(400).json({ error: parsed.error.message });
   }
+  const requestId = req.headers["x-request-id"]
+    ? String(req.headers["x-request-id"])
+    : null;
 
+  if (requestId) {
+    const existing = await db
+      .select()
+      .from(salesTable)
+      .where(eq(salesTable.request_id, String(requestId)))
+      .limit(1);
+
+    if (existing.length > 0) {
+      return res.json(existing[0]);
+    }
+  }
   const {
     payment_type, total_amount, paid_amount, items, customer_name, customer_id,
     notes, date, safe_id, warehouse_id, salesperson_id,
@@ -66,8 +79,7 @@ router.post("/sales", wrap(async (req, res) => {
   const remaining = total_amount - paid_amount;
 
   if ((payment_type === "cash" || payment_type === "partial") && paid_amount > 0 && !safe_id) {
-    res.status(400).json({ error: "يجب اختيار الخزينة للمبيعات النقدية" });
-    return;
+    return res.status(400).json({ error: "يجب اختيار الخزينة للمبيعات النقدية" });
   }
 
   await assertPeriodOpen(date, req);
@@ -118,6 +130,7 @@ router.post("/sales", wrap(async (req, res) => {
         discount_amount: String(discount_amount ?? 0),
         notes: notes ?? null,
         date: date ?? new Date().toISOString().split("T")[0],
+        request_id: requestId,
       }).returning();
 
       // 3. البنود: خصم المخزون + تسجيل التكلفة + حركة مخزون صادر
@@ -231,7 +244,7 @@ router.post("/sales", wrap(async (req, res) => {
   });
 
   // القيد المحاسبي يُنشأ عند الترحيل (POST /sales/:id/post) — ليس عند الإنشاء
-  res.status(201).json(formatSale(sale));
+  return res.status(201).json(formatSale(sale));
 }));
 
 router.get("/sales/:id", wrap(async (req, res) => {
