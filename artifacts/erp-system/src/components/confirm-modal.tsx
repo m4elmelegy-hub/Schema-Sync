@@ -38,7 +38,7 @@ export function ConfirmModal({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm modal-overlay"
+      className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm modal-overlay"
       onKeyDown={e => { if (e.key === "Escape") onCancel(); }}
     >
       <div className="glass-panel rounded-3xl p-8 w-full max-w-sm border border-white/10 shadow-2xl modal-panel">
