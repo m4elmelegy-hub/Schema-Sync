@@ -7,7 +7,6 @@ import { Router } from "express";
 import { eq } from "drizzle-orm";
 import { db, erpUsersTable, companiesTable } from "@workspace/db";
 import { authenticate, signToken } from "../middleware/auth";
-import { triggerBackup } from "../lib/backup-service";
 
 function daysRemaining(endDate: string): number {
   const now = new Date(); now.setHours(0, 0, 0, 0);
@@ -166,8 +165,6 @@ router.post("/auth/login", async (req, res) => {
       },
     });
 
-    // Fire-and-forget backup on login
-    void triggerBackup("login");
   } catch {
     res.status(500).json({ error: "فشل تسجيل الدخول" });
   }
