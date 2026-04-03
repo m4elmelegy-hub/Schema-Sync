@@ -52,13 +52,16 @@ router.get("/settings/users", authenticate, requireRole("admin"), async (req, re
 
 router.post("/settings/users", authenticate, requireRole("admin"), async (req, res) => {
   try {
-    const { name, username, pin, role, permissions } = req.body;
+    const { name, username, pin, role, permissions, warehouse_id, safe_id, active } = req.body;
     const [user] = await db.insert(erpUsersTable).values({
       name,
       username,
       pin: pin || "0000",
       role: role || "cashier",
       permissions: permissions || "{}",
+      warehouse_id: warehouse_id ? Number(warehouse_id) : null,
+      safe_id: safe_id ? Number(safe_id) : null,
+      active: active !== undefined ? Boolean(active) : true,
     }).returning();
     res.json(user);
   } catch (e) {
@@ -70,7 +73,7 @@ router.put("/settings/users/:id", authenticate, requireRole("admin"), async (req
   try {
     const id = Number(req.params.id);
     const requesterId = req.user!.id;
-    const { name, username, pin, role, permissions, active } = req.body;
+    const { name, username, pin, role, permissions, active, warehouse_id, safe_id } = req.body;
 
     /* Self-escalation prevention: no one can change their own role */
     if (requesterId === id && role !== undefined && role !== req.user!.role) {
@@ -79,7 +82,11 @@ router.put("/settings/users/:id", authenticate, requireRole("admin"), async (req
     }
 
     const [user] = await db.update(erpUsersTable)
-      .set({ name, username, pin, role, permissions, active })
+      .set({
+        name, username, pin, role, permissions, active,
+        warehouse_id: warehouse_id !== undefined ? (warehouse_id ? Number(warehouse_id) : null) : undefined,
+        safe_id: safe_id !== undefined ? (safe_id ? Number(safe_id) : null) : undefined,
+      })
       .where(eq(erpUsersTable.id, id))
       .returning();
     res.json(user);

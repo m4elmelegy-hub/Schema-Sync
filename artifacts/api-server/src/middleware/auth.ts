@@ -16,6 +16,7 @@ export interface AuthUser {
   permissions: string;
   active: boolean | null;
   warehouse_id: number | null;
+  safe_id: number | null;
   company_id: number | null;
 }
 
@@ -61,9 +62,17 @@ export async function authenticate(
     .from(erpUsersTable)
     .where(eq(erpUsersTable.id, payload.userId));
 
-  if (!user || !user.active) {
-    res.status(401).json({ error: "الحساب غير موجود أو معطل" });
+  if (!user || user.active === false) {
+    res.status(401).json({ error: "الحساب غير نشط" });
     return;
+  }
+
+  /* cashier/salesperson must have warehouse_id AND safe_id configured */
+  if (user.role === "cashier" || user.role === "salesperson") {
+    if (!user.warehouse_id || !user.safe_id) {
+      res.status(400).json({ error: "يجب تحديد المخزن والخزنة لهذا المستخدم — يرجى مراجعة المدير" });
+      return;
+    }
   }
 
   if (user.company_id) {

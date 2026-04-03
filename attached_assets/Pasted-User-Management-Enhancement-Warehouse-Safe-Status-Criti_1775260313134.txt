@@ -1,0 +1,145 @@
+User Management Enhancement — Warehouse + Safe + Status (Critical Fix)
+
+Goal:
+Allow admin to assign warehouse and safe to each user from the UI to fix broken operations (sales, purchases, etc).
+
+────────────────────────────
+1) DATABASE (ONLY IF NOT EXISTS)
+────────────────────────────
+
+Ensure users table has:
+
+- warehouse_id (integer, nullable)
+- safe_id (integer, nullable)
+- active (boolean, default true)
+
+DO NOT remove existing columns
+DO NOT break existing data
+
+────────────────────────────
+2) BACKEND — AUTH USER
+────────────────────────────
+
+Update AuthUser interface to include:
+
+- warehouse_id: number | null
+- safe_id: number | null
+- active: boolean
+
+Ensure:
+- /auth/login returns these fields
+- /auth/me returns these fields
+
+────────────────────────────
+3) BACKEND — VALIDATION RULES
+────────────────────────────
+
+Rule 1:
+If user.role is "cashier" or "salesperson":
+
+- warehouse_id MUST NOT be null
+- safe_id MUST NOT be null
+
+If missing:
+return 400 with Arabic message:
+"يجب تحديد المخزن والخزنة لهذا المستخدم"
+
+Rule 2:
+If user.active === false:
+block all requests with 401:
+"الحساب غير نشط"
+
+Rule 3:
+DO NOT auto fallback to warehouse 1 silently
+
+────────────────────────────
+4) FRONTEND — USERS PAGE (IMPORTANT)
+────────────────────────────
+
+In user create/edit modal:
+
+ADD these fields:
+
+A) Warehouse Dropdown
+
+- label: "المخزن"
+- load data from: /api/settings/warehouses
+- value: warehouse_id
+
+B) Safe Dropdown
+
+- label: "الخزنة"
+- load data from: /api/settings/safes
+- value: safe_id
+
+C) Active Toggle
+
+- label: "المستخدم نشط"
+- toggle switch ON/OFF
+
+────────────────────────────
+5) FRONTEND — VALIDATION
+────────────────────────────
+
+Before submit:
+
+IF role = cashier OR salesperson:
+    IF no warehouse selected:
+        show error:
+        "اختر المخزن أولاً"
+        STOP
+
+    IF no safe selected:
+        show error:
+        "اختر الخزنة أولاً"
+        STOP
+
+Admin/Manager:
+    fields optional
+
+────────────────────────────
+6) SAVE DATA
+────────────────────────────
+
+When submitting user form:
+
+Send:
+
+{
+  ...userData,
+  warehouse_id,
+  safe_id,
+  active
+}
+
+Ensure backend updates correctly
+
+────────────────────────────
+7) UI/UX
+────────────────────────────
+
+- Place warehouse and safe under role
+- Use dropdown select
+- Show placeholder:
+  "اختر المخزن"
+  "اختر الخزنة"
+
+────────────────────────────
+8) DO NOT
+────────────────────────────
+
+- DO NOT refactor permissions system
+- DO NOT change business logic
+- DO NOT remove existing features
+
+────────────────────────────
+RESULT EXPECTED
+────────────────────────────
+
+- Admin can assign warehouse to each user
+- Admin can assign safe to each user
+- Cashier logs in → system knows:
+  - where he sells from
+  - which safe receives money
+
+- No more 400 errors from missing warehouse_id

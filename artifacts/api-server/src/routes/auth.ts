@@ -161,11 +161,14 @@ router.post("/auth/login", async (req, res) => {
     res.json({
       token,
       user: {
-        id:          user.id,
-        name:        user.name,
-        username:    user.username,
-        role:        user.role,
-        permissions: parsedPerms,
+        id:           user.id,
+        name:         user.name,
+        username:     user.username,
+        role:         user.role,
+        permissions:  parsedPerms,
+        active:       user.active ?? true,
+        warehouse_id: user.warehouse_id ?? null,
+        safe_id:      user.safe_id ?? null,
       },
     });
 
@@ -180,11 +183,14 @@ router.get("/auth/me", authenticate, (req, res) => {
   let parsedPerms: Record<string, boolean> = {};
   try { parsedPerms = JSON.parse(u.permissions ?? "{}") as Record<string, boolean>; } catch { /* ignore */ }
   res.json({
-    id:          u.id,
-    name:        u.name,
-    username:    u.username,
-    role:        u.role,
-    permissions: parsedPerms,
+    id:           u.id,
+    name:         u.name,
+    username:     u.username,
+    role:         u.role,
+    permissions:  parsedPerms,
+    active:       u.active ?? true,
+    warehouse_id: u.warehouse_id ?? null,
+    safe_id:      u.safe_id ?? null,
   });
 });
 

@@ -316,6 +316,8 @@ function getInitials(name: string) {
 
 function UsersTab() {
   const { data: users = [], isLoading } = useGetSettingsUsers();
+  const { data: warehouses = [] } = useGetSettingsWarehouses();
+  const { data: safes = [] } = useGetSettingsSafes();
   const createUser = useCreateSettingsUser();
   const updateUser = useUpdateSettingsUser();
   const deleteUser = useDeleteSettingsUser();
@@ -328,10 +330,11 @@ function UsersTab() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
   const [form, setForm] = useState({
     name: "", username: "", pin: "0000", role: "cashier", permissions: {} as Record<string, boolean>,
+    warehouse_id: "" as string, safe_id: "" as string, active: true,
   });
 
   const resetForm = () => {
-    setForm({ name: "", username: "", pin: "0000", role: "cashier", permissions: {} });
+    setForm({ name: "", username: "", pin: "0000", role: "cashier", permissions: {}, warehouse_id: "", safe_id: "", active: true });
     setEditId(null); setShowForm(false); setShowPin(false);
   };
 
@@ -339,16 +342,29 @@ function UsersTab() {
     if (!form.name.trim() || !form.username.trim()) {
       toast({ title: "الاسم واسم المستخدم مطلوبان", variant: "destructive" }); return;
     }
+    if ((form.role === "cashier" || form.role === "salesperson") && !form.warehouse_id) {
+      toast({ title: "اختر المخزن أولاً", variant: "destructive" }); return;
+    }
+    if ((form.role === "cashier" || form.role === "salesperson") && !form.safe_id) {
+      toast({ title: "اختر الخزنة أولاً", variant: "destructive" }); return;
+    }
     const perms = JSON.stringify(form.permissions);
+    const payload = {
+      name: form.name, username: form.username, pin: form.pin,
+      role: form.role, permissions: perms,
+      warehouse_id: form.warehouse_id ? Number(form.warehouse_id) : null,
+      safe_id: form.safe_id ? Number(form.safe_id) : null,
+      active: form.active,
+    };
     if (editId) {
-      updateUser.mutate({ id: editId, body: { name: form.name, username: form.username, pin: form.pin, role: form.role, permissions: perms } }, {
+      updateUser.mutate({ id: editId, body: payload }, {
         onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/settings/users"] }); toast({ title: "تم تعديل المستخدم" }); resetForm(); },
-        onError: () => toast({ title: "فشل التعديل", variant: "destructive" }),
+        onError: (e: any) => toast({ title: e?.message || "فشل التعديل", variant: "destructive" }),
       });
     } else {
-      createUser.mutate({ name: form.name, username: form.username, pin: form.pin, role: form.role, permissions: perms }, {
+      createUser.mutate(payload as any, {
         onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/settings/users"] }); toast({ title: "تم إضافة المستخدم" }); resetForm(); },
-        onError: () => toast({ title: "فشل الإضافة", variant: "destructive" }),
+        onError: (e: any) => toast({ title: e?.message || "فشل الإضافة", variant: "destructive" }),
       });
     }
   };
@@ -356,7 +372,12 @@ function UsersTab() {
   const handleEdit = (u: any) => {
     let perms: Record<string, boolean> = {};
     try { perms = JSON.parse(u.permissions || "{}"); } catch {}
-    setForm({ name: u.name, username: u.username, pin: u.pin || "0000", role: u.role, permissions: perms });
+    setForm({
+      name: u.name, username: u.username, pin: u.pin || "0000", role: u.role, permissions: perms,
+      warehouse_id: u.warehouse_id ? String(u.warehouse_id) : "",
+      safe_id: u.safe_id ? String(u.safe_id) : "",
+      active: u.active !== false,
+    });
     setEditId(u.id); setShowForm(true);
   };
 
@@ -513,6 +534,38 @@ function UsersTab() {
                   <option value="salesperson">مندوب مبيعات</option>
                 </SSelect>
               </div>
+              <div>
+                <FieldLabel>
+                  المخزن {(form.role === "cashier" || form.role === "salesperson") && <span className="text-red-400 mr-0.5">*</span>}
+                </FieldLabel>
+                <SSelect value={form.warehouse_id} onChange={e => setForm(f => ({ ...f, warehouse_id: e.target.value }))}>
+                  <option value="">اختر المخزن</option>
+                  {warehouses.map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}
+                </SSelect>
+              </div>
+              <div>
+                <FieldLabel>
+                  الخزنة {(form.role === "cashier" || form.role === "salesperson") && <span className="text-red-400 mr-0.5">*</span>}
+                </FieldLabel>
+                <SSelect value={form.safe_id} onChange={e => setForm(f => ({ ...f, safe_id: e.target.value }))}>
+                  <option value="">اختر الخزنة</option>
+                  {safes.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </SSelect>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-3">
+              <div>
+                <p className="text-white/80 text-sm font-semibold">المستخدم نشط</p>
+                <p className="text-white/35 text-[11px]">{form.active ? "يمكنه تسجيل الدخول" : "لا يمكنه تسجيل الدخول"}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setForm(f => ({ ...f, active: !f.active }))}
+                className={`relative w-12 h-6 rounded-full transition-all duration-300 focus:outline-none ${form.active ? "bg-emerald-500" : "bg-white/15"}`}
+              >
+                <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all duration-300 ${form.active ? "right-0.5" : "left-0.5"}`} />
+              </button>
             </div>
 
             <div className="space-y-3 pt-1">
