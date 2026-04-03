@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/auth";
+import { hasPermission } from "@/lib/permissions";
 import { useGetCustomers, useCreateCustomer, useGetSales, useGetPurchases, useGetSettingsSafes } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
 import { authFetch } from "@/lib/auth-fetch";
@@ -685,7 +686,7 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
 export default function Customers() {
   const { data: customers = [], isLoading } = useGetCustomers();
   const { user } = useAuth();
-  const isRestricted = user?.role === "cashier" || user?.role === "salesperson";
+  const canManageCustomers = hasPermission(user, "can_manage_customers");
   const createMutation = useCreateCustomer();
   const { data: safes = [] } = useGetSettingsSafes();
   const queryClient = useQueryClient();
@@ -868,7 +869,7 @@ export default function Customers() {
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/30 transition-all whitespace-nowrap">
             <FileDown className="w-4 h-4" /> Excel
           </button>
-          {!isRestricted && (
+          {canManageCustomers && (
             <button onClick={() => setShowAdd(true)} className="btn-primary flex items-center gap-2 whitespace-nowrap">
               <Plus className="w-5 h-5" /> إضافة عميل
             </button>
@@ -1221,7 +1222,7 @@ export default function Customers() {
                             <CreditCard className="w-3.5 h-3.5" /> تسديد دفعة
                           </button>
                         )}
-                        {!isRestricted && (
+                        {canManageCustomers && (
                           <button
                             onClick={() => {
                               setShowEdit({ id: customer.id, name: customer.name, phone: customer.phone || "", is_supplier: customer.is_supplier ?? false });
@@ -1233,7 +1234,7 @@ export default function Customers() {
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
                         )}
-                        {!isRestricted && (
+                        {canManageCustomers && (
                           <button
                             onClick={() => setDeleteConfirmId(customer.id)}
                             className="p-1.5 rounded-lg bg-red-500/5 text-red-400/50 hover:bg-red-500/15 hover:text-red-400 transition-colors border border-red-500/10"

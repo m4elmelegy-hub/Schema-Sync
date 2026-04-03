@@ -66,10 +66,11 @@ const ROLES: Record<string, { label: string; badge: string; avatarBg: string; av
 };
 
 const PERMISSIONS_LIST = [
-  { key: "sales", label: "المبيعات" }, { key: "purchases", label: "المشتريات" },
-  { key: "customers", label: "العملاء" }, { key: "expenses", label: "المصروفات" },
-  { key: "income", label: "الإيرادات" }, { key: "reports", label: "التقارير" },
-  { key: "settings", label: "الإعدادات" },
+  { key: "can_create_sale",      label: "إنشاء فاتورة" },
+  { key: "can_cancel_sale",      label: "إلغاء فاتورة" },
+  { key: "can_edit_price",       label: "تعديل الأسعار" },
+  { key: "can_manage_products",  label: "إدارة الأصناف" },
+  { key: "can_manage_customers", label: "إدارة العملاء" },
 ];
 
 /* ─── Shared UI atoms ─── */
@@ -372,7 +373,7 @@ function UsersTab() {
                 </div>
 
                 {/* Role badge + status */}
-                <div className="flex items-center gap-2 mb-4">
+                <div className="flex flex-wrap items-center gap-2 mb-4">
                   <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border ${role.badge}`}>
                     {role.label}
                   </span>
@@ -383,6 +384,16 @@ function UsersTab() {
                   }`}>
                     {u.active ? "نشط" : "موقوف"}
                   </span>
+                  {(() => {
+                    let perms: Record<string, boolean> = {};
+                    try { perms = JSON.parse(u.permissions || "{}"); } catch {}
+                    const count = Object.values(perms).filter(Boolean).length;
+                    return count > 0 ? (
+                      <span className="px-2 py-1 rounded-lg text-[11px] font-bold border bg-amber-500/10 text-amber-400 border-amber-500/20">
+                        ⚙ {count} مخصصة
+                      </span>
+                    ) : null;
+                  })()}
                 </div>
 
                 {/* Actions */}

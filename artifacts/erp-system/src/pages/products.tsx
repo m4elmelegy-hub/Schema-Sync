@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { authFetch } from "@/lib/auth-fetch";
 import { useAuth } from "@/contexts/auth";
+import { hasPermission } from "@/lib/permissions";
 import { useGetProducts, useCreateProduct, useDeleteProduct } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
 import { Plus, Search, Trash2, AlertTriangle, Pencil, X, FileDown, Package } from "lucide-react";
@@ -126,7 +127,7 @@ function ProductModal({ title, initial, onSave, onClose, isPending }: {
 export default function Products() {
   const { data: products = [], isLoading } = useGetProducts();
   const { user } = useAuth();
-  const isRestricted = user?.role === "cashier" || user?.role === "salesperson";
+  const canManageProducts = hasPermission(user, "can_manage_products");
   const createMutation = useCreateProduct();
   const deleteMutation = useDeleteProduct();
   const queryClient = useQueryClient();
@@ -314,7 +315,7 @@ export default function Products() {
                       </td>
                       <td className="p-4">
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
-                          {!isRestricted && (
+                          {canManageProducts && (
                             <button
                               onClick={() => openEdit(product)}
                               title="تعديل المنتج"
@@ -324,7 +325,7 @@ export default function Products() {
                               تعديل
                             </button>
                           )}
-                          {!isRestricted && (
+                          {canManageProducts && (
                             <button
                               onClick={() => setConfirmDeleteId(product.id)}
                               title="حذف المنتج"

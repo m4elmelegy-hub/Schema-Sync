@@ -10,6 +10,7 @@ import {
 import { wrap, httpError } from "../lib/async-handler";
 import { assertPeriodOpen } from "../lib/period-lock";
 import { writeAuditLog } from "../lib/audit-log";
+import { hasPermission } from "../lib/permissions";
 
 const router: IRouter = Router();
 
@@ -292,10 +293,10 @@ router.post("/sales-returns", wrap(async (req, res) => {
 }));
 
 router.delete("/sales-returns/:id", wrap(async (req, res) => {
-  const role = req.user?.role ?? "cashier";
-  if (role === "cashier" || role === "salesperson") {
+  if (!hasPermission(req.user, "can_cancel_sale")) {
     res.status(403).json({ error: "غير مصرح بحذف المرتجعات" }); return;
   }
+  const role = req.user?.role ?? "cashier";
   const id = parseInt(req.params.id as string);
   const [preCheck] = await db.select({ date: salesReturnsTable.date })
     .from(salesReturnsTable).where(eq(salesReturnsTable.id, id));
@@ -678,10 +679,10 @@ router.post("/purchase-returns", wrap(async (req, res) => {
 }));
 
 router.delete("/purchase-returns/:id", wrap(async (req, res) => {
-  const role = req.user?.role ?? "cashier";
-  if (role === "cashier" || role === "salesperson") {
+  if (!hasPermission(req.user, "can_cancel_sale")) {
     res.status(403).json({ error: "غير مصرح بحذف مرتجعات المشتريات" }); return;
   }
+  const role = req.user?.role ?? "cashier";
   const id = parseInt(req.params.id as string);
   const [preCheck] = await db.select({ date: purchaseReturnsTable.date })
     .from(purchaseReturnsTable).where(eq(purchaseReturnsTable.id, id));

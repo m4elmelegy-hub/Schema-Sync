@@ -5,6 +5,7 @@ export interface AuthUser {
   name: string;
   username: string;
   role: string;
+  permissions?: Record<string, boolean>;
 }
 
 interface AuthContextType {

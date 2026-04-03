@@ -7,6 +7,7 @@ import { Search, Plus, Minus, Trash2, X, Printer, ShoppingCart, User, Package, R
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth";
+import { hasPermission } from "@/lib/permissions";
 import { TableSkeleton } from "@/components/skeletons";
 import { ConfirmModal } from "@/components/confirm-modal";
 import { SearchableSelect } from "@/components/searchable-select";
@@ -22,7 +23,7 @@ interface SalesReturn {
 
 function SalesReturnsPanel() {
   const { user: currentUser } = useAuth();
-  const isRestricted = currentUser?.role === "cashier" || currentUser?.role === "salesperson";
+  const canCancelSale = hasPermission(currentUser, "can_cancel_sale");
   const { toast } = useToast();
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -267,7 +268,7 @@ function SalesReturnsPanel() {
                   </td>
                   <td className="p-4 text-white/50">{r.reason || "—"}</td>
                   <td className="p-4 text-white/40 text-xs">{r.date || formatDate(r.created_at)}</td>
-                  <td className="p-4">{!isRestricted && <button onClick={() => setConfirmDeleteId(r.id)} className="p-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>}</td>
+                  <td className="p-4">{canCancelSale && <button onClick={() => setConfirmDeleteId(r.id)} className="p-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>}</td>
                 </tr>
               ))}
             </tbody>
@@ -1432,7 +1433,7 @@ function SalesPostingBadge({ status }: { status: string }) {
 
 function SalesHistoryPanel() {
   const { user: currentUser } = useAuth();
-  const isRestricted = currentUser?.role === "cashier" || currentUser?.role === "salesperson";
+  const canCancelSale = hasPermission(currentUser, "can_cancel_sale");
   const { toast } = useToast();
   const qc = useQueryClient();
   const { currentWarehouseId } = useWarehouse();
@@ -1493,13 +1494,13 @@ function SalesHistoryPanel() {
                   <td className="p-3 text-white/50">{s.date || '—'}</td>
                   <td className="p-3">
                     <div className="flex items-center gap-1">
-                      {s.posting_status === "draft" && !isRestricted && (
+                      {s.posting_status === "draft" && canCancelSale && (
                         <button onClick={() => postMutation.mutate(s.id)} disabled={postMutation.isPending} title="ترحيل"
                           className="btn-icon text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10">
                           <CheckCircle className="w-4 h-4" />
                         </button>
                       )}
-                      {s.posting_status === "posted" && !isRestricted && (
+                      {s.posting_status === "posted" && canCancelSale && (
                         <button onClick={() => cancelMutation.mutate(s.id)} disabled={cancelMutation.isPending} title="إلغاء"
                           className="btn-icon text-amber-400 hover:text-amber-300 hover:bg-amber-500/10">
                           <XCircle className="w-4 h-4" />

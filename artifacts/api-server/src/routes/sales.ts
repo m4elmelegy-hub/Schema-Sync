@@ -13,6 +13,7 @@ import { assertPeriodOpen } from "../lib/period-lock";
 import { getCustomerLedgerBalance } from "../lib/ledger-balance";
 import { runAllChecks } from "../lib/alert-service";
 import { writeAuditLog } from "../lib/audit-log";
+import { hasPermission } from "../lib/permissions";
 import {
   getOrCreateSalesRevenueAccount,
   getOrCreateSafeAccount,
@@ -444,10 +445,10 @@ router.post("/sales/:id/post", wrap(async (req, res) => {
 
 /* ── إلغاء الفاتورة → عكس كامل (مخزون + أرصدة + قيد محاسبي) ─────────── */
 router.post("/sales/:id/cancel", wrap(async (req, res) => {
-  const role = req.user?.role ?? "cashier";
-  if (role === "cashier" || role === "salesperson") {
+  if (!hasPermission(req.user, "can_cancel_sale")) {
     res.status(403).json({ error: "غير مصرح بإلغاء الفواتير" }); return;
   }
+  const role = req.user?.role ?? "cashier";
   const id = parseInt(req.params.id as string);
   if (isNaN(id)) throw httpError(400, "معرّف غير صحيح");
 

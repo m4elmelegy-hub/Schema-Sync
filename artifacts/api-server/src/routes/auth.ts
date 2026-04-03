@@ -155,13 +155,17 @@ router.post("/auth/login", async (req, res) => {
 
     const token = signToken(user.id, user.role);
 
+    let parsedPerms: Record<string, boolean> = {};
+    try { parsedPerms = JSON.parse(user.permissions ?? "{}") as Record<string, boolean>; } catch { /* ignore */ }
+
     res.json({
       token,
       user: {
-        id:       user.id,
-        name:     user.name,
-        username: user.username,
-        role:     user.role,
+        id:          user.id,
+        name:        user.name,
+        username:    user.username,
+        role:        user.role,
+        permissions: parsedPerms,
       },
     });
 
@@ -173,11 +177,14 @@ router.post("/auth/login", async (req, res) => {
 /* ── GET /auth/me — verify token + return fresh user data ─── */
 router.get("/auth/me", authenticate, (req, res) => {
   const u = req.user!;
+  let parsedPerms: Record<string, boolean> = {};
+  try { parsedPerms = JSON.parse(u.permissions ?? "{}") as Record<string, boolean>; } catch { /* ignore */ }
   res.json({
-    id:       u.id,
-    name:     u.name,
-    username: u.username,
-    role:     u.role,
+    id:          u.id,
+    name:        u.name,
+    username:    u.username,
+    role:        u.role,
+    permissions: parsedPerms,
   });
 });
 

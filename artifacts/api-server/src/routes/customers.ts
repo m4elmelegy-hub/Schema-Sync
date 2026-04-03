@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, ne, max, asc, sql } from "drizzle-orm";
 import { db, customersTable, transactionsTable, safesTable, customerLedgerTable } from "@workspace/db";
 import { writeAuditLog } from "../lib/audit-log";
+import { hasPermission } from "../lib/permissions";
 import { getCustomerLedgerBalance } from "../lib/ledger-balance";
 import {
   GetCustomersResponse,
@@ -75,8 +76,7 @@ router.get("/customers", wrap(async (req, res) => {
 }));
 
 router.post("/customers", wrap(async (req, res) => {
-  const role = req.user?.role ?? "cashier";
-  if (role === "cashier" || role === "salesperson") {
+  if (!hasPermission(req.user, "can_manage_customers")) {
     res.status(403).json({ error: "غير مصرح بإضافة عملاء" }); return;
   }
   const parsed = CreateCustomerBody.safeParse(req.body);
@@ -140,8 +140,7 @@ router.post("/customers", wrap(async (req, res) => {
 }));
 
 router.put("/customers/:id", wrap(async (req, res) => {
-  const role = req.user?.role ?? "cashier";
-  if (role === "cashier" || role === "salesperson") {
+  if (!hasPermission(req.user, "can_manage_customers")) {
     res.status(403).json({ error: "غير مصرح بتعديل العملاء" }); return;
   }
   const params = UpdateCustomerParams.safeParse(req.params);
@@ -194,8 +193,7 @@ router.put("/customers/:id", wrap(async (req, res) => {
 }));
 
 router.delete("/customers/:id", wrap(async (req, res) => {
-  const role = req.user?.role ?? "cashier";
-  if (role === "cashier" || role === "salesperson") {
+  if (!hasPermission(req.user, "can_manage_customers")) {
     res.status(403).json({ error: "غير مصرح بحذف العملاء" }); return;
   }
   const params = DeleteCustomerParams.safeParse(req.params);

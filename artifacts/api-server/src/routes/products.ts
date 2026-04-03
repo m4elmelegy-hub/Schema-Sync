@@ -11,6 +11,7 @@ import {
   DeleteProductResponse,
 } from "@workspace/api-zod";
 import { wrap } from "../lib/async-handler";
+import { hasPermission } from "../lib/permissions";
 
 const router: IRouter = Router();
 
@@ -76,8 +77,7 @@ router.post("/products", wrap(async (req, res) => {
 }));
 
 router.put("/products/:id", wrap(async (req, res) => {
-  const role = req.user?.role ?? "cashier";
-  if (role === "cashier" || role === "salesperson") {
+  if (!hasPermission(req.user, "can_manage_products")) {
     res.status(403).json({ error: "غير مصرح بتعديل المنتجات" }); return;
   }
   const params = UpdateProductParams.safeParse(req.params);
@@ -107,8 +107,7 @@ router.put("/products/:id", wrap(async (req, res) => {
 }));
 
 router.delete("/products/:id", wrap(async (req, res) => {
-  const role = req.user?.role ?? "cashier";
-  if (role === "cashier" || role === "salesperson") {
+  if (!hasPermission(req.user, "can_manage_products")) {
     res.status(403).json({ error: "غير مصرح بحذف المنتجات" }); return;
   }
   const params = DeleteProductParams.safeParse(req.params);
