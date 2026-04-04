@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useAuth } from "@/contexts/auth";
 import { hasPermission } from "@/lib/permissions";
 import { authFetch } from "@/lib/auth-fetch";
-import { useGetProducts, useGetCustomers, useGetSettingsSafes } from "@workspace/api-client-react";
+import { useGetCustomers, useGetSettingsSafes } from "@workspace/api-client-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/lib/format";
@@ -10,7 +10,7 @@ import { SearchableSelect } from "@/components/searchable-select";
 import {
   ShoppingCart, Search, Plus, Minus, Trash2, Receipt,
   AlertTriangle, Zap, X, CreditCard, Banknote, Clock,
-  Store, Vault, CheckCircle2, Keyboard,
+  Store, Vault, CheckCircle2, Keyboard, Printer, Tag,
 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");

@@ -1,0 +1,64 @@
+Context:
+We are working on a Monorepo (pnpm workspaces).
+
+Backend: Node 24, Express 5, Drizzle ORM, PostgreSQL.
+
+Frontend: React, Vite, Tailwind.
+
+API Client: Generated via Orval from OpenAPI spec.
+
+Issue: TypeScript error in purchases.tsx due to outdated types and missing features in POS and settings.
+
+Tasks to be performed (Strict Order):
+
+1. Fix TypeScript Error (Critical)
+
+Go to purchases.tsx:135. The property warehouse_id is missing from CreatePurchaseInput.
+
+First, check the OpenAPI spec file and ensure warehouse_id is present in the Purchase schema.
+
+Re-run the Orval codegen script in the lib/api-client-react (or relevant directory) to regenerate the .d.ts files.
+
+Ensure the Frontend project recognizes the new types.
+
+2. POS Warehouse Filtering (Logic)
+
+Modify the product fetching logic in the /pos page.
+
+Ensure it only fetches and displays products available in the warehouse_id linked to the current user/session.
+
+Update the Backend query if necessary to support filtering by warehouse_id.
+
+3. Code Refactoring (Maintenance)
+
+Locate settings.tsx (current size ~3500 lines).
+
+Split this file into smaller, functional components inside a new folder /features/settings/components/.
+
+Create separate files for each Tab (e.g., GeneralSettings, AccountingSettings, SecuritySettings, etc.).
+
+Import them back into the main settings.tsx to keep it clean.
+
+4. Connect Customer Statement (Frontend)
+
+Create a new page/component for "Customer Statement" (كشف حساب عميل).
+
+Use the existing backend endpoint: /api/contacts/:id/full-statement.
+
+Display the data in a professional table (Date, Type, Reference, Debit, Credit, Balance).
+
+5. Quick Wins (POS Enhancements)
+
+Add a category filter (Tabs or Sidebar) in the /pos screen.
+
+Implement a basic "Print" button in POS that generates a simple HTML/CSS receipt.
+
+General Instructions:
+
+Always use TypeScript and ensure no new errors are introduced.
+
+Follow the existing Tailwind styling patterns.
+
+Ensure all API calls use the generated api-client.
+
+If you need to modify the Drizzle schema, let me know first.

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import { db, productsTable, stockMovementsTable } from "@workspace/db";
 import {
   GetProductsResponse,
@@ -30,6 +30,44 @@ router.get("/products", wrap(async (req, res) => {
     res.status(403).json({ error: "غير مصرح بعرض الأصناف" }); return;
   }
   const companyId = req.user?.company_id ?? null;
+  const warehouseIdParam = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
+
+  // When warehouse_id filter is provided, calculate per-warehouse stock from movements
+  if (warehouseIdParam && !isNaN(warehouseIdParam)) {
+    // Get latest stock quantity per product in this warehouse
+    const warehouseStock = await db
+      .select({
+        product_id: stockMovementsTable.product_id,
+        current_qty: sql<string>`MAX(${stockMovementsTable.quantity_after})`,
+      })
+      .from(stockMovementsTable)
+      .where(eq(stockMovementsTable.warehouse_id, warehouseIdParam))
+      .groupBy(stockMovementsTable.product_id);
+
+    if (warehouseStock.length === 0) {
+      res.json([]); return;
+    }
+
+    const productIds = warehouseStock.map(r => r.product_id).filter(Boolean) as number[];
+    const qtyMap = new Map(warehouseStock.map(r => [r.product_id, r.current_qty]));
+
+    const products = await db.select().from(productsTable)
+      .where(
+        and(
+          inArray(productsTable.id, productIds),
+          companyId !== null ? eq(productsTable.company_id, companyId) : undefined,
+        )
+      )
+      .orderBy(productsTable.name);
+
+    const enriched = products.map(p => ({
+      ...formatProduct(p),
+      quantity: Number(qtyMap.get(p.id) ?? p.quantity),
+    }));
+
+    res.json(GetProductsResponse.parse(enriched)); return;
+  }
+
   const products = await db.select().from(productsTable)
     .where(companyId !== null ? eq(productsTable.company_id, companyId) : undefined)
     .orderBy(productsTable.created_at);

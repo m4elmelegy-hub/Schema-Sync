@@ -294,6 +294,10 @@ export interface CreatePurchaseInput {
   notes?: string | null;
   items: CreatePurchaseItemInput[];
   safe_id?: number | null;
+  warehouse_id?: number | null;
+  date?: string | null;
+  discount_percent?: number | null;
+  discount_amount?: number | null;
 }
 
 export interface Expense {
