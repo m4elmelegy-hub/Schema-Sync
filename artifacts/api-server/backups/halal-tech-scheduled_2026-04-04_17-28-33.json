@@ -1,0 +1,115 @@
+{
+  "version": "2.0",
+  "app": "Halal Tech ERP",
+  "created_at": "2026-04-04T17:28:33.627Z",
+  "data": {
+    "products": [],
+    "customers": [],
+    "sales": [],
+    "sale_items": [],
+    "purchases": [],
+    "purchase_items": [],
+    "sales_returns": [],
+    "sale_return_items": [],
+    "purchase_returns": [],
+    "purchase_return_items": [],
+    "expenses": [],
+    "income": [],
+    "transactions": [],
+    "accounts": [],
+    "journal_entries": [],
+    "journal_entry_lines": [],
+    "receipt_vouchers": [],
+    "deposit_vouchers": [],
+    "payment_vouchers": [],
+    "treasury_vouchers": [],
+    "safe_transfers": [],
+    "stock_movements": [],
+    "safes": [
+      {
+        "id": 1,
+        "name": "الدقي",
+        "balance": "0.00",
+        "created_at": "2026-04-04T17:25:53.242Z"
+      },
+      {
+        "id": 2,
+        "name": "المهندس",
+        "balance": "0.00",
+        "created_at": "2026-04-04T17:26:09.076Z"
+      },
+      {
+        "id": 3,
+        "name": "الهرم",
+        "balance": "0.00",
+        "created_at": "2026-04-04T17:26:27.490Z"
+      }
+    ],
+    "warehouses": [
+      {
+        "id": 1,
+        "name": "الدقي",
+        "address": null,
+        "created_at": "2026-04-04T17:26:47.245Z"
+      },
+      {
+        "id": 2,
+        "name": "المهندس",
+        "address": null,
+        "created_at": "2026-04-04T17:27:02.840Z"
+      },
+      {
+        "id": 3,
+        "name": "الهرم",
+        "address": null,
+        "created_at": "2026-04-04T17:27:21.410Z"
+      }
+    ],
+    "users": [
+      {
+        "id": 1,
+        "name": "المدير الافتراضي",
+        "username": "admin",
+        "pin": "123456",
+        "role": "admin",
+        "permissions": "{}",
+        "active": true,
+        "company_id": null,
+        "warehouse_id": null,
+        "safe_id": null,
+        "created_at": "2026-04-04T15:41:33.303Z"
+      }
+    ],
+    "settings": [
+      {
+        "key": "backup_schedule",
+        "value": "weekly",
+        "updated_at": "2026-04-04T17:27:50.828Z"
+      },
+      {
+        "key": "backup_destination",
+        "value": "server",
+        "updated_at": "2026-04-04T17:27:50.832Z"
+      }
+    ],
+    "alerts": [
+      {
+        "id": 1,
+        "type": "cash_low",
+        "severity": "CRITICAL",
+        "message": "رصيد الخزنة أقل من الحد الأدنى — الرصيد الحالي: ٠ ج.م",
+        "reference_id": null,
+        "trigger_mode": "daily",
+        "last_triggered_date": "2026-04-04",
+        "role_target": "admin,cashier",
+        "user_id": null,
+        "is_read": false,
+        "is_resolved": false,
+        "resolved_at": null,
+        "resolved_by": null,
+        "created_at": "2026-04-04T15:51:36.110Z"
+      }
+    ],
+    "audit_logs": []
+  }
+}
