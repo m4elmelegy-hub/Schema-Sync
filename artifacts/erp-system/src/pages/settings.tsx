@@ -66,72 +66,118 @@ const ROLES: Record<string, { label: string; badge: string; avatarBg: string; av
   salesperson: { label: "مندوب",       badge: "text-emerald-400 bg-emerald-500/15 border-emerald-500/30", avatarBg: "bg-emerald-500/20", avatarText: "text-emerald-300" },
 };
 
-const PERMISSIONS_LIST = [
-  { key: "can_create_sale",      label: "إنشاء فاتورة" },
-  { key: "can_cancel_sale",      label: "إلغاء فاتورة" },
-  { key: "can_edit_price",       label: "تعديل الأسعار" },
-  { key: "can_manage_products",  label: "إدارة الأصناف" },
-  { key: "can_manage_customers", label: "إدارة العملاء" },
-  { key: "can_view_inventory",   label: "عرض المخزون" },
-  { key: "can_adjust_inventory", label: "تسوية المخزون" },
-  { key: "can_view_products",    label: "عرض الأصناف" },
-  { key: "can_view_customers",   label: "عرض العملاء" },
-  { key: "can_view_expenses",    label: "عرض المصروفات" },
-  { key: "can_view_reports",     label: "عرض التقارير" },
+interface PermEntry { key: string; label: string }
+interface PermGroup  { key: string; label: string; color: string; permissions: PermEntry[] }
+
+const PERMISSION_GROUPS: PermGroup[] = [
+  {
+    key: "sales", label: "المبيعات", color: "amber",
+    permissions: [
+      { key: "can_create_sale",  label: "إنشاء فاتورة" },
+      { key: "can_cash_sale",    label: "بيع نقدي" },
+      { key: "can_partial_sale", label: "بيع جزئي" },
+      { key: "can_credit_sale",  label: "بيع آجل" },
+      { key: "can_return_sale",  label: "إرجاع مبيعات" },
+      { key: "can_cancel_sale",  label: "إلغاء فاتورة" },
+    ],
+  },
+  {
+    key: "inventory", label: "المخزون", color: "blue",
+    permissions: [
+      { key: "can_view_products",    label: "عرض الأصناف" },
+      { key: "can_manage_products",  label: "إدارة الأصناف" },
+      { key: "can_view_inventory",   label: "عرض المخزون" },
+      { key: "can_adjust_inventory", label: "تسوية المخزون" },
+    ],
+  },
+  {
+    key: "customers", label: "العملاء", color: "emerald",
+    permissions: [
+      { key: "can_view_customers",   label: "عرض العملاء" },
+      { key: "can_manage_customers", label: "إدارة العملاء" },
+    ],
+  },
+  {
+    key: "finance", label: "المالية", color: "violet",
+    permissions: [
+      { key: "can_view_expenses",       label: "عرض المصروفات" },
+      { key: "can_add_expense",         label: "إضافة مصروف" },
+      { key: "can_add_receipt_voucher", label: "سند قبض" },
+      { key: "can_add_payment_voucher", label: "سند دفع" },
+      { key: "can_close_shift",         label: "إقفال الخزنة" },
+    ],
+  },
+  {
+    key: "reports", label: "التقارير", color: "cyan",
+    permissions: [
+      { key: "can_view_reports", label: "عرض التقارير" },
+    ],
+  },
+  {
+    key: "system", label: "النظام", color: "red",
+    permissions: [
+      { key: "can_edit_price",   label: "تعديل الأسعار" },
+      { key: "can_manage_users", label: "إدارة المستخدمين" },
+    ],
+  },
 ];
 
 const PERMISSION_TEMPLATES: Record<string, Record<string, boolean>> = {
   admin: {
-    can_create_sale:      true,
-    can_cancel_sale:      true,
-    can_edit_price:       true,
-    can_manage_products:  true,
-    can_manage_customers: true,
-    can_view_inventory:   true,
-    can_adjust_inventory: true,
-    can_view_products:    true,
-    can_view_customers:   true,
-    can_view_expenses:    true,
-    can_view_reports:     true,
+    can_create_sale:         true,  can_cash_sale:           true,
+    can_partial_sale:        true,  can_credit_sale:         true,
+    can_return_sale:         true,  can_cancel_sale:         true,
+    can_edit_price:          true,
+    can_view_products:       true,  can_manage_products:     true,
+    can_view_inventory:      true,  can_adjust_inventory:    true,
+    can_view_customers:      true,  can_manage_customers:    true,
+    can_view_expenses:       true,  can_add_expense:         true,
+    can_add_receipt_voucher: true,  can_add_payment_voucher: true,
+    can_close_shift:         true,
+    can_view_reports:        true,
+    can_manage_users:        true,
   },
   manager: {
-    can_create_sale:      true,
-    can_cancel_sale:      true,
-    can_edit_price:       true,
-    can_manage_products:  true,
-    can_manage_customers: true,
-    can_view_inventory:   true,
-    can_adjust_inventory: true,
-    can_view_products:    true,
-    can_view_customers:   true,
-    can_view_expenses:    true,
-    can_view_reports:     true,
+    can_create_sale:         true,  can_cash_sale:           true,
+    can_partial_sale:        true,  can_credit_sale:         true,
+    can_return_sale:         true,  can_cancel_sale:         true,
+    can_edit_price:          true,
+    can_view_products:       true,  can_manage_products:     true,
+    can_view_inventory:      true,  can_adjust_inventory:    true,
+    can_view_customers:      true,  can_manage_customers:    true,
+    can_view_expenses:       true,  can_add_expense:         true,
+    can_add_receipt_voucher: true,  can_add_payment_voucher: true,
+    can_close_shift:         true,
+    can_view_reports:        true,
+    can_manage_users:        false,
   },
   salesperson: {
-    can_create_sale:      true,
-    can_cancel_sale:      false,
-    can_edit_price:       false,
-    can_manage_products:  false,
-    can_manage_customers: false,
-    can_view_inventory:   false,
-    can_adjust_inventory: false,
-    can_view_products:    true,
-    can_view_customers:   true,
-    can_view_expenses:    false,
-    can_view_reports:     false,
+    can_create_sale:         true,  can_cash_sale:           true,
+    can_partial_sale:        true,  can_credit_sale:         true,
+    can_return_sale:         false, can_cancel_sale:         false,
+    can_edit_price:          false,
+    can_view_products:       true,  can_manage_products:     false,
+    can_view_inventory:      false, can_adjust_inventory:    false,
+    can_view_customers:      true,  can_manage_customers:    false,
+    can_view_expenses:       false, can_add_expense:         false,
+    can_add_receipt_voucher: false, can_add_payment_voucher: false,
+    can_close_shift:         false,
+    can_view_reports:        false,
+    can_manage_users:        false,
   },
   cashier: {
-    can_create_sale:      true,
-    can_cancel_sale:      false,
-    can_edit_price:       false,
-    can_manage_products:  false,
-    can_manage_customers: false,
-    can_view_inventory:   false,
-    can_adjust_inventory: false,
-    can_view_products:    true,
-    can_view_customers:   true,
-    can_view_expenses:    false,
-    can_view_reports:     false,
+    can_create_sale:         true,  can_cash_sale:           true,
+    can_partial_sale:        false, can_credit_sale:         false,
+    can_return_sale:         false, can_cancel_sale:         false,
+    can_edit_price:          false,
+    can_view_products:       true,  can_manage_products:     false,
+    can_view_inventory:      false, can_adjust_inventory:    false,
+    can_view_customers:      true,  can_manage_customers:    false,
+    can_view_expenses:       false, can_add_expense:         true,
+    can_add_receipt_voucher: false, can_add_payment_voucher: false,
+    can_close_shift:         true,
+    can_view_reports:        false,
+    can_manage_users:        false,
   },
 };
 
@@ -270,6 +316,111 @@ function CardSkeleton() {
         </div>
       </div>
       <div className="h-2 bg-white/5 rounded" />
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   PERMISSION GROUP CARD — grouped collapsible card with select-all
+   ══════════════════════════════════════════════════════════════════ */
+const COLOR_MAP: Record<string, { header: string; badge: string; toggle: string; dot: string }> = {
+  amber:  { header: "border-amber-500/25 bg-amber-500/5",   badge: "bg-amber-500/15 text-amber-300 border-amber-500/30",   toggle: "bg-amber-500/20 border-amber-500/50 text-amber-300",   dot: "bg-amber-400"   },
+  blue:   { header: "border-blue-500/25 bg-blue-500/5",     badge: "bg-blue-500/15 text-blue-300 border-blue-500/30",     toggle: "bg-blue-500/20 border-blue-500/50 text-blue-300",     dot: "bg-blue-400"    },
+  emerald:{ header: "border-emerald-500/25 bg-emerald-500/5", badge: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30", toggle: "bg-emerald-500/20 border-emerald-500/50 text-emerald-300", dot: "bg-emerald-400" },
+  violet: { header: "border-violet-500/25 bg-violet-500/5", badge: "bg-violet-500/15 text-violet-300 border-violet-500/30", toggle: "bg-violet-500/20 border-violet-500/50 text-violet-300", dot: "bg-violet-400"  },
+  cyan:   { header: "border-cyan-500/25 bg-cyan-500/5",     badge: "bg-cyan-500/15 text-cyan-300 border-cyan-500/30",     toggle: "bg-cyan-500/20 border-cyan-500/50 text-cyan-300",     dot: "bg-cyan-400"    },
+  red:    { header: "border-red-500/25 bg-red-500/5",       badge: "bg-red-500/15 text-red-300 border-red-500/30",       toggle: "bg-red-500/20 border-red-500/50 text-red-300",       dot: "bg-red-400"     },
+};
+
+function PermissionGroupCard({
+  group,
+  permissions,
+  onChange,
+}: {
+  group: PermGroup;
+  permissions: Record<string, boolean>;
+  onChange: (key: string, val: boolean) => void;
+}) {
+  const [open, setOpen] = useState(true);
+  const checkboxRef = useRef<HTMLInputElement>(null);
+
+  const keys   = group.permissions.map(p => p.key);
+  const onCount = keys.filter(k => permissions[k]).length;
+  const allOn  = onCount === keys.length;
+  const someOn = onCount > 0 && !allOn;
+
+  useEffect(() => {
+    if (checkboxRef.current) {
+      checkboxRef.current.indeterminate = someOn;
+    }
+  }, [someOn]);
+
+  const handleSelectAll = () => {
+    const target = !allOn;
+    keys.forEach(k => onChange(k, target));
+  };
+
+  const c = COLOR_MAP[group.color] ?? COLOR_MAP.amber;
+
+  return (
+    <div className={`rounded-2xl border overflow-hidden ${c.header}`}>
+      {/* Header */}
+      <div
+        className="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
+        onClick={() => setOpen(o => !o)}
+      >
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); handleSelectAll(); }}
+            className="shrink-0 flex items-center"
+            title="اختر الكل / ألغِ الكل"
+          >
+            <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-all ${
+              allOn ? "bg-white/80 border-white/80" : someOn ? "border-white/50 bg-white/10" : "border-white/20 bg-white/5"
+            }`}>
+              {allOn   && <Check className="w-3 h-3 text-gray-900" />}
+              {someOn  && <div className="w-2 h-0.5 bg-white/70 rounded" />}
+            </div>
+            <input ref={checkboxRef} type="checkbox" className="sr-only" readOnly checked={allOn} />
+          </button>
+          <span className="font-bold text-white text-sm">{group.label}</span>
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${c.badge}`}>
+            {onCount}/{keys.length}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-white/25 text-xs">
+            {open ? "طيّ" : "توسيع"}
+          </span>
+          {open
+            ? <ChevronDown className="w-4 h-4 text-white/30" />
+            : <ChevronRight className="w-4 h-4 text-white/30" />
+          }
+        </div>
+      </div>
+
+      {/* Body */}
+      {open && (
+        <div className="px-4 pb-3 grid grid-cols-2 sm:grid-cols-3 gap-1.5 border-t border-white/8">
+          {group.permissions.map(p => {
+            const active = !!permissions[p.key];
+            return (
+              <button
+                key={p.key}
+                type="button"
+                onClick={() => onChange(p.key, !active)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs border transition-all text-right ${
+                  active ? c.toggle : "bg-white/3 border-white/8 text-white/35 hover:border-white/20 hover:text-white/60"
+                }`}
+              >
+                <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${active ? c.dot : "bg-white/20"}`} />
+                {p.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -623,23 +774,19 @@ function UsersTab() {
                 <p className="text-[10px] text-white/25 mt-1.5">يملأ مربعات الصلاحيات تلقائياً — يمكنك التعديل بعدها يدوياً</p>
               </div>
 
-              {/* ── الصلاحيات ── */}
+              {/* ── الصلاحيات المجمّعة ── */}
               <div>
                 <FieldLabel>الصلاحيات</FieldLabel>
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                  {PERMISSIONS_LIST.map(p => (
-                    <button
-                      key={p.key}
-                      onClick={() => setForm(f => ({ ...f, permissions: { ...f.permissions, [p.key]: !f.permissions[p.key] } }))}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs border transition-all ${
-                        form.permissions[p.key]
-                          ? "bg-amber-500/15 border-amber-500/40 text-amber-400"
-                          : "bg-white/3 border-white/8 text-white/40 hover:border-white/20 hover:text-white/70"
-                      }`}
-                    >
-                      {form.permissions[p.key] ? <Check className="w-3 h-3 shrink-0" /> : <X className="w-3 h-3 shrink-0 opacity-40" />}
-                      {p.label}
-                    </button>
+                <div className="space-y-2">
+                  {PERMISSION_GROUPS.map(group => (
+                    <PermissionGroupCard
+                      key={group.key}
+                      group={group}
+                      permissions={form.permissions}
+                      onChange={(key, val) =>
+                        setForm(f => ({ ...f, permissions: { ...f.permissions, [key]: val } }))
+                      }
+                    />
                   ))}
                 </div>
               </div>
