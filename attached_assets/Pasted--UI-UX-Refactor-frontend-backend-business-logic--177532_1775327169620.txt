@@ -1,0 +1,128 @@
+أحتاج منك تعمل UI/UX Refactor شامل للـ frontend فقط (بدون تغيير أي backend أو business logic).
+
+اعتمد على تحسين الشكل والتنظيم بنفس الهوية الحالية (Halal Tech)، وطبّق التحسينات التالية:
+
+========================
+
+1. Login Page
+   ========================
+
+* إزالة أي عناصر مشتتة (مثل sidebar أو قوائم غير ضرورية)
+* تركيز التصميم على الفورم فقط (centered layout)
+* تكبير الفورم وتحسين المسافات
+* تحسين inputs (ارتفاع موحد + padding + focus state واضح)
+* تحسين زر الدخول (primary button واضح + أكبر + hover effect بسيط)
+* إبقاء branding لكن بشكل أخف (background أو أعلى الفورم)
+
+========================
+2) Dashboard + KPI
+==================
+
+* إعادة ترتيب الصفحة:
+  (Hero section → KPI → Alert → Details)
+* تقليل عدد الكروت المتكررة
+* توحيد تصميم KPI cards:
+
+  * نفس الحجم
+  * نفس typography
+  * نفس spacing
+* إبراز أهم 3-4 مؤشرات فقط
+* تحويل التنبيهات إلى card واحدة واضحة بدل تكرارها
+
+========================
+3) Sidebar + Navigation + Topbar
+================================
+
+* توحيد شكل عناصر الـ sidebar:
+
+  * نفس height
+  * نفس padding
+  * نفس border radius
+* تحسين active state (واضح لكن بدون مبالغة)
+* تقليل الـ borders الثقيلة
+* تحسين topbar:
+
+  * إضافة search واضح
+  * إضافة actions (notifications / settings / create)
+* توحيد المسافات بين العناصر
+
+========================
+4) Forms System
+===============
+
+* توحيد جميع inputs:
+
+  * height ثابت
+  * border radius موحد
+  * spacing موحد
+* تحسين labels + helper text
+* تحسين select + textarea
+* توحيد الأزرار (primary / secondary)
+* تحسين layout (grid نظيف بدل عشوائية)
+
+========================
+5) Tables System
+================
+
+* تحسين readability:
+
+  * header واضح
+  * row spacing أفضل
+* zebra rows (alternating rows)
+* تحسين status badges (success / warning / pending / danger)
+* تقليل الزحمة داخل الجدول
+
+========================
+6) Cards + Sections
+===================
+
+* تقليل استخدام borders الثقيلة
+* استخدام spacing + background بدل borders
+* توحيد:
+
+  * border radius
+  * padding
+  * shadows
+
+========================
+7) Animations (خفيفة جدًا)
+==========================
+
+* hover بسيط للكروت (translateY خفيف)
+* fade + slide عند تحميل العناصر
+* modal animation (scale + fade)
+* بدون مبالغة أو بطء
+
+========================
+قواعد مهمة:
+===========
+
+* لا تغيّر أي API أو backend
+* لا تغيّر data structure
+* لا تكسر أي functionality
+* اعمل reusable components
+* حافظ على نفس الألوان (مع تحسين الاستخدام فقط)
+* ركز على:
+  consistency
+  spacing
+  alignment
+  visual hierarchy
+
+========================
+Output المطلوب:
+===============
+
+* تحسين الملفات الحالية (مش إنشاء مشروع جديد)
+* refactor للـ components الأساسية:
+  sidebar / header / cards / forms / tables
+* كود نظيف وقابل لإعادة الاستخدام
+* نفس النظام… لكن UI احترافي حديث
+
+========================
+الهدف:
+======
+
+تحويل الواجهة من شكل "functional عادي"
+إلى
+SaaS-level professional UI
+بدون تغيير أي منطق في النظام.

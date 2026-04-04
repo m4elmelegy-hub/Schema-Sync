@@ -713,3 +713,361 @@ html.light .skeleton-shimmer {
 .value-appear {
   animation: count-up 0.4s cubic-bezier(0.34,1.56,0.64,1);
 }
+
+/* ═══════════════════════════════════════════════════
+   DESIGN SYSTEM v2 — ERP Refactor
+═══════════════════════════════════════════════════ */
+
+/* ── Page entry animation ───────────────────────── */
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-enter {
+  animation: page-enter 0.35s cubic-bezier(0.22,1,0.36,1);
+}
+
+/* ── Section header ─────────────────────────────── */
+.erp-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.erp-section-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: rgba(255,255,255,0.92);
+  line-height: 1.2;
+}
+.erp-section-sub {
+  font-size: 12px;
+  color: rgba(255,255,255,0.35);
+  margin-top: 2px;
+}
+html.light .erp-section-title { color: #0A0F1A; }
+html.light .erp-section-sub   { color: #64748b; }
+
+/* ── Hero summary strip ─────────────────────────── */
+.erp-hero-strip {
+  display: grid;
+  gap: 1px;
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 20px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.erp-hero-cell {
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255,255,255,0.03);
+  transition: background 0.15s ease;
+}
+.erp-hero-cell:hover { background: rgba(255,255,255,0.06); }
+html.light .erp-hero-strip { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.10); }
+html.light .erp-hero-cell  { background: rgba(0,0,0,0.03); }
+html.light .erp-hero-cell:hover { background: rgba(0,0,0,0.06); }
+
+/* ── Status badges (refactored) ─────────────────── */
+.erp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 99px;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.erp-badge-success {
+  color: #34d399;
+  background: rgba(52,211,153,0.12);
+  border: 1px solid rgba(52,211,153,0.22);
+}
+.erp-badge-danger {
+  color: #f87171;
+  background: rgba(248,113,113,0.12);
+  border: 1px solid rgba(248,113,113,0.22);
+}
+.erp-badge-warning {
+  color: #fbbf24;
+  background: rgba(251,191,36,0.12);
+  border: 1px solid rgba(251,191,36,0.22);
+}
+.erp-badge-pending {
+  color: #a78bfa;
+  background: rgba(167,139,250,0.12);
+  border: 1px solid rgba(167,139,250,0.22);
+}
+.erp-badge-info {
+  color: #60a5fa;
+  background: rgba(96,165,250,0.12);
+  border: 1px solid rgba(96,165,250,0.22);
+}
+.erp-badge-neutral {
+  color: rgba(255,255,255,0.55);
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+}
+html.light .erp-badge-success  { color: #065f46; background: rgba(16,185,129,0.10); border-color: rgba(16,185,129,0.25); }
+html.light .erp-badge-danger   { color: #b91c1c; background: rgba(239,68,68,0.10);  border-color: rgba(239,68,68,0.25); }
+html.light .erp-badge-warning  { color: #92400e; background: rgba(245,158,11,0.10); border-color: rgba(245,158,11,0.25); }
+html.light .erp-badge-pending  { color: #5b21b6; background: rgba(139,92,246,0.10); border-color: rgba(139,92,246,0.25); }
+html.light .erp-badge-info     { color: #1d4ed8; background: rgba(59,130,246,0.10); border-color: rgba(59,130,246,0.25); }
+html.light .erp-badge-neutral  { color: #4b5563; background: rgba(0,0,0,0.07);       border-color: rgba(0,0,0,0.14); }
+
+/* ── Improved ERP Table ──────────────────────────── */
+.erp-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.erp-table-head tr {
+  background: rgba(255,255,255,0.035);
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+html.light .erp-table-head tr {
+  background: rgba(0,0,0,0.04);
+  border-bottom: 1px solid rgba(0,0,0,0.09);
+}
+.erp-table-th {
+  padding: 11px 16px;
+  text-align: right;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.40);
+  white-space: nowrap;
+}
+html.light .erp-table-th { color: #64748b; }
+
+.erp-table-body tr:nth-child(even) {
+  background: rgba(255,255,255,0.018);
+}
+html.light .erp-table-body tr:nth-child(even) {
+  background: rgba(0,0,0,0.025);
+}
+.erp-table-row {
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  transition: background 0.14s ease;
+}
+.erp-table-row:hover {
+  background: rgba(245,158,11,0.05) !important;
+}
+.erp-table-row:last-child {
+  border-bottom: none;
+}
+html.light .erp-table-row {
+  border-bottom-color: rgba(0,0,0,0.055);
+}
+html.light .erp-table-row:hover {
+  background: rgba(245,158,11,0.05) !important;
+}
+.erp-table-td {
+  padding: 12px 16px;
+  font-size: 13.5px;
+  vertical-align: middle;
+  color: rgba(255,255,255,0.80);
+}
+html.light .erp-table-td { color: #1e293b; }
+
+/* ── ERP Input ───────────────────────────────────── */
+.erp-input {
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.88);
+  padding: 0 12px;
+  font-size: 13.5px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+.erp-input::placeholder { color: rgba(255,255,255,0.28); }
+.erp-input:focus-visible {
+  outline: none;
+  border-color: rgba(245,158,11,0.50);
+  box-shadow: 0 0 0 3px rgba(245,158,11,0.12);
+  background: rgba(255,255,255,0.06);
+}
+html.light .erp-input {
+  border-color: rgba(0,0,0,0.13);
+  background: #fff;
+  color: #1e293b;
+}
+html.light .erp-input::placeholder { color: rgba(0,0,0,0.30); }
+html.light .erp-input:focus-visible {
+  border-color: rgba(245,158,11,0.60);
+  box-shadow: 0 0 0 3px rgba(245,158,11,0.12);
+  background: #fffef8;
+}
+
+/* ── ERP Card (clean version) ────────────────────── */
+.erp-card {
+  border-radius: 16px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  backdrop-filter: blur(16px);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.erp-card:hover {
+  border-color: rgba(255,255,255,0.11);
+}
+html.light .erp-card {
+  background: #fff;
+  border-color: rgba(0,0,0,0.09);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+html.light .erp-card:hover {
+  border-color: rgba(0,0,0,0.15);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+}
+
+/* ── ERP Card hover lift ──────────────────────────── */
+.erp-card-lift {
+  transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.erp-card-lift:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.28);
+  border-color: rgba(255,255,255,0.13) !important;
+}
+html.light .erp-card-lift:hover {
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+}
+
+/* ── Topbar search ──────────────────────────────── */
+.erp-topbar-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  cursor: text;
+}
+.erp-topbar-search:focus-within {
+  border-color: rgba(245,158,11,0.40);
+  background: rgba(255,255,255,0.07);
+  box-shadow: 0 0 0 3px rgba(245,158,11,0.10);
+}
+html.light .erp-topbar-search {
+  border-color: rgba(0,0,0,0.11);
+  background: rgba(0,0,0,0.04);
+}
+html.light .erp-topbar-search:focus-within {
+  border-color: rgba(245,158,11,0.50);
+  background: #fffef8;
+  box-shadow: 0 0 0 3px rgba(245,158,11,0.10);
+}
+.erp-search-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0; right: 0;
+  border-radius: 12px;
+  background: hsla(225,25%,8%,0.98);
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  backdrop-filter: blur(24px);
+  overflow: hidden;
+  z-index: 200;
+  animation: page-enter 0.15s ease;
+}
+html.light .erp-search-dropdown {
+  background: #fff;
+  border-color: rgba(0,0,0,0.12);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.16);
+}
+.erp-search-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.75);
+}
+.erp-search-item:hover, .erp-search-item.active {
+  background: rgba(245,158,11,0.10);
+  color: rgba(255,255,255,0.95);
+}
+html.light .erp-search-item { color: #334155; }
+html.light .erp-search-item:hover, html.light .erp-search-item.active {
+  background: rgba(245,158,11,0.08);
+  color: #0f172a;
+}
+
+/* ── Page title bar (in content) ────────────────── */
+.erp-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  gap: 12px;
+}
+.erp-page-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: rgba(255,255,255,0.93);
+  line-height: 1.2;
+}
+.erp-page-subtitle {
+  font-size: 12.5px;
+  color: rgba(255,255,255,0.38);
+  margin-top: 3px;
+}
+html.light .erp-page-title    { color: #0f172a; }
+html.light .erp-page-subtitle { color: #64748b; }
+
+/* ── Quick action icon button ────────────────────── */
+.erp-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.55);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+.erp-icon-btn:hover {
+  background: rgba(255,255,255,0.09);
+  border-color: rgba(255,255,255,0.13);
+  color: rgba(255,255,255,0.90);
+  transform: translateY(-1px);
+}
+html.light .erp-icon-btn {
+  border-color: rgba(0,0,0,0.11);
+  background: rgba(0,0,0,0.04);
+  color: rgba(0,0,0,0.45);
+}
+html.light .erp-icon-btn:hover {
+  background: rgba(0,0,0,0.08);
+  border-color: rgba(0,0,0,0.16);
+  color: rgba(0,0,0,0.80);
+}
+
+/* ── Divider with label ──────────────────────────── */
+.erp-divider-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.20);
+  padding: 12px 8px 6px;
+}
+html.light .erp-divider-label { color: rgba(0,0,0,0.28); }

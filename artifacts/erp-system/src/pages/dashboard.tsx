@@ -178,8 +178,88 @@ export default function Dashboard() {
     },
   ];
 
+  const totalRevenue = stats.total_sales_today + stats.total_income_today;
+  const totalOut     = stats.total_expenses_today;
+
   return (
-    <div dir="rtl" style={{ fontFamily: "inherit" }}>
+    <div dir="rtl" style={{ fontFamily: "inherit" }} className="page-enter">
+
+      {/* ══════════════════════════════════════════════════════
+          HERO SUMMARY STRIP
+      ══════════════════════════════════════════════════════ */}
+      <div className="erp-hero-strip" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+        <div className="erp-hero-cell">
+          <div style={{
+            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: "rgba(245,158,11,0.15)",
+            border: "1px solid rgba(245,158,11,0.22)",
+          }}>
+            <ShoppingCart style={{ width: 16, height: 16, color: "#f59e0b" }} />
+          </div>
+          <div>
+            <p style={{ fontSize: "11px", fontWeight: 600, color: "rgba(255,255,255,0.40)", marginBottom: "2px" }}>إجمالي الإيرادات اليوم</p>
+            <p style={{ fontSize: "16px", fontWeight: 900, color: "rgba(255,255,255,0.92)", letterSpacing: "-0.4px" }}>
+              {formatCurrency(totalRevenue)}
+            </p>
+          </div>
+        </div>
+        <div className="erp-hero-cell">
+          <div style={{
+            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: "rgba(248,113,113,0.15)",
+            border: "1px solid rgba(248,113,113,0.22)",
+          }}>
+            <TrendingDown style={{ width: 16, height: 16, color: "#f87171" }} />
+          </div>
+          <div>
+            <p style={{ fontSize: "11px", fontWeight: 600, color: "rgba(255,255,255,0.40)", marginBottom: "2px" }}>إجمالي المصروفات اليوم</p>
+            <p style={{ fontSize: "16px", fontWeight: 900, color: "rgba(255,255,255,0.92)", letterSpacing: "-0.4px" }}>
+              {formatCurrency(totalOut)}
+            </p>
+          </div>
+        </div>
+        <div className="erp-hero-cell">
+          <div style={{
+            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: netIsPositive ? "rgba(52,211,153,0.15)" : "rgba(248,113,113,0.15)",
+            border: `1px solid ${netIsPositive ? "rgba(52,211,153,0.22)" : "rgba(248,113,113,0.22)"}`,
+          }}>
+            {netIsPositive
+              ? <TrendingUp style={{ width: 16, height: 16, color: "#34d399" }} />
+              : <TrendingDown style={{ width: 16, height: 16, color: "#f87171" }} />
+            }
+          </div>
+          <div>
+            <p style={{ fontSize: "11px", fontWeight: 600, color: "rgba(255,255,255,0.40)", marginBottom: "2px" }}>صافي الربح</p>
+            <p style={{ fontSize: "16px", fontWeight: 900, letterSpacing: "-0.4px",
+              color: netIsPositive ? "#34d399" : "#f87171" }}>
+              {formatCurrency(stats.net_profit)}
+            </p>
+          </div>
+        </div>
+        <div className="erp-hero-cell">
+          <div style={{
+            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: (stats.low_stock_products?.length ?? 0) === 0 ? "rgba(52,211,153,0.15)" : "rgba(245,158,11,0.15)",
+            border: `1px solid ${(stats.low_stock_products?.length ?? 0) === 0 ? "rgba(52,211,153,0.22)" : "rgba(245,158,11,0.22)"}`,
+          }}>
+            <Package style={{
+              width: 16, height: 16,
+              color: (stats.low_stock_products?.length ?? 0) === 0 ? "#34d399" : "#f59e0b",
+            }} />
+          </div>
+          <div>
+            <p style={{ fontSize: "11px", fontWeight: 600, color: "rgba(255,255,255,0.40)", marginBottom: "2px" }}>تنبيهات المخزون</p>
+            <p style={{ fontSize: "16px", fontWeight: 900, color: "rgba(255,255,255,0.92)", letterSpacing: "-0.4px" }}>
+              {(stats.low_stock_products?.length ?? 0) === 0 ? "المخزون بخير ✓" : `${stats.low_stock_products?.length} منتج`}
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* ══════════════════════════════════════════════════════
           KPI CARDS
