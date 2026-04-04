@@ -83,8 +83,8 @@ export default function Inventory() {
   const { toast } = useToast();
   const { user } = useAuth();
   const { currentWarehouseId } = useWarehouse();
-  const canViewInventory   = hasPermission(user, "can_view_inventory");
-  const canAdjustInventory = hasPermission(user, "can_adjust_inventory");
+  const canViewInventory   = hasPermission(user, "can_view_inventory")   === true;
+  const canAdjustInventory = hasPermission(user, "can_adjust_inventory") === true;
   const [search, setSearch] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<number | null>(null);
   const [sortKey, setSortKey] = useState<keyof AuditProduct>("name");

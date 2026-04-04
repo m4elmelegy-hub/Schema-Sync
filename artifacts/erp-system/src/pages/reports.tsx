@@ -20,6 +20,7 @@ import {
 } from "recharts";
 import { TableSkeleton } from "@/components/skeletons";
 import { useAuth } from "@/contexts/auth";
+import { hasPermission } from "@/lib/permissions";
 
 /* ─── API helpers ───────────────────────────────────────────────────────────── */
 
@@ -2119,9 +2120,7 @@ const TABS: { id: Tab; label: string }[] = [
 
 export default function Reports() {
   const { user } = useAuth();
-  const canView = (user?.role === "admin" || user?.role === "manager")
-    ? true
-    : user?.permissions?.can_view_reports === true;
+  const canView = hasPermission(user, "can_view_reports") === true;
   const [tab, setTab] = useState<Tab>("health");
 
   if (!canView) return (

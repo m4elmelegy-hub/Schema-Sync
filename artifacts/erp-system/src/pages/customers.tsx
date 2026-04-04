@@ -696,10 +696,8 @@ function AccessDenied({ msg }: { msg: string }) {
 export default function Customers() {
   const { data: customers = [], isLoading } = useGetCustomers();
   const { user } = useAuth();
-  const canViewCustomers = (user?.role === "admin" || user?.role === "manager")
-    ? true
-    : user?.permissions?.can_view_customers === true;
-  const canManageCustomers = hasPermission(user, "can_manage_customers");
+  const canViewCustomers = hasPermission(user, "can_view_customers") === true;
+  const canManageCustomers = hasPermission(user, "can_manage_customers") === true;
   const createMutation = useCreateCustomer();
   const { data: safes = [] } = useGetSettingsSafes();
   const queryClient = useQueryClient();

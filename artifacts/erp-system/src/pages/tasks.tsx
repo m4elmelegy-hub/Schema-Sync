@@ -8,6 +8,8 @@ import {
   ArrowLeftRight, CheckCircle2, Lock, Printer,
   ChevronLeft, ChevronRight,
 } from "lucide-react";
+import { useAuth } from "@/contexts/auth";
+import { hasPermission } from "@/lib/permissions";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
@@ -21,6 +23,7 @@ export default function Tasks() {
   const [op, setOp] = useState<Operation>("hub");
   const [successMsg, setSuccessMsg] = useState("");
   const qc = useQueryClient();
+  const { user } = useAuth();
 
   const { data: safes = [] } = useQuery<Safe[]>({
     queryKey: ["/api/settings/safes"],
@@ -52,9 +55,7 @@ export default function Tasks() {
     );
   }
 
-  const totalSafes = safes.reduce((s, x) => s + Number(x.balance), 0);
-
-  const navActions = [
+  const allNavActions = [
     {
       href: "/receipt-vouchers",
       title: "سند قبض",
@@ -65,6 +66,7 @@ export default function Tasks() {
       bg: "bg-violet-500/8",
       stat: "اضغط للفتح",
       statLabel: "سندات القبض",
+      permission: null,
     },
     {
       href: "/payment-vouchers",
@@ -74,8 +76,9 @@ export default function Tasks() {
       color: "text-orange-400",
       ring: "ring-orange-500/30",
       bg: "bg-orange-500/8",
-      stat: formatCurrency(totalSafes),
-      statLabel: "رصيد الخزائن",
+      stat: "اضغط للفتح",
+      statLabel: "سندات الصرف",
+      permission: null,
     },
     {
       href: "/expenses",
@@ -87,6 +90,7 @@ export default function Tasks() {
       bg: "bg-red-500/8",
       stat: "اضغط للفتح",
       statLabel: "المصروفات",
+      permission: "can_view_expenses",
     },
     {
       href: "/income",
@@ -98,6 +102,7 @@ export default function Tasks() {
       bg: "bg-emerald-500/8",
       stat: "اضغط للفتح",
       statLabel: "الإيرادات",
+      permission: null,
     },
     {
       href: "/safe-transfers",
@@ -107,10 +112,15 @@ export default function Tasks() {
       color: "text-cyan-400",
       ring: "ring-cyan-500/30",
       bg: "bg-cyan-500/8",
-      stat: formatCurrency(totalSafes),
-      statLabel: "إجمالي الخزائن",
+      stat: "اضغط للفتح",
+      statLabel: "التحويلات",
+      permission: null,
     },
   ];
+
+  const navActions = allNavActions.filter(a =>
+    a.permission === null || hasPermission(user, a.permission) === true
+  );
 
   return (
     <div className="space-y-5">

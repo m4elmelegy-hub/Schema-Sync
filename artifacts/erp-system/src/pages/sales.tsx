@@ -23,7 +23,7 @@ interface SalesReturn {
 
 function SalesReturnsPanel() {
   const { user: currentUser } = useAuth();
-  const canCancelSale = hasPermission(currentUser, "can_cancel_sale");
+  const canCancelSale = hasPermission(currentUser, "can_cancel_sale") === true;
   const { toast } = useToast();
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -529,7 +529,7 @@ function WhatsAppSuccessModal({ invoice, onClose }: { invoice: SuccessInvoice; o
 
 function NewSalePanel({ onDone }: { onDone: () => void }) {
   const { user: currentUser } = useAuth();
-  const canEditPrice = hasPermission(currentUser, "can_edit_price");
+  const canEditPrice = hasPermission(currentUser, "can_edit_price") === true;
   const { data: products = [] } = useGetProducts();
   const { data: customers = [] } = useGetCustomers();
   const { data: safes = [] } = useGetSettingsSafes();
@@ -1476,7 +1476,7 @@ function SalesPostingBadge({ status }: { status: string }) {
 
 function SalesHistoryPanel() {
   const { user: currentUser } = useAuth();
-  const canCancelSale = hasPermission(currentUser, "can_cancel_sale");
+  const canCancelSale = hasPermission(currentUser, "can_cancel_sale") === true;
   const { toast } = useToast();
   const qc = useQueryClient();
   const { currentWarehouseId } = useWarehouse();

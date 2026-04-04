@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { TableSkeleton } from "@/components/skeletons";
 import { ConfirmModal } from "@/components/confirm-modal";
 import { useAuth } from "@/contexts/auth";
+import { hasPermission } from "@/lib/permissions";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
@@ -30,9 +31,7 @@ function AccessDenied({ msg }: { msg: string }) {
 
 export default function Expenses() {
   const { user } = useAuth();
-  const canView = (user?.role === "admin" || user?.role === "manager")
-    ? true
-    : user?.permissions?.can_view_expenses === true;
+  const canView = hasPermission(user, "can_view_expenses") === true;
 
   const { data: expenses = [], isLoading } = useQuery<Expense[]>({
     queryKey: ["/api/expenses"],

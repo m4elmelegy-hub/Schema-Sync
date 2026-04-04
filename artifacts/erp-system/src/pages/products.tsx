@@ -137,10 +137,8 @@ function AccessDenied({ msg }: { msg: string }) {
 export default function Products() {
   const { data: products = [], isLoading } = useGetProducts();
   const { user } = useAuth();
-  const canViewProducts = (user?.role === "admin" || user?.role === "manager")
-    ? true
-    : user?.permissions?.can_view_products === true;
-  const canManageProducts = hasPermission(user, "can_manage_products");
+  const canViewProducts = hasPermission(user, "can_view_products") === true;
+  const canManageProducts = hasPermission(user, "can_manage_products") === true;
   const createMutation = useCreateProduct();
   const deleteMutation = useDeleteProduct();
   const queryClient = useQueryClient();
