@@ -150,6 +150,18 @@ router.post("/auth/login", async (req, res) => {
       }
     }
 
+    /* ── Block cashier/salesperson without warehouse or safe ─ */
+    if ((user.role === "cashier" || user.role === "salesperson")) {
+      if (!user.warehouse_id) {
+        res.status(403).json({ error: "هذا الحساب غير مرتبط بفرع/مخزن — تواصل مع المدير" });
+        return;
+      }
+      if (!user.safe_id) {
+        res.status(403).json({ error: "هذا الحساب غير مرتبط بخزينة — تواصل مع المدير" });
+        return;
+      }
+    }
+
     /* ── Success — clear lockout ──────────────────────────── */
     clearLockout(uid);
 

@@ -66,7 +66,7 @@ export default function Tasks() {
       bg: "bg-violet-500/8",
       stat: "اضغط للفتح",
       statLabel: "سندات القبض",
-      permission: null,
+      permission: "can_add_receipt_voucher",
     },
     {
       href: "/payment-vouchers",
@@ -78,7 +78,7 @@ export default function Tasks() {
       bg: "bg-orange-500/8",
       stat: "اضغط للفتح",
       statLabel: "سندات الصرف",
-      permission: null,
+      permission: "can_add_payment_voucher",
     },
     {
       href: "/expenses",
@@ -90,7 +90,7 @@ export default function Tasks() {
       bg: "bg-red-500/8",
       stat: "اضغط للفتح",
       statLabel: "المصروفات",
-      permission: "can_view_expenses",
+      permission: "can_add_expense",
     },
     {
       href: "/income",
@@ -102,7 +102,7 @@ export default function Tasks() {
       bg: "bg-emerald-500/8",
       stat: "اضغط للفتح",
       statLabel: "الإيرادات",
-      permission: null,
+      permission: "can_add_receipt_voucher",
     },
     {
       href: "/safe-transfers",
@@ -114,7 +114,7 @@ export default function Tasks() {
       bg: "bg-cyan-500/8",
       stat: "اضغط للفتح",
       statLabel: "التحويلات",
-      permission: null,
+      permission: "can_add_receipt_voucher",
     },
   ];
 
@@ -155,6 +155,15 @@ export default function Tasks() {
       </div>
 
       {/* Quick actions grid — 3 cols mobile / 6 cols desktop */}
+      {navActions.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-12 gap-3 text-white/30">
+          <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center">
+            <Wallet className="w-5 h-5" />
+          </div>
+          <p className="text-sm font-semibold">لا توجد مهام متاحة لهذا المستخدم</p>
+          <p className="text-xs">تواصل مع المدير لتفعيل الصلاحيات المطلوبة</p>
+        </div>
+      )}
       <div className="grid grid-cols-3 lg:grid-cols-6 gap-2">
         {navActions.map(a => {
           const Icon = a.icon;

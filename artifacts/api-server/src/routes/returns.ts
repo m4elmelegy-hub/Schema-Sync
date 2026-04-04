@@ -59,6 +59,10 @@ router.get("/sales-returns/:id", wrap(async (req, res) => {
  * في أكثر من بند بنفس الفاتورة وبتكاليف مختلفة.
  */
 router.post("/sales-returns", wrap(async (req, res) => {
+  if (!hasPermission(req.user, "can_return_sale")) {
+    res.status(403).json({ error: "غير مصرح بتسجيل المرتجعات" }); return;
+  }
+
   const { sale_id, customer_id, customer_name, items, reason, notes, date, refund_type, safe_id } = req.body;
   if (!items?.length) { return res.status(400).json({ error: "أضف أصناف المرتجع" }); }
 

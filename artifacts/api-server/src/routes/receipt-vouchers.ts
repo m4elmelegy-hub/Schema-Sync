@@ -5,6 +5,7 @@ import { db, receiptVouchersTable, customersTable, safesTable, transactionsTable
 import { wrap, httpError } from "../lib/async-handler";
 import { assertPeriodOpen } from "../lib/period-lock";
 import { getOrCreateSafeAccount, createAutoJournalEntry, type AccountRef } from "../lib/auto-account";
+import { hasPermission } from "../lib/permissions";
 
 const router: IRouter = Router();
 
@@ -18,6 +19,10 @@ router.get("/receipt-vouchers", wrap(async (_req, res) => {
 }));
 
 router.post("/receipt-vouchers", wrap(async (req, res) => {
+  if (!hasPermission(req.user, "can_add_receipt_voucher")) {
+    res.status(403).json({ error: "غير مصرح بإضافة سندات قبض" }); return;
+  }
+
   const { customer_id, customer_name, safe_id, amount, notes, date } = req.body;
   if (!customer_name || !safe_id || !amount) {
     return res.status(400).json({ error: "البيانات غير مكتملة" });

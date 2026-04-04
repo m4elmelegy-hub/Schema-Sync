@@ -25,6 +25,10 @@ router.get("/expenses", wrap(async (req, res) => {
 }));
 
 router.post("/expenses", wrap(async (req, res) => {
+  if (!hasPermission(req.user, "can_add_expense")) {
+    res.status(403).json({ error: "غير مصرح بإضافة مصروفات" }); return;
+  }
+
   const parsed = CreateExpenseBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 

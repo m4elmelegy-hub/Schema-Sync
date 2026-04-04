@@ -11,6 +11,7 @@ import { wrap, httpError } from "../lib/async-handler";
 import { triggerBackup } from "../lib/backup-service";
 import { assertPeriodOpen } from "../lib/period-lock";
 import { runAllChecks } from "../lib/alert-service";
+import { hasPermission } from "../lib/permissions";
 import {
   getOrCreateInventoryAccount,
   getOrCreateSafeAccount,
@@ -50,6 +51,10 @@ router.get("/purchases", wrap(async (req, res) => {
 }));
 
 router.post("/purchases", wrap(async (req, res) => {
+  if (!hasPermission(req.user, "can_create_purchase")) {
+    res.status(403).json({ error: "غير مصرح بإنشاء فواتير شراء" }); return;
+  }
+
   const parsed = CreatePurchaseBody.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.message });
@@ -354,6 +359,10 @@ router.post("/purchases/:id/post", wrap(async (req, res) => {
 
 /* ── إلغاء فاتورة المشتريات ─────────────────────────────────────────────── */
 router.post("/purchases/:id/cancel", wrap(async (req, res) => {
+  if (!hasPermission(req.user, "can_cancel_purchase")) {
+    res.status(403).json({ error: "غير مصرح بإلغاء فواتير الشراء" }); return;
+  }
+
   const id = parseInt(req.params.id as string);
   if (isNaN(id)) throw httpError(400, "معرّف غير صحيح");
 

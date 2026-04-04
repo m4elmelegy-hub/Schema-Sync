@@ -1002,9 +1002,13 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
 
               {/* قسم الدفع + الإجماليات */}
               <div className="px-5 pb-0 pt-3 border-t border-white/10 bg-black/30 space-y-3 shrink-0">
-                {/* نوع الدفع */}
+                {/* نوع الدفع — يُعرض فقط ما يملك المستخدم صلاحيته */}
                 <div className="flex gap-2">
-                  {[{ v: "cash", l: "💵 نقدي" }, { v: "credit", l: "📋 آجل" }, { v: "partial", l: "⚡ جزئي" }].map(opt => (
+                  {[
+                    { v: "cash",    l: "💵 نقدي",  perm: "can_cash_sale"    },
+                    { v: "credit",  l: "📋 آجل",   perm: "can_credit_sale"  },
+                    { v: "partial", l: "⚡ جزئي",   perm: "can_partial_sale" },
+                  ].filter(opt => hasPermission(currentUser, opt.perm)).map(opt => (
                     <button key={opt.v} onClick={() => setPaymentType(opt.v as "cash" | "credit" | "partial")}
                       className={`flex-1 py-2.5 rounded-xl text-sm font-black border transition-all ${
                         paymentType === opt.v ? "bg-amber-500 text-black border-amber-400 shadow-lg shadow-amber-500/20" : "bg-white/5 text-white/50 border-white/10 hover:bg-white/10"

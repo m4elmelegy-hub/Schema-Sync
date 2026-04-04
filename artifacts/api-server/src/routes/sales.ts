@@ -67,10 +67,26 @@ router.get("/sales", wrap(async (req, res) => {
 }));
 
 router.post("/sales", wrap(async (req, res) => {
+  if (!hasPermission(req.user, "can_create_sale")) {
+    res.status(403).json({ error: "غير مصرح بإنشاء فواتير بيع" }); return;
+  }
+
   const parsed = CreateSaleBody.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.message });
   }
+
+  const { payment_type: pt } = parsed.data;
+  if (pt === "cash" && !hasPermission(req.user, "can_cash_sale")) {
+    res.status(403).json({ error: "غير مصرح بالبيع النقدي" }); return;
+  }
+  if (pt === "partial" && !hasPermission(req.user, "can_partial_sale")) {
+    res.status(403).json({ error: "غير مصرح بالبيع الجزئي" }); return;
+  }
+  if (pt === "credit" && !hasPermission(req.user, "can_credit_sale")) {
+    res.status(403).json({ error: "غير مصرح بالبيع الآجل" }); return;
+  }
+
   const requestId = req.headers["x-request-id"]
     ? String(req.headers["x-request-id"])
     : null;

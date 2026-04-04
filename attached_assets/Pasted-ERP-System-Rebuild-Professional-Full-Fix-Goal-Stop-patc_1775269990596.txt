@@ -1,0 +1,361 @@
+ERP System Rebuild — Professional Full Fix
+
+Goal:
+Stop patching. Rebuild the permission, user-assignment, and operational flow properly so the ERP becomes stable and deterministic.
+
+Rules:
+- Do NOT add random features
+- Do NOT keep partial fixes if they conflict
+- Do NOT rely on frontend-only permissions
+- Backend must be source of truth
+- Keep existing good fixes:
+  - transaction safety
+  - overselling prevention
+  - safe validation
+  - subscription check
+  - warehouse/company isolation where correct
+- Make the system work end-to-end professionally
+
+────────────────────────────
+PHASE 1 — AUDIT & NORMALIZE
+────────────────────────────
+
+1) Audit all current permission usage across:
+- sales
+- purchases
+- returns
+- products
+- customers
+- expenses
+- vouchers
+- reports
+- quick tasks
+- sidebar visibility
+
+2) Audit all user-linked operational fields:
+- company_id
+- warehouse_id
+- safe_id
+- active
+- permissions
+
+3) Produce a short map:
+- which pages are controlled only in frontend
+- which routes are controlled in backend
+- which actions are currently broken
+
+Then fix inconsistencies before adding anything else.
+
+────────────────────────────
+PHASE 2 — USER MANAGEMENT (SOURCE OF TRUTH)
+────────────────────────────
+
+User form in settings must manage:
+
+- name
+- username
+- role
+- PIN
+- warehouse_id
+- safe_id
+- active
+- permissions
+
+Behavior:
+- cashier / salesperson:
+  warehouse_id required
+  safe_id required
+- admin / manager:
+  optional
+
+UI:
+- warehouse dropdown
+- safe dropdown
+- active toggle
+- grouped permissions UI
+- save/update must persist correctly
+
+Auth:
+- /auth/login and /auth/me must always return:
+  id, role, permissions, active, warehouse_id, safe_id, company_id
+
+Block usage:
+- inactive user → blocked
+- cashier/salesperson without warehouse or safe → blocked with clear Arabic message
+
+────────────────────────────
+PHASE 3 — PERMISSIONS SYSTEM (REAL, NOT DECORATIVE)
+────────────────────────────
+
+Use explicit permissions.
+
+Core permissions list:
+
+Sales:
+- can_create_sale
+- can_cash_sale
+- can_partial_sale
+- can_credit_sale
+- can_edit_price
+- can_return_sale
+- can_cancel_sale
+
+Purchases:
+- can_create_purchase
+- can_cancel_purchase
+
+Products:
+- can_view_products
+- can_manage_products
+
+Customers:
+- can_view_customers
+- can_manage_customers
+
+Inventory:
+- can_view_inventory
+- can_adjust_inventory
+
+Finance:
+- can_view_expenses
+- can_add_expense
+- can_add_receipt_voucher
+- can_add_payment_voucher
+- can_close_shift
+
+Reports:
+- can_view_reports
+
+System:
+- can_manage_users
+
+Permission rule:
+- if permission === false → block
+- if permission === true → allow
+- if undefined:
+  - admin/manager allowed by defaults
+  - cashier/salesperson allowed only in explicitly assigned operational paths that make sense
+  - do not leave sensitive operations unguarded
+
+IMPORTANT:
+Create a single shared helper in backend and frontend:
+hasPermission(user, permission)
+
+────────────────────────────
+PHASE 4 — BACKEND ENFORCEMENT (CRITICAL)
+────────────────────────────
+
+Apply backend permission checks to ALL sensitive routes.
+
+A) Sales
+POST /sales:
+- require can_create_sale
+- if payment_type = cash → require can_cash_sale
+- if payment_type = partial → require can_partial_sale
+- if payment_type = credit → require can_credit_sale
+- if credit/partial and customer is required by flow, validate properly
+- cashier/salesperson must use req.user.warehouse_id and req.user.safe_id only
+- admin/manager may use explicit selected warehouse/safe from request body
+
+POST /sales/:id/cancel:
+- require can_cancel_sale
+
+B) Sales Returns
+POST /sales-returns:
+- require can_return_sale
+- return price must equal original sale price
+- warehouse/safe/company/user must be stored correctly
+
+DELETE /sales-returns/:id:
+- require can_cancel_sale
+
+C) Purchases
+POST /purchases:
+- require can_create_purchase
+- admin/manager choose warehouse
+- cashier/salesperson should not use purchase flow unless explicitly allowed by permission design
+- safe rules remain enforced
+
+POST /purchases/:id/cancel:
+- require can_cancel_purchase
+
+D) Products
+GET /products:
+- require can_view_products
+PUT/DELETE:
+- require can_manage_products
+
+E) Customers
+GET /customers:
+- require can_view_customers
+POST/PUT/DELETE:
+- require can_manage_customers
+
+F) Inventory
+GET pages:
+- require can_view_inventory
+Adjustments:
+- require can_adjust_inventory
+
+G) Expenses
+GET /expenses:
+- require can_view_expenses
+POST /expenses:
+- require can_add_expense
+- cashier must use req.user.safe_id automatically
+
+H) Vouchers / shift closing
+Receipt vouchers:
+- require can_add_receipt_voucher
+Payment vouchers:
+- require can_add_payment_voucher
+Shift close:
+- require can_close_shift
+
+I) Reports
+All /reports/*:
+- require can_view_reports
+
+────────────────────────────
+PHASE 5 — FRONTEND VISIBILITY + PAGE BEHAVIOR
+────────────────────────────
+
+A) Sidebar
+Show links only if user can access them:
+- products
+- customers
+- expenses
+- reports
+- inventory
+- vouchers
+- users/settings where applicable
+
+B) Pages
+Do not only hide buttons.
+If page is forbidden:
+show clear Arabic unauthorized state.
+
+C) Sales page
+For cashier/salesperson:
+- no warehouse dropdown
+- no safe dropdown
+- show fixed labels:
+  الفرع: {warehouse}
+  الخزنة: {safe}
+- payment options shown only if corresponding permission is true
+- if only cash allowed, show cash only
+- if partial/credit not allowed, hide them fully
+- customer selector shown only if flow requires and permission allows
+
+D) Purchases page
+Only show to roles/permissions that should use it.
+
+E) Expenses page
+Show only if can_view_expenses
+If can_add_expense false:
+read-only or hidden create form depending on current structure
+
+F) Quick Tasks
+Remove broken/static behavior.
+Either:
+- remove page from sidebar entirely
+OR
+- make it fully permission-driven
+Only show cards the user can actually execute:
+  expense
+  receipt voucher
+  payment voucher
+  safe transfer
+  shift close
+If no tasks:
+show "لا توجد مهام متاحة لهذا المستخدم"
+
+────────────────────────────
+PHASE 6 — OPERATIONAL CONSISTENCY
+────────────────────────────
+
+Ensure all operational records store:
+- user_id
+- warehouse_id
+- safe_id when applicable
+- company_id
+
+Audit:
+- sales
+- sale returns
+- purchases
+- expenses
+- stock movements
+- vouchers
+
+No silent fallbacks to warehouse 1 or company 1 for normal users.
+
+────────────────────────────
+PHASE 7 — MANAGER VISIBILITY
+────────────────────────────
+
+Keep /api/reports/manager-sales and make sure it remains accurate.
+
+Manager/Admin should be able to see:
+- sales by warehouse
+- sales by user
+- top seller by warehouse
+- returns by warehouse
+- net sales by warehouse
+
+No UI redesign yet unless needed for clarity.
+Focus on correctness first.
+
+────────────────────────────
+PHASE 8 — FINAL VERIFICATION
+────────────────────────────
+
+After changes, manually verify these scenarios:
+
+1. Cashier with:
+- cash only
+- no products permission
+- expenses enabled
+Expected:
+- can sell cash only
+- cannot access products
+- can access expenses using own safe
+- no warehouse/safe dropdowns
+
+2. Salesperson with:
+- credit + partial enabled
+- customers view enabled
+Expected:
+- can sell credit/partial
+- can select customer
+- uses own warehouse/safe
+
+3. Manager:
+- can choose warehouse
+- can access reports
+- can see manager sales reporting
+
+4. User inactive:
+- blocked completely
+
+5. User missing warehouse/safe:
+- blocked clearly if cashier/salesperson
+
+6. Products/customers pages:
+- hidden when not allowed
+- backend returns 403 if accessed directly
+
+7. Quick tasks:
+- only real tasks shown
+- no broken cards
+
+────────────────────────────
+OUTPUT REQUIRED
+────────────────────────────
+
+Return:
+1. files changed
+2. root cause of each broken behavior
+3. what was rebuilt
+4. what was removed
+5. what scenarios now work correctly
