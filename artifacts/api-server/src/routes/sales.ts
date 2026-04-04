@@ -154,6 +154,7 @@ router.post("/sales", wrap(async (req, res) => {
         notes: notes ?? null,
         date: date ?? new Date().toISOString().split("T")[0],
         request_id: requestId,
+        user_id: req.user?.id ?? null,
         company_id: req.user?.company_id ?? undefined,
       }).returning();
 

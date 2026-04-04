@@ -1068,4 +1068,114 @@ router.get("/reports/health-check", wrap(async (req, res) => {
   });
 }));
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * 10. تقارير المدير — المبيعات حسب المخزن / المستخدم / المندوب
+ * GET /api/reports/manager-sales?date_from=&date_to=&company_id=
+ * ───────────────────────────────────────────────────────────────────────── */
+router.get("/reports/manager-sales", wrap(async (req, res) => {
+  const { date_from, date_to } = req.query as Record<string, string | undefined>;
+  const df    = dateFilter("s.date",  date_from, date_to);
+  const dfRet = dateFilter("sr.date", date_from, date_to);
+  const companyId = req.user?.company_id ?? null;
+  const companyFilter    = companyId ? `AND s.company_id = ${companyId}` : "";
+  const companyFilterRet = companyId ? `AND sr.company_id = ${companyId}` : "";
+
+  /* ── 1. إجمالي المبيعات حسب المخزن ─────────────────────────────────── */
+  const byWarehouse = await db.execute(sql.raw(`
+    SELECT
+      s.warehouse_id,
+      COALESCE(s.warehouse_name, 'غير محدد') AS warehouse_name,
+      COUNT(s.id)::int                         AS sale_count,
+      COALESCE(SUM(CAST(s.total_amount  AS FLOAT8)), 0) AS total_sales,
+      COALESCE(SUM(CAST(s.paid_amount   AS FLOAT8)), 0) AS total_collected,
+      COALESCE(SUM(CAST(s.remaining_amount AS FLOAT8)), 0) AS total_remaining
+    FROM sales s
+    WHERE s.posting_status = 'posted' ${df} ${companyFilter}
+    GROUP BY s.warehouse_id, s.warehouse_name
+    ORDER BY total_sales DESC
+  `));
+
+  /* ── 2. إجمالي المبيعات حسب المستخدم (user_id) ─────────────────────── */
+  const byUser = await db.execute(sql.raw(`
+    SELECT
+      s.user_id,
+      COALESCE(u.name, 'غير محدد')             AS user_name,
+      COALESCE(u.role, 'unknown')               AS user_role,
+      COUNT(s.id)::int                          AS sale_count,
+      COALESCE(SUM(CAST(s.total_amount AS FLOAT8)), 0) AS total_sales
+    FROM sales s
+    LEFT JOIN erp_users u ON u.id = s.user_id
+    WHERE s.posting_status = 'posted' ${df} ${companyFilter}
+    GROUP BY s.user_id, u.name, u.role
+    ORDER BY total_sales DESC
+  `));
+
+  /* ── 3. أفضل بائع (salesperson_id) حسب المخزن ─────────────────────── */
+  const topSellerByWarehouse = await db.execute(sql.raw(`
+    SELECT DISTINCT ON (warehouse_id)
+      s.warehouse_id,
+      COALESCE(s.warehouse_name, 'غير محدد')      AS warehouse_name,
+      s.salesperson_id,
+      COALESCE(s.salesperson_name, 'غير محدد')    AS salesperson_name,
+      COUNT(s.id)::int                             AS sale_count,
+      COALESCE(SUM(CAST(s.total_amount AS FLOAT8)), 0) AS total_sales
+    FROM sales s
+    WHERE s.posting_status = 'posted'
+      AND s.salesperson_id IS NOT NULL ${df} ${companyFilter}
+    GROUP BY s.warehouse_id, s.warehouse_name, s.salesperson_id, s.salesperson_name
+    ORDER BY s.warehouse_id, total_sales DESC
+  `));
+
+  /* ── 4. إجمالي المرتجعات حسب المخزن ────────────────────────────────── */
+  const returnsByWarehouse = await db.execute(sql.raw(`
+    SELECT
+      sr.warehouse_id,
+      COALESCE(w.name, 'غير محدد')              AS warehouse_name,
+      COUNT(sr.id)::int                          AS return_count,
+      COALESCE(SUM(CAST(sr.total_amount AS FLOAT8)), 0) AS total_returns
+    FROM sales_returns sr
+    LEFT JOIN warehouses w ON w.id = sr.warehouse_id
+    WHERE 1=1 ${dfRet} ${companyFilterRet}
+    GROUP BY sr.warehouse_id, w.name
+    ORDER BY total_returns DESC
+  `));
+
+  /* ── 5. صافي المبيعات حسب المخزن (مبيعات - مرتجعات) ────────────────── */
+  const netByWarehouse = await db.execute(sql.raw(`
+    SELECT
+      warehouse_id,
+      warehouse_name,
+      COALESCE(SUM(CASE WHEN type='sale' THEN amount ELSE -amount END), 0) AS net_sales
+    FROM (
+      SELECT
+        s.warehouse_id,
+        COALESCE(s.warehouse_name, 'غير محدد') AS warehouse_name,
+        'sale'   AS type,
+        CAST(s.total_amount AS FLOAT8)           AS amount
+      FROM sales s
+      WHERE s.posting_status = 'posted' ${df} ${companyFilter}
+      UNION ALL
+      SELECT
+        sr.warehouse_id,
+        COALESCE(w.name, 'غير محدد') AS warehouse_name,
+        'return' AS type,
+        CAST(sr.total_amount AS FLOAT8) AS amount
+      FROM sales_returns sr
+      LEFT JOIN warehouses w ON w.id = sr.warehouse_id
+      WHERE 1=1 ${dfRet} ${companyFilterRet}
+    ) combined
+    GROUP BY warehouse_id, warehouse_name
+    ORDER BY net_sales DESC
+  `));
+
+  res.json({
+    by_warehouse:           byWarehouse.rows,
+    by_user:                byUser.rows,
+    top_seller_by_warehouse: topSellerByWarehouse.rows,
+    returns_by_warehouse:   returnsByWarehouse.rows,
+    net_by_warehouse:       netByWarehouse.rows,
+    filters: { date_from: date_from ?? null, date_to: date_to ?? null },
+  });
+}));
+
 export default router;

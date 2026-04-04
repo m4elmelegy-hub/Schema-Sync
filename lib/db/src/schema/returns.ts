@@ -20,10 +20,14 @@ export const salesReturnsTable = pgTable("sales_returns", {
   date: text("date"),
   reason: text("reason"),
   notes: text("notes"),
+  user_id: integer("user_id"),
+  warehouse_id: integer("warehouse_id"),
+  company_id: integer("company_id").notNull().default(1),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("sales_returns_customer_id_idx").on(t.customer_id),
   index("sales_returns_sale_id_idx").on(t.sale_id),
+  index("sales_returns_warehouse_id_idx").on(t.warehouse_id),
   index("sales_returns_created_at_idx").on(t.created_at),
   uniqueIndex("sales_returns_request_id_uidx").on(t.request_id),
 ]);

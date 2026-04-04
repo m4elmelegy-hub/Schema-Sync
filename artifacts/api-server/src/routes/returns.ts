@@ -79,7 +79,10 @@ router.post("/sales-returns", wrap(async (req, res) => {
 
   await assertPeriodOpen(txDate, req);
 
-  const effectiveWarehouseId = req.user?.warehouse_id ?? null;
+  const role = req.user?.role ?? "cashier";
+  const effectiveWarehouseId = (role === "admin" || role === "manager")
+    ? (req.body.warehouse_id ? Number(req.body.warehouse_id) : null)
+    : (req.user?.warehouse_id ?? null);
 
   const ret = await db.transaction(async (tx) => {
     let safeName: string | null = null;
@@ -97,28 +100,35 @@ router.post("/sales-returns", wrap(async (req, res) => {
       sale_id: sale_id ?? null,
       customer_id: customer_id ? parseInt(customer_id) : null,
       customer_name: customer_name ?? null,
-      total_amount: String(total),
+      total_amount: String(total),   // سيُحدَّث بالقيمة المقفولة بعد الحلقة
       refund_type: rtype,
       safe_id: safeIdInt,
       safe_name: safeName,
       date: txDate,
       reason: reason ?? null,
       notes: notes ?? null,
+      user_id: req.user?.id ?? null,
+      warehouse_id: effectiveWarehouseId ?? null,
+      company_id: req.user?.company_id ?? 1,
     }).returning();
 
+    let actualTotal = 0;
+
     for (const item of items) {
-      const retQty       = Number(item.quantity);
-      const retSalePrice = Number(item.unit_price);
+      const retQty = Number(item.quantity);
       const origSaleItemId: number | null = item.original_sale_item_id
         ? parseInt(item.original_sale_item_id)
         : null;
 
       // ── التحقق من البند الأصلي وحساب التكلفة ──────────────────────────────
       // القاعدة 1: إن كان original_sale_item_id موجوداً نستخدمه مباشرة (الأدق)
+      //   → سعر المرتجع يُقفل على سعر البيع الأصلي (لا override)
       // القاعدة 2: إن لم يوجد نبحث بـ sale_id + product_id (احتياطي)
       // القاعدة 3: إن لم يوجد نستخدم cost_price الحالي للمنتج
       let unitCostAtSale  = 0;
       let resolvedItemId: number | null = origSaleItemId;
+      // السعر الفعلي للمرتجع — يُقفل على الأصل إن وُجد
+      let lockedSalePrice = Number(item.unit_price);
 
       if (origSaleItemId) {
         const [origItem] = await tx
@@ -137,7 +147,9 @@ router.post("/sales-returns", wrap(async (req, res) => {
           );
         }
 
-        unitCostAtSale = Number(origItem.cost_price);
+        // قفل السعر على سعر البيع الأصلي — لا يمكن تعديله من الواجهة
+        lockedSalePrice = Number(origItem.unit_price);
+        unitCostAtSale  = Number(origItem.cost_price);
 
         // تحديث quantity_returned على البند الأصلي
         await tx.update(saleItemsTable)
@@ -178,14 +190,17 @@ router.post("/sales-returns", wrap(async (req, res) => {
 
       const totalCostAtReturn = unitCostAtSale * retQty;
 
+      const lockedTotalPrice = lockedSalePrice * retQty;
+      actualTotal += lockedTotalPrice;
+
       // ── إدراج بند المرتجع ─────────────────────────────────────────────────
       await tx.insert(saleReturnItemsTable).values({
         return_id:              ret.id,
         product_id:             item.product_id,
         product_name:           item.product_name,
         quantity:               String(retQty),
-        unit_price:             String(retSalePrice),
-        total_price:            String(item.total_price),
+        unit_price:             String(lockedSalePrice),
+        total_price:            String(lockedTotalPrice.toFixed(2)),
         original_sale_item_id:  resolvedItemId,
         unit_cost_at_return:    String(unitCostAtSale),
         total_cost_at_return:   String(totalCostAtReturn),
@@ -226,13 +241,23 @@ router.post("/sales-returns", wrap(async (req, res) => {
       }
     }
 
+    // تحديث المبلغ بالقيمة المقفولة إن اختلفت
+    if (Math.abs(actualTotal - total) > 0.001) {
+      await tx.update(salesReturnsTable)
+        .set({ total_amount: String(actualTotal.toFixed(2)) })
+        .where(eq(salesReturnsTable.id, ret.id));
+      ret.total_amount = String(actualTotal.toFixed(2));
+    }
+
+    const finalTotal = actualTotal > 0 ? actualTotal : total;
+
     // ── أثر الأرصدة ────────────────────────────────────────────────────────
     if (rtype === "credit") {
       if (customer_id) {
         const [cust] = await tx.select().from(customersTable).where(eq(customersTable.id, parseInt(customer_id)));
         if (cust) {
           await tx.update(customersTable)
-            .set({ balance: String(Number(cust.balance) - total) })
+            .set({ balance: String(Number(cust.balance) - finalTotal) })
             .where(eq(customersTable.id, cust.id));
         }
       }
@@ -240,7 +265,7 @@ router.post("/sales-returns", wrap(async (req, res) => {
       const [safe] = await tx.select().from(safesTable).where(eq(safesTable.id, safeIdInt));
       if (safe) {
         await tx.update(safesTable)
-          .set({ balance: String(Number(safe.balance) - total) })
+          .set({ balance: String(Number(safe.balance) - finalTotal) })
           .where(eq(safesTable.id, safeIdInt));
       }
       await tx.insert(transactionsTable).values({
@@ -251,7 +276,7 @@ router.post("/sales-returns", wrap(async (req, res) => {
         safe_name: safeName ?? "",
         customer_id: customer_id ? parseInt(customer_id) : null,
         customer_name: customer_name ?? null,
-        amount: String(total),
+        amount: String(finalTotal.toFixed(2)),
         direction: "out",
         description: `مرتجع مبيعات نقدي ${return_no}${customer_name ? ` — ${customer_name}` : ""}`,
         date: txDate,
@@ -263,7 +288,7 @@ router.post("/sales-returns", wrap(async (req, res) => {
       await tx.insert(customerLedgerTable).values({
         customer_id: parseInt(customer_id),
         type: "sale_return",
-        amount: String(-total),
+        amount: String(-finalTotal),
         reference_type: "sale_return",
         reference_id: ret.id,
         reference_no: return_no,
