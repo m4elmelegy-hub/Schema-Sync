@@ -31,7 +31,8 @@ function AccessDenied({ msg }: { msg: string }) {
 
 export default function Expenses() {
   const { user } = useAuth();
-  const canView = hasPermission(user, "can_view_expenses") === true;
+  const canView   = hasPermission(user, "can_view_expenses") === true;
+  const isCashier = user?.role === "cashier";
 
   const { data: expenses = [], isLoading } = useQuery<Expense[]>({
     queryKey: ["/api/expenses"],
@@ -67,7 +68,11 @@ export default function Expenses() {
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
     const body: Record<string, unknown> = { category: formData.category, amount: parseFloat(formData.amount), description: formData.description || undefined };
-    if (formData.safe_id) body.safe_id = parseInt(formData.safe_id);
+    if (isCashier && user?.safe_id) {
+      body.safe_id = user.safe_id;
+    } else if (formData.safe_id) {
+      body.safe_id = parseInt(formData.safe_id);
+    }
     createMutation.mutate(body);
   };
 
@@ -119,13 +124,24 @@ export default function Expenses() {
               <label className="block text-white/70 text-sm mb-1">المبلغ (ج.م) *</label>
               <input required type="number" step="0.01" min="0.01" className="glass-input w-full" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} />
             </div>
-            <div>
-              <label className="block text-white/70 text-sm mb-1">الخزينة المدفوع منها</label>
-              <select className="glass-input w-full" value={formData.safe_id} onChange={e => setFormData({...formData, safe_id: e.target.value})}>
-                <option value="">-- بدون خزينة --</option>
-                {safes.map(s => <option key={s.id} value={s.id}>{s.name} ({formatCurrency(Number(s.balance))})</option>)}
-              </select>
-            </div>
+            {isCashier ? (
+              <div>
+                <label className="block text-white/70 text-sm mb-1">الخزينة</label>
+                <div className="glass-input w-full flex items-center gap-2 opacity-70 cursor-not-allowed">
+                  <span className="text-amber-300 font-bold text-sm">
+                    {safes.find(s => s.id === user?.safe_id)?.name ?? "الخزينة الافتراضية"}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-white/70 text-sm mb-1">الخزينة المدفوع منها</label>
+                <select className="glass-input w-full" value={formData.safe_id} onChange={e => setFormData({...formData, safe_id: e.target.value})}>
+                  <option value="">-- بدون خزينة --</option>
+                  {safes.map(s => <option key={s.id} value={s.id}>{s.name} ({formatCurrency(Number(s.balance))})</option>)}
+                </select>
+              </div>
+            )}
             <div>
               <label className="block text-white/70 text-sm mb-1">التفاصيل (اختياري)</label>
               <input type="text" className="glass-input w-full" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />

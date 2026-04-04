@@ -904,7 +904,7 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
 
               {/* رأس السلة */}
               <div className="px-5 py-4 border-b border-white/10 bg-white/4 shrink-0">
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center mb-2">
                   <h2 className="font-black text-white text-2xl flex items-center gap-2">
                     <ShoppingCart className="w-6 h-6 text-amber-400" /> السلة
                   </h2>
@@ -919,6 +919,18 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
                     )}
                   </div>
                 </div>
+                {isRestricted && (
+                  <div className="flex gap-2 text-xs">
+                    <span className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1 text-white/50">
+                      <span className="text-white/30">الفرع:</span>
+                      <span className="text-emerald-300 font-bold">{effectiveWarehouseName}</span>
+                    </span>
+                    <span className="flex items-center gap-1 bg-white/5 border border-amber-500/15 rounded-lg px-2.5 py-1 text-white/50">
+                      <span className="text-white/30">الخزنة:</span>
+                      <span className="text-amber-300 font-bold">{effectiveSafeName}</span>
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* عناصر السلة */}
@@ -1035,10 +1047,17 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
                 <div className="flex gap-2">
                   <div className="flex items-center gap-2 flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
                     <Vault className="w-4 h-4 text-amber-400/50 shrink-0" />
-                    <select className="bg-transparent text-white/70 outline-none w-full appearance-none text-sm" value={safeId} onChange={e => setSafeId(e.target.value)}>
-                      <option value="" className="bg-slate-900">-- الخزينة --</option>
-                      {safes.map(s => <option key={s.id} value={s.id} className="bg-slate-900">{s.name}</option>)}
-                    </select>
+                    {isRestricted ? (
+                      <>
+                        <span className="text-white/30 text-sm shrink-0">الخزنة</span>
+                        <span className="text-amber-300 text-sm font-bold truncate">{effectiveSafeName}</span>
+                      </>
+                    ) : (
+                      <select className="bg-transparent text-white/70 outline-none w-full appearance-none text-sm" value={safeId} onChange={e => setSafeId(e.target.value)}>
+                        <option value="" className="bg-slate-900">-- الخزينة --</option>
+                        {safes.map(s => <option key={s.id} value={s.id} className="bg-slate-900">{s.name}</option>)}
+                      </select>
+                    )}
                   </div>
                   <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-xl px-3 py-2 w-28">
                     <Percent className="w-3.5 h-3.5 text-white/30 shrink-0" />
