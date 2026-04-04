@@ -194,15 +194,14 @@ const TEMPLATE_LABELS: { value: string; label: string }[] = [
 
 /* ─── Shared UI atoms ─── */
 function FieldLabel({ children }: { children: React.ReactNode }) {
-  return <label className="block text-[#9CA3AF] text-[11px] mb-1.5 font-semibold uppercase tracking-wider">{children}</label>;
+  return <label className="block text-[11px] mb-1.5 font-semibold uppercase tracking-wider" style={{ color: "var(--erp-text-3)" }}>{children}</label>;
 }
 
 function SInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`w-full bg-[#1A2235] border border-[#2D3748] text-white rounded-xl px-3 py-2.5 text-sm outline-none
-        focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all placeholder:text-white/20 ${props.className ?? ""}`}
+      className={`glass-input w-full rounded-xl px-3 py-2.5 text-sm outline-none transition-all ${props.className ?? ""}`}
     />
   );
 }
@@ -211,8 +210,7 @@ function SSelect({ children, ...props }: React.SelectHTMLAttributes<HTMLSelectEl
   return (
     <select
       {...props}
-      className={`w-full bg-[#1A2235] border border-[#2D3748] text-white rounded-xl px-3 py-2.5 text-sm outline-none
-        focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all appearance-none cursor-pointer ${props.className ?? ""}`}
+      className={`glass-input w-full rounded-xl px-3 py-2.5 text-sm outline-none transition-all appearance-none cursor-pointer ${props.className ?? ""}`}
     >
       {children}
     </select>
@@ -273,7 +271,8 @@ function Modal({
       onClick={onClose}
     >
       <div
-        className={`bg-[#111827] rounded-2xl w-full ${maxWidth} border border-white/10 shadow-2xl`}
+        className={`rounded-2xl w-full ${maxWidth} border border-white/10 shadow-2xl`}
+        style={{ background: "var(--erp-bg-card)" }}
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/8">
@@ -311,7 +310,7 @@ function PageHeader({ title, sub, action }: { title: string; sub?: string; actio
 /* ─── Skeleton loader ─── */
 function CardSkeleton() {
   return (
-    <div className="bg-[#111827] border border-white/5 rounded-2xl p-5 animate-pulse space-y-3">
+    <div className="border border-white/5 rounded-2xl p-5 animate-pulse space-y-3" style={{ background: "var(--erp-bg-card)" }}>
       <div className="flex items-center gap-3">
         <div className="w-12 h-12 rounded-xl bg-white/5" />
         <div className="flex-1 space-y-2">
@@ -439,7 +438,7 @@ export default function Settings() {
     <div className="flex gap-5" style={{ minHeight: 600 }}>
       {/* ── Sidebar ── */}
       <aside className="w-52 shrink-0">
-        <div className="rounded-2xl overflow-hidden border border-white/5" style={{ background: "#0D1424" }}>
+        <div className="rounded-2xl overflow-hidden border border-white/5" style={{ background: "var(--erp-bg-card)" }}>
           <div className="px-4 pt-4 pb-3 border-b border-white/5">
             <p className="text-white/25 text-[10px] font-bold uppercase tracking-widest">لوحة الإعدادات</p>
           </div>
@@ -1240,7 +1239,7 @@ const STORE_FONT_OPTIONS: { key: FontFamily; label: string; preview: string }[] 
 
 function StoreSettingSection({ icon: Icon, title, children }: { icon: React.FC<{ className?: string }>; title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-[#111827] border border-white/5 rounded-2xl overflow-hidden">
+    <div className="border border-white/5 rounded-2xl overflow-hidden" style={{ background: "var(--erp-bg-card)" }}>
       <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-white/5">
         <Icon className="w-4 h-4 text-amber-400" />
         <p className="text-white/70 text-xs font-bold uppercase tracking-wider">{title}</p>

@@ -4,6 +4,7 @@ import { useLocation } from "wouter";
 import { useGetSettingsSafes } from "@workspace/api-client-react";
 import { authFetch } from "@/lib/auth-fetch";
 import { formatCurrency } from "@/lib/format";
+import { useAppSettings } from "@/contexts/app-settings";
 import {
   Activity, ArrowUpCircle, ArrowDownCircle, Scale,
   ArrowUp, ArrowDown, Search, X, Download,
@@ -201,6 +202,8 @@ function CustomDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const { settings } = useAppSettings();
+  const isDark = settings.theme !== "light";
 
   useEffect(() => {
     const h = (e: MouseEvent) => {
@@ -212,6 +215,13 @@ function CustomDropdown({
 
   const selected = options.find(o => o.value === value);
 
+  const bg       = isDark ? "#1A2235"              : "var(--erp-bg-surface)";
+  const bgCard   = isDark ? "#111827"              : "var(--erp-bg-card)";
+  const border   = isDark ? "#2D3748"              : "var(--erp-border)";
+  const divider  = isDark ? "#1F2937"              : "var(--erp-border)";
+  const txtBase  = isDark ? "rgba(255,255,255,0.7)": "var(--erp-text-2)";
+  const txtMuted = isDark ? "rgba(255,255,255,0.35)": "var(--erp-text-3)";
+
   return (
     <div ref={ref} className="relative w-full">
       <button
@@ -219,27 +229,27 @@ function CustomDropdown({
         onClick={() => setOpen(v => !v)}
         className="w-full flex items-center gap-2 px-3 h-10 rounded-xl text-sm text-right transition-all outline-none"
         style={{
-          background: "#1A2235",
-          border: open ? "1px solid #F59E0B" : "1px solid #2D3748",
-          color: selected ? "white" : "rgba(255,255,255,0.35)",
+          background: bg,
+          border: open ? "1px solid #F59E0B" : `1px solid ${border}`,
+          color: selected ? "var(--erp-text-1)" : txtMuted,
           boxShadow: open ? "0 0 0 3px rgba(245,158,11,0.12)" : "none",
         }}
       >
-        {icon && <span className="text-white/40 flex-shrink-0">{icon}</span>}
+        {icon && <span style={{ color: "var(--erp-text-3)" }} className="flex-shrink-0">{icon}</span>}
         {selected?.dot && (
           <span className={`w-2 h-2 rounded-full flex-shrink-0 ${selected.dot}`} />
         )}
         <span className="flex-1 text-right truncate">{selected?.label ?? placeholder}</span>
         <ChevronDown
-          className="w-3.5 h-3.5 flex-shrink-0 text-white/30 transition-transform"
-          style={{ transform: open ? "rotate(180deg)" : "rotate(0)" }}
+          className="w-3.5 h-3.5 flex-shrink-0 transition-transform"
+          style={{ color: "var(--erp-text-4)", transform: open ? "rotate(180deg)" : "rotate(0)" }}
         />
       </button>
 
       {open && (
         <div
           className="absolute top-full mt-1.5 w-full rounded-xl overflow-hidden z-50 shadow-2xl"
-          style={{ background: "#111827", border: "1px solid #1F2937", maxHeight: 240, overflowY: "auto" }}
+          style={{ background: bgCard, border: `1px solid ${divider}`, maxHeight: 240, overflowY: "auto" }}
         >
           {/* "All" option */}
           <button
@@ -248,23 +258,25 @@ function CustomDropdown({
             className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-right transition-colors"
             style={{
               background: !value ? "rgba(245,158,11,0.08)" : "transparent",
-              color: !value ? "#FCD34D" : "rgba(255,255,255,0.5)",
+              color: !value ? "#FCD34D" : txtMuted,
             }}
           >
             <span className="w-2 h-2 rounded-full bg-white/20 flex-shrink-0" />
             {placeholder}
           </button>
-          <div style={{ height: 1, background: "#1F2937" }} />
+          <div style={{ height: 1, background: divider }} />
           {options.map(o => (
             <button
               key={o.value}
               type="button"
               onClick={() => { onChange(o.value); setOpen(false); }}
-              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-right transition-colors hover:bg-white/5"
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-right transition-colors"
               style={{
                 background: value === o.value ? "rgba(245,158,11,0.08)" : "transparent",
-                color: value === o.value ? "#FCD34D" : "rgba(255,255,255,0.7)",
+                color: value === o.value ? "#FCD34D" : txtBase,
               }}
+              onMouseEnter={e => { if (value !== o.value) e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"; }}
+              onMouseLeave={e => { if (value !== o.value) e.currentTarget.style.background = "transparent"; }}
             >
               {o.dot && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${o.dot}`} />}
               {o.label}
@@ -286,6 +298,19 @@ function CustomDropdown({
 export default function FinancialTransactions() {
   const [, navigate] = useLocation();
   const { data: safes = [] } = useGetSettingsSafes();
+  const { settings } = useAppSettings();
+  const isDark = settings.theme !== "light";
+
+  /* ── Theme-aware tokens ── */
+  const surfaceBg  = isDark ? "#1A2235"               : "var(--erp-bg-surface)";
+  const cardBg     = isDark ? "#111827"               : "var(--erp-bg-card)";
+  const panelBg    = isDark ? "#0F1A2E"               : "var(--erp-bg-app)";
+  const inputBg    = isDark ? "#1A2235"               : "var(--erp-bg-surface)";
+  const bdr        = isDark ? "#2D3748"               : "var(--erp-border)";
+  const txt1       = isDark ? "white"                 : "var(--erp-text-1)";
+  const txt2       = isDark ? "rgba(255,255,255,0.7)" : "var(--erp-text-2)";
+  const txt3       = isDark ? "rgba(255,255,255,0.4)" : "var(--erp-text-3)";
+  const txt4       = isDark ? "rgba(255,255,255,0.25)": "var(--erp-text-4)";
 
   const [filters, setFilters] = useState({
     safe_id: "", direction: "", type: "", from: "", to: "", search: "",
@@ -394,7 +419,7 @@ export default function FinancialTransactions() {
           {showExportMenu && (
             <div
               className="absolute left-0 top-full mt-2 w-44 rounded-xl border border-white/10 shadow-2xl overflow-hidden z-50"
-              style={{ background: "#0F1A2E" }}
+              style={{ background: panelBg }}
             >
               <button
                 onClick={() => { exportToCSV(transactions); setShowExportMenu(false); }}
@@ -416,9 +441,9 @@ export default function FinancialTransactions() {
         {/* Incoming */}
         <div
           className="group rounded-2xl p-5 flex items-center gap-4 transition-all cursor-default"
-          style={{ background: "#1A2235", border: "1px solid #2D3748" }}
+          style={{ background: surfaceBg, border: `1px solid ${bdr}` }}
           onMouseEnter={e => (e.currentTarget.style.border = "1px solid rgba(52,211,153,0.4)")}
-          onMouseLeave={e => (e.currentTarget.style.border = "1px solid #2D3748")}
+          onMouseLeave={e => (e.currentTarget.style.border = `1px solid ${bdr}`)}
         >
           <div
             className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 transition-all"
@@ -440,9 +465,9 @@ export default function FinancialTransactions() {
         {/* Outgoing */}
         <div
           className="group rounded-2xl p-5 flex items-center gap-4 transition-all cursor-default"
-          style={{ background: "#1A2235", border: "1px solid #2D3748" }}
+          style={{ background: surfaceBg, border: `1px solid ${bdr}` }}
           onMouseEnter={e => (e.currentTarget.style.border = "1px solid rgba(248,113,113,0.4)")}
-          onMouseLeave={e => (e.currentTarget.style.border = "1px solid #2D3748")}
+          onMouseLeave={e => (e.currentTarget.style.border = `1px solid ${bdr}`)}
         >
           <div
             className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -464,9 +489,9 @@ export default function FinancialTransactions() {
         {/* Net balance */}
         <div
           className="group rounded-2xl p-5 flex items-center gap-4 transition-all cursor-default"
-          style={{ background: "#1A2235", border: "1px solid #2D3748" }}
+          style={{ background: surfaceBg, border: `1px solid ${bdr}` }}
           onMouseEnter={e => (e.currentTarget.style.border = net >= 0 ? "1px solid rgba(251,191,36,0.4)" : "1px solid rgba(251,113,133,0.4)")}
-          onMouseLeave={e => (e.currentTarget.style.border = "1px solid #2D3748")}
+          onMouseLeave={e => (e.currentTarget.style.border = `1px solid ${bdr}`)}
         >
           <div
             className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -502,7 +527,7 @@ export default function FinancialTransactions() {
           ═══════════════════════════════════════ */}
       <div
         className="rounded-2xl p-4"
-        style={{ background: "#111827", border: "1px solid #1F2937" }}
+        style={{ background: cardBg, border: `1px solid ${bdr}` }}
       >
         {/* ── Row 1: Dropdowns (3-col grid) ── */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -547,7 +572,7 @@ export default function FinancialTransactions() {
           <div className="relative">
             <Calendar
               className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
-              style={{ color: filters.from ? "#F59E0B" : "rgba(255,255,255,0.25)" }}
+              style={{ color: filters.from ? "#F59E0B" : txt4 }}
             />
             <input
               type="date"
@@ -556,22 +581,23 @@ export default function FinancialTransactions() {
               placeholder="من تاريخ"
               className="w-full h-10 rounded-xl text-sm transition-all outline-none pr-10 pl-3"
               style={{
-                background: "#1A2235",
-                border: filters.from ? "1px solid #F59E0B" : "1px solid #2D3748",
-                color: filters.from ? "white" : "rgba(255,255,255,0.3)",
+                background: inputBg,
+                border: filters.from ? "1px solid #F59E0B" : `1px solid ${bdr}`,
+                color: filters.from ? txt1 : txt3,
                 boxShadow: filters.from ? "0 0 0 3px rgba(245,158,11,0.1)" : "none",
+                colorScheme: isDark ? "dark" : "light",
               }}
               onFocus={e => {
                 e.currentTarget.style.border = "1px solid #F59E0B";
                 e.currentTarget.style.boxShadow = "0 0 0 3px rgba(245,158,11,0.12)";
               }}
               onBlur={e => {
-                e.currentTarget.style.border = filters.from ? "1px solid #F59E0B" : "1px solid #2D3748";
+                e.currentTarget.style.border = filters.from ? "1px solid #F59E0B" : `1px solid ${bdr}`;
                 e.currentTarget.style.boxShadow = filters.from ? "0 0 0 3px rgba(245,158,11,0.1)" : "none";
               }}
             />
             {!filters.from && (
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs pointer-events-none" style={{ color: "rgba(255,255,255,0.25)" }}>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs pointer-events-none" style={{ color: txt4 }}>
                 من تاريخ
               </span>
             )}
@@ -581,7 +607,7 @@ export default function FinancialTransactions() {
           <div className="relative">
             <Calendar
               className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
-              style={{ color: filters.to ? "#F59E0B" : "rgba(255,255,255,0.25)" }}
+              style={{ color: filters.to ? "#F59E0B" : txt4 }}
             />
             <input
               type="date"
@@ -589,22 +615,23 @@ export default function FinancialTransactions() {
               onChange={e => setFilter("to", e.target.value)}
               className="w-full h-10 rounded-xl text-sm transition-all outline-none pr-10 pl-3"
               style={{
-                background: "#1A2235",
-                border: filters.to ? "1px solid #F59E0B" : "1px solid #2D3748",
-                color: filters.to ? "white" : "rgba(255,255,255,0.3)",
+                background: inputBg,
+                border: filters.to ? "1px solid #F59E0B" : `1px solid ${bdr}`,
+                color: filters.to ? txt1 : txt3,
                 boxShadow: filters.to ? "0 0 0 3px rgba(245,158,11,0.1)" : "none",
+                colorScheme: isDark ? "dark" : "light",
               }}
               onFocus={e => {
                 e.currentTarget.style.border = "1px solid #F59E0B";
                 e.currentTarget.style.boxShadow = "0 0 0 3px rgba(245,158,11,0.12)";
               }}
               onBlur={e => {
-                e.currentTarget.style.border = filters.to ? "1px solid #F59E0B" : "1px solid #2D3748";
+                e.currentTarget.style.border = filters.to ? "1px solid #F59E0B" : `1px solid ${bdr}`;
                 e.currentTarget.style.boxShadow = filters.to ? "0 0 0 3px rgba(245,158,11,0.1)" : "none";
               }}
             />
             {!filters.to && (
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs pointer-events-none" style={{ color: "rgba(255,255,255,0.25)" }}>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs pointer-events-none" style={{ color: txt4 }}>
                 إلى تاريخ
               </span>
             )}
@@ -613,18 +640,18 @@ export default function FinancialTransactions() {
           {/* Search */}
           <div
             className="flex items-center gap-2 h-10 rounded-xl px-3 transition-all"
-            style={{ background: "#1A2235", border: "1px solid #2D3748" }}
+            style={{ background: inputBg, border: `1px solid ${bdr}` }}
             onFocusCapture={e => (e.currentTarget.style.border = "1px solid #F59E0B")}
-            onBlurCapture={e => (e.currentTarget.style.border = filters.search ? "1px solid #F59E0B" : "1px solid #2D3748")}
+            onBlurCapture={e => (e.currentTarget.style.border = filters.search ? "1px solid #F59E0B" : `1px solid ${bdr}`)}
           >
-            <Search className="w-4 h-4 flex-shrink-0" style={{ color: "rgba(255,255,255,0.3)" }} />
+            <Search className="w-4 h-4 flex-shrink-0" style={{ color: txt3 }} />
             <input
               type="text"
               placeholder="بحث في البيان أو الطرف..."
               value={filters.search}
               onChange={e => setFilter("search", e.target.value)}
-              className="flex-1 bg-transparent outline-none text-sm placeholder:text-white/20"
-              style={{ color: "white" }}
+              className="flex-1 bg-transparent outline-none text-sm"
+              style={{ color: txt1 }}
             />
             {filters.search && (
               <button
@@ -640,10 +667,14 @@ export default function FinancialTransactions() {
         {/* ── Row 3: Quick pills + Reset ── */}
         <div className="flex items-center justify-between gap-3 mt-3 flex-wrap">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-white/25 text-xs ml-1">سريع:</span>
+            <span className="text-xs ml-1" style={{ color: txt4 }}>سريع:</span>
             {DATE_PILLS.map(pill => {
               const r = pill.range();
               const isActive = filters.from === r.from && filters.to === r.to;
+              const pillBdr = isDark ? "#374151" : "var(--erp-border)";
+              const pillTxt = isDark ? "rgba(255,255,255,0.4)" : "var(--erp-text-3)";
+              const pillHoverBdr = isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)";
+              const pillHoverTxt = isDark ? "rgba(255,255,255,0.7)" : "var(--erp-text-2)";
               return (
                 <button
                   key={pill.label}
@@ -652,10 +683,10 @@ export default function FinancialTransactions() {
                   style={
                     isActive
                       ? { background: "rgba(245,158,11,0.2)", border: "1px solid #F59E0B", color: "#FCD34D" }
-                      : { background: "transparent", border: "1px solid #374151", color: "rgba(255,255,255,0.4)" }
+                      : { background: "transparent", border: `1px solid ${pillBdr}`, color: pillTxt }
                   }
-                  onMouseEnter={e => { if (!isActive) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)"; e.currentTarget.style.color = "rgba(255,255,255,0.7)"; }}}
-                  onMouseLeave={e => { if (!isActive) { e.currentTarget.style.borderColor = "#374151"; e.currentTarget.style.color = "rgba(255,255,255,0.4)"; }}}
+                  onMouseEnter={e => { if (!isActive) { e.currentTarget.style.borderColor = pillHoverBdr; e.currentTarget.style.color = pillHoverTxt; }}}
+                  onMouseLeave={e => { if (!isActive) { e.currentTarget.style.borderColor = pillBdr; e.currentTarget.style.color = pillTxt; }}}
                 >
                   {pill.label}
                 </button>
@@ -689,7 +720,10 @@ export default function FinancialTransactions() {
         <div className="overflow-x-auto">
           <table className="w-full text-right text-white/80 whitespace-nowrap" dir="rtl">
             <thead>
-              <tr style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+              <tr style={{
+                background: isDark ? "rgba(255,255,255,0.03)" : "#f1f5f9",
+                borderBottom: isDark ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(0,0,0,0.08)",
+              }}>
                 <th className="px-4 py-3.5 font-medium text-xs text-white/30 text-right w-14">#</th>
                 <th className="px-4 py-3.5 font-medium text-xs text-white/30 text-right" style={{ minWidth: 120 }}>النوع</th>
                 <th className="px-4 py-3.5 font-medium text-xs text-white/30 text-right">الخزينة</th>
@@ -845,7 +879,10 @@ export default function FinancialTransactions() {
                           <td colSpan={9} className="px-6 py-5">
                             <div
                               className="rounded-2xl p-4 flex flex-wrap gap-6 items-start"
-                              style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)" }}
+                              style={{
+                                background: isDark ? "rgba(255,255,255,0.025)" : "rgba(0,0,0,0.025)",
+                                border: isDark ? "1px solid rgba(255,255,255,0.06)" : `1px solid ${bdr}`,
+                              }}
                             >
                               {/* Reference */}
                               <div className="min-w-[130px]">
@@ -906,7 +943,7 @@ export default function FinancialTransactions() {
         {transactions.length > PAGE_SIZE && (
           <div
             className="px-6 py-4 flex items-center justify-between flex-wrap gap-3"
-            style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+            style={{ borderTop: isDark ? "1px solid rgba(255,255,255,0.06)" : `1px solid ${bdr}` }}
           >
             <p className="text-white/35 text-sm">
               عرض{" "}
@@ -919,22 +956,20 @@ export default function FinancialTransactions() {
             </p>
 
             <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => setPage(1)}
-                disabled={page === 1}
-                className="w-8 h-8 rounded-lg text-xs transition-all disabled:opacity-25 disabled:cursor-not-allowed"
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)" }}
-              >
-                ««
-              </button>
-              <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="px-3 h-8 rounded-lg text-sm transition-all disabled:opacity-25 disabled:cursor-not-allowed"
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)" }}
-              >
-                السابق
-              </button>
+              {[
+                { label: "««", onClick: () => setPage(1), disabled: page === 1, cls: "w-8 h-8 text-xs" },
+                { label: "السابق", onClick: () => setPage(p => Math.max(1, p - 1)), disabled: page === 1, cls: "px-3 h-8 text-sm" },
+              ].map(btn => (
+                <button
+                  key={btn.label}
+                  onClick={btn.onClick}
+                  disabled={btn.disabled}
+                  className={`${btn.cls} rounded-lg transition-all disabled:opacity-25 disabled:cursor-not-allowed`}
+                  style={{ background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)", border: `1px solid ${bdr}`, color: txt2 }}
+                >
+                  {btn.label}
+                </button>
+              ))}
 
               {Array.from({ length: totalPages }, (_, i) => i + 1)
                 .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
@@ -954,7 +989,7 @@ export default function FinancialTransactions() {
                       style={
                         page === p
                           ? { background: "rgba(245,158,11,0.2)", border: "1px solid rgba(245,158,11,0.35)", color: "#FCD34D" }
-                          : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.45)" }
+                          : { background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)", border: `1px solid ${bdr}`, color: txt3 }
                       }
                     >
                       {p}
@@ -962,31 +997,29 @@ export default function FinancialTransactions() {
                   )
                 )}
 
-              <button
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                className="px-3 h-8 rounded-lg text-sm transition-all disabled:opacity-25 disabled:cursor-not-allowed"
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)" }}
-              >
-                التالي
-              </button>
-              <button
-                onClick={() => setPage(totalPages)}
-                disabled={page === totalPages}
-                className="w-8 h-8 rounded-lg text-xs transition-all disabled:opacity-25 disabled:cursor-not-allowed"
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)" }}
-              >
-                »»
-              </button>
+              {[
+                { label: "التالي", onClick: () => setPage(p => Math.min(totalPages, p + 1)), disabled: page === totalPages, cls: "px-3 h-8 text-sm" },
+                { label: "»»", onClick: () => setPage(totalPages), disabled: page === totalPages, cls: "w-8 h-8 text-xs" },
+              ].map(btn => (
+                <button
+                  key={btn.label}
+                  onClick={btn.onClick}
+                  disabled={btn.disabled}
+                  className={`${btn.cls} rounded-lg transition-all disabled:opacity-25 disabled:cursor-not-allowed`}
+                  style={{ background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)", border: `1px solid ${bdr}`, color: txt2 }}
+                >
+                  {btn.label}
+                </button>
+              ))}
             </div>
           </div>
         )}
 
         {/* ── Bottom count strip (no pagination) ── */}
         {transactions.length > 0 && transactions.length <= PAGE_SIZE && (
-          <div className="px-6 py-3.5 text-center" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-            <p className="text-white/25 text-xs">
-              إجمالي <span className="text-white/50 font-semibold">{transactions.length}</span> حركة مالية
+          <div className="px-6 py-3.5 text-center" style={{ borderTop: isDark ? "1px solid rgba(255,255,255,0.06)" : `1px solid ${bdr}` }}>
+            <p className="text-sm" style={{ color: txt4 }}>
+              إجمالي <span className="font-semibold" style={{ color: txt3 }}>{transactions.length}</span> حركة مالية
             </p>
           </div>
         )}

@@ -21,6 +21,7 @@ import {
 import { TableSkeleton } from "@/components/skeletons";
 import { useAuth } from "@/contexts/auth";
 import { hasPermission } from "@/lib/permissions";
+import { useAppSettings } from "@/contexts/app-settings";
 
 /* ─── API helpers ───────────────────────────────────────────────────────────── */
 
@@ -178,14 +179,23 @@ function InvoicePdfButton({ type, id }: { type: "sales" | "purchases"; id: numbe
 /* ─── Custom tooltip for recharts ───────────────────────────────────────────── */
 
 const ChartTooltip = ({ active, payload, label }: any) => {
+  const { settings } = useAppSettings();
+  const isDark = settings.theme !== "light";
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-xl p-3 border border-white/10 text-xs shadow-2xl" style={{ background: "rgba(10,18,35,0.95)", backdropFilter: "blur(10px)" }}>
-      <p className="text-white/60 font-bold mb-2">{label}</p>
+    <div
+      className="rounded-xl p-3 text-xs shadow-2xl"
+      style={{
+        background: isDark ? "rgba(10,18,35,0.95)" : "rgba(255,255,255,0.97)",
+        border: isDark ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(0,0,0,0.10)",
+        backdropFilter: "blur(10px)",
+      }}
+    >
+      <p className="font-bold mb-2" style={{ color: isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.5)" }}>{label}</p>
       {payload.map((p: any) => (
         <div key={p.dataKey} className="flex items-center gap-2 mb-1">
           <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: p.color }} />
-          <span className="text-white/50">{p.dataKey}:</span>
+          <span style={{ color: isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)" }}>{p.dataKey}:</span>
           <span className="font-bold" style={{ color: p.color }}>{formatCurrency(Number(p.value))}</span>
         </div>
       ))}
@@ -753,6 +763,8 @@ function InventoryReport() {
   const [lowStockOnly, setLowStockOnly]     = useState(false);
   const [sortMode, setSortMode]             = useState<SortMode>("default");
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
+  const { settings: rSettings } = useAppSettings();
+  const isInventoryDark = rSettings.theme !== "light";
 
   const categories = useMemo(() =>
     Array.from(new Set(products.map(p => p.category).filter((c): c is string => Boolean(c)))),
@@ -952,11 +964,18 @@ function InventoryReport() {
               initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
               className="h-full w-full max-w-md overflow-y-auto shadow-2xl border-r border-white/10"
-              style={{ background: "rgba(8,14,28,0.97)", backdropFilter: "blur(24px)", fontFamily: "'Tajawal', 'Cairo', sans-serif" }}
+              style={{
+                background: isInventoryDark ? "rgba(8,14,28,0.97)" : "rgba(255,255,255,0.97)",
+                backdropFilter: "blur(24px)",
+                fontFamily: "'Tajawal', 'Cairo', sans-serif",
+              }}
               onClick={e => e.stopPropagation()}>
 
               {/* Header */}
-              <div className="sticky top-0 z-10 flex items-center justify-between p-5 border-b border-white/10" style={{ background: "rgba(8,14,28,0.95)", backdropFilter: "blur(12px)" }}>
+              <div className="sticky top-0 z-10 flex items-center justify-between p-5 border-b border-white/10" style={{
+                background: isInventoryDark ? "rgba(8,14,28,0.95)" : "rgba(255,255,255,0.95)",
+                backdropFilter: "blur(12px)",
+              }}>
                 <div>
                   <h3 className="text-white font-bold text-lg">{selectedProduct?.name}</h3>
                   {selectedProduct?.category && (
