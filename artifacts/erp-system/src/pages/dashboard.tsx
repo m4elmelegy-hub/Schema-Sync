@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { type DashboardStats } from "@workspace/api-client-react";
 import { authFetch } from "@/lib/auth-fetch";
 import { useWarehouse } from "@/contexts/warehouse";
+import { useAppSettings } from "@/contexts/app-settings";
 import { formatCurrency } from "@/lib/format";
 import {
   TrendingUp, TrendingDown, Wallet, Users,
@@ -36,6 +37,8 @@ const TX_IS_INCOME = new Set(["sale", "receipt", "income", "deposit", "sale_cash
 /* ─────────────────────────────────────────────────────────── */
 export default function Dashboard() {
   const { currentWarehouseId } = useWarehouse();
+  const { settings } = useAppSettings();
+  const isDark = (settings.theme ?? "dark") === "dark";
   const warehouseParam = currentWarehouseId ? `?warehouse_id=${currentWarehouseId}` : "";
   const { data: stats, isLoading, isError } = useQuery<DashboardStats>({
     queryKey: ["/api/dashboard/stats", currentWarehouseId],
@@ -43,22 +46,30 @@ export default function Dashboard() {
       .then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
 
+  /* ── Chart colors — theme-aware ─────────────────────────── */
+  const chartGridStroke  = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.07)";
+  const chartAxisStroke  = isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.15)";
+  const chartTickColor   = isDark ? "rgba(255,255,255,0.55)" : "#64748b";
+  const chartTickColorY  = isDark ? "rgba(255,255,255,0.40)" : "#94a3b8";
+  const tooltipBg        = isDark ? "hsla(240,30%,8%,0.96)"  : "#ffffff";
+  const tooltipBorder    = isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)";
+  const tooltipLabelClr  = isDark ? "rgba(255,255,255,0.55)" : "#64748b";
+
   /* ── Loading skeleton ─────────────────────────────────── */
   if (isLoading) {
     return (
       <div className="space-y-6" dir="rtl">
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: "16px" }} className="db-grid-kpi">
+        <div className="db-grid-kpi">
           {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="db-skeleton" style={{ height: "148px", animationDelay: `${i * 0.12}s` }} />
           ))}
         </div>
         <div className="db-skeleton" style={{ height: "280px" }} />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }} className="db-grid-bottom">
+        <div className="db-grid-bottom">
           {[0, 1].map(i => (
             <div key={i} className="db-skeleton" style={{ height: "260px", animationDelay: `${i * 0.15}s` }} />
           ))}
         </div>
-        <style>{`@keyframes db-pulse { 0%,100%{opacity:0.6} 50%{opacity:1} }`}</style>
       </div>
     );
   }
@@ -66,14 +77,9 @@ export default function Dashboard() {
   /* ── Error ─────────────────────────────────────────────── */
   if (isError || !stats) {
     return (
-      <div style={{
-        borderRadius: "20px", padding: "48px",
-        background: "rgba(255,255,255,0.04)",
-        border: "1px solid rgba(255,255,255,0.07)",
-        textAlign: "center",
-      }} dir="rtl">
+      <div className="db-error-state" dir="rtl">
         <AlertTriangle style={{ width: 44, height: 44, color: "#f59e0b", margin: "0 auto 16px", opacity: 0.7 }} />
-        <p style={{ color: "rgba(255,255,255,0.55)", fontSize: 15 }}>حدث خطأ في تحميل البيانات</p>
+        <p className="db-error-msg">حدث خطأ في تحميل البيانات</p>
       </div>
     );
   }
@@ -155,12 +161,12 @@ export default function Dashboard() {
   const totalOut     = stats.total_expenses_today;
 
   return (
-    <div dir="rtl" style={{ fontFamily: "inherit" }} className="page-enter">
+    <div dir="rtl" className="page-enter">
 
       {/* ══════════════════════════════════════════════════════
           HERO SUMMARY STRIP
       ══════════════════════════════════════════════════════ */}
-      <div className="erp-hero-strip" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+      <div className="erp-hero-strip erp-hero-strip--4col">
         <div className="erp-hero-cell">
           <div className="hero-icon-wrap" style={{ background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.22)" }}>
             <ShoppingCart style={{ width: 16, height: 16, color: "#f59e0b" }} />
@@ -215,12 +221,7 @@ export default function Dashboard() {
       {/* ══════════════════════════════════════════════════════
           KPI CARDS
       ══════════════════════════════════════════════════════ */}
-      <div className="db-grid-kpi" style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(5, 1fr)",
-        gap: "16px",
-        marginBottom: "24px",
-      }}>
+      <div className="db-grid-kpi">
         {kpiCards.map((card, i) => (
           <KpiCard key={card.label} card={card} index={i} />
         ))}
@@ -229,30 +230,23 @@ export default function Dashboard() {
       {/* ══════════════════════════════════════════════════════
           BIG CHART — full width
       ══════════════════════════════════════════════════════ */}
-      <div
-        className="db-card"
-        style={{
-          marginBottom: "24px",
-          padding: "28px 28px 20px",
-        }}
-      >
+      <div className="db-card db-card--chart">
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}>
+        <div className="flex items-center justify-between mb-6">
           <div>
             <h3 className="db-chart-title">النظرة المالية اليوم</h3>
             <p className="db-chart-sub">مقارنة المبيعات والمصروفات والأرباح</p>
           </div>
-          <div style={{ display: "flex", gap: "20px" }}>
+          <div className="flex gap-5">
             {barData.map(d => (
-              <div key={d.name} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <div style={{ width: 10, height: 10, borderRadius: 3, background: d.fill }} />
+              <div key={d.name} className="flex items-center gap-1.5">
+                <div style={{ width: 10, height: 10, borderRadius: 3, background: d.fill, flexShrink: 0 }} />
                 <span className="db-legend-label">{d.name}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Check for no data */}
         {barData.every(d => d.amount === 0) ? (
           <EmptyState msg="لا توجد بيانات بعد — ابدأ بإضافة أول عملية" height={240} />
         ) : (
@@ -260,31 +254,31 @@ export default function Dashboard() {
             <BarChart data={barData} barSize={52} barCategoryGap="35%">
               <CartesianGrid
                 strokeDasharray="3 4"
-                stroke="rgba(255,255,255,0.05)"
+                stroke={chartGridStroke}
                 vertical={false}
               />
               <XAxis
                 dataKey="name"
-                stroke="rgba(255,255,255,0.18)"
-                tick={{ fontSize: 13, fontFamily: "Tajawal, sans-serif", fill: "rgba(255,255,255,0.55)" }}
+                stroke={chartAxisStroke}
+                tick={{ fontSize: 13, fontFamily: "Tajawal, sans-serif", fill: chartTickColor }}
                 axisLine={false} tickLine={false}
               />
               <YAxis
-                stroke="rgba(255,255,255,0.18)"
-                tick={{ fontSize: 11, fill: "rgba(255,255,255,0.40)" }}
+                stroke={chartAxisStroke}
+                tick={{ fontSize: 11, fill: chartTickColorY }}
                 axisLine={false} tickLine={false} width={64}
                 tickFormatter={v => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)}
               />
               <Tooltip
-                cursor={{ fill: "rgba(255,255,255,0.03)", radius: 10 }}
+                cursor={{ fill: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)", radius: 10 }}
                 contentStyle={{
-                  background: "hsla(240,30%,8%,0.96)",
-                  border: "1px solid rgba(255,255,255,0.10)",
+                  background: tooltipBg,
+                  border: `1px solid ${tooltipBorder}`,
                   borderRadius: 14, fontSize: 13, fontFamily: "Tajawal, sans-serif",
                   boxShadow: "0 20px 48px rgba(0,0,0,0.5)",
                 }}
-                labelStyle={{ color: "rgba(255,255,255,0.55)", marginBottom: 6, fontWeight: 700 }}
-                itemStyle={{ color: "#fff" }}
+                labelStyle={{ color: tooltipLabelClr, marginBottom: 6, fontWeight: 700 }}
+                itemStyle={{ color: isDark ? "#fff" : "#0d1117" }}
                 formatter={(v: number) => [formatCurrency(v), ""]}
               />
               <Bar dataKey="amount" radius={[10, 10, 0, 0]}>
@@ -300,16 +294,11 @@ export default function Dashboard() {
       {/* ══════════════════════════════════════════════════════
           BOTTOM  — 2 columns
       ══════════════════════════════════════════════════════ */}
-      <div className="db-grid-bottom" style={{
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr",
-        gap: "20px",
-      }}>
+      <div className="db-grid-bottom">
 
         {/* ── Recent transactions ──────────────────────── */}
-        <div className="db-card" style={{ padding: "24px" }}>
-          {/* Header */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+        <div className="db-card">
+          <div className="flex items-center justify-between mb-5">
             <div>
               <h3 className="db-card-title">آخر العمليات</h3>
               <p className="db-card-sub">أحدث الحركات المالية</p>
@@ -320,7 +309,7 @@ export default function Dashboard() {
           {!stats.recent_transactions?.length ? (
             <EmptyState msg="لا توجد عمليات بعد — ابدأ بإضافة أول عملية" />
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            <div className="flex flex-col gap-1">
               {stats.recent_transactions.slice(0, 7).map((tx: {
                 id: number; type: string; amount: number; created_at: string
               }) => {
@@ -329,42 +318,26 @@ export default function Dashboard() {
                 const dt      = new Date(tx.created_at);
                 const time    = dt.toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" });
                 return (
-                  <div
-                    key={tx.id}
-                    className="db-tx-row"
-                    style={{
-                      display: "flex", alignItems: "center", gap: "12px",
-                      padding: "10px 12px",
-                      borderRadius: "12px",
-                    }}
-                  >
-                    {/* Icon */}
-                    <div style={{
-                      width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      background: isIncome ? "rgba(52,211,153,0.12)" : "rgba(248,113,113,0.12)",
-                      border: `1px solid ${isIncome ? "rgba(52,211,153,0.18)" : "rgba(248,113,113,0.18)"}`,
-                    }}>
-                      <TxIcon style={{
-                        width: 16, height: 16,
-                        color: isIncome ? "#34d399" : "#f87171",
-                      }} />
+                  <div key={tx.id} className="db-tx-row">
+                    <div
+                      className="db-tx-icon"
+                      style={{
+                        background: isIncome ? "rgba(52,211,153,0.12)" : "rgba(248,113,113,0.12)",
+                        border: `1px solid ${isIncome ? "rgba(52,211,153,0.18)" : "rgba(248,113,113,0.18)"}`,
+                      }}
+                    >
+                      <TxIcon style={{ width: 16, height: 16, color: isIncome ? "#34d399" : "#f87171" }} />
                     </div>
-                    {/* Label */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="flex-1 min-w-0">
                       <p className="db-tx-label">{TX_LABELS[tx.type] || tx.type}</p>
                       <p className="db-tx-time">{time}</p>
                     </div>
-                    {/* Amount */}
-                    <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                    <div className="flex items-center gap-1">
                       {isIncome
                         ? <ArrowUpRight style={{ width: 14, height: 14, color: "#34d399" }} />
                         : <ArrowDownRight style={{ width: 14, height: 14, color: "#f87171" }} />
                       }
-                      <span style={{
-                        fontSize: "13.5px", fontWeight: 800,
-                        color: isIncome ? "#34d399" : "#f87171",
-                      }}>
+                      <span className="db-tx-amount" style={{ color: isIncome ? "#34d399" : "#f87171" }}>
                         {formatCurrency(tx.amount)}
                       </span>
                     </div>
@@ -376,9 +349,8 @@ export default function Dashboard() {
         </div>
 
         {/* ── Low stock products ───────────────────────── */}
-        <div className="db-card" style={{ padding: "24px" }}>
-          {/* Header */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+        <div className="db-card">
+          <div className="flex items-center justify-between mb-5">
             <div>
               <h3 className="db-card-title">تنبيهات المخزون</h3>
               <p className="db-card-sub">منتجات تحتاج تجديداً</p>
@@ -389,29 +361,45 @@ export default function Dashboard() {
           </div>
 
           {!stats.low_stock_products?.length ? (
-            <div className="erp-empty-state" style={{ padding: "32px 0", flexDirection: "column", gap: "12px" }}>
-              <div style={{ width: 56, height: 56, borderRadius: 16, background: "rgba(52,211,153,0.12)", border: "1px solid rgba(52,211,153,0.20)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div className="erp-empty-state" style={{ padding: "32px 0" }}>
+              <div
+                className="db-empty-icon"
+                style={{ background: "rgba(52,211,153,0.12)", border: "1px solid rgba(52,211,153,0.20)" }}
+              >
                 <PackageX style={{ width: 24, height: 24, color: "#34d399" }} />
               </div>
-              <div style={{ textAlign: "center" }}>
-                <p className="db-tx-label" style={{ marginBottom: 4 }}>المخزون بخير ✓</p>
+              <div className="text-center">
+                <p className="db-tx-label mb-1">المخزون بخير ✓</p>
                 <p className="db-tx-time">لا توجد منتجات منخفضة المخزون</p>
               </div>
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            <div className="flex flex-col gap-1">
               {stats.low_stock_products.slice(0, 7).map((prod) => {
                 const outOfStock = Number(prod.quantity) === 0;
                 return (
-                  <div key={prod.id} className="db-tx-row" style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 12px" }}>
-                    <div className="hero-icon-wrap" style={{ background: outOfStock ? "rgba(248,113,113,0.12)" : "rgba(245,158,11,0.12)", border: `1px solid ${outOfStock ? "rgba(248,113,113,0.20)" : "rgba(245,158,11,0.20)"}` }}>
+                  <div key={prod.id} className="db-tx-row">
+                    <div
+                      className="hero-icon-wrap"
+                      style={{
+                        background: outOfStock ? "rgba(248,113,113,0.12)" : "rgba(245,158,11,0.12)",
+                        border: `1px solid ${outOfStock ? "rgba(248,113,113,0.20)" : "rgba(245,158,11,0.20)"}`,
+                      }}
+                    >
                       <Package style={{ width: 16, height: 16, color: outOfStock ? "#f87171" : "#f59e0b" }} />
                     </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p className="db-product-name" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 2 }}>{prod.name}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="db-product-name truncate mb-0.5">{prod.name}</p>
                       <p className="db-product-cat">{outOfStock ? "نفد من المخزون" : "مخزون منخفض"}</p>
                     </div>
-                    <div style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 800, background: outOfStock ? "rgba(248,113,113,0.15)" : "rgba(245,158,11,0.15)", color: outOfStock ? "#fca5a5" : "#fcd34d", border: `1px solid ${outOfStock ? "rgba(248,113,113,0.22)" : "rgba(245,158,11,0.22)"}`, whiteSpace: "nowrap" }}>
+                    <div
+                      className="db-stock-badge"
+                      style={{
+                        background: outOfStock ? "rgba(248,113,113,0.15)" : "rgba(245,158,11,0.15)",
+                        color: outOfStock ? "#fca5a5" : "#fcd34d",
+                        border: `1px solid ${outOfStock ? "rgba(248,113,113,0.22)" : "rgba(245,158,11,0.22)"}`,
+                      }}
+                    >
                       {outOfStock ? "نفد" : `${prod.quantity} قطعة`}
                     </div>
                   </div>
@@ -421,19 +409,6 @@ export default function Dashboard() {
           )}
         </div>
       </div>
-
-      <style>{`
-        @keyframes db-fade-up {
-          from { opacity: 0; transform: translateY(18px); }
-          to   { opacity: 1; transform: translateY(0);    }
-        }
-        .db-kpi-card { animation: db-fade-up 0.5s cubic-bezier(.22,1,.36,1) both; }
-        .db-kpi-hover { transition: transform 0.25s cubic-bezier(.34,1.56,.64,1), box-shadow 0.25s ease, filter 0.25s ease; }
-        .db-kpi-hover:hover { transform: translateY(-4px); box-shadow: 0 24px 56px rgba(0,0,0,0.40), 0 0 0 1px rgba(255,255,255,0.14) !important; filter: brightness(1.06) saturate(1.1); }
-        @media (max-width: 1280px) { .db-grid-kpi { grid-template-columns: repeat(3,1fr) !important; } }
-        @media (max-width: 1024px) { .db-grid-kpi { grid-template-columns: repeat(2,1fr) !important; } .db-grid-bottom { grid-template-columns: 1fr !important; } }
-        @media (max-width: 640px)  { .db-grid-kpi { grid-template-columns: 1fr !important; } }
-      `}</style>
     </div>
   );
 }
@@ -459,81 +434,41 @@ function KpiCard({ card, index }: { card: KpiDef; index: number }) {
     <div
       className="db-kpi-card db-kpi-hover"
       style={{
-        position: "relative",
-        overflow: "hidden",
-        borderRadius: "20px",
-        padding: "22px 22px 20px",
         background: card.gradient,
         boxShadow: `0 10px 40px rgba(0,0,0,0.34), 0 0 0 1px rgba(255,255,255,0.10), inset 0 1px 0 rgba(255,255,255,0.12)`,
         animationDelay: `${index * 0.08}s`,
-        cursor: "default",
       }}
     >
-      {/* Top shimmer line */}
-      <div style={{
-        position: "absolute", top: 0, left: 0, right: 0, height: "1px",
-        background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.35) 50%, transparent 100%)",
-        pointerEvents: "none",
-      }} />
+      <div className="db-kpi-shimmer" />
 
-      {/* Glow orb */}
-      <div style={{
-        position: "absolute", top: "-50px", left: "-50px",
-        width: "220px", height: "220px", borderRadius: "50%",
-        background: card.glow,
-        filter: "blur(55px)",
-        pointerEvents: "none",
-      }} />
+      <div className="db-kpi-glow" style={{ background: card.glow }} />
 
-      {/* Dot pattern */}
-      <div style={{
-        position: "absolute", inset: 0, pointerEvents: "none",
-        backgroundImage: "radial-gradient(rgba(255,255,255,0.10) 1px, transparent 1px)",
-        backgroundSize: "20px 20px",
-        maskImage: "radial-gradient(ellipse 70% 70% at 80% 20%, #000 40%, transparent 100%)",
-        WebkitMaskImage: "radial-gradient(ellipse 70% 70% at 80% 20%, #000 40%, transparent 100%)",
-      }} />
+      <div className="db-kpi-dots" />
 
-      <div style={{ position: "relative", zIndex: 1 }}>
-        {/* Header row */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "18px" }}>
-          <p style={{ fontSize: "11.5px", fontWeight: 700, color: "rgba(255,255,255,0.65)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
-            {card.label}
-          </p>
-          <div style={{
-            width: 44, height: 44, borderRadius: 14, flexShrink: 0,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            background: card.iconBg,
-            border: "1.5px solid rgba(255,255,255,0.18)",
-            backdropFilter: "blur(10px)",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.20)",
-          }}>
+      <div className="db-kpi-content">
+        <div className="db-kpi-header">
+          <p className="db-kpi-label">{card.label}</p>
+          <div className="db-kpi-icon" style={{ background: card.iconBg }}>
             <Icon style={{ width: 21, height: 21, color: card.iconClr }} />
           </div>
         </div>
 
-        {/* Big value */}
-        <p style={{
-          fontSize: "26px", fontWeight: 900, color: "#fff",
-          marginBottom: "14px", letterSpacing: "-0.8px", lineHeight: 1,
-          textShadow: "0 2px 12px rgba(0,0,0,0.3)",
-        }}>
+        <p className="db-kpi-value">
           {card.rawValue ? String(card.value) : formatCurrency(card.value)}
         </p>
 
-        {/* Badge */}
-        <div style={{
-          display: "inline-flex", alignItems: "center", gap: "4px",
-          padding: "4px 10px",
-          borderRadius: "20px",
-          background: card.badge.up
-            ? "rgba(52,211,153,0.20)"
-            : "rgba(248,113,113,0.20)",
-          border: `1px solid ${card.badge.up ? "rgba(52,211,153,0.30)" : "rgba(248,113,113,0.30)"}`,
-          fontSize: "11px", fontWeight: 700,
-          color: card.badge.up ? "#6ee7b7" : "#fca5a5",
-          backdropFilter: "blur(4px)",
-        }}>
+        <div
+          className="inline-flex items-center gap-1"
+          style={{
+            padding: "4px 10px",
+            borderRadius: "20px",
+            background: card.badge.up ? "rgba(52,211,153,0.20)" : "rgba(248,113,113,0.20)",
+            border: `1px solid ${card.badge.up ? "rgba(52,211,153,0.30)" : "rgba(248,113,113,0.30)"}`,
+            fontSize: "11px", fontWeight: 700,
+            color: card.badge.up ? "#6ee7b7" : "#fca5a5",
+            backdropFilter: "blur(4px)",
+          }}
+        >
           {card.badge.up
             ? <ArrowUpRight style={{ width: 12, height: 12 }} />
             : <ArrowDownRight style={{ width: 12, height: 12 }} />
@@ -550,11 +485,11 @@ function KpiCard({ card, index }: { card: KpiDef; index: number }) {
 ────────────────────────────────────────────────────────── */
 function EmptyState({ msg, height = 160 }: { msg: string; height?: number }) {
   return (
-    <div className="erp-empty-state" style={{ height, flexDirection: "column", gap: "12px" }}>
-      <div className="erp-empty-icon" style={{ width: 52, height: 52, borderRadius: 16, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div className="erp-empty-state" style={{ height }}>
+      <div className="erp-empty-icon">
         <Wallet style={{ width: 22, height: 22 }} />
       </div>
-      <p className="erp-empty-label" style={{ textAlign: "center", maxWidth: 260 }}>{msg}</p>
+      <p className="erp-empty-label">{msg}</p>
     </div>
   );
 }
