@@ -82,9 +82,19 @@ export default function Login() {
         return;
       }
       const { user: authedUser, token } = await res.json() as {
-        user: { id: number; name: string; username: string; role: string };
+        user: { id: number; name: string; username: string; role: string; active?: boolean; warehouse_id?: number | null; safe_id?: number | null; permissions?: Record<string, boolean> };
         token: string;
       };
+      if (authedUser.role === "cashier" || authedUser.role === "salesperson") {
+        if (!authedUser.warehouse_id) {
+          setError("هذا المستخدم غير مرتبط بمخزن — راجع المدير");
+          setLoading(false); return;
+        }
+        if (!authedUser.safe_id) {
+          setError("هذا المستخدم غير مرتبط بخزنة — راجع المدير");
+          setLoading(false); return;
+        }
+      }
       login(authedUser, token);
       setLocation("/");
     } catch {

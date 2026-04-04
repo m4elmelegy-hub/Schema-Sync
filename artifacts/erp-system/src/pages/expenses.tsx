@@ -3,10 +3,11 @@ import { authFetch } from "@/lib/auth-fetch";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useDeleteExpense, useGetSettingsSafes } from "@workspace/api-client-react";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { Plus, Trash2, ReceiptText } from "lucide-react";
+import { Plus, Trash2, ReceiptText, ShieldOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TableSkeleton } from "@/components/skeletons";
 import { ConfirmModal } from "@/components/confirm-modal";
+import { useAuth } from "@/contexts/auth";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
@@ -17,7 +18,22 @@ interface Expense {
   created_at: string;
 }
 
+function AccessDenied({ msg }: { msg: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 text-center">
+      <ShieldOff className="w-14 h-14 text-red-400/40 mb-4" />
+      <p className="text-white/60 font-bold text-lg">غير مصرح</p>
+      <p className="text-white/30 text-sm mt-1">{msg}</p>
+    </div>
+  );
+}
+
 export default function Expenses() {
+  const { user } = useAuth();
+  const canView = (user?.role === "admin" || user?.role === "manager")
+    ? true
+    : user?.permissions?.can_view_expenses === true;
+
   const { data: expenses = [], isLoading } = useQuery<Expense[]>({
     queryKey: ["/api/expenses"],
     queryFn: () => authFetch(api("/api/expenses")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
@@ -71,6 +87,8 @@ export default function Expenses() {
       },
     });
   };
+
+  if (!canView) return <AccessDenied msg="غير مصرح لك بالوصول إلى المصروفات — تواصل مع المدير لتفعيل الصلاحية" />;
 
   return (
     <div className="space-y-6">

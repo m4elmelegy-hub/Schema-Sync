@@ -1,0 +1,129 @@
+Phase Fix 2 — Data Binding + Strict Validation
+
+Goal:
+Fix remaining issues with:
+- warehouse_id / safe_id usage
+- undefined permissions
+- cashier stability
+
+────────────────────────────
+1) FORCE USER DATA VALIDATION (CRITICAL)
+────────────────────────────
+
+In frontend (auth context):
+
+After login or /auth/me:
+
+IF user.role === "cashier" OR "salesperson":
+
+  IF !user.warehouse_id:
+    show blocking error:
+    "هذا المستخدم غير مرتبط بمخزن — راجع المدير"
+    logout()
+
+  IF !user.safe_id:
+    show blocking error:
+    "هذا المستخدم غير مرتبط بخزنة — راجع المدير"
+    logout()
+
+DO NOT allow system usage without them
+
+────────────────────────────
+2) SALES PAGE — HARD BIND (NO FALLBACK)
+────────────────────────────
+
+REMOVE any selectedWarehouseId logic for cashier
+
+Use ONLY:
+
+const warehouseId = user.warehouse_id;
+const safeId = user.safe_id;
+
+NO null
+NO fallback
+NO query
+NO dropdown
+
+────────────────────────────
+3) FIX PRODUCTS PAGE VISIBILITY BUG
+────────────────────────────
+
+IMPORTANT:
+
+Current logic:
+undefined = allowed
+
+BUT for UI visibility:
+Treat undefined as TRUE only for admin/manager
+
+For cashier/salesperson:
+
+const canViewProducts =
+  user.role === "admin" || user.role === "manager"
+    ? true
+    : hasPermission(user, "can_view_products") === true;
+
+Apply same logic to:
+- customers
+- expenses
+- reports
+
+────────────────────────────
+4) EXPENSES PAGE CONTROL
+────────────────────────────
+
+Frontend:
+Hide link if !can_view_expenses
+
+Backend:
+Already protected → OK
+
+Add UI message if blocked:
+"غير مصرح لك بالوصول إلى المصروفات"
+
+────────────────────────────
+5) SAFE + WAREHOUSE DISPLAY FIX
+────────────────────────────
+
+In sales UI (cashier):
+
+Instead of dropdown:
+
+Show:
+
+"الفرع: {user.warehouse_name}"
+"الخزنة: {user.safe_name}"
+
+If names not available:
+fetch once from API or map locally
+
+────────────────────────────
+6) REMOVE EMPTY STATES BUG
+────────────────────────────
+
+Remove:
+"-- اختر المخزن --"
+"-- اختر الخزنة --"
+
+Replace with:
+- hidden (cashier)
+- required select (admin)
+
+────────────────────────────
+7) FINAL RESULT EXPECTATION
+────────────────────────────
+
+Cashier:
+✔ يدخل النظام فقط لو مربوط بمخزن وخزنة
+✔ لا يرى dropdown
+✔ لا يظهر له صفحات غير مسموح بها
+✔ لا يوجد 400 errors
+
+Admin:
+✔ كامل التحكم
+✔ يحدد كل شيء
+
+System:
+✔ stable
+✔ predictable
+✔ SaaS-ready

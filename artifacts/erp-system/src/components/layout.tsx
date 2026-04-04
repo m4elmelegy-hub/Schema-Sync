@@ -75,13 +75,23 @@ export function AppLayout({ children }: LayoutProps) {
     }
   }, [warehouses, canSelectWarehouse, currentWarehouseId, setWarehouseId]);
 
+  /* admin/manager: opt-out (blocked only if explicitly false)
+     cashier/salesperson: opt-in (allowed only if explicitly true) */
+  function strictView(permission: string): boolean {
+    if (!user) return false;
+    if (user.role === "admin" || user.role === "manager") {
+      return hasPermission(user, permission);
+    }
+    return user.permissions?.[permission] === true;
+  }
+
   const visibleNav = NAV_ITEMS.filter(item => {
     if (!canAccess(role, item.href)) return false;
     if (item.href === "/inventory"  && !hasPermission(user, "can_view_inventory"))  return false;
-    if (item.href === "/products"   && !hasPermission(user, "can_view_products"))   return false;
-    if (item.href === "/customers"  && !hasPermission(user, "can_view_customers"))  return false;
-    if (item.href === "/expenses"   && !hasPermission(user, "can_view_expenses"))   return false;
-    if (item.href === "/reports"    && !hasPermission(user, "can_view_reports"))    return false;
+    if (item.href === "/products"   && !strictView("can_view_products"))   return false;
+    if (item.href === "/customers"  && !strictView("can_view_customers"))  return false;
+    if (item.href === "/expenses"   && !strictView("can_view_expenses"))   return false;
+    if (item.href === "/reports"    && !strictView("can_view_reports"))    return false;
     return true;
   });
   const visiblePaths = new Set(visibleNav.map(i => i.href));

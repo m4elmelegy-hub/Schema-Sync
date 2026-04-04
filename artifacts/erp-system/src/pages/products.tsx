@@ -124,9 +124,22 @@ function ProductModal({ title, initial, onSave, onClose, isPending }: {
 }
 
 /* ─── الصفحة الرئيسية ─── */
+function AccessDenied({ msg }: { msg: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 text-center">
+      <svg className="w-14 h-14 text-red-400/40 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+      <p className="text-white/60 font-bold text-lg">غير مصرح</p>
+      <p className="text-white/30 text-sm mt-1">{msg}</p>
+    </div>
+  );
+}
+
 export default function Products() {
   const { data: products = [], isLoading } = useGetProducts();
   const { user } = useAuth();
+  const canViewProducts = (user?.role === "admin" || user?.role === "manager")
+    ? true
+    : user?.permissions?.can_view_products === true;
   const canManageProducts = hasPermission(user, "can_manage_products");
   const createMutation = useCreateProduct();
   const deleteMutation = useDeleteProduct();
@@ -200,6 +213,8 @@ export default function Products() {
       low_stock_threshold: product.low_stock_threshold ?? 5,
     });
   };
+
+  if (!canViewProducts) return <AccessDenied msg="غير مصرح لك بالوصول إلى المنتجات — تواصل مع المدير لتفعيل الصلاحية" />;
 
   return (
     <div className="space-y-6">

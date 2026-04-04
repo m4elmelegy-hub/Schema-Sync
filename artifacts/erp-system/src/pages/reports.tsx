@@ -19,6 +19,7 @@ import {
   BarChart, Bar, LabelList, ReferenceLine,
 } from "recharts";
 import { TableSkeleton } from "@/components/skeletons";
+import { useAuth } from "@/contexts/auth";
 
 /* ─── API helpers ───────────────────────────────────────────────────────────── */
 
@@ -2117,7 +2118,19 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 export default function Reports() {
+  const { user } = useAuth();
+  const canView = (user?.role === "admin" || user?.role === "manager")
+    ? true
+    : user?.permissions?.can_view_reports === true;
   const [tab, setTab] = useState<Tab>("health");
+
+  if (!canView) return (
+    <div className="flex flex-col items-center justify-center py-20 text-center">
+      <svg className="w-14 h-14 text-red-400/40 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 115.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+      <p className="text-white/60 font-bold text-lg">غير مصرح</p>
+      <p className="text-white/30 text-sm mt-1">غير مصرح لك بالوصول إلى التقارير — تواصل مع المدير لتفعيل الصلاحية</p>
+    </div>
+  );
 
   return (
     <div className="space-y-4">

@@ -6,6 +6,9 @@ export interface AuthUser {
   username: string;
   role: string;
   permissions?: Record<string, boolean>;
+  active?: boolean;
+  warehouse_id?: number | null;
+  safe_id?: number | null;
 }
 
 interface AuthContextType {
@@ -25,11 +28,25 @@ const AuthContext = createContext<AuthContextType>({
 const USER_KEY  = "erp_current_user";
 const TOKEN_KEY = "erp_auth_token";
 
+function isValidForRole(u: AuthUser): boolean {
+  if (u.role === "cashier" || u.role === "salesperson") {
+    return !!u.warehouse_id && !!u.safe_id;
+  }
+  return true;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(() => {
     try {
       const s = localStorage.getItem(USER_KEY);
-      return s ? (JSON.parse(s) as AuthUser) : null;
+      if (!s) return null;
+      const parsed = JSON.parse(s) as AuthUser;
+      if (!isValidForRole(parsed)) {
+        localStorage.removeItem(USER_KEY);
+        localStorage.removeItem(TOKEN_KEY);
+        return null;
+      }
+      return parsed;
     } catch {
       return null;
     }

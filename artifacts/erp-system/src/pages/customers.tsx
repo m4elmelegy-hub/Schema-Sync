@@ -683,9 +683,22 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
 }
 
 /* ─── الصفحة الرئيسية للعملاء ─── */
+function AccessDenied({ msg }: { msg: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 text-center">
+      <svg className="w-14 h-14 text-red-400/40 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 115.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+      <p className="text-white/60 font-bold text-lg">غير مصرح</p>
+      <p className="text-white/30 text-sm mt-1">{msg}</p>
+    </div>
+  );
+}
+
 export default function Customers() {
   const { data: customers = [], isLoading } = useGetCustomers();
   const { user } = useAuth();
+  const canViewCustomers = (user?.role === "admin" || user?.role === "manager")
+    ? true
+    : user?.permissions?.can_view_customers === true;
   const canManageCustomers = hasPermission(user, "can_manage_customers");
   const createMutation = useCreateCustomer();
   const { data: safes = [] } = useGetSettingsSafes();
@@ -855,6 +868,8 @@ export default function Customers() {
     }
     deleteMutation.mutate(deleteConfirmId);
   };
+
+  if (!canViewCustomers) return <AccessDenied msg="غير مصرح لك بالوصول إلى العملاء — تواصل مع المدير لتفعيل الصلاحية" />;
 
   return (
     <div className="space-y-6">
