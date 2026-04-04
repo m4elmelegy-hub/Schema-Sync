@@ -1,0 +1,122 @@
+أحتاج Final UI Stabilization + Typography & Color Fix على المشروع بالكامل.
+
+الوضع الحالي:
+
+* الواجهة اتحسنت بصريًا
+* لكن في light mode النصوص باهتة وغير واضحة
+* بعض الألوان ضعيفة أو opacity عالية
+* أريد نظام واضح وقابل للقراءة فورًا
+
+========================
+
+1. Theme System Verification
+   ========================
+
+* تأكد أن كل الصفحات تستخدم CSS variables فقط
+* لا يوجد أي hardcoded colors
+* كل العناصر تستجيب للـ dark و light mode
+
+========================
+2) Remove ALL opacity usage (Light Mode)
+========================================
+
+* ممنوع استخدام:
+  text-black/50
+  text-gray-400
+  opacity-60
+  أي alpha colors ضعيفة
+
+* استبدلها بـ:
+  ألوان صريحة من tokens
+
+========================
+3) Typography Fix (مهم جدًا)
+============================
+
+* text-primary:
+  لون داكن جدًا (#0f172a أو قريب)
+
+* text-secondary:
+  أغمق من الحالي (ليس باهت)
+
+* text-muted:
+  لا يقل عن وضوح 70%
+
+* font weights:
+  titles → font-semibold أو bold
+  body → font-medium
+  secondary → font-normal لكن بلون أوضح
+
+========================
+4) Color Strength Adjustment
+============================
+
+* تقوية جميع الألوان الأساسية درجة واحدة:
+
+orange:
+من #f59e0b → #d97706
+
+blue:
+من #3b82f6 → #2563eb
+
+green:
+من #10b981 → #059669
+
+* تأكد أن:
+  كل badge / label / status واضح
+
+========================
+5) Contrast Fix (Critical)
+==========================
+
+* أي نص يجب أن يكون readable فورًا
+* لا يوجد نص رمادي فاتح على خلفية فاتحة
+* طبق contrast مناسب على:
+  tables
+  forms
+  sidebar
+  dashboard
+  settings
+
+========================
+6) Apply Across ALL Pages
+=========================
+
+طبق التعديلات على:
+
+* dashboard
+* reports
+* settings (كل الصفحات)
+* financial transactions
+* forms
+* tables
+* modals
+
+========================
+7) Final Verification
+=====================
+
+* بدّل بين dark و light
+* تأكد:
+  لا يوجد نص باهت
+  لا يوجد opacity
+  كل الألوان واضحة وقوية
+
+========================
+Output المطلوب:
+===============
+
+* تطبيق التعديلات على الكود
+* screenshots بعد التعديل:
+  (dashboard + settings + financial)
+
+========================
+الهدف النهائي:
+==============
+
+واجهة:
+
+* واضحة جدًا في light mode
+* readable بدون مجهود
+* ألوان قوية لكن مش مزعجة
+* SaaS-level professional UI
