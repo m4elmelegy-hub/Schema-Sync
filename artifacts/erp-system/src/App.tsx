@@ -34,6 +34,7 @@ const Tasks                = lazy(() => import("@/pages/tasks"));
 const Profits              = lazy(() => import("@/pages/profits"));
 const Products             = lazy(() => import("@/pages/products"));
 const Inventory            = lazy(() => import("@/pages/inventory"));
+const POS                  = lazy(() => import("@/pages/pos"));
 
 /* ── QueryClient with staleTime for performance ─────────── */
 const queryClient = new QueryClient({
@@ -77,6 +78,15 @@ function Router() {
   }
   if (location === "/login") {
     return <Redirect to="/" />;
+  }
+
+  /* ── POS: full-screen standalone (no sidebar / layout) ── */
+  if (location === "/pos") {
+    return (
+      <Suspense fallback={<div className="fixed inset-0 flex items-center justify-center" style={{ background: "hsl(225,28%,4%)" }}><Spinner className="w-8 h-8 text-amber-500" /></div>}>
+        <POS />
+      </Suspense>
+    );
   }
 
   return (

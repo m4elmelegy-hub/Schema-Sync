@@ -40,6 +40,7 @@ The system is built as a monorepo using pnpm workspaces. The architecture separa
   4. **فواتير المبيعات** — Sales table with search, payment-type filter, per-row PDF invoice button (fetches `/api/sales/:id`), bulk Excel + PDF export.
 - **export-pdf.ts** — Added `printSaleInvoice()`, `printPurchaseInvoice()`, and `printPLReport()` functions using browser print-window approach for correct Arabic RTL rendering.
 - **POS Enhancements:** Auto-selection of warehouse, salesperson auto-set to logged-in user, and professional invoice printing.
+- **Standalone POS Page (`/pos`):** A dedicated full-screen POS at `/pos` rendered outside AppLayout. Features: auto-binds to user's `warehouse_id`/`safe_id` (blocks with Arabic error if unset), product grid with live stock badges, keyboard shortcuts (F2=search, Enter=add first product, F9=checkout, ESC=clear), permission-driven payment buttons (can_cash_sale/can_credit_sale/can_partial_sale), price editing (can_edit_price), customer SearchableSelect for credit/partial, WhatsApp success modal, and fire-and-forget backup after each sale. Registered in rbac.ts ROUTE_ROLES and NAV_ITEMS for all roles.
 
 ## Customer/Supplier Coding System (April 2026)
 

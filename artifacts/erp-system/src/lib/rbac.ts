@@ -5,7 +5,7 @@
 import {
   LayoutDashboard, ClipboardList, Receipt, CreditCard,
   Package, Warehouse, Users, TrendingUp, Activity,
-  FileText, Settings,
+  FileText, Settings, Zap,
   BookOpen, HandCoins, ArrowDownToLine, ArrowUpFromLine,
   ArrowLeftRight, ReceiptText,
   type LucideIcon,
@@ -18,6 +18,7 @@ export type UserRole = AppRole;
 export const ROUTE_ROLES: Record<string, AppRole[]> = {
   "/":                       ["admin", "manager", "cashier", "salesperson"],
   "/tasks":                  ["admin", "manager", "cashier", "salesperson"],
+  "/pos":                    ["admin", "manager", "cashier", "salesperson"],
   "/sales":                  ["admin", "manager", "cashier", "salesperson"],
   "/purchases":              ["admin", "manager"],
   "/products":               ["admin", "manager", "cashier", "salesperson"],
@@ -41,6 +42,7 @@ export const ROUTE_ROLES: Record<string, AppRole[]> = {
 export const NAV_ITEMS: { name: string; href: string; icon: LucideIcon; roles: AppRole[] }[] = [
   { name: "لوحة القيادة",      href: "/",                       icon: LayoutDashboard, roles: ["admin","manager","cashier","salesperson"] },
   { name: "المهام السريعة",    href: "/tasks",                  icon: ClipboardList,   roles: ["admin","manager","cashier","salesperson"] },
+  { name: "نقطة البيع POS",    href: "/pos",                    icon: Zap,             roles: ["admin","manager","cashier","salesperson"] },
   { name: "المبيعات",          href: "/sales",                  icon: Receipt,         roles: ["admin","manager","cashier","salesperson"] },
   { name: "المشتريات",         href: "/purchases",              icon: CreditCard,      roles: ["admin","manager"] },
   { name: "المنتجات",          href: "/products",               icon: Package,         roles: ["admin","manager","cashier","salesperson"] },
