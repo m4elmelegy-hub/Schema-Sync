@@ -16,7 +16,7 @@ The system is built as a monorepo using pnpm workspaces. The architecture separa
 - **Language & Direction:** Arabic RTL interface.
 - **Theme:** Dark glass-morphism UI.
 - **Customization:** Dynamic currency (EGP/SAR/AED/USD/KWD/BHD), font (Tajawal/Cairo/Almarai/Changa), accent color (6 palettes), company branding (name, slogan, logo), and login background presets are configurable via `AppSettingsProvider` and stored in `localStorage`.
-- **Component Design:** Global CSS classes (`erp-table-row`, `btn-icon`, `modal-overlay`, `status-badge`, `glass-input:focus-visible`, etc.) ensure a consistent and premium user experience. Skeleton components (`TableSkeleton`, `CardSkeleton`) provide better loading feedback.
+- **Component Design:** Design System v3 with CSS tokens (`--sp-*`, `--text-*`, `--radius-*`, `--border-*`, `--surface-*`). Cards unified under `erp-card`. Tables use `erp-table-*` classes with zebra rows. Inputs use `erp-input` with amber focus ring. Sidebar nav items fixed at 38px height with `nav-item`/`nav-item.active`. Hover convention: `translateY(-2px)` + background change only (no scale). Topbar search with keyboard navigation (↑↓ Enter Esc). Status badges use `erp-badge erp-badge-{success|danger|warning|pending|info}`. Empty states use `erp-empty-state`. Skeleton shimmer uses `skeleton-shimmer`. Page transitions use `page-enter`. Scrollbar 3px. All frontend-only — zero backend changes.
 
 **Technical Implementations:**
 - **Authentication & RBAC:** Features a login screen with dynamic branding, JWT-based authentication (HS256), and Role-Based Access Control (RBAC). Roles include `admin`, `manager`, `cashier`, `salesperson`. `Guard` component enforces access control at the route level, and backend routes are protected with middleware.

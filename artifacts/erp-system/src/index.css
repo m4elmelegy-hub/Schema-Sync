@@ -1071,3 +1071,546 @@ html.light .erp-icon-btn:hover {
   padding: 12px 8px 6px;
 }
 html.light .erp-divider-label { color: rgba(0,0,0,0.28); }
+
+/* ═══════════════════════════════════════════════════
+   FINAL UI POLISH PASS v3
+   Target: SaaS-level (Stripe / Notion style)
+   Rules:
+   - Spacing scale: 8 / 12 / 16 / 24 / 32 px only
+   - One card style: erp-card
+   - Hover: translateY(-2px) + background only
+   - No scale() on icons (layout shift)
+   - Borders: lighter, used only where necessary
+   - Typography: 3-level hierarchy only
+═══════════════════════════════════════════════════ */
+
+/* ── Design tokens ──────────────────────────────── */
+:root {
+  /* Spacing scale */
+  --sp-1: 8px;
+  --sp-2: 12px;
+  --sp-3: 16px;
+  --sp-4: 24px;
+  --sp-5: 32px;
+
+  /* Typography scale */
+  --text-xs: 11px;
+  --text-sm: 12.5px;
+  --text-md: 13.5px;
+  --text-lg: 15px;
+  --text-xl: 18px;
+  --text-2xl: 22px;
+
+  /* Line heights */
+  --lh-tight: 1.2;
+  --lh-normal: 1.5;
+  --lh-relaxed: 1.7;
+
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+
+  /* Border (dark) */
+  --border-subtle:  rgba(255,255,255,0.055);
+  --border-normal:  rgba(255,255,255,0.08);
+  --border-strong:  rgba(255,255,255,0.12);
+
+  /* Surfaces (dark) */
+  --surface-card:   rgba(255,255,255,0.04);
+  --surface-raised: rgba(255,255,255,0.065);
+  --surface-hover:  rgba(255,255,255,0.075);
+
+  /* Text (dark) */
+  --text-primary-d:   rgba(255,255,255,0.92);
+  --text-secondary-d: rgba(255,255,255,0.55);
+  --text-muted-d:     rgba(255,255,255,0.32);
+}
+
+/* ── Unified card system ─────────────────────────── */
+/* erp-card is the ONLY card style. All others map to it. */
+.erp-card {
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  backdrop-filter: blur(16px);
+}
+
+html.light .erp-card {
+  background: #fff;
+  border-color: rgba(0,0,0,0.08);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 4px 16px rgba(0,0,0,0.04);
+}
+
+/* Card hover — translateY only, no scale */
+.erp-card-lift {
+  transition: transform 0.2s cubic-bezier(0.22,1,0.36,1),
+              box-shadow 0.2s ease,
+              border-color 0.2s ease;
+  cursor: pointer;
+}
+.erp-card-lift:hover {
+  transform: translateY(-3px);
+  border-color: var(--border-normal) !important;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.22);
+}
+html.light .erp-card-lift:hover {
+  border-color: rgba(0,0,0,0.12) !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.09);
+}
+
+/* Alias glass-panel → erp-card for pages that still use glass-panel */
+.glass-panel {
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  backdrop-filter: blur(16px);
+  box-shadow: none;
+}
+html.light .glass-panel {
+  background: #fff;
+  border: 1px solid rgba(0,0,0,0.08);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 4px 16px rgba(0,0,0,0.04);
+}
+
+/* ── Sidebar nav — polish ────────────────────────── */
+.nav-item {
+  height: 38px;            /* fixed height for uniformity */
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: rgba(255,255,255,0.42);
+  transition: color 0.15s ease, background 0.15s ease;
+  cursor: pointer;
+  margin-bottom: 2px;
+}
+.nav-item:hover {
+  color: rgba(255,255,255,0.82);
+  background: rgba(255,255,255,0.055);
+  transform: none;         /* no translateX — layout stable */
+}
+.nav-item.active {
+  color: rgba(255,255,255,0.95);
+  background: rgba(245,158,11,0.12);
+  font-weight: 700;
+}
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 55%;
+  background: linear-gradient(to bottom, #f59e0b, #d97706);
+  border-radius: 99px 0 0 99px;
+  /* no box-shadow — less visual noise */
+}
+html.light .nav-item { color: rgba(0,0,0,0.38); }
+html.light .nav-item:hover { color: rgba(0,0,0,0.75); background: rgba(0,0,0,0.055); }
+html.light .nav-item.active { color: rgba(0,0,0,0.88); background: rgba(245,158,11,0.09); }
+
+/* ── Sidebar section divider label — polish ───────── */
+.erp-divider-label, .nav-section-label {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.18);
+  padding: 14px var(--sp-2) 5px;
+  line-height: 1;
+}
+html.light .erp-divider-label, html.light .nav-section-label { color: rgba(0,0,0,0.25); }
+
+/* ── Table — polish ─────────────────────────────── */
+/* Remove border flash on hover — just background */
+.erp-table-row {
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  transition: background 0.12s ease;
+}
+.erp-table-row:hover {
+  background: rgba(255,255,255,0.04) !important;
+}
+.erp-table-row:hover td:first-child {
+  border-right: none;      /* removed — visual noise */
+}
+html.light .erp-table-row { border-bottom-color: rgba(0,0,0,0.05); }
+html.light .erp-table-row:hover { background: rgba(245,158,11,0.04) !important; }
+.erp-table-row:last-child { border-bottom: none; }
+
+/* Table cell — consistent padding */
+.erp-table-td {
+  padding: 12px 16px;
+  font-size: var(--text-md);
+  vertical-align: middle;
+  color: rgba(255,255,255,0.80);
+  line-height: var(--lh-normal);
+}
+html.light .erp-table-td { color: #1e293b; }
+
+/* Table header */
+.erp-table-th {
+  padding: 10px 16px;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.38);
+  white-space: nowrap;
+  text-align: right;
+}
+html.light .erp-table-th { color: #64748b; }
+
+/* ── Icon buttons — consistent hover ───────────────
+   Rule: translateY(-1px) + colored bg. No scale().    */
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  transition: background 0.14s ease, color 0.14s ease, transform 0.14s ease;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.btn-icon-danger  { color: rgba(248,113,113,0.60); }
+.btn-icon-primary { color: rgba(245,158,11,0.60);  }
+.btn-icon-info    { color: rgba(96,165,250,0.60);  }
+.btn-icon-green   { color: rgba(52,211,153,0.60);  }
+
+.btn-icon-danger:hover  { color: #f87171; background: rgba(248,113,113,0.10); transform: translateY(-1px); }
+.btn-icon-primary:hover { color: #f59e0b; background: rgba(245,158,11,0.10);  transform: translateY(-1px); }
+.btn-icon-info:hover    { color: #60a5fa; background: rgba(96,165,250,0.10);  transform: translateY(-1px); }
+.btn-icon-green:hover   { color: #34d399; background: rgba(52,211,153,0.10);  transform: translateY(-1px); }
+
+/* ── erp-icon-btn — polish ─────────────────────── */
+.erp-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: rgba(255,255,255,0.45);
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease, transform 0.14s ease, border-color 0.14s ease;
+  flex-shrink: 0;
+}
+.erp-icon-btn:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: var(--border-normal);
+  color: rgba(255,255,255,0.88);
+  transform: translateY(-1px);
+}
+html.light .erp-icon-btn { border-color: rgba(0,0,0,0.09); color: rgba(0,0,0,0.40); background: transparent; }
+html.light .erp-icon-btn:hover { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.13); color: rgba(0,0,0,0.80); }
+
+/* ── Focus states — unified amber ring ─────────── */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+.glass-input:focus,
+.erp-input:focus-visible {
+  outline: none !important;
+  border-color: rgba(245,158,11,0.50) !important;
+  box-shadow: 0 0 0 3px rgba(245,158,11,0.12) !important;
+}
+
+/* ── Topbar — polish ────────────────────────────── */
+.erp-topbar-search {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  height: 36px;
+  min-width: 200px;
+  max-width: 280px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255,255,255,0.09);
+  background: rgba(255,255,255,0.045);
+  transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+.erp-topbar-search:focus-within {
+  border-color: rgba(245,158,11,0.40);
+  background: rgba(255,255,255,0.07);
+  box-shadow: 0 0 0 3px rgba(245,158,11,0.08);
+}
+html.light .erp-topbar-search {
+  border-color: rgba(0,0,0,0.10);
+  background: rgba(0,0,0,0.04);
+}
+html.light .erp-topbar-search:focus-within {
+  border-color: rgba(245,158,11,0.55);
+  background: #fffef9;
+  box-shadow: 0 0 0 3px rgba(245,158,11,0.10);
+}
+
+/* ── Search dropdown — polish ────────────────────── */
+.erp-search-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0; right: 0;
+  border-radius: var(--radius-md);
+  background: #111827;
+  border: 1px solid rgba(255,255,255,0.09);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.45);
+  overflow: hidden;
+  z-index: 200;
+  animation: page-enter 0.14s ease;
+}
+html.light .erp-search-dropdown {
+  background: #fff;
+  border-color: rgba(0,0,0,0.10);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.13);
+}
+.erp-search-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 10px var(--sp-2);
+  cursor: pointer;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: rgba(255,255,255,0.68);
+  transition: background 0.1s ease, color 0.1s ease;
+}
+.erp-search-item:hover,
+.erp-search-item.active {
+  background: rgba(245,158,11,0.09);
+  color: rgba(255,255,255,0.92);
+}
+html.light .erp-search-item { color: #334155; }
+html.light .erp-search-item:hover,
+html.light .erp-search-item.active { background: rgba(245,158,11,0.07); color: #0f172a; }
+
+/* ── Status badges — polish ─────────────────────── */
+.erp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 99px;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+/* Keep .status-badge + old classes working */
+.status-paid    { color: #34d399; background: rgba(52,211,153,0.10); border: 1px solid rgba(52,211,153,0.18); }
+.status-unpaid  { color: #f87171; background: rgba(248,113,113,0.10); border: 1px solid rgba(248,113,113,0.18); }
+.status-partial { color: #fbbf24; background: rgba(251,191,36,0.10);  border: 1px solid rgba(251,191,36,0.18); }
+.status-badge { display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: var(--text-xs); font-weight: 700; }
+
+/* ── Hero strip — polish ────────────────────────── */
+.erp-hero-strip {
+  display: grid;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-bottom: var(--sp-4);
+  background: var(--border-subtle);   /* gap color = border color */
+  border: 1px solid var(--border-subtle);
+  gap: 1px;
+}
+.erp-hero-cell {
+  padding: var(--sp-2) var(--sp-4);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  background: hsl(225, 25%, 5%);     /* same as page bg */
+  transition: background 0.14s ease;
+}
+.erp-hero-cell:hover { background: rgba(255,255,255,0.025); }
+html.light .erp-hero-strip { background: rgba(0,0,0,0.07); border-color: rgba(0,0,0,0.07); }
+html.light .erp-hero-cell  { background: #fafafa; }
+html.light .erp-hero-cell:hover { background: #f5f5f5; }
+
+/* ── Buttons — remove scale, use translateY ───────
+   Applies globally to stat-card hover (override)    */
+.stat-card:hover { transform: translateY(-3px) !important; box-shadow: 0 16px 40px rgba(0,0,0,0.32) !important; }
+.btn-primary:hover:not(:disabled) { transform: translateY(-2px) !important; }
+.btn-primary:active:not(:disabled) { transform: translateY(0) !important; }
+
+/* ── Page header — polish ────────────────────────── */
+.erp-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: var(--sp-4);
+  gap: var(--sp-2);
+}
+.erp-page-title {
+  font-size: var(--text-xl);
+  font-weight: 800;
+  color: var(--text-primary-d);
+  line-height: var(--lh-tight);
+  letter-spacing: -0.3px;
+}
+.erp-page-subtitle {
+  font-size: var(--text-sm);
+  color: var(--text-muted-d);
+  margin-top: 4px;
+  line-height: var(--lh-normal);
+}
+html.light .erp-page-title    { color: #0f172a; }
+html.light .erp-page-subtitle { color: #64748b; }
+
+/* ── Section header — polish ─────────────────────── */
+.erp-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-3);
+}
+.erp-section-title {
+  font-size: var(--text-lg);
+  font-weight: 800;
+  color: rgba(255,255,255,0.90);
+  line-height: var(--lh-tight);
+}
+.erp-section-sub {
+  font-size: var(--text-xs);
+  color: var(--text-muted-d);
+  margin-top: 3px;
+}
+html.light .erp-section-title { color: #0f172a; }
+html.light .erp-section-sub   { color: #64748b; }
+
+/* ── Input — polish ─────────────────────────────── */
+.erp-input {
+  height: 40px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255,255,255,0.09);
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.88);
+  padding: 0 12px;
+  font-size: var(--text-md);
+  font-family: inherit;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+  width: 100%;
+}
+.erp-input::placeholder { color: rgba(255,255,255,0.26); }
+.erp-input:focus-visible {
+  outline: none;
+  border-color: rgba(245,158,11,0.50);
+  box-shadow: 0 0 0 3px rgba(245,158,11,0.10);
+  background: rgba(255,255,255,0.06);
+}
+html.light .erp-input { border-color: rgba(0,0,0,0.11); background: #fff; color: #1e293b; }
+html.light .erp-input::placeholder { color: rgba(0,0,0,0.28); }
+html.light .erp-input:focus-visible { border-color: rgba(245,158,11,0.55); box-shadow: 0 0 0 3px rgba(245,158,11,0.10); background: #fffef8; }
+
+/* ── Empty state — polish ────────────────────────── */
+.erp-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-5) var(--sp-4);
+  gap: var(--sp-2);
+  text-align: center;
+}
+.erp-empty-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.22);
+}
+.erp-empty-label {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-muted-d);
+  max-width: 240px;
+  line-height: var(--lh-relaxed);
+}
+html.light .erp-empty-icon  { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); color: rgba(0,0,0,0.22); }
+html.light .erp-empty-label { color: #94a3b8; }
+
+/* ── Reduce visual noise: borders ────────────────── */
+/* Use lighter borders everywhere as default */
+.divider { height: 1px; background: var(--border-subtle); margin: var(--sp-1) 0; }
+
+/* ── Smooth transitions only on interactive elements ─
+   Override the global transition that causes lag      */
+* {
+  transition-property: none;
+}
+*, *::before, *::after {
+  transition-property: background-color, color, border-color, opacity, transform, box-shadow;
+  transition-duration: 200ms;
+  transition-timing-function: ease;
+}
+/* Instant for layout-affecting properties */
+.transition-none, [class*="grid-"], [class*="flex-"], [class*="w-"], [class*="h-"] {
+  transition-property: background-color, color, border-color, opacity, box-shadow;
+}
+
+/* ── Skeleton — polish ───────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.035) 25%,
+    rgba(255,255,255,0.07)  50%,
+    rgba(255,255,255,0.035) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s infinite linear;
+  border-radius: var(--radius-sm);
+}
+html.light .skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(0,0,0,0.03) 25%,
+    rgba(0,0,0,0.07) 50%,
+    rgba(0,0,0,0.03) 75%
+  );
+  background-size: 200% 100%;
+}
+
+/* ── Page-enter animation — polish ───────────────── */
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-enter {
+  animation: page-enter 0.30s cubic-bezier(0.22,1,0.36,1);
+  will-change: opacity, transform;
+}
+
+/* ── Scrollbar — thinner, less visible ───────────── */
+::-webkit-scrollbar { width: 3px; height: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.07); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.14); }
+html.light ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.10); }
+html.light ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.18); }
+
+/* ── Interactive card hover — consistent ─────────── */
+.interactive-card {
+  transition: transform 0.2s cubic-bezier(0.22,1,0.36,1), box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.interactive-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.22);
+  border-color: rgba(255,255,255,0.10) !important;
+}
+html.light .interactive-card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  border-color: rgba(0,0,0,0.12) !important;
+}
