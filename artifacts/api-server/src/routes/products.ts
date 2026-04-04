@@ -26,6 +26,9 @@ function formatProduct(p: typeof productsTable.$inferSelect) {
 }
 
 router.get("/products", wrap(async (req, res) => {
+  if (!hasPermission(req.user, "can_view_products")) {
+    res.status(403).json({ error: "غير مصرح بعرض الأصناف" }); return;
+  }
   const companyId = req.user?.company_id ?? null;
   const products = await db.select().from(productsTable)
     .where(companyId !== null ? eq(productsTable.company_id, companyId) : undefined)

@@ -1,0 +1,175 @@
+Phase Fix — Permissions + Sales Flow + UI Stability (CRITICAL)
+
+Goal:
+Fix broken UX and enforce correct behavior for cashier/salesperson:
+- Hide unauthorized pages
+- Enforce warehouse & safe usage
+- Fix sales flow (no manual selection for cashier)
+- Fix quick tasks behavior
+
+────────────────────────────
+1) PERMISSIONS — PAGE VISIBILITY
+────────────────────────────
+
+Add new permissions:
+
+- can_view_products
+- can_view_customers
+- can_view_expenses
+- can_view_reports
+
+Update sidebar (layout.tsx):
+
+Wrap each page link:
+
+Products:
+hasPermission(user, "can_view_products")
+
+Customers:
+hasPermission(user, "can_view_customers")
+
+Expenses:
+hasPermission(user, "can_view_expenses")
+
+Reports:
+hasPermission(user, "can_view_reports")
+
+If permission = false → DO NOT render link
+
+────────────────────────────
+2) SALES PAGE — FIX WAREHOUSE & SAFE LOGIC
+────────────────────────────
+
+CRITICAL RULE:
+
+Cashier / Salesperson:
+- MUST NOT select warehouse manually
+- MUST NOT select safe manually
+- MUST use values from user object
+
+Admin / Manager:
+- CAN select warehouse & safe manually
+
+────────────────────────────
+Implementation:
+
+In sales.tsx:
+
+const isRestricted = user.role === "cashier" || user.role === "salesperson";
+
+const warehouseId = isRestricted
+  ? user.warehouse_id
+  : selectedWarehouseId;
+
+const safeId = isRestricted
+  ? user.safe_id
+  : selectedSafeId;
+
+────────────────────────────
+UI BEHAVIOR:
+
+IF cashier/salesperson:
+
+- Hide warehouse dropdown completely
+OR set disabled={true}
+
+- Hide safe dropdown completely
+OR set disabled={true}
+
+────────────────────────────
+VALIDATION:
+
+Before submitting sale:
+
+IF !warehouseId:
+  show error "المخزن غير محدد"
+  STOP
+
+IF payment_type !== "credit" AND !safeId:
+  show error "الخزنة غير محددة"
+  STOP
+
+────────────────────────────
+3) QUICK TASKS FIX
+────────────────────────────
+
+Problem:
+Quick tasks tied to stats → breaks UI
+
+Fix:
+
+Make all cards simple navigation only:
+
+<Link to="/expenses" />
+<Link to="/income" />
+<Link to="/receipt-vouchers" />
+<Link to="/payment-vouchers" />
+<Link to="/safe-transfers" />
+
+DO NOT depend on API data
+
+DO NOT hide cards if stats fails
+
+────────────────────────────
+4) ROUTE PROTECTION (BACKEND SAFE)
+────────────────────────────
+
+Ensure:
+
+GET /products → requires can_view_products
+GET /customers → requires can_view_customers
+GET /expenses → requires can_view_expenses
+
+If no permission:
+return 403 "غير مصرح"
+
+────────────────────────────
+5) DEFAULT BEHAVIOR
+────────────────────────────
+
+If permission is NOT defined:
+ALLOW access (do not block)
+
+Only block if explicitly false
+
+────────────────────────────
+6) UX IMPROVEMENTS
+────────────────────────────
+
+- Remove empty dropdown values like "-- مخزن --"
+- Replace with real defaults or hide fields
+
+- If cashier:
+Show small label:
+"الفرع: {warehouse name}"
+"الخزنة: {safe name}"
+
+────────────────────────────
+7) DO NOT
+────────────────────────────
+
+- DO NOT change database schema
+- DO NOT refactor permissions system
+- DO NOT touch transactions logic
+- DO NOT break existing APIs
+
+────────────────────────────
+EXPECTED RESULT
+────────────────────────────
+
+- Cashier:
+  ✔ sees only allowed pages
+  ✔ cannot access products if disabled
+  ✔ sells without selecting warehouse
+  ✔ no more 400 errors
+
+- Admin:
+  ✔ full control
+  ✔ can assign permissions
+  ✔ can control visibility of pages
+
+- Quick Tasks:
+  ✔ always clickable
+  ✔ no dependency on API
+
+System becomes stable and usable

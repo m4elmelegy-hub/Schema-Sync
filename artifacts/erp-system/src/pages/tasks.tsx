@@ -63,8 +63,8 @@ export default function Tasks() {
       color: "text-violet-400",
       ring: "ring-violet-500/30",
       bg: "bg-violet-500/8",
-      stat: stats ? formatCurrency(Number(stats.total_customer_debts)) : "—",
-      statLabel: "ديون العملاء",
+      stat: "اضغط للفتح",
+      statLabel: "سندات القبض",
     },
     {
       href: "/payment-vouchers",
@@ -85,8 +85,8 @@ export default function Tasks() {
       color: "text-red-400",
       ring: "ring-red-500/30",
       bg: "bg-red-500/8",
-      stat: stats ? formatCurrency(Number(stats.total_expenses_today)) : "—",
-      statLabel: "مصروفات اليوم",
+      stat: "اضغط للفتح",
+      statLabel: "المصروفات",
     },
     {
       href: "/income",
@@ -96,8 +96,8 @@ export default function Tasks() {
       color: "text-emerald-400",
       ring: "ring-emerald-500/30",
       bg: "bg-emerald-500/8",
-      stat: stats ? formatCurrency(Number(stats.total_income_today)) : "—",
-      statLabel: "إيرادات اليوم",
+      stat: "اضغط للفتح",
+      statLabel: "الإيرادات",
     },
     {
       href: "/safe-transfers",

@@ -11,8 +11,16 @@ import { sql } from "drizzle-orm";
 import { checkHealthCritical } from "../lib/alert-service";
 import { db } from "@workspace/db";
 import { wrap } from "../lib/async-handler";
+import { hasPermission } from "../lib/permissions";
 
 const router: IRouter = Router();
+
+router.use((req, res, next) => {
+  if (!hasPermission(req.user, "can_view_reports")) {
+    res.status(403).json({ error: "غير مصرح بعرض التقارير" }); return;
+  }
+  next();
+});
 
 /* ── مساعد: تطبيع التاريخ ──────────────────────────────────────────────── */
 function dateFilter(col: string, from?: string, to?: string): string {

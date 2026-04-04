@@ -8,6 +8,7 @@ import {
   DeleteExpenseResponse,
 } from "@workspace/api-zod";
 import { wrap, httpError } from "../lib/async-handler";
+import { hasPermission } from "../lib/permissions";
 
 const router: IRouter = Router();
 
@@ -15,7 +16,10 @@ function formatExpense(e: typeof expensesTable.$inferSelect) {
   return { ...e, amount: Number(e.amount), created_at: e.created_at.toISOString() };
 }
 
-router.get("/expenses", wrap(async (_req, res) => {
+router.get("/expenses", wrap(async (req, res) => {
+  if (!hasPermission(req.user, "can_view_expenses")) {
+    res.status(403).json({ error: "غير مصرح بعرض المصروفات" }); return;
+  }
   const expenses = await db.select().from(expensesTable).orderBy(expensesTable.created_at);
   res.json(GetExpensesResponse.parse(expenses.map(formatExpense)));
 }));

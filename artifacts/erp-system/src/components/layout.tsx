@@ -77,7 +77,11 @@ export function AppLayout({ children }: LayoutProps) {
 
   const visibleNav = NAV_ITEMS.filter(item => {
     if (!canAccess(role, item.href)) return false;
-    if (item.href === "/inventory" && !hasPermission(user, "can_view_inventory")) return false;
+    if (item.href === "/inventory"  && !hasPermission(user, "can_view_inventory"))  return false;
+    if (item.href === "/products"   && !hasPermission(user, "can_view_products"))   return false;
+    if (item.href === "/customers"  && !hasPermission(user, "can_view_customers"))  return false;
+    if (item.href === "/expenses"   && !hasPermission(user, "can_view_expenses"))   return false;
+    if (item.href === "/reports"    && !hasPermission(user, "can_view_reports"))    return false;
     return true;
   });
   const visiblePaths = new Set(visibleNav.map(i => i.href));

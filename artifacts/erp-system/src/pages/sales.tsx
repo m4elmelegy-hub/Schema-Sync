@@ -551,12 +551,25 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
   const [discountPct, setDiscountPct] = useState<string>("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
 
-  // اختيار المخزن رقم 1 تلقائياً عند التحميل
+  const isRestricted = currentUser?.role === "cashier" || currentUser?.role === "salesperson";
+
+  // القيم الفعلية: للكاشير/المندوب تأتي من بيانات المستخدم؛ للإدارة من الاختيار اليدوي
+  const effectiveWarehouseId = isRestricted
+    ? (currentUser?.warehouse_id ? String(currentUser.warehouse_id) : "")
+    : warehouseId;
+  const effectiveSafeId = isRestricted
+    ? (currentUser?.safe_id ? String(currentUser.safe_id) : "")
+    : safeId;
+
+  const effectiveWarehouseName = warehouses.find(w => String(w.id) === effectiveWarehouseId)?.name ?? "—";
+  const effectiveSafeName = (safes as {id:number;name:string;balance:string|number}[]).find(s => String(s.id) === effectiveSafeId)?.name ?? "—";
+
+  // اختيار المخزن الأول تلقائياً للمدير فقط
   useEffect(() => {
-    if (warehouses.length > 0 && !warehouseId) {
+    if (!isRestricted && warehouses.length > 0 && !warehouseId) {
       setWarehouseId(String(warehouses[0].id));
     }
-  }, [warehouses, warehouseId]);
+  }, [warehouses, warehouseId, isRestricted]);
 
   // المندوب هو المستخدم الحالي تلقائياً
   const salespersonId = currentUser ? String(currentUser.id) : "";
@@ -665,6 +678,12 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
     if ((paymentType === "credit" || paymentType === "partial") && !customerId) {
       toast({ title: "يجب اختيار عميل للآجل أو الجزئي", variant: "destructive" }); return;
     }
+    if (!effectiveWarehouseId) {
+      toast({ title: "المخزن غير محدد — يرجى مراجعة المدير لإعداد حسابك", variant: "destructive" }); return;
+    }
+    if (paymentType !== "credit" && !effectiveSafeId) {
+      toast({ title: "الخزنة غير محددة — اختر خزنة أو تواصل مع المدير", variant: "destructive" }); return;
+    }
     const actualPaid = paymentType === "cash" ? cartTotal : paymentType === "credit" ? 0 : parseFloat(paidAmount) || 0;
 
     checkoutMutation.mutate({
@@ -673,8 +692,8 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
       paid_amount: actualPaid,
       customer_id: selectedCustomer?.id ?? null,
       customer_name: selectedCustomer?.name ?? null,
-      safe_id: safeId ? parseInt(safeId) : null,
-      warehouse_id: warehouseId ? parseInt(warehouseId) : null,
+      safe_id: effectiveSafeId ? parseInt(effectiveSafeId) : null,
+      warehouse_id: effectiveWarehouseId ? parseInt(effectiveWarehouseId) : null,
       salesperson_id: salespersonId ? parseInt(salespersonId) : null,
       discount_percent: parseFloat(discountPct) || 0,
       discount_amount: discountAmount,
@@ -1205,9 +1224,14 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
             </div>
             {/* حقول الفاتورة الرئيسية */}
             <div className="grid grid-cols-2 gap-1.5 text-xs">
-              {selectRow("المخزن", <Vault className="w-3.5 h-3.5" />,
+              {isRestricted ? (
+                <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
+                  <span className="text-white/30 shrink-0"><Vault className="w-3.5 h-3.5" /></span>
+                  <span className="text-white/40 text-xs shrink-0">الفرع</span>
+                  <span className="text-emerald-300 text-xs font-bold truncate">{effectiveWarehouseName}</span>
+                </div>
+              ) : selectRow("المخزن", <Vault className="w-3.5 h-3.5" />,
                 <select className="bg-transparent text-white outline-none w-full appearance-none text-xs" value={warehouseId} onChange={e => setWarehouseId(e.target.value)}>
-                  <option value="" className="bg-slate-900">-- مخزن --</option>
                   {warehouses.map(w => <option key={w.id} value={w.id} className="bg-slate-900">{w.name}</option>)}
                 </select>
               )}
@@ -1325,7 +1349,13 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
                   {selectedCustomer.phone} — سيُرسل الفاتورة للواتساب بعد التسجيل
                 </div>
               )}
-              {selectRow("الخزينة", <Vault className="w-3.5 h-3.5 text-amber-400/70" />,
+              {isRestricted ? (
+                <div className="flex items-center gap-2 bg-white/5 border border-amber-500/15 rounded-xl px-3 py-2">
+                  <span className="text-amber-400/60 shrink-0"><Vault className="w-3.5 h-3.5" /></span>
+                  <span className="text-white/40 text-xs shrink-0">الخزنة</span>
+                  <span className="text-amber-300 text-xs font-bold truncate">{effectiveSafeName}</span>
+                </div>
+              ) : selectRow("الخزينة", <Vault className="w-3.5 h-3.5 text-amber-400/70" />,
                 <select className="bg-transparent text-white outline-none w-full appearance-none text-xs" value={safeId} onChange={e => setSafeId(e.target.value)}>
                   <option value="" className="bg-slate-900">-- اختر الخزينة --</option>
                   {safes.map(s => <option key={s.id} value={s.id} className="bg-slate-900">{s.name} ({formatCurrency(Number(s.balance))})</option>)}

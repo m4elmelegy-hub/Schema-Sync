@@ -74,6 +74,10 @@ const PERMISSIONS_LIST = [
   { key: "can_manage_customers", label: "إدارة العملاء" },
   { key: "can_view_inventory",   label: "عرض المخزون" },
   { key: "can_adjust_inventory", label: "تسوية المخزون" },
+  { key: "can_view_products",    label: "عرض الأصناف" },
+  { key: "can_view_customers",   label: "عرض العملاء" },
+  { key: "can_view_expenses",    label: "عرض المصروفات" },
+  { key: "can_view_reports",     label: "عرض التقارير" },
 ];
 
 const PERMISSION_TEMPLATES: Record<string, Record<string, boolean>> = {
@@ -85,6 +89,10 @@ const PERMISSION_TEMPLATES: Record<string, Record<string, boolean>> = {
     can_manage_customers: true,
     can_view_inventory:   true,
     can_adjust_inventory: true,
+    can_view_products:    true,
+    can_view_customers:   true,
+    can_view_expenses:    true,
+    can_view_reports:     true,
   },
   manager: {
     can_create_sale:      true,
@@ -94,6 +102,10 @@ const PERMISSION_TEMPLATES: Record<string, Record<string, boolean>> = {
     can_manage_customers: true,
     can_view_inventory:   true,
     can_adjust_inventory: true,
+    can_view_products:    true,
+    can_view_customers:   true,
+    can_view_expenses:    true,
+    can_view_reports:     true,
   },
   salesperson: {
     can_create_sale:      true,
@@ -103,6 +115,10 @@ const PERMISSION_TEMPLATES: Record<string, Record<string, boolean>> = {
     can_manage_customers: false,
     can_view_inventory:   false,
     can_adjust_inventory: false,
+    can_view_products:    true,
+    can_view_customers:   true,
+    can_view_expenses:    false,
+    can_view_reports:     false,
   },
   cashier: {
     can_create_sale:      true,
@@ -112,6 +128,10 @@ const PERMISSION_TEMPLATES: Record<string, Record<string, boolean>> = {
     can_manage_customers: false,
     can_view_inventory:   false,
     can_adjust_inventory: false,
+    can_view_products:    true,
+    can_view_customers:   true,
+    can_view_expenses:    false,
+    can_view_reports:     false,
   },
 };
 

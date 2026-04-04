@@ -44,6 +44,9 @@ async function getNextCustomerCode(): Promise<number> {
 }
 
 router.get("/customers", wrap(async (req, res) => {
+  if (!hasPermission(req.user, "can_view_customers")) {
+    res.status(403).json({ error: "غير مصرح بعرض العملاء" }); return;
+  }
   // مصدر الحقيقة الوحيد: جدول customer_ledger
   // الرصيد = SUM(amount) لكل عميل
   // موجب = العميل مدين لنا (عليه) — سالب = نحن مدينون له (له علينا)
