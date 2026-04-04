@@ -1,0 +1,124 @@
+أحتاج Final Design Pass شامل على النظام كله، مع التركيز على توحيد الـ dark mode والـ light mode.
+
+المطلوب ليس features جديدة، بل إصلاح التصميم بصريًا ليصبح النظام متناسقًا 100%.
+
+الأولوية القصوى:
+
+1. إصلاح light mode بالكامل
+2. توحيد design tokens
+3. إزالة الاختلافات بين الصفحات
+4. جعل النظام premium وهادئ بصريًا
+
+نفّذ الآتي:
+
+========================
+
+1. Theme System
+   ========================
+
+* أنشئ نظام theme واضح لكل من dark و light
+* لا تعتمد على تحويلات عشوائية بين الوضعين
+* استخدم tokens ثابتة:
+  bg-app
+  bg-surface
+  bg-card
+  text-primary
+  text-secondary
+  border-default
+  accent-primary
+  success
+  warning
+  danger
+  info
+
+========================
+2) Light Mode Rebuild
+=====================
+
+* أصلح light mode لأنه باهت جدًا حاليًا
+* اجعل الخلفية off-white خفيفة
+* اجعل الكروت واضحة ومقروءة
+* اجعل النصوص أغمق وأكثر وضوحًا
+* اجعل borders خفيفة لكن مرئية
+* حافظ على نفس هوية Halal Tech بدون بهتان
+
+========================
+3) Dark Mode Polish
+===================
+
+* احتفظ بالاتجاه الحالي لأنه قوي
+* قلل التوهج والتشبع الزائد
+* وحّد درجات الخلفيات والكروت
+* حسّن contrast النصوص الثانوية
+
+========================
+4) Global Consistency
+=====================
+
+* كل الصفحات تستخدم نفس:
+  spacing scale
+  border radius
+  shadows
+  input heights
+  button heights
+  card structure
+* لا تترك أي صفحة خارج النظام البصري الموحد
+
+========================
+5) Visual Hierarchy
+===================
+
+* كل صفحة يجب أن يكون فيها:
+  page title واضح
+  secondary description
+  primary action واضح
+  content grouped بشكل منطقي
+* تقليل التنافس بين العناصر
+
+========================
+6) Topbar / Search / Sidebar
+============================
+
+* توحيد ارتفاع العناصر
+* تحسين contrast
+* جعل search أوضح في الوضعين
+* تحسين active states
+* تقليل visual noise
+
+========================
+7) KPI / Cards / Alerts
+=======================
+
+* توحيد جميع KPI cards
+* توحيد status badges
+* توحيد alert styles
+* لا يوجد أكثر من card style إلا عند الحاجة الحقيقية
+
+========================
+8) Forms / Tables
+=================
+
+* توحيد forms بالكامل
+* توحيد tables بالكامل
+* تحسين readability في light mode
+* الحفاظ على نفس السلوك الحالي بدون كسر أي functionality
+
+========================
+9) Final Outcome
+================
+
+أريد الشكل النهائي للنظام:
+
+* dark-first
+* light-consistent
+* Arabic SaaS premium
+* calm and clean
+* high readability
+* consistent across all pages
+
+Output المطلوب:
+
+* تحديث tokens والـ theme system
+* مراجعة كل الصفحات المتأثرة
+* تطبيق polish نهائي على light + dark
+* screenshots before/after لأهم الصفحات

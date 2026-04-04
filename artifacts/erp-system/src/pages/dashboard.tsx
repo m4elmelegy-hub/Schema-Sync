@@ -47,45 +47,18 @@ export default function Dashboard() {
   if (isLoading) {
     return (
       <div className="space-y-6" dir="rtl">
-        {/* KPI skeleton */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: "16px" }}
-          className="db-grid-kpi">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: "16px" }} className="db-grid-kpi">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} style={{
-              borderRadius: "20px", height: "148px",
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.07)",
-              animation: "db-pulse 1.6s ease-in-out infinite",
-              animationDelay: `${i * 0.12}s`,
-            }} />
+            <div key={i} className="db-skeleton" style={{ height: "148px", animationDelay: `${i * 0.12}s` }} />
           ))}
         </div>
-        {/* Chart skeleton */}
-        <div style={{
-          borderRadius: "20px", height: "280px",
-          background: "rgba(255,255,255,0.04)",
-          border: "1px solid rgba(255,255,255,0.07)",
-          animation: "db-pulse 1.6s ease-in-out infinite",
-        }} />
-        {/* Bottom skeleton */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}
-          className="db-grid-bottom">
+        <div className="db-skeleton" style={{ height: "280px" }} />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }} className="db-grid-bottom">
           {[0, 1].map(i => (
-            <div key={i} style={{
-              borderRadius: "20px", height: "260px",
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.07)",
-              animation: "db-pulse 1.6s ease-in-out infinite",
-              animationDelay: `${i * 0.15}s`,
-            }} />
+            <div key={i} className="db-skeleton" style={{ height: "260px", animationDelay: `${i * 0.15}s` }} />
           ))}
         </div>
-        <style>{`
-          @keyframes db-pulse {
-            0%,100% { opacity: 0.6; }
-            50%      { opacity: 1;   }
-          }
-        `}</style>
+        <style>{`@keyframes db-pulse { 0%,100%{opacity:0.6} 50%{opacity:1} }`}</style>
       </div>
     );
   }
@@ -189,41 +162,25 @@ export default function Dashboard() {
       ══════════════════════════════════════════════════════ */}
       <div className="erp-hero-strip" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
         <div className="erp-hero-cell">
-          <div style={{
-            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            background: "rgba(245,158,11,0.15)",
-            border: "1px solid rgba(245,158,11,0.22)",
-          }}>
+          <div className="hero-icon-wrap" style={{ background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.22)" }}>
             <ShoppingCart style={{ width: 16, height: 16, color: "#f59e0b" }} />
           </div>
           <div>
-            <p style={{ fontSize: "11px", fontWeight: 600, color: "rgba(255,255,255,0.40)", marginBottom: "2px" }}>إجمالي الإيرادات اليوم</p>
-            <p style={{ fontSize: "16px", fontWeight: 900, color: "rgba(255,255,255,0.92)", letterSpacing: "-0.4px" }}>
-              {formatCurrency(totalRevenue)}
-            </p>
+            <p className="hero-label">إجمالي الإيرادات اليوم</p>
+            <p className="hero-value">{formatCurrency(totalRevenue)}</p>
           </div>
         </div>
         <div className="erp-hero-cell">
-          <div style={{
-            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            background: "rgba(248,113,113,0.15)",
-            border: "1px solid rgba(248,113,113,0.22)",
-          }}>
+          <div className="hero-icon-wrap" style={{ background: "rgba(248,113,113,0.15)", border: "1px solid rgba(248,113,113,0.22)" }}>
             <TrendingDown style={{ width: 16, height: 16, color: "#f87171" }} />
           </div>
           <div>
-            <p style={{ fontSize: "11px", fontWeight: 600, color: "rgba(255,255,255,0.40)", marginBottom: "2px" }}>إجمالي المصروفات اليوم</p>
-            <p style={{ fontSize: "16px", fontWeight: 900, color: "rgba(255,255,255,0.92)", letterSpacing: "-0.4px" }}>
-              {formatCurrency(totalOut)}
-            </p>
+            <p className="hero-label">إجمالي المصروفات اليوم</p>
+            <p className="hero-value">{formatCurrency(totalOut)}</p>
           </div>
         </div>
         <div className="erp-hero-cell">
-          <div style={{
-            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-            display: "flex", alignItems: "center", justifyContent: "center",
+          <div className="hero-icon-wrap" style={{
             background: netIsPositive ? "rgba(52,211,153,0.15)" : "rgba(248,113,113,0.15)",
             border: `1px solid ${netIsPositive ? "rgba(52,211,153,0.22)" : "rgba(248,113,113,0.22)"}`,
           }}>
@@ -233,28 +190,22 @@ export default function Dashboard() {
             }
           </div>
           <div>
-            <p style={{ fontSize: "11px", fontWeight: 600, color: "rgba(255,255,255,0.40)", marginBottom: "2px" }}>صافي الربح</p>
-            <p style={{ fontSize: "16px", fontWeight: 900, letterSpacing: "-0.4px",
-              color: netIsPositive ? "#34d399" : "#f87171" }}>
+            <p className="hero-label">صافي الربح</p>
+            <p className="hero-value" style={{ color: netIsPositive ? "#34d399" : "#f87171" }}>
               {formatCurrency(stats.net_profit)}
             </p>
           </div>
         </div>
         <div className="erp-hero-cell">
-          <div style={{
-            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-            display: "flex", alignItems: "center", justifyContent: "center",
+          <div className="hero-icon-wrap" style={{
             background: (stats.low_stock_products?.length ?? 0) === 0 ? "rgba(52,211,153,0.15)" : "rgba(245,158,11,0.15)",
             border: `1px solid ${(stats.low_stock_products?.length ?? 0) === 0 ? "rgba(52,211,153,0.22)" : "rgba(245,158,11,0.22)"}`,
           }}>
-            <Package style={{
-              width: 16, height: 16,
-              color: (stats.low_stock_products?.length ?? 0) === 0 ? "#34d399" : "#f59e0b",
-            }} />
+            <Package style={{ width: 16, height: 16, color: (stats.low_stock_products?.length ?? 0) === 0 ? "#34d399" : "#f59e0b" }} />
           </div>
           <div>
-            <p style={{ fontSize: "11px", fontWeight: 600, color: "rgba(255,255,255,0.40)", marginBottom: "2px" }}>تنبيهات المخزون</p>
-            <p style={{ fontSize: "16px", fontWeight: 900, color: "rgba(255,255,255,0.92)", letterSpacing: "-0.4px" }}>
+            <p className="hero-label">تنبيهات المخزون</p>
+            <p className="hero-value">
               {(stats.low_stock_products?.length ?? 0) === 0 ? "المخزون بخير ✓" : `${stats.low_stock_products?.length} منتج`}
             </p>
           </div>
@@ -286,24 +237,16 @@ export default function Dashboard() {
         }}
       >
         {/* Header */}
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          marginBottom: "24px",
-        }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}>
           <div>
-            <h3 style={{ fontSize: "16px", fontWeight: 800, color: "rgba(255,255,255,0.92)", marginBottom: "4px" }}>
-              النظرة المالية اليوم
-            </h3>
-            <p style={{ fontSize: "12.5px", color: "rgba(255,255,255,0.38)" }}>
-              مقارنة المبيعات والمصروفات والأرباح
-            </p>
+            <h3 className="db-chart-title">النظرة المالية اليوم</h3>
+            <p className="db-chart-sub">مقارنة المبيعات والمصروفات والأرباح</p>
           </div>
-          {/* Legend */}
           <div style={{ display: "flex", gap: "20px" }}>
             {barData.map(d => (
               <div key={d.name} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                 <div style={{ width: 10, height: 10, borderRadius: 3, background: d.fill }} />
-                <span style={{ fontSize: "11.5px", color: "rgba(255,255,255,0.45)", fontWeight: 600 }}>{d.name}</span>
+                <span className="db-legend-label">{d.name}</span>
               </div>
             ))}
           </div>
@@ -366,27 +309,12 @@ export default function Dashboard() {
         {/* ── Recent transactions ──────────────────────── */}
         <div className="db-card" style={{ padding: "24px" }}>
           {/* Header */}
-          <div style={{
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            marginBottom: "20px",
-          }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
             <div>
-              <h3 style={{ fontSize: "15px", fontWeight: 800, color: "rgba(255,255,255,0.90)", marginBottom: "3px" }}>
-                آخر العمليات
-              </h3>
-              <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.35)" }}>
-                أحدث الحركات المالية
-              </p>
+              <h3 className="db-card-title">آخر العمليات</h3>
+              <p className="db-card-sub">أحدث الحركات المالية</p>
             </div>
-            <div style={{
-              padding: "5px 12px",
-              borderRadius: "20px",
-              background: "rgba(96,165,250,0.12)",
-              border: "1px solid rgba(96,165,250,0.20)",
-              fontSize: "11.5px", fontWeight: 700, color: "#60a5fa",
-            }}>
-              {stats.recent_transactions?.length ?? 0} حركة
-            </div>
+            <div className="db-section-badge-blue">{stats.recent_transactions?.length ?? 0} حركة</div>
           </div>
 
           {!stats.recent_transactions?.length ? (
@@ -424,10 +352,8 @@ export default function Dashboard() {
                     </div>
                     {/* Label */}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: "13.5px", fontWeight: 700, color: "rgba(255,255,255,0.82)", marginBottom: 2 }}>
-                        {TX_LABELS[tx.type] || tx.type}
-                      </p>
-                      <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.30)" }}>{time}</p>
+                      <p className="db-tx-label">{TX_LABELS[tx.type] || tx.type}</p>
+                      <p className="db-tx-time">{time}</p>
                     </div>
                     {/* Amount */}
                     <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
@@ -452,48 +378,24 @@ export default function Dashboard() {
         {/* ── Low stock products ───────────────────────── */}
         <div className="db-card" style={{ padding: "24px" }}>
           {/* Header */}
-          <div style={{
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            marginBottom: "20px",
-          }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
             <div>
-              <h3 style={{ fontSize: "15px", fontWeight: 800, color: "rgba(255,255,255,0.90)", marginBottom: "3px" }}>
-                تنبيهات المخزون
-              </h3>
-              <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.35)" }}>
-                منتجات تحتاج تجديداً
-              </p>
+              <h3 className="db-card-title">تنبيهات المخزون</h3>
+              <p className="db-card-sub">منتجات تحتاج تجديداً</p>
             </div>
             {(stats.low_stock_products?.length ?? 0) > 0 && (
-              <div style={{
-                padding: "5px 12px",
-                borderRadius: "20px",
-                background: "rgba(245,158,11,0.12)",
-                border: "1px solid rgba(245,158,11,0.22)",
-                fontSize: "11.5px", fontWeight: 700, color: "#f59e0b",
-              }}>
-                {stats.low_stock_products.length} منتج
-              </div>
+              <div className="db-section-badge-amber">{stats.low_stock_products.length} منتج</div>
             )}
           </div>
 
           {!stats.low_stock_products?.length ? (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "32px 0", gap: "12px" }}>
-              <div style={{
-                width: 56, height: 56, borderRadius: 16,
-                background: "rgba(52,211,153,0.12)",
-                border: "1px solid rgba(52,211,153,0.20)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
+            <div className="erp-empty-state" style={{ padding: "32px 0", flexDirection: "column", gap: "12px" }}>
+              <div style={{ width: 56, height: 56, borderRadius: 16, background: "rgba(52,211,153,0.12)", border: "1px solid rgba(52,211,153,0.20)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <PackageX style={{ width: 24, height: 24, color: "#34d399" }} />
               </div>
               <div style={{ textAlign: "center" }}>
-                <p style={{ fontSize: "14px", fontWeight: 700, color: "rgba(255,255,255,0.65)", marginBottom: 4 }}>
-                  المخزون بخير ✓
-                </p>
-                <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.30)" }}>
-                  لا توجد منتجات منخفضة المخزون
-                </p>
+                <p className="db-tx-label" style={{ marginBottom: 4 }}>المخزون بخير ✓</p>
+                <p className="db-tx-time">لا توجد منتجات منخفضة المخزون</p>
               </div>
             </div>
           ) : (
@@ -501,50 +403,15 @@ export default function Dashboard() {
               {stats.low_stock_products.slice(0, 7).map((prod) => {
                 const outOfStock = Number(prod.quantity) === 0;
                 return (
-                  <div
-                    key={prod.id}
-                    className="db-tx-row"
-                    style={{
-                      display: "flex", alignItems: "center", gap: "12px",
-                      padding: "10px 12px",
-                      borderRadius: "12px",
-                    }}
-                  >
-                    {/* Product icon */}
-                    <div style={{
-                      width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      background: outOfStock ? "rgba(248,113,113,0.12)" : "rgba(245,158,11,0.12)",
-                      border: `1px solid ${outOfStock ? "rgba(248,113,113,0.20)" : "rgba(245,158,11,0.20)"}`,
-                    }}>
-                      <Package style={{
-                        width: 16, height: 16,
-                        color: outOfStock ? "#f87171" : "#f59e0b",
-                      }} />
+                  <div key={prod.id} className="db-tx-row" style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 12px" }}>
+                    <div className="hero-icon-wrap" style={{ background: outOfStock ? "rgba(248,113,113,0.12)" : "rgba(245,158,11,0.12)", border: `1px solid ${outOfStock ? "rgba(248,113,113,0.20)" : "rgba(245,158,11,0.20)"}` }}>
+                      <Package style={{ width: 16, height: 16, color: outOfStock ? "#f87171" : "#f59e0b" }} />
                     </div>
-                    {/* Name */}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{
-                        fontSize: "13.5px", fontWeight: 700,
-                        color: "rgba(255,255,255,0.82)", marginBottom: 2,
-                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                      }}>
-                        {prod.name}
-                      </p>
-                      <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.30)" }}>
-                        {outOfStock ? "نفد من المخزون" : "مخزون منخفض"}
-                      </p>
+                      <p className="db-product-name" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 2 }}>{prod.name}</p>
+                      <p className="db-product-cat">{outOfStock ? "نفد من المخزون" : "مخزون منخفض"}</p>
                     </div>
-                    {/* Qty badge */}
-                    <div style={{
-                      padding: "4px 12px",
-                      borderRadius: "20px",
-                      fontSize: "12px", fontWeight: 800,
-                      background: outOfStock ? "rgba(248,113,113,0.15)" : "rgba(245,158,11,0.15)",
-                      color: outOfStock ? "#fca5a5" : "#fcd34d",
-                      border: `1px solid ${outOfStock ? "rgba(248,113,113,0.22)" : "rgba(245,158,11,0.22)"}`,
-                      whiteSpace: "nowrap",
-                    }}>
+                    <div style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 800, background: outOfStock ? "rgba(248,113,113,0.15)" : "rgba(245,158,11,0.15)", color: outOfStock ? "#fca5a5" : "#fcd34d", border: `1px solid ${outOfStock ? "rgba(248,113,113,0.22)" : "rgba(245,158,11,0.22)"}`, whiteSpace: "nowrap" }}>
                       {outOfStock ? "نفد" : `${prod.quantity} قطعة`}
                     </div>
                   </div>
@@ -555,56 +422,17 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Responsive + animation CSS ──────────────────────── */}
       <style>{`
-        /* Fade-in stagger for KPI cards */
         @keyframes db-fade-up {
           from { opacity: 0; transform: translateY(18px); }
           to   { opacity: 1; transform: translateY(0);    }
         }
-        .db-kpi-card {
-          animation: db-fade-up 0.5s cubic-bezier(.22,1,.36,1) both;
-        }
-
-        /* Card base */
-        .db-card {
-          background: rgba(255,255,255,0.04);
-          border: 1px solid rgba(255,255,255,0.08);
-          border-radius: 20px;
-          backdrop-filter: blur(16px);
-        }
-
-        /* Row hover */
-        .db-tx-row {
-          transition: background 0.18s ease;
-        }
-        .db-tx-row:hover {
-          background: rgba(255,255,255,0.05);
-        }
-
-        /* KPI hover */
-        .db-kpi-hover {
-          transition: transform 0.25s cubic-bezier(.34,1.56,.64,1),
-                      box-shadow 0.25s ease,
-                      filter 0.25s ease;
-        }
-        .db-kpi-hover:hover {
-          transform: translateY(-5px) scale(1.025);
-          box-shadow: 0 24px 56px rgba(0,0,0,0.40), 0 0 0 1px rgba(255,255,255,0.14) !important;
-          filter: brightness(1.06) saturate(1.1);
-        }
-
-        /* Responsive grid */
-        @media (max-width: 1280px) {
-          .db-grid-kpi   { grid-template-columns: repeat(3,1fr) !important; }
-        }
-        @media (max-width: 1024px) {
-          .db-grid-kpi   { grid-template-columns: repeat(2,1fr) !important; }
-          .db-grid-bottom { grid-template-columns: 1fr !important; }
-        }
-        @media (max-width: 640px) {
-          .db-grid-kpi   { grid-template-columns: 1fr !important; }
-        }
+        .db-kpi-card { animation: db-fade-up 0.5s cubic-bezier(.22,1,.36,1) both; }
+        .db-kpi-hover { transition: transform 0.25s cubic-bezier(.34,1.56,.64,1), box-shadow 0.25s ease, filter 0.25s ease; }
+        .db-kpi-hover:hover { transform: translateY(-4px); box-shadow: 0 24px 56px rgba(0,0,0,0.40), 0 0 0 1px rgba(255,255,255,0.14) !important; filter: brightness(1.06) saturate(1.1); }
+        @media (max-width: 1280px) { .db-grid-kpi { grid-template-columns: repeat(3,1fr) !important; } }
+        @media (max-width: 1024px) { .db-grid-kpi { grid-template-columns: repeat(2,1fr) !important; } .db-grid-bottom { grid-template-columns: 1fr !important; } }
+        @media (max-width: 640px)  { .db-grid-kpi { grid-template-columns: 1fr !important; } }
       `}</style>
     </div>
   );
@@ -722,24 +550,11 @@ function KpiCard({ card, index }: { card: KpiDef; index: number }) {
 ────────────────────────────────────────────────────────── */
 function EmptyState({ msg, height = 160 }: { msg: string; height?: number }) {
   return (
-    <div style={{
-      height, display: "flex", flexDirection: "column",
-      alignItems: "center", justifyContent: "center", gap: "12px",
-    }}>
-      <div style={{
-        width: 52, height: 52, borderRadius: 16,
-        background: "rgba(255,255,255,0.05)",
-        border: "1px solid rgba(255,255,255,0.08)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-      }}>
-        <Wallet style={{ width: 22, height: 22, color: "rgba(255,255,255,0.25)" }} />
+    <div className="erp-empty-state" style={{ height, flexDirection: "column", gap: "12px" }}>
+      <div className="erp-empty-icon" style={{ width: 52, height: 52, borderRadius: 16, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Wallet style={{ width: 22, height: 22 }} />
       </div>
-      <p style={{
-        fontSize: "13.5px", color: "rgba(255,255,255,0.35)",
-        fontWeight: 600, textAlign: "center", maxWidth: 260, lineHeight: 1.6,
-      }}>
-        {msg}
-      </p>
+      <p className="erp-empty-label" style={{ textAlign: "center", maxWidth: 260 }}>{msg}</p>
     </div>
   );
 }
