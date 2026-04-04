@@ -20,7 +20,7 @@ import {
   Upload, Download, RefreshCcw, Building2, Loader2, CheckCircle2,
   HardDrive, History, BookOpen, Package, UserCircle, Truck, Banknote,
   ChevronDown, ChevronRight, Shield, Store, CaseSensitive, AlignLeft, Sun,
-  Layers, RotateCcw,
+  Layers, RotateCcw, Search,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -271,8 +271,8 @@ function Modal({
       onClick={onClose}
     >
       <div
-        className={`rounded-2xl w-full ${maxWidth} border border-white/10 shadow-2xl`}
-        style={{ background: "var(--erp-bg-card)" }}
+        className={`rounded-2xl w-full ${maxWidth} border border-white/10 shadow-2xl flex flex-col`}
+        style={{ background: "var(--erp-bg-card)", maxHeight: "90vh" }}
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/8">
@@ -324,16 +324,39 @@ function CardSkeleton() {
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   PERMISSION GROUP CARD — grouped collapsible card with select-all
+   PERMISSION GROUP CARD — toggle-switch based (Hybrid Modern)
    ══════════════════════════════════════════════════════════════════ */
-const COLOR_MAP: Record<string, { header: string; badge: string; toggle: string; dot: string }> = {
-  amber:  { header: "border-amber-500/25 bg-amber-500/5",   badge: "bg-amber-500/15 text-amber-300 border-amber-500/30",   toggle: "bg-amber-500/20 border-amber-500/50 text-amber-300",   dot: "bg-amber-400"   },
-  blue:   { header: "border-blue-500/25 bg-blue-500/5",     badge: "bg-blue-500/15 text-blue-300 border-blue-500/30",     toggle: "bg-blue-500/20 border-blue-500/50 text-blue-300",     dot: "bg-blue-400"    },
-  emerald:{ header: "border-emerald-500/25 bg-emerald-500/5", badge: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30", toggle: "bg-emerald-500/20 border-emerald-500/50 text-emerald-300", dot: "bg-emerald-400" },
-  violet: { header: "border-violet-500/25 bg-violet-500/5", badge: "bg-violet-500/15 text-violet-300 border-violet-500/30", toggle: "bg-violet-500/20 border-violet-500/50 text-violet-300", dot: "bg-violet-400"  },
-  cyan:   { header: "border-cyan-500/25 bg-cyan-500/5",     badge: "bg-cyan-500/15 text-cyan-300 border-cyan-500/30",     toggle: "bg-cyan-500/20 border-cyan-500/50 text-cyan-300",     dot: "bg-cyan-400"    },
-  red:    { header: "border-red-500/25 bg-red-500/5",       badge: "bg-red-500/15 text-red-300 border-red-500/30",       toggle: "bg-red-500/20 border-red-500/50 text-red-300",       dot: "bg-red-400"     },
+const COLOR_MAP: Record<string, { header: string; badge: string; toggleOn: string }> = {
+  amber:  { header: "border-amber-500/20",   badge: "bg-amber-500/15 text-amber-300 border-amber-500/30",   toggleOn: "#f59e0b" },
+  blue:   { header: "border-blue-500/20",    badge: "bg-blue-500/15 text-blue-300 border-blue-500/30",     toggleOn: "#3b82f6" },
+  emerald:{ header: "border-emerald-500/20", badge: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30", toggleOn: "#10b981" },
+  violet: { header: "border-violet-500/20",  badge: "bg-violet-500/15 text-violet-300 border-violet-500/30", toggleOn: "#8b5cf6" },
+  cyan:   { header: "border-cyan-500/20",    badge: "bg-cyan-500/15 text-cyan-300 border-cyan-500/30",     toggleOn: "#06b6d4" },
+  red:    { header: "border-red-500/20",     badge: "bg-red-500/15 text-red-300 border-red-500/30",       toggleOn: "#ef4444" },
 };
+
+function PermToggle({ active, color }: { active: boolean; color: string }) {
+  const c = COLOR_MAP[color] ?? COLOR_MAP.amber;
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: 36, height: 20, borderRadius: 99, flexShrink: 0,
+        background: active ? c.toggleOn : "rgba(255,255,255,0.12)",
+        transition: "background 0.2s ease",
+      }}
+    >
+      <span style={{
+        position: "absolute",
+        top: 2, width: 16, height: 16, borderRadius: "50%",
+        background: "#fff",
+        boxShadow: "0 1px 4px rgba(0,0,0,0.25)",
+        transition: "left 0.2s ease, right 0.2s ease",
+        ...(active ? { right: 2, left: "auto" } : { left: 2, right: "auto" }),
+      }} />
+    </div>
+  );
+}
 
 function PermissionGroupCard({
   group,
@@ -345,81 +368,75 @@ function PermissionGroupCard({
   onChange: (key: string, val: boolean) => void;
 }) {
   const [open, setOpen] = useState(true);
-  const checkboxRef = useRef<HTMLInputElement>(null);
 
-  const keys   = group.permissions.map(p => p.key);
+  const keys    = group.permissions.map(p => p.key);
   const onCount = keys.filter(k => permissions[k]).length;
-  const allOn  = onCount === keys.length;
-  const someOn = onCount > 0 && !allOn;
-
-  useEffect(() => {
-    if (checkboxRef.current) {
-      checkboxRef.current.indeterminate = someOn;
-    }
-  }, [someOn]);
-
-  const handleSelectAll = () => {
-    const target = !allOn;
-    keys.forEach(k => onChange(k, target));
-  };
+  const allOn   = onCount === keys.length;
 
   const c = COLOR_MAP[group.color] ?? COLOR_MAP.amber;
 
   return (
-    <div className={`rounded-2xl border overflow-hidden ${c.header}`}>
-      {/* Header */}
+    <div className={`rounded-xl border overflow-hidden ${c.header}`} style={{ background: "var(--erp-bg-card)" }}>
+      {/* ── Section Header ── */}
       <div
-        className="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
+        className="flex items-center justify-between px-4 py-2.5 cursor-pointer select-none"
+        style={{ borderBottom: open ? "1px solid rgba(255,255,255,0.06)" : "none" }}
         onClick={() => setOpen(o => !o)}
       >
+        <div className="flex items-center gap-2.5">
+          <span className="font-bold text-white text-sm">{group.label}</span>
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${c.badge}`}>
+            {onCount} / {keys.length}
+          </span>
+        </div>
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={e => { e.stopPropagation(); handleSelectAll(); }}
-            className="shrink-0 flex items-center"
-            title="اختر الكل / ألغِ الكل"
+            onClick={e => { e.stopPropagation(); keys.forEach(k => onChange(k, !allOn)); }}
+            className="text-[11px] font-semibold transition-colors"
+            style={{ color: "var(--erp-text-3)" }}
+            title={allOn ? "إلغاء الكل" : "تحديد الكل"}
           >
-            <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-all ${
-              allOn ? "bg-white/80 border-white/80" : someOn ? "border-white/50 bg-white/10" : "border-white/20 bg-white/5"
-            }`}>
-              {allOn   && <Check className="w-3 h-3 text-gray-900" />}
-              {someOn  && <div className="w-2 h-0.5 bg-white/70 rounded" />}
-            </div>
-            <input ref={checkboxRef} type="checkbox" className="sr-only" readOnly checked={allOn} />
+            {allOn ? "إلغاء الكل" : "تحديد الكل"}
           </button>
-          <span className="font-bold text-white text-sm">{group.label}</span>
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${c.badge}`}>
-            {onCount}/{keys.length}
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-white/25 text-xs">
-            {open ? "طيّ" : "توسيع"}
-          </span>
           {open
-            ? <ChevronDown className="w-4 h-4 text-white/30" />
-            : <ChevronRight className="w-4 h-4 text-white/30" />
+            ? <ChevronDown className="w-4 h-4" style={{ color: "var(--erp-text-4)" }} />
+            : <ChevronRight className="w-4 h-4" style={{ color: "var(--erp-text-4)" }} />
           }
         </div>
       </div>
 
-      {/* Body */}
+      {/* ── Permission Rows — 2-column grid ── */}
       {open && (
-        <div className="px-4 pb-3 grid grid-cols-2 sm:grid-cols-3 gap-1.5 border-t border-white/8">
+        <div className="grid grid-cols-2 gap-px p-1">
           {group.permissions.map(p => {
             const active = !!permissions[p.key];
             return (
-              <button
+              <div
                 key={p.key}
-                type="button"
+                role="button"
+                tabIndex={0}
                 onClick={() => onChange(p.key, !active)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs border transition-all text-right ${
-                  active ? c.toggle : "bg-white/3 border-white/8 text-white/35 hover:border-white/20 hover:text-white/60"
-                }`}
+                onKeyDown={e => (e.key === "Enter" || e.key === " ") && onChange(p.key, !active)}
+                className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors"
+                style={{
+                  background: active ? "rgba(255,255,255,0.04)" : "transparent",
+                }}
+                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.025)"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = active ? "rgba(255,255,255,0.04)" : "transparent"; }}
               >
-                <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${active ? c.dot : "bg-white/20"}`} />
-                {p.label}
-              </button>
+                <span
+                  className="text-xs leading-snug"
+                  style={{
+                    color: active ? "var(--erp-text-1)" : "var(--erp-text-3)",
+                    fontWeight: active ? 600 : 400,
+                    transition: "color 0.15s",
+                  }}
+                >
+                  {p.label}
+                </span>
+                <PermToggle active={active} color={group.color} />
+              </div>
             );
           })}
         </div>
@@ -502,6 +519,7 @@ function UsersTab() {
   const [editId, setEditId]       = useState<number | null>(null);
   const [showPin, setShowPin]     = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
+  const [permSearch, setPermSearch] = useState("");
   const [form, setForm] = useState({
     name: "", username: "", pin: "0000", role: "cashier", permissions: {} as Record<string, boolean>,
     warehouse_id: "" as string, safe_id: "" as string, active: true,
@@ -509,7 +527,7 @@ function UsersTab() {
 
   const resetForm = () => {
     setForm({ name: "", username: "", pin: "0000", role: "cashier", permissions: {}, warehouse_id: "", safe_id: "", active: true });
-    setEditId(null); setShowForm(false); setShowPin(false);
+    setEditId(null); setShowForm(false); setShowPin(false); setPermSearch("");
   };
 
   const handleSubmit = () => {
@@ -669,7 +687,7 @@ function UsersTab() {
           onClose={resetForm}
           maxWidth="max-w-xl"
         >
-          <div className="p-6 space-y-4">
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <FieldLabel>الاسم الكامل</FieldLabel>
@@ -780,22 +798,47 @@ function UsersTab() {
               {/* ── الصلاحيات المجمّعة ── */}
               <div>
                 <FieldLabel>الصلاحيات</FieldLabel>
-                <div className="space-y-2">
-                  {PERMISSION_GROUPS.map(group => (
-                    <PermissionGroupCard
-                      key={group.key}
-                      group={group}
-                      permissions={form.permissions}
-                      onChange={(key, val) =>
-                        setForm(f => ({ ...f, permissions: { ...f.permissions, [key]: val } }))
-                      }
-                    />
-                  ))}
+
+                {/* Search permissions */}
+                <div className="relative mb-3">
+                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: "var(--erp-text-4)" }} />
+                  <SInput
+                    placeholder="ابحث في الصلاحيات..."
+                    value={permSearch}
+                    onChange={e => setPermSearch(e.target.value)}
+                    className="pr-9 text-xs"
+                  />
                 </div>
+
+                {/* Permission groups */}
+                {(() => {
+                  const filtered = permSearch.trim()
+                    ? PERMISSION_GROUPS.map(g => ({
+                        ...g,
+                        permissions: g.permissions.filter(p => p.label.includes(permSearch.trim())),
+                      })).filter(g => g.permissions.length > 0)
+                    : PERMISSION_GROUPS;
+                  return filtered.length === 0 ? (
+                    <p className="text-center py-4 text-xs" style={{ color: "var(--erp-text-4)" }}>لا توجد صلاحيات مطابقة</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {filtered.map(group => (
+                        <PermissionGroupCard
+                          key={group.key}
+                          group={group}
+                          permissions={form.permissions}
+                          onChange={(key, val) =>
+                            setForm(f => ({ ...f, permissions: { ...f.permissions, [key]: val } }))
+                          }
+                        />
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>
-          <div className="flex gap-3 px-6 py-4 border-t border-white/8">
+          <div className="flex gap-3 px-6 py-4 border-t border-white/8 shrink-0">
             <PrimaryBtn onClick={handleSubmit} className="flex-1" disabled={createUser.isPending || updateUser.isPending}>
               {(createUser.isPending || updateUser.isPending) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               {editId ? "حفظ التعديلات" : "إضافة المستخدم"}

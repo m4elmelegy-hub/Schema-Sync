@@ -421,9 +421,39 @@ export function AppLayout({ children }: LayoutProps) {
           </div>
 
           {/* Right: Actions */}
-          <div className="flex items-center gap-2 flex-1 justify-end">
+          <div className="flex items-center gap-3 flex-1 justify-end">
             <AlertBell />
             <ThemeToggle />
+            {user && (
+              <>
+                <div style={{ width: 1, height: 22, background: isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)", flexShrink: 0 }} />
+                <div
+                  className="hidden md:flex items-center gap-2 rounded-xl px-2.5 py-1.5"
+                  style={{ background: chipBg, border: chipBdr, cursor: "default", flexShrink: 0 }}
+                >
+                  <div
+                    className="flex items-center justify-center shrink-0 font-black"
+                    style={{
+                      width: 28, height: 28, borderRadius: 8,
+                      background: "linear-gradient(135deg,#f59e0b,#d97706)",
+                      color: "#000", fontSize: 10,
+                    }}>
+                    {getInitials(user.name)}
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: textPrimary, lineHeight: 1.2, maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {user.name}
+                    </p>
+                    <div className="flex items-center gap-1" style={{ marginTop: 1 }}>
+                      <div style={{ width: 5, height: 5, borderRadius: "50%", background: ROLE_DOT[user.role] ?? "#94a3b8", flexShrink: 0 }} />
+                      <span style={{ fontSize: 10, color: textMuted, fontWeight: 600 }}>
+                        {ROLE_LABELS[user.role] ?? user.role}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </header>
 
