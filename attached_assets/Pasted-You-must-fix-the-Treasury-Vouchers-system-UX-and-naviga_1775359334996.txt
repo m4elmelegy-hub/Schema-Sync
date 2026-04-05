@@ -1,0 +1,198 @@
+You must fix the Treasury & Vouchers system UX and navigation completely.
+This is NOT a visual tweak — this is a structural UX fix.
+
+---
+
+# 🚨 CURRENT PROBLEMS (MUST BE FIXED)
+
+1. No navigation flow:
+
+* When entering vouchers, user gets stuck
+* There is NO way to go back to /treasury
+
+2. All actions behave the same:
+
+* "Receipt Voucher"
+* "Payment Voucher"
+* "Safe Transfer"
+
+→ All open the SAME UI with no distinction
+
+3. Duplicate logic:
+
+* Transfer, receipt, payment feel identical
+* No clear separation in behavior or UI
+
+4. Wrong architecture:
+
+* /vouchers is doing EVERYTHING (listing + creating + logic)
+  → This is bad UX
+
+---
+
+# ✅ REQUIRED FINAL ARCHITECTURE
+
+## 1. Treasury page (/treasury) = CONTROL CENTER
+
+This page should:
+
+* Show balances (already done ✔)
+* Show KPI cards (already done ✔)
+
+### 🔥 Actions MUST behave like this:
+
+Buttons:
+
+* Receipt Voucher
+* Payment Voucher
+* Safe Transfer
+* Close Safe
+
+### ❗ IMPORTANT:
+
+DO NOT navigate to another page
+
+👉 Each button must open a MODAL (NOT routing)
+
+---
+
+## 2. Modal System (CRITICAL)
+
+Each action must have its own modal:
+
+### A. Receipt Modal
+
+* Select: Customer OR Deposit
+* Amount
+* Safe
+* Notes
+  → Calls:
+  /api/receipt-vouchers OR /api/deposit-vouchers
+
+---
+
+### B. Payment Modal
+
+* Select expense type / reason
+* Amount
+* Safe
+  → Calls:
+  /api/payment-vouchers
+
+---
+
+### C. Transfer Modal
+
+* From Safe
+* To Safe
+* Amount
+  → Calls:
+  /api/safe-transfers
+
+---
+
+### 🚨 RULE:
+
+Each modal MUST have different UI and logic
+NO shared generic form
+
+---
+
+## 3. Vouchers Page (/vouchers) = READ ONLY
+
+This page should ONLY:
+
+* Display unified table
+* Filters (All / Receipt / Payment / Transfer)
+* Status badges
+
+### ❌ REMOVE:
+
+* Any create forms
+* Any action buttons that open forms
+
+---
+
+## 4. Back Navigation (MANDATORY)
+
+If user enters /vouchers:
+
+Add top header:
+
+← Back to Treasury
+
+Action:
+navigate("/treasury")
+
+---
+
+## 5. Remove Fake Navigation
+
+From /treasury:
+
+❌ DO NOT:
+navigate("/vouchers")
+
+✅ INSTEAD:
+openModal(type)
+
+---
+
+## 6. UI Differentiation (VERY IMPORTANT)
+
+Each action must feel different:
+
+* Receipt → green theme
+* Payment → orange/red
+* Transfer → purple
+* Close Safe → gold
+
+NOT just icons — full visual identity
+
+---
+
+## 7. Clean Code Requirement
+
+* Separate components:
+
+  * ReceiptModal.tsx
+  * PaymentModal.tsx
+  * TransferModal.tsx
+  * CloseSafeModal.tsx
+
+* No duplicated logic
+
+* No inline styles
+
+* Use existing CSS tokens
+
+---
+
+# 🎯 FINAL RESULT
+
+User flow should be:
+
+/treasury
+→ clicks "Receipt"
+→ modal opens instantly
+→ saves
+→ stays on same page
+
+NO page jumping
+NO confusion
+NO duplicate screens
+
+---
+
+# 🚨 IMPORTANT
+
+Do NOT partially fix
+Do NOT keep old logic
+
+You must:
+
+* Refactor flow
+* Clean navigation
+* Separate responsibilities
+
+This is a full UX correction.
