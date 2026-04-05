@@ -2984,3 +2984,174 @@ html.light .user-chip-role { color: #475569 !important; font-weight: 500 !import
 html.light .animate-pulse .bg-white\/5,
 html.light .animate-pulse .bg-white\/10 { background: #e2e8f0 !important; }
 html.light .skeleton-shimmer::after     { background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent) !important; }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   REPORT UTILITY CLASSES — adaptive dark/light
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── font-size bump for light mode ── */
+html.light body { font-size: 16px !important; }
+html.light h1   { font-size: 24px !important; font-weight: 800 !important; color: #0d1117 !important; }
+html.light h2   { font-size: 20px !important; font-weight: 700 !important; color: #0d1117 !important; }
+html.light h3   { font-size: 18px !important; font-weight: 700 !important; color: #0d1117 !important; }
+
+/* ── Panels ── */
+.rpt-panel {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 1rem;
+}
+html.light .rpt-panel {
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06) !important;
+}
+
+.rpt-section {
+  background: rgba(255,255,255,0.018);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 1rem;
+}
+html.light .rpt-section {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+/* ── KPI typography ── */
+.rpt-kpi-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.5);
+  margin-bottom: 4px;
+}
+html.light .rpt-kpi-label {
+  color: #334155 !important;
+  font-weight: 600 !important;
+}
+.rpt-kpi-value {
+  font-size: 2rem;
+  font-weight: 900;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+html.light .rpt-kpi-value {
+  color: #0f172a !important;
+}
+.rpt-kpi-sub {
+  font-size: 11px;
+  color: rgba(255,255,255,0.3);
+  margin-top: 6px;
+}
+html.light .rpt-kpi-sub {
+  color: #64748b !important;
+}
+
+/* ── Text ── */
+.rpt-strong {
+  color: rgba(255,255,255,0.92);
+  font-weight: 700;
+}
+html.light .rpt-strong {
+  color: #0f172a !important;
+}
+.rpt-muted {
+  color: rgba(255,255,255,0.42);
+  font-size: 12px;
+}
+html.light .rpt-muted {
+  color: #475569 !important;
+}
+.rpt-label {
+  color: rgba(255,255,255,0.38);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+html.light .rpt-label {
+  color: #64748b !important;
+  font-size: 12px !important;
+}
+
+/* ── Table headers ── */
+.rpt-th {
+  color: rgba(255,255,255,0.38);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 10px 20px;
+}
+html.light .rpt-th {
+  color: #374151 !important;
+  font-size: 12px !important;
+  background: #f1f5f9 !important;
+}
+
+/* ── Table rows ── */
+.rpt-td {
+  padding: 12px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+html.light .rpt-td {
+  border-bottom: 1px solid #f1f5f9 !important;
+}
+html.light .rpt-td-num {
+  color: #0f172a !important;
+  font-weight: 700 !important;
+}
+
+/* ── Divider ── */
+.rpt-divider {
+  border-top: 1px solid rgba(255,255,255,0.06);
+  margin: 12px 0;
+}
+html.light .rpt-divider {
+  border-top-color: #e5e7eb !important;
+}
+
+/* ── Accordion header ── */
+.rpt-accordion-hd {
+  border-bottom: 1px solid transparent;
+  transition: background 0.15s;
+}
+.rpt-accordion-hd:hover {
+  background: rgba(255,255,255,0.025);
+}
+html.light .rpt-accordion-hd:hover {
+  background: rgba(0,0,0,0.025) !important;
+}
+
+/* ── Tab bar (Charts section) ── */
+.rpt-tab-bar {
+  background: rgba(255,255,255,0.04);
+  border-radius: 12px;
+}
+html.light .rpt-tab-bar {
+  background: rgba(0,0,0,0.04) !important;
+  border: 1px solid #e2e8f0 !important;
+}
+.rpt-tab {
+  color: rgba(255,255,255,0.35);
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 8px 14px;
+  transition: background 0.15s, color 0.15s;
+}
+.rpt-tab:hover { color: rgba(255,255,255,0.6); }
+.rpt-tab.active { background: rgba(255,255,255,0.08); color: #ffffff; }
+html.light .rpt-tab { color: #475569 !important; }
+html.light .rpt-tab:hover { color: #1e293b !important; }
+html.light .rpt-tab.active { background: rgba(0,0,0,0.07) !important; color: #0f172a !important; }
+
+/* ── Branch dropdown ── */
+.rpt-dropdown {
+  background: rgba(12,18,32,0.97);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,0.10);
+}
+html.light .rpt-dropdown {
+  background: #ffffff !important;
+  backdrop-filter: none !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12) !important;
+}

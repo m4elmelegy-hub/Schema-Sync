@@ -1,0 +1,165 @@
+Perform a FULL UI/UX refinement for Profit & Loss Reports.
+
+⚠️ This is NOT a redesign.
+It is a clarity, typography, and professionalism upgrade.
+
+---
+
+1. FIX LIGHT MODE (CRITICAL)
+
+---
+
+Problem:
+Text is too light and hard to read.
+
+Do the following:
+
+* Increase base font size:
+
+body:
+font-size: 15px → 16px
+
+* Headings:
+  h1 → 24px bold
+  h2 → 20px semi-bold
+  h3 → 18px
+
+* Force strong text colors:
+
+--erp-text-1: #0f172a
+--erp-text-2: #1e293b
+--erp-text-3: #334155
+
+* Remove ALL opacity-based text in light mode:
+
+❌ text-white/30
+❌ text-white/20
+❌ text-white/10
+
+Replace with solid colors.
+
+* Increase font-weight globally:
+
+normal → 500
+labels → 600
+
+---
+
+2. FIX KPI CARDS VISIBILITY
+
+---
+
+* Make numbers larger:
+
+KPI value → 22px bold
+
+* Add strong contrast:
+
+profit → #059669
+loss → #dc2626
+
+* Add subtle background tint:
+
+profit card → light green bg
+loss card → light red bg
+
+---
+
+3. REMOVE USELESS COMPONENTS
+
+---
+
+Remove completely:
+
+❌ Expense Flow / Waterfall (if confusing)
+❌ Any empty chart blocks
+❌ Duplicate sections
+
+Keep ONLY:
+
+✔ KPI
+✔ Sales vs Profit chart
+✔ Branch table
+✔ Insights
+
+---
+
+4. IMPROVE REPORT LAYOUT (MAIN PAGE)
+
+---
+
+* Increase spacing:
+
+section margin → 24px
+card padding → 16px+
+
+* Table improvements:
+
+header → bold + darker background
+rows → clearer borders
+
+* Empty state:
+
+"لا توجد بيانات للفترة المحددة"
+
+---
+
+5. PROFESSIONAL PDF EXPORT (VERY IMPORTANT)
+
+---
+
+Redesign PDF completely:
+
+* White background
+* Black text (no gradients)
+
+HEADER:
+
+Company Name (right)
+Report Title: "قائمة الأرباح والخسائر"
+Date range below
+
+SUMMARY BOXES:
+
+* Sales
+* COGS
+* Gross Profit
+* Expenses
+* Net Profit
+
+TABLE:
+
+* Clean rows
+* No shadows
+* Borders only
+
+COLORS:
+
+profit → green
+loss → red
+
+FOOTER:
+
+Generated at + system name
+
+---
+
+6. CONSISTENCY RULE
+
+---
+
+Ensure:
+
+* Same font sizes across all reports
+* Same spacing system
+* Same card style
+
+---
+
+FINAL RESULT:
+
+✔ Strong readable text in light mode
+✔ Clean and professional layout
+✔ No useless components
+✔ Clear decision-ready report
+✔ Printable PDF looks like real accounting statement

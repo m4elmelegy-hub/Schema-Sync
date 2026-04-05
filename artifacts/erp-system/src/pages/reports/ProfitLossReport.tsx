@@ -3,6 +3,7 @@
  * Clean dashboard layout · Multi-branch · Lazy accordion sections
  */
 import React, { useState, useMemo, useCallback, useRef } from "react";
+import { useAppSettings } from "@/contexts/app-settings";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -76,12 +77,12 @@ function Accordion({ title, icon, children, badge }: {
     setOpen(o => !o);
   };
   return (
-    <div className="rounded-2xl border border-white/8 overflow-hidden" style={{ background:"rgba(255,255,255,0.025)" }}>
+    <div className="rpt-panel rounded-2xl overflow-hidden">
       <button onClick={toggle}
-        className="w-full flex items-center justify-between px-5 py-4 text-right hover:bg-white/3 transition-colors">
+        className="rpt-accordion-hd w-full flex items-center justify-between px-5 py-4 text-right transition-colors">
         <div className="flex items-center gap-2.5">
           <span className="text-white/60">{icon}</span>
-          <span className="text-white font-semibold text-sm">{title}</span>
+          <span className="rpt-strong font-semibold text-sm">{title}</span>
           {badge && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20">{badge}</span>}
         </div>
         <ChevronDown className={`w-4 h-4 text-white/30 transition-transform duration-200 ${open ? "rotate-180" : ""}`}/>
@@ -115,17 +116,15 @@ function BranchSelector({ warehouses, selected, onChange }: {
   return (
     <div className="relative">
       <button onClick={()=>setOpen(o=>!o)}
-        className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-white/10 text-sm font-semibold text-white/80 hover:text-white hover:border-white/20 transition-all"
-        style={{ background:"rgba(255,255,255,0.04)" }}>
+        className="rpt-section flex items-center gap-2 px-3.5 py-2 rounded-xl border border-white/10 text-sm font-semibold text-white/80 hover:text-white hover:border-white/20 transition-all">
         <Building2 className="w-3.5 h-3.5 text-amber-400 shrink-0"/>
-        <span>{label}</span>
+        <span className="rpt-strong">{label}</span>
         <ChevronDown className={`w-3 h-3 text-white/30 transition-transform ${open?"rotate-180":""}`}/>
       </button>
       <AnimatePresence>
         {open && (
           <motion.div initial={{opacity:0,y:-6}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-6}} transition={{duration:0.12}}
-            className="absolute top-full mt-2 right-0 z-40 min-w-[200px] rounded-xl border border-white/10 shadow-2xl overflow-hidden"
-            style={{ background:"rgba(12,18,32,0.97)", backdropFilter:"blur(16px)" }}>
+            className="rpt-dropdown absolute top-full mt-2 right-0 z-40 min-w-[200px] rounded-xl shadow-2xl overflow-hidden">
             <button onClick={()=>{onChange([]);setOpen(false);}}
               className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-right transition-colors ${allSelected?"text-amber-400 bg-amber-500/10":"text-white/60 hover:text-white hover:bg-white/4"}`}>
               <CheckBox checked={allSelected}/> جميع الفروع
@@ -193,19 +192,22 @@ function KPICard({ label, value, prev, accent, sub, icon, index }: {
   label:string; value:number; prev:number; accent:string; sub?:string; icon:React.ReactNode; index:number;
 }) {
   const animated = useCountUp(value);
+  const { settings } = useAppSettings();
+  const isLight = (settings.theme ?? "dark") === "light";
+  const numColor = accent === "#10b981" && value < 0 ? "#ef4444" : isLight ? "#0f172a" : "#ffffff";
   return (
     <motion.div initial={{opacity:0,y:16}} animate={{opacity:1,y:0}} transition={{duration:0.35,delay:index*0.07}}
-      className="rounded-2xl p-5 border border-white/8"
-      style={{ background:"rgba(255,255,255,0.03)", borderRight:`3px solid ${accent}` }}>
+      className="rpt-panel rounded-2xl p-5"
+      style={{ borderRight:`3px solid ${accent}` }}>
       <div className="flex items-center justify-between mb-3">
         <div className="p-2 rounded-lg" style={{ background:`${accent}18`, color:accent }}>{icon}</div>
         <ChangePill curr={value} prev={prev}/>
       </div>
-      <p className="text-white/50 text-xs mb-1 font-medium">{label}</p>
-      <p className="text-[1.6rem] font-black tabular-nums leading-none" style={{ color:accent === "#10b981" && value < 0 ? "#ef4444" : "white" }}>
+      <p className="rpt-kpi-label mb-1">{label}</p>
+      <p className="rpt-kpi-value" style={{ color:numColor }}>
         {formatCurrency(animated)}
       </p>
-      {sub && <p className="text-white/35 text-xs mt-2">{sub}</p>}
+      {sub && <p className="rpt-kpi-sub">{sub}</p>}
     </motion.div>
   );
 }
@@ -228,16 +230,16 @@ function SalesExpensesChart({ pl }: { pl: ProfitsData }) {
 
   if (data.length === 0) {
     return (
-      <div className="rounded-2xl border border-white/8 p-8 flex flex-col items-center justify-center gap-2" style={{background:"rgba(255,255,255,0.02)"}}>
+      <div className="rpt-section rounded-2xl p-8 flex flex-col items-center justify-center gap-2">
         <BarChart3 className="w-8 h-8 text-white/15"/>
-        <p className="text-white/30 text-sm">لا توجد بيانات كافية للمخطط</p>
+        <p className="rpt-muted text-sm">لا توجد بيانات كافية للمخطط</p>
       </div>
     );
   }
 
   return (
-    <div className="rounded-2xl border border-white/8 p-5" style={{background:"rgba(255,255,255,0.02)"}}>
-      <p className="text-white font-semibold text-sm mb-4">المبيعات والأرباح</p>
+    <div className="rpt-section rounded-2xl p-5">
+      <p className="rpt-strong font-semibold text-sm mb-4">المبيعات والأرباح</p>
       <ResponsiveContainer width="100%" height={200}>
         <BarChart data={data} margin={{top:4,right:0,left:0,bottom:0}} barGap={3}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false}/>
@@ -265,23 +267,23 @@ function BranchTable({ warehouses }: { warehouses: ProfitsData["by_warehouse"] }
   if (!warehouses.length) return null;
   const topRev = Math.max(...warehouses.map(w=>w.revenue), 1);
   return (
-    <div className="rounded-2xl border border-white/8 overflow-hidden" style={{background:"rgba(255,255,255,0.02)"}}>
+    <div className="rpt-section rounded-2xl overflow-hidden">
       <div className="px-5 py-3.5 border-b border-white/8 flex items-center gap-2">
         <Building2 className="w-4 h-4 text-amber-400"/>
-        <span className="text-white font-semibold text-sm">مقارنة الفروع</span>
-        <span className="text-white/30 text-xs mr-auto">{warehouses.length} فرع</span>
+        <span className="rpt-strong font-semibold text-sm">مقارنة الفروع</span>
+        <span className="rpt-muted text-xs mr-auto">{warehouses.length} فرع</span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-right text-sm whitespace-nowrap">
           <thead>
             <tr className="border-b border-white/6">
-              <th className="px-5 py-3 text-white/40 font-medium text-xs">الفرع</th>
-              <th className="px-5 py-3 text-white/40 font-medium text-xs text-left">المبيعات</th>
-              <th className="px-5 py-3 text-white/40 font-medium text-xs text-left">التكلفة</th>
-              <th className="px-5 py-3 text-white/40 font-medium text-xs text-left">مجمل الربح</th>
-              <th className="px-5 py-3 text-white/40 font-medium text-xs text-left">الهامش</th>
-              <th className="px-5 py-3 text-white/40 font-medium text-xs text-left">الفواتير</th>
-              <th className="px-5 py-3 text-white/40 font-medium text-xs w-28">الأداء</th>
+              <th className="rpt-th">الفرع</th>
+              <th className="rpt-th text-left">المبيعات</th>
+              <th className="rpt-th text-left">التكلفة</th>
+              <th className="rpt-th text-left">مجمل الربح</th>
+              <th className="rpt-th text-left">الهامش</th>
+              <th className="rpt-th text-left">الفواتير</th>
+              <th className="rpt-th w-28">الأداء</th>
             </tr>
           </thead>
           <tbody>
@@ -291,23 +293,23 @@ function BranchTable({ warehouses }: { warehouses: ProfitsData["by_warehouse"] }
               const isTop   = i === 0 && w.revenue > 0;
               const mgColor = margin >= 30 ? "text-emerald-400 bg-emerald-500/12" : margin >= 15 ? "text-amber-400 bg-amber-500/12" : "text-red-400 bg-red-500/10";
               return (
-                <tr key={w.warehouse_id} className="border-b border-white/5 hover:bg-white/2 transition-colors">
-                  <td className="px-5 py-3.5">
+                <tr key={w.warehouse_id} className="erp-table-row border-b border-white/5 transition-colors">
+                  <td className="rpt-td">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full shrink-0" style={{background:BRANCH_COLORS[i%BRANCH_COLORS.length]}}/>
-                      <span className="font-semibold text-white/90">{w.warehouse_name}</span>
+                      <span className="rpt-strong font-semibold">{w.warehouse_name}</span>
                       {isTop && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 font-bold">الأعلى</span>}
                     </div>
                   </td>
-                  <td className="px-5 py-3.5 font-bold text-white tabular-nums">{formatCurrency(w.revenue)}</td>
-                  <td className="px-5 py-3.5 text-white/50 tabular-nums">{formatCurrency(w.cost)}</td>
-                  <td className="px-5 py-3.5 font-bold tabular-nums">
+                  <td className="rpt-td rpt-td-num font-bold tabular-nums">{formatCurrency(w.revenue)}</td>
+                  <td className="rpt-td rpt-muted tabular-nums">{formatCurrency(w.cost)}</td>
+                  <td className="rpt-td font-bold tabular-nums">
                     <span className={w.gross_profit >= 0 ? "text-emerald-400" : "text-red-400"}>{formatCurrency(w.gross_profit)}</span>
                   </td>
-                  <td className="px-5 py-3.5">
+                  <td className="rpt-td">
                     <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${mgColor}`}>{margin.toFixed(1)}%</span>
                   </td>
-                  <td className="px-5 py-3.5 text-white/40 tabular-nums">{w.invoice_count}</td>
+                  <td className="rpt-td rpt-muted tabular-nums">{w.invoice_count}</td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-2">
                       <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{background:"rgba(255,255,255,0.06)"}}>
@@ -416,11 +418,11 @@ function TopProducts({ products }: { products: ProfitsData["by_product"] }) {
         const margin = p.revenue>0?(p.profit/p.revenue)*100:0;
         const accent = margin>=50?"#10b981":margin>=30?"#f59e0b":"#ef4444";
         return (
-          <div key={p.product_id} className="flex items-center gap-3 p-3.5 rounded-xl border border-white/6" style={{background:"rgba(255,255,255,0.025)"}}>
+          <div key={p.product_id} className="rpt-panel flex items-center gap-3 p-3.5 rounded-xl">
             <span className="text-xl shrink-0">{MEDALS[i]??`#${i+1}`}</span>
             <div className="flex-1 min-w-0">
-              <p className="text-white/90 font-semibold text-sm truncate">{p.product_name}</p>
-              <p className="text-white/35 text-xs">{p.qty_sold} وحدة</p>
+              <p className="rpt-strong font-semibold text-sm truncate">{p.product_name}</p>
+              <p className="rpt-muted text-xs">{p.qty_sold} وحدة</p>
             </div>
             <div className="text-left shrink-0">
               <p className="font-black text-sm tabular-nums" style={{color:accent}}>{formatCurrency(p.profit)}</p>
@@ -448,7 +450,7 @@ function InsightsContent({ pl }: { pl: ProfitsData }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
       {items.map((ins,i)=>(
-        <div key={i} className="flex items-start gap-3 p-3.5 rounded-xl border border-white/6" style={{background:"rgba(255,255,255,0.03)"}}>
+        <div key={i} className="rpt-panel flex items-start gap-3 p-3.5 rounded-xl">
           <span className="text-lg shrink-0">{ins.icon}</span>
           <p className={`text-xs leading-relaxed font-medium ${ins.color}`}>{ins.text}</p>
         </div>
@@ -463,10 +465,10 @@ function ChartsContent({ pl, prev, currLabel, prevLabel }: { pl:ProfitsData; pre
   return (
     <div className="pt-1">
       {/* Tab bar */}
-      <div className="flex gap-1 p-1 rounded-xl mb-4" style={{background:"rgba(255,255,255,0.04)"}}>
+      <div className="rpt-tab-bar flex gap-1 p-1 mb-4">
         {([{id:"trend" as const,label:"الأداء الزمني"},{id:"waterfall" as const,label:"تدفق الأرباح"},{id:"compare" as const,label:"مقارنة الفترات"}]).map(t=>(
           <button key={t.id} onClick={()=>setTab(t.id)}
-            className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${tab===t.id?"bg-white/8 text-white":"text-white/40 hover:text-white/60"}`}>{t.label}</button>
+            className={`rpt-tab flex-1 ${tab===t.id?"active":""}`}>{t.label}</button>
         ))}
       </div>
       {tab==="trend"     && <TrendTab pl={pl}/>}
@@ -486,9 +488,9 @@ function TrendTab({ pl }: { pl: ProfitsData }) {
   return (
     <div>
       <div className="flex justify-end mb-3">
-        <div className="flex gap-1 p-0.5 rounded-lg" style={{background:"rgba(255,255,255,0.05)"}}>
+        <div className="rpt-tab-bar flex gap-1 p-0.5">
           {([{id:"month" as const,l:"شهري"},{id:"day" as const,l:"يومي"}]).map(t=>(
-            <button key={t.id} onClick={()=>setView(t.id)} className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${view===t.id?"bg-white/8 text-amber-400":"text-white/35 hover:text-white/60"}`}>{t.l}</button>
+            <button key={t.id} onClick={()=>setView(t.id)} className={`rpt-tab ${view===t.id?"active text-amber-400":""}`}>{t.l}</button>
           ))}
         </div>
       </div>
@@ -558,10 +560,10 @@ function CompareTab({ curr, prev, currLabel, prevLabel }: {curr:ProfitsData;prev
       {rows.map(r=>{
         const diff=r.curr-r.prev; const up=diff>=0; const chg=pctChange(r.curr,r.prev);
         return (
-          <div key={r.label} className="flex items-center justify-between gap-3 py-2.5 border-b border-white/5 last:border-0">
-            <span className="text-white/50 text-xs">{r.label}</span>
+          <div key={r.label} className="flex items-center justify-between gap-3 py-2.5 rpt-divider last:border-0">
+            <span className="rpt-muted text-xs">{r.label}</span>
             <div className="flex items-center gap-2">
-              <span className="text-white text-sm font-bold tabular-nums">{formatCurrency(r.curr)}</span>
+              <span className="rpt-strong text-sm font-bold tabular-nums">{formatCurrency(r.curr)}</span>
               {chg!==null&&<span className={`text-xs font-semibold ${up?"text-emerald-400":"text-red-400"}`}>{up?"+":""}{chg.toFixed(1)}%</span>}
             </div>
           </div>
@@ -695,10 +697,10 @@ export default function ProfitLossReport() {
         </>
       ) : (
         !isLoading && (
-          <div className="rounded-2xl border border-white/8 p-14 flex flex-col items-center gap-3" style={{background:"rgba(255,255,255,0.02)"}}>
+          <div className="rpt-section rounded-2xl p-14 flex flex-col items-center gap-3">
             <BarChart3 className="w-10 h-10 text-white/15"/>
-            <p className="text-white/40 font-semibold">لا توجد بيانات في هذه الفترة</p>
-            <p className="text-white/25 text-xs">جرّب تغيير النطاق الزمني أو الفرع</p>
+            <p className="rpt-strong font-semibold">لا توجد بيانات للفترة المحددة</p>
+            <p className="rpt-muted text-xs">جرّب تغيير النطاق الزمني أو الفرع</p>
           </div>
         )
       )}
