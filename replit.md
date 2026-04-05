@@ -33,11 +33,21 @@ The system is built as a monorepo using pnpm workspaces. The architecture separa
 
 **Feature Specifications:**
 - **Navigation Pages:** Dashboard, Sales (POS + Returns), Purchases (+ Returns), Customers, Profits, Expenses, Income, Receipt Vouchers, Deposit Vouchers, Safe Transfers, Unified Activity Log, Financial Transactions Ledger, Chart of Accounts, Journal Entries, Reports, Settings, Inventory Audit.
-- **Reports Page (4 tabs):**
-  1. **الأرباح والخسائر** — P&L with date filter pills (اليوم/أسبوع/شهر/سنة/مخصص), 4 KPI cards, accounting-format P&L statement, Recharts bar chart (P&L breakdown) + line chart (by-month trend), top-5 products by profit, PDF export.
-  2. **تقرير المخزن** — Inventory table with low-stock/out-of-stock alerts, category filter pills, 4 summary cards. Clicking any product row opens a slide-in product detail drawer showing movement history (via `/api/inventory/product/:id`).
-  3. **فواتير المشتريات** — Purchases table with search, payment-type filter, per-row PDF invoice button (fetches `/api/purchases/:id`), bulk Excel + PDF export.
-  4. **فواتير المبيعات** — Sales table with search, payment-type filter, per-row PDF invoice button (fetches `/api/sales/:id`), bulk Excel + PDF export.
+- **Reports Module (12 tabs) — Refactored into `src/pages/reports/`:**
+  The 2400-line monolithic `reports.tsx` was split into 14 modular files under `src/pages/reports/`. `reports.tsx` is now a 1-line re-export shell.
+  Files: `shared.tsx` (helpers/types/components), `index.tsx` (orchestrator/tab bar), and one file per tab:
+  1. **صحة النظام** (`HealthCheckReport`) — System health check: grouped issues (customers/inventory/accounting/cash), severity badges (OK/WARNING/CRITICAL), expandable groups, detail modal.
+  2. **الأرباح والخسائر** (`ProfitLossReport`) — P&L with date filter pills, 4 KPI cards, accounting-format statement, Recharts bar + line charts, top-5 products, PDF export.
+  3. **يومي** (`DailyProfitReport`) — Daily profit chart with date-mode filter.
+  4. **ربحية المنتجات** (`ProductProfitReport`) — Per-product profit analysis.
+  5. **تحليل المبيعات** (`SalesAnalysisReport`) — Sales trend analysis.
+  6. **كشف عميل** (`CustomerStatementReport`) — Per-customer statement with balance.
+  7. **تدفق نقدي** (`CashFlowReport`) — Cash flow timeline.
+  8. **الأعلى** (`TopReportsTab`) — Top products/customers/suppliers tables with date filter.
+  9. **المخزون** (`InventoryReport`) — Inventory table with low-stock alerts, category filter, product detail drawer.
+  10. **فواتير المبيعات** (`SalesInvoicesReport`) — Sales table with search, payment filter, per-row PDF, Excel export.
+  11. **فواتير المشتريات** (`PurchasesInvoicesReport`) — Purchases table with search, payment filter, per-row PDF, Excel export.
+  12. **سجل السندات** (`VouchersHistoryReport`) — Enhanced: date filter (today/week/month/year/custom), search (voucher no/party/safe), pagination (10/20/50 per page), type filter (الكل/قبض/صرف/تحويل) with counts, post/cancel actions, no delete button, netFlow KPI replaces transfers KPI.
 - **export-pdf.ts** — Added `printSaleInvoice()`, `printPurchaseInvoice()`, and `printPLReport()` functions using browser print-window approach for correct Arabic RTL rendering.
 - **POS Enhancements:** Auto-selection of warehouse, salesperson auto-set to logged-in user, and professional invoice printing.
 - **Standalone POS Page (`/pos`):** A dedicated full-screen POS at `/pos` rendered outside AppLayout. Features: auto-binds to user's `warehouse_id`/`safe_id` (blocks with Arabic error if unset), product grid with live stock badges, keyboard shortcuts (F2=search, Enter=add first product, F9=checkout, ESC=clear), permission-driven payment buttons (can_cash_sale/can_credit_sale/can_partial_sale), price editing (can_edit_price), customer SearchableSelect for credit/partial, WhatsApp success modal, and fire-and-forget backup after each sale. Registered in rbac.ts ROUTE_ROLES and NAV_ITEMS for all roles.

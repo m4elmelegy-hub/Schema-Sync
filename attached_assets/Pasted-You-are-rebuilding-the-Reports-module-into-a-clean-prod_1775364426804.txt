@@ -1,0 +1,344 @@
+You are rebuilding the Reports module into a clean, production-ready reporting system.
+
+⚠️ CRITICAL GOAL:
+Create a stable, professional, scalable reports page.
+The current reports implementation is overloaded and risky.
+We need a complete refactor with clear separation, lighter components, no crashes, and better UX.
+
+Do NOT do partial fixes.
+Do NOT patch the old implementation.
+Refactor it properly.
+
+==================================================
+
+1. GENERAL ARCHITECTURE
+   ==================================================
+
+Refactor reports into small, isolated components.
+
+Main structure:
+
+ReportsPage
+├── ReportsTabs
+├── ReportsToolbar
+├── ProfitLossReport
+├── InventoryReport
+├── SalesInvoicesReport
+├── PurchasesInvoicesReport
+├── VouchersHistoryReport
+├── DailyProfitReport
+├── ProductProfitReport
+├── SalesAnalysisReport
+├── CustomerStatementReport
+├── CashFlowReport
+├── TopReportsTab
+└── HealthCheckReport
+
+Each tab must be isolated in its own component/file if possible.
+
+No huge monolithic file logic.
+
+==================================================
+2) STABILITY / NO-CRASH RULES
+=============================
+
+Must prevent runtime crashes completely.
+
+Rules:
+
+* Every API response must have safe fallback values
+* Never assume data exists
+* Use:
+
+  * optional chaining
+  * default arrays
+  * default objects
+* No direct `.map()` on possibly undefined values
+* No heavy inline calculations in JSX
+* Move derived calculations into useMemo
+* If a component fails to load data, show empty state instead of crashing
+
+Examples:
+
+* if (!data) return empty state
+* const rows = data?.rows ?? []
+
+Must ensure /reports always loads even if one dataset fails.
+
+==================================================
+3) REPORTS PAGE UX
+==================
+
+Reports page must be clean and readable, not crowded.
+
+Requirements:
+
+* Professional top tabs
+* Clear section titles
+* Proper spacing
+* Consistent cards
+* No duplicated data blocks
+* No unnecessary decorative elements
+* Focus on readability
+
+==================================================
+4) REPORTS TABS (FINAL STRUCTURE)
+=================================
+
+Keep only the useful, necessary tabs.
+
+Final tabs:
+
+1. الأرباح والخسائر
+2. المخزون
+3. فواتير المبيعات
+4. فواتير المشتريات
+5. سجل السندات
+6. الربح اليومي
+7. ربحية المنتجات
+8. تحليل المبيعات
+9. كشف حساب العميل
+10. التدفق النقدي
+11. التقارير الأعلى
+12. صحة النظام
+
+If any tab is weak / duplicate / unnecessary, simplify it.
+
+==================================================
+5) VOUCHERS HISTORY REPORT (CRITICAL)
+=====================================
+
+Build a professional, lightweight "سجل السندات" tab inside /reports.
+
+This tab should include:
+
+* Receipts
+* Payments
+* Transfers
+
+But in a clean, read-focused way.
+
+A) KPI Cards:
+
+* إجمالي القبض
+* إجمالي الصرف
+* صافي الحركة النقدية
+
+Optional:
+
+* عدد السندات
+
+Remove unnecessary KPI duplication.
+
+B) Search:
+Add live search input:
+
+* search by customer name
+* search by voucher number
+
+C) Filters:
+Simple filters only:
+
+* الكل
+* قبض
+* صرف
+* تحويل
+
+D) Date filtering:
+Add:
+
+* today
+* this week
+* this month
+* this year
+* custom range
+
+E) Table columns:
+
+* رقم السند
+* النوع
+* الطرف
+* الخزنة
+* المبلغ
+* الحالة
+* التاريخ
+* ملاحظات
+
+F) Actions:
+Reports should be read-only as much as possible.
+
+Allowed:
+
+* View details
+* Print
+* Export
+
+Avoid destructive actions inside reports.
+
+Remove direct delete from reports.
+Remove dangerous edit from reports unless absolutely required.
+
+==================================================
+6) SEARCH / FILTER / PAGINATION
+===============================
+
+For long tables:
+
+* Add pagination
+* 10 / 20 / 50 rows per page
+
+Must include:
+
+* search input
+* type filter
+* date filter
+* pagination
+
+Make them reusable components if possible.
+
+==================================================
+7) EXPORT FEATURES
+==================
+
+Add export options where useful:
+
+* Export Excel
+* Export PDF
+* Print
+
+Especially for:
+
+* sales invoices
+* purchase invoices
+* vouchers history
+* profit/loss summary
+
+Do not overbuild.
+Keep export actions clean and obvious.
+
+==================================================
+8) PROFITS & EXPENSES LOGIC
+===========================
+
+Maintain strict separation:
+
+* Expenses affect profit
+* Vouchers affect cash only
+
+Do not mix them.
+
+Inside reports:
+
+* Profit/Loss must use expenses correctly
+* Voucher history must remain cash movement only
+
+==================================================
+9) TREASURY / VOUCHERS RELATION
+===============================
+
+Keep architecture clean:
+
+* /treasury = actions only
+* /reports -> سجل السندات = history only
+
+No voucher history table inside /treasury.
+No duplicate voucher list outside reports.
+
+==================================================
+10) PERFORMANCE REQUIREMENTS
+============================
+
+Optimize reports page performance:
+
+* useMemo for filtered rows and KPI calculations
+* lazy rendering if needed
+* avoid unnecessary re-renders
+* avoid expensive chart rendering if there is no data
+* large tables must not freeze the UI
+
+==================================================
+11) VISUAL DESIGN REQUIREMENTS
+==============================
+
+Use the current design system and theme.
+
+Need:
+
+* dark mode compatible
+* light mode compatible
+* strong readability
+* no washed-out text
+* consistent spacing
+* clear borders and table rows
+
+Color guidance:
+
+* Receipts = green
+* Payments = orange/red
+* Transfers = purple
+* Profit = amber / emerald
+* Warnings = red / amber
+
+==================================================
+12) EMPTY / ERROR STATES
+========================
+
+Every report must have:
+
+* loading state
+* empty state
+* error-safe state
+
+Examples:
+
+* "لا توجد بيانات في هذه الفترة"
+* "اختر عميلاً لعرض كشف الحساب"
+
+No blank screen.
+No crash overlay.
+No undefined rendering.
+
+==================================================
+13) CODE CLEANUP
+================
+
+Refactor old reports code:
+
+* remove unused imports
+* remove duplicate helpers
+* remove dead UI blocks
+* reduce complexity
+* keep functions short and readable
+
+Avoid one massive file if possible.
+Split into smaller components/hooks/helpers.
+
+==================================================
+14) FINAL OUTPUT REQUIRED
+=========================
+
+After implementation, return a report with:
+
+1. What was removed
+2. What was simplified
+3. What was split into separate components
+4. What filters/search/export were added
+5. What crash protections were added
+6. Final tabs list
+7. Confirmation that /reports loads without runtime crash
+
+==================================================
+15) FINAL QUALITY BAR
+=====================
+
+The final Reports module must be:
+
+* stable
+* fast
+* readable
+* modular
+* clean
+* non-duplicated
+* safe from runtime crash
+
+This is a production-level rebuild, not a quick patch.
