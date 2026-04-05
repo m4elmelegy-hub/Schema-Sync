@@ -205,34 +205,36 @@ function AccountingStatement({ pl }: { pl: ProfitsData }) {
   const { settings } = useAppSettings();
   const isLight = (settings.theme ?? "dark") === "light";
 
-  const headerBg  = isLight ? "#1f2937" : "rgba(255,255,255,0.06)";
-  const headerClr = isLight ? "#ffffff"  : "rgba(255,255,255,0.55)";
-  const subClr    = isLight ? "#6b7280"  : "rgba(255,255,255,0.35)";
-  const totalBg   = isLight ? "#f8fafc"  : "rgba(255,255,255,0.03)";
-  const grossBg   = isLight ? "#fef9ec"  : "rgba(245,158,11,0.06)";
+  /* ── Theme tokens: both modes feel like a printed report ── */
+  const secHdBg   = isLight ? "#f1f5f9"              : "rgba(255,255,255,0.05)";
+  const secHdClr  = isLight ? "#374151"              : "rgba(255,255,255,0.50)";
+  const secHdBdr  = isLight ? "#e2e8f0"              : "rgba(255,255,255,0.08)";
+  const subClr    = isLight ? "#6b7280"              : "rgba(255,255,255,0.38)";
+  const totalBg   = isLight ? "#f8fafc"              : "rgba(255,255,255,0.04)";
+  const grossBg   = isLight ? "#fef9ec"              : "rgba(245,158,11,0.07)";
   const netBg     = pl.net_profit >= 0
-    ? (isLight ? "#f0fdf4" : "rgba(16,185,129,0.07)")
-    : (isLight ? "#fef2f2" : "rgba(239,68,68,0.07)");
-  const borderClr = isLight ? "#e2e8f0"  : "rgba(255,255,255,0.07)";
-  const txtMain   = isLight ? "#111827"  : "rgba(255,255,255,0.90)";
-  const netColor  = pl.net_profit >= 0 ? "#10b981" : "#ef4444";
+    ? (isLight ? "#f0fdf4" : "rgba(5,150,105,0.08)")
+    : (isLight ? "#fef2f2" : "rgba(220,38,38,0.08)");
+  const borderClr = isLight ? "#e5e7eb"              : "rgba(255,255,255,0.07)";
+  const txtMain   = isLight ? "#111827"              : "rgba(255,255,255,0.88)";
+  const netColor  = pl.net_profit >= 0 ? "#059669"   : "#dc2626";
 
-  const hasReturn = pl.return_amount > 0;
+  const hasReturn  = pl.return_amount > 0;
   const netRevenue = pl.total_revenue - pl.return_amount;
   const topExpenses = pl.by_expense_category.slice(0, 6);
-  const otherExp = pl.by_expense_category.slice(6).reduce((s,e)=>s+e.total, 0);
+  const otherExp   = pl.by_expense_category.slice(6).reduce((s,e)=>s+e.total, 0);
 
-  const tdSty: React.CSSProperties = { padding:"11px 20px", borderBottom:`1px solid ${borderClr}`, color:txtMain, fontSize:13 };
-  const tdNum: React.CSSProperties = { ...tdSty, textAlign:"left", fontWeight:700, fontVariantNumeric:"tabular-nums" };
-  const thSty: React.CSSProperties = { padding:"8px 20px", fontSize:11, fontWeight:700, letterSpacing:"0.04em", background:headerBg, color:headerClr, textAlign:"right" };
-  const totalRowSty: React.CSSProperties = { borderTop:`2px solid ${borderClr}`, borderBottom:`2px solid ${borderClr}`, background:totalBg };
+  const base: React.CSSProperties  = { padding:"11px 20px", borderBottom:`1px solid ${borderClr}`, color:txtMain, fontSize:13 };
+  const num: React.CSSProperties   = { ...base, textAlign:"left", fontWeight:700, fontVariantNumeric:"tabular-nums" };
+  const secHd: React.CSSProperties = { padding:"7px 20px", fontSize:11, fontWeight:700, letterSpacing:"0.05em", background:secHdBg, color:secHdClr, textAlign:"right", borderBottom:`1px solid ${secHdBdr}`, borderTop:`1px solid ${secHdBdr}` };
+  const totalRow: React.CSSProperties = { borderTop:`2px solid ${borderClr}`, borderBottom:`2px solid ${borderClr}`, background:totalBg };
 
   return (
     <div className="rpt-panel rounded-2xl overflow-hidden">
       {/* Title bar */}
-      <div className="flex items-center justify-between px-5 py-3 border-b" style={{borderColor:borderClr}}>
-        <span className="rpt-strong font-bold text-sm">قائمة الدخل — Income Statement</span>
-        <span className="rpt-muted text-xs font-mono">بالجنيه المصري (ج.م)</span>
+      <div className="flex items-center justify-between px-5 py-3.5 border-b" style={{borderColor:borderClr}}>
+        <span className="rpt-strong font-bold text-sm">قائمة الأرباح والخسائر</span>
+        <span className="rpt-muted text-xs">بالجنيه المصري (ج.م)</span>
       </div>
 
       <div className="overflow-x-auto">
@@ -242,80 +244,80 @@ function AccountingStatement({ pl }: { pl: ProfitsData }) {
             <col style={{width:"35%"}}/>
           </colgroup>
           <tbody>
-            {/* ── Revenue header ── */}
-            <tr><td colSpan={2} style={thSty}>الإيرادات · Revenue</td></tr>
+            {/* ── الإيرادات ── */}
+            <tr><td colSpan={2} style={secHd}>الإيرادات</td></tr>
             <tr>
-              <td style={tdSty}>إجمالي المبيعات</td>
-              <td style={{...tdNum, color:"#10b981"}}>{formatCurrency(pl.total_revenue)}</td>
+              <td style={base}>إجمالي المبيعات</td>
+              <td style={{...num, color:"#059669"}}>{formatCurrency(pl.total_revenue)}</td>
             </tr>
             {hasReturn && <>
               <tr>
-                <td style={{...tdSty, paddingRight:36, color:subClr}}>(−) مرتجعات المبيعات</td>
-                <td style={{...tdNum, color:"#ef4444"}}>({formatCurrency(pl.return_amount)})</td>
+                <td style={{...base, paddingRight:36, color:subClr}}>(−) مرتجعات المبيعات</td>
+                <td style={{...num, color:"#dc2626"}}>({formatCurrency(pl.return_amount)})</td>
               </tr>
-              <tr style={totalRowSty}>
-                <td style={{...tdSty, fontWeight:700}}>صافي الإيرادات</td>
-                <td style={{...tdNum}}>{formatCurrency(netRevenue)}</td>
+              <tr style={totalRow}>
+                <td style={{...base, fontWeight:700}}>صافي الإيرادات</td>
+                <td style={{...num}}>{formatCurrency(netRevenue)}</td>
               </tr>
             </>}
 
-            {/* ── COGS header ── */}
-            <tr><td colSpan={2} style={thSty}>تكلفة البضاعة المباعة · COGS</td></tr>
+            {/* ── تكلفة البضاعة ── */}
+            <tr><td colSpan={2} style={secHd}>تكلفة البضاعة المباعة</td></tr>
             <tr>
-              <td style={{...tdSty, paddingRight:36, color:subClr}}>(−) تكلفة البضاعة المباعة</td>
-              <td style={{...tdNum, color:"#ef4444"}}>({formatCurrency(pl.total_cost)})</td>
+              <td style={{...base, paddingRight:36, color:subClr}}>(−) تكلفة البضاعة المباعة</td>
+              <td style={{...num, color:"#dc2626"}}>({formatCurrency(pl.total_cost)})</td>
             </tr>
-            {/* Gross Profit total */}
-            <tr style={{...totalRowSty, background:grossBg}}>
-              <td style={{...tdSty, fontWeight:800, fontSize:14}}>= مجمل الربح (Gross Profit)</td>
-              <td style={{...tdNum, fontSize:14, color: pl.gross_profit >= 0 ? "#f59e0b" : "#ef4444"}}>
+            {/* مجمل الربح */}
+            <tr style={{...totalRow, background:grossBg}}>
+              <td style={{...base, fontWeight:800, fontSize:15}}>= مجمل الربح</td>
+              <td style={{...num, fontSize:15, color: pl.gross_profit >= 0 ? "#d97706" : "#dc2626"}}>
                 {fmtAcct(pl.gross_profit)}
-                <span style={{fontSize:11, fontWeight:500, marginRight:6, opacity:0.7}}>
+                <span style={{fontSize:11, fontWeight:500, marginRight:8, opacity:0.65}}>
                   {pl.total_revenue > 0 ? `${((pl.gross_profit/pl.total_revenue)*100).toFixed(1)}%` : ""}
                 </span>
               </td>
             </tr>
 
-            {/* ── Expenses header ── */}
-            <tr><td colSpan={2} style={thSty}>المصروفات التشغيلية · Operating Expenses</td></tr>
+            {/* ── المصروفات التشغيلية ── */}
+            <tr><td colSpan={2} style={secHd}>المصروفات التشغيلية</td></tr>
             {topExpenses.length > 0 ? topExpenses.map(e => (
               <tr key={e.category}>
-                <td style={{...tdSty, paddingRight:36, color:subClr}}>(−) {e.category}</td>
-                <td style={{...tdNum, color:"#ef4444"}}>({formatCurrency(e.total)})</td>
+                <td style={{...base, paddingRight:36, color:subClr}}>(−) {e.category}</td>
+                <td style={{...num, color:"#dc2626"}}>({formatCurrency(e.total)})</td>
               </tr>
             )) : (
               pl.total_expenses > 0 ? (
                 <tr>
-                  <td style={{...tdSty, paddingRight:36, color:subClr}}>(−) مصروفات تشغيلية</td>
-                  <td style={{...tdNum, color:"#ef4444"}}>({formatCurrency(pl.total_expenses)})</td>
+                  <td style={{...base, paddingRight:36, color:subClr}}>(−) مصروفات تشغيلية</td>
+                  <td style={{...num, color:"#dc2626"}}>({formatCurrency(pl.total_expenses)})</td>
                 </tr>
               ) : (
                 <tr>
-                  <td colSpan={2} style={{...tdSty, color:subClr, textAlign:"center", fontStyle:"italic"}}>لا توجد مصروفات مسجلة</td>
+                  <td colSpan={2} style={{...base, color:subClr, textAlign:"center", fontStyle:"italic"}}>لا توجد مصروفات مسجلة</td>
                 </tr>
               )
             )}
             {otherExp > 0 && (
               <tr>
-                <td style={{...tdSty, paddingRight:36, color:subClr}}>(−) مصروفات أخرى</td>
-                <td style={{...tdNum, color:"#ef4444"}}>({formatCurrency(otherExp)})</td>
+                <td style={{...base, paddingRight:36, color:subClr}}>(−) مصروفات أخرى</td>
+                <td style={{...num, color:"#dc2626"}}>({formatCurrency(otherExp)})</td>
               </tr>
             )}
             {topExpenses.length > 0 && (
-              <tr style={totalRowSty}>
-                <td style={{...tdSty, fontWeight:700}}>إجمالي المصروفات</td>
-                <td style={{...tdNum, color:"#ef4444"}}>({formatCurrency(pl.total_expenses)})</td>
+              <tr style={totalRow}>
+                <td style={{...base, fontWeight:700}}>إجمالي المصروفات</td>
+                <td style={{...num, color:"#dc2626"}}>({formatCurrency(pl.total_expenses)})</td>
               </tr>
             )}
 
-            {/* ── Net Profit ── */}
+            {/* ── صافي الربح / الخسارة ── */}
             <tr style={{background:netBg}}>
-              <td style={{...tdSty, fontWeight:900, fontSize:15, borderBottom:"none", borderTop:`2px solid ${netColor}30`, paddingTop:14, paddingBottom:14}}>
-                = صافي الربح / الخسارة (Net Profit)
+              <td style={{...base, fontWeight:800, fontSize:18, borderBottom:"none", borderTop:`2px solid ${netColor}40`, paddingTop:16, paddingBottom:16, color:netColor}}>
+                = صافي الربح / الخسارة
               </td>
-              <td style={{...tdNum, fontSize:15, color:netColor, fontWeight:900, borderBottom:"none", borderTop:`2px solid ${netColor}30`, paddingTop:14, paddingBottom:14}}>
+              <td style={{...num, fontSize:18, color:netColor, fontWeight:800, borderBottom:"none", borderTop:`2px solid ${netColor}40`, paddingTop:16, paddingBottom:16}}>
                 {fmtAcct(pl.net_profit)}
-                <span style={{fontSize:11, marginRight:8, opacity:0.7}}>
+                <span style={{fontSize:12, marginRight:10, opacity:0.7, fontWeight:600}}>
                   {pl.total_revenue > 0 ? `${((pl.net_profit/pl.total_revenue)*100).toFixed(1)}%` : ""}
                 </span>
               </td>

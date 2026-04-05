@@ -812,7 +812,7 @@ export function printPLReport(data: PLReportData): void {
     </div>
     <div class="pl-title-block">
       <div class="pl-title">قائمة الأرباح والخسائر</div>
-      <div class="pl-subtitle">Income Statement · الفترة: ${data.dateFrom} — ${data.dateTo}</div>
+      <div class="pl-subtitle">الفترة: ${data.dateFrom} — ${data.dateTo}</div>
     </div>
   </div>
 
@@ -836,29 +836,29 @@ export function printPLReport(data: PLReportData): void {
 
   <!-- Accounting Statement -->
   <table class="stmt">
-    <!-- Revenue -->
-    <tr class="sec-hd"><td colspan="2">الإيرادات · Revenue</td></tr>
+    <!-- الإيرادات -->
+    <tr class="sec-hd"><td colspan="2">الإيرادات</td></tr>
     <tr><td>إجمالي المبيعات</td><td class="num green">${m(data.total_revenue)}</td></tr>
     ${retAmt > 0 ? `<tr class="sub"><td>(−) مرتجعات المبيعات</td><td class="num red">(${m(retAmt)})</td></tr>
     <tr class="total"><td>صافي الإيرادات</td><td class="num">${m(data.total_revenue - retAmt)}</td></tr>` : ""}
 
-    <!-- COGS -->
-    <tr class="sec-hd"><td colspan="2">تكلفة البضاعة المباعة · COGS</td></tr>
+    <!-- تكلفة البضاعة -->
+    <tr class="sec-hd"><td colspan="2">تكلفة البضاعة المباعة</td></tr>
     <tr class="sub"><td>(−) تكلفة البضاعة المباعة</td><td class="num red">(${m(data.total_cost)})</td></tr>
     <tr class="gross">
-      <td>= مجمل الربح (Gross Profit)</td>
+      <td>= مجمل الربح</td>
       <td class="num ${data.gross_profit>=0?"amber":"red"}">${m(data.gross_profit)} <span style="font-size:11px;opacity:0.65">${pct(grossMargin)}</span></td>
     </tr>
 
-    <!-- Expenses -->
-    <tr class="sec-hd"><td colspan="2">المصروفات التشغيلية · Operating Expenses</td></tr>
+    <!-- المصروفات -->
+    <tr class="sec-hd"><td colspan="2">المصروفات التشغيلية</td></tr>
     ${expLines || (data.total_expenses > 0 ? `<tr class="sub"><td>(−) مصروفات تشغيلية</td><td class="num red">(${m(data.total_expenses)})</td></tr>` : `<tr><td colspan="2" style="color:#9ca3af;text-align:center;font-style:italic">لا توجد مصروفات</td></tr>`)}
     ${otherExpAmt > 0 ? `<tr class="sub"><td>(−) مصروفات أخرى</td><td class="num red">(${m(otherExpAmt)})</td></tr>` : ""}
     ${expenses.length > 0 ? `<tr class="total"><td>إجمالي المصروفات</td><td class="num red">(${m(data.total_expenses)})</td></tr>` : ""}
 
-    <!-- Net Profit -->
+    <!-- صافي الربح -->
     <tr class="${isProfit?"net-pos":"net-neg"}">
-      <td>= صافي الربح / الخسارة (Net Profit)</td>
+      <td>= صافي الربح / الخسارة</td>
       <td class="num" style="font-size:16px">${m(data.net_profit)} <span style="font-size:11px;opacity:0.7">${pct(netMargin)}</span></td>
     </tr>
   </table>

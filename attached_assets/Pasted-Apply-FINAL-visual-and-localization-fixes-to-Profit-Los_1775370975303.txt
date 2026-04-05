@@ -1,0 +1,146 @@
+Apply FINAL visual and localization fixes to Profit & Loss report.
+
+⚠️ Do NOT change logic or APIs
+⚠️ Only UI polish + Arabic consistency
+
+==================================================
+
+1. FULL ARABIC LOCALIZATION (CRITICAL)
+   ==================================================
+
+Remove ALL English financial labels.
+
+Replace:
+
+* Gross Profit → مجمل الربح
+* Net Profit → صافي الربح / الخسارة
+* Income Statement → قائمة الأرباح والخسائر
+* Revenue → الإيرادات
+* COGS → تكلفة البضاعة المباعة
+* Operating Expenses → المصروفات التشغيلية
+
+System must be 100% Arabic.
+
+==================================================
+2) LIGHT MODE — MATCH PDF STYLE
+===============================
+
+Current issue:
+Light mode still looks like dashboard.
+
+Fix:
+
+* Main background → white (#ffffff)
+
+* Section headers → #f1f5f9 (light gray)
+
+* Remove dark bars completely
+
+* Borders → #e5e7eb
+
+Goal:
+Light mode should look like printed report.
+
+==================================================
+3) REMOVE DARK HEAVY SECTIONS
+=============================
+
+Remove:
+
+❌ dark section headers (#1f2937)
+❌ heavy background stripes
+
+Replace with:
+
+✔ spacing
+✔ subtle dividers
+✔ bold titles
+
+==================================================
+4) NET PROFIT EMPHASIS
+======================
+
+Make "صافي الربح / الخسارة":
+
+* font-size: 18–20px
+* font-weight: 800
+* color:
+
+profit → #059669
+loss → #dc2626
+
+* background:
+  light green / light red
+
+==================================================
+5) GROSS PROFIT IMPROVEMENT
+===========================
+
+"مجمل الربح":
+
+* slightly larger font
+* light highlight background (#fef9ec)
+* bold
+
+==================================================
+6) ALIGNMENT FIX
+================
+
+* labels → right aligned
+* numbers → aligned consistently
+
+Ensure all numbers line up vertically.
+
+==================================================
+7) CLEAN VISUAL STYLE
+=====================
+
+Use ONLY:
+
+* white
+* light gray
+* green / red
+
+Remove:
+❌ unnecessary colors
+❌ visual noise
+
+==================================================
+8) DARK MODE (SOFTEN IT)
+========================
+
+* reduce contrast slightly
+* remove heavy glow
+* use softer backgrounds
+
+Make it feel like:
+✔ professional
+✔ not gaming UI
+
+==================================================
+9) PDF = SOURCE OF TRUTH
+========================
+
+Ensure:
+
+UI layout follows PDF structure
+
+Not the opposite.
+
+==================================================
+10) FINAL RESULT
+================
+
+The report should look like:
+
+✔ Official accounting statement
+✔ Clean Arabic report
+✔ Easy to read instantly
+✔ Same experience screen + PDF
+
+==================================================
+OUTPUT SUMMARY:
+
+* confirm English removed
+* confirm light mode cleaned
+* confirm table simplified
