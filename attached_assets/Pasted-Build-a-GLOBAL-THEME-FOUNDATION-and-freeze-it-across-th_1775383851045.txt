@@ -1,0 +1,268 @@
+Build a GLOBAL THEME FOUNDATION and freeze it across the entire project.
+
+⚠️ CRITICAL GOAL:
+Fix dark/light mode problems from the root cause, not page by page.
+
+We do NOT want to keep patching each new page.
+We need one stable theme system for the entire ERP.
+
+==================================================
+
+1. SINGLE SOURCE OF TRUTH
+   ==================================================
+
+Create a unified theme token system in index.css (or global theme file).
+
+Required tokens:
+
+--erp-bg-app
+--erp-bg-panel
+--erp-bg-card
+--erp-bg-soft
+--erp-bg-elevated
+
+--erp-text-1
+--erp-text-2
+--erp-text-3
+--erp-text-4
+
+--erp-border
+--erp-border-strong
+
+--erp-primary
+--erp-primary-hover
+--erp-success
+--erp-danger
+--erp-warning
+--erp-info
+
+--erp-shadow-sm
+--erp-shadow-md
+
+--erp-input-bg
+--erp-input-border
+--erp-input-text
+--erp-input-placeholder
+
+Define proper values for BOTH:
+
+* html.light
+* html.dark
+
+==================================================
+2) GLOBAL COMPONENT CLASSES
+===========================
+
+Create reusable global classes and make them the official design system.
+
+Required classes:
+
+.erp-page
+.erp-panel
+.erp-card
+.erp-card-soft
+.erp-section
+.erp-divider
+
+.erp-title
+.erp-subtitle
+.erp-label
+.erp-text
+.erp-text-muted
+.erp-number
+
+.erp-input
+.erp-select
+.erp-textarea
+.erp-search
+
+.erp-btn-primary
+.erp-btn-secondary
+.erp-btn-danger
+.erp-btn-disabled
+.erp-btn-ghost
+
+.erp-table
+.erp-th
+.erp-td
+.erp-row
+.erp-row-muted
+
+.erp-modal
+.erp-modal-header
+.erp-modal-body
+.erp-modal-footer
+
+.erp-empty
+.erp-badge-success
+.erp-badge-danger
+.erp-badge-warning
+.erp-badge-info
+.erp-badge-neutral
+
+==================================================
+3) REMOVE ROOT CAUSE OF BREAKAGE
+================================
+
+Search the project and eliminate theme-breaking patterns:
+
+❌ inline background colors
+❌ inline rgba() UI colors
+❌ hardcoded dark-only backgrounds
+❌ text-white/xx in light mode
+❌ bg-[#111827] / bg-[#0f172a] directly inside pages
+❌ random component-specific styling
+
+Replace all of them with theme classes/tokens.
+
+==================================================
+4) LIGHT MODE QUALITY BAR
+=========================
+
+Light mode must be first-class, not patched.
+
+Rules:
+
+* white or soft neutral surfaces
+* dark readable text
+* no faded gray numbers
+* no low opacity important text
+* borders visible and elegant
+* dropdowns and modals must match the system
+
+Typography:
+
+* body: 16px
+* labels: 14–15px / 600
+* section titles: 18–20px
+* important numbers: 22px+
+
+==================================================
+5) DARK MODE QUALITY BAR
+========================
+
+Dark mode must be elegant, not heavy.
+
+Rules:
+
+* deep but readable background
+* reduced glow
+* clear borders
+* avoid gaming-style contrast
+* numbers and actions remain clear
+
+==================================================
+6) FORM CONTROLS (MOST IMPORTANT)
+=================================
+
+Standardize all:
+
+* inputs
+* selects
+* searchable selects
+* date pickers
+* dropdown menus
+* modals
+
+These controls are currently the main source of breakage in light mode.
+
+Any new page must use:
+
+* .erp-input
+* .erp-select
+* .erp-search
+* .erp-modal
+
+==================================================
+7) PAGE MIGRATION STRATEGY
+==========================
+
+Do NOT refactor every page visually from scratch.
+
+Instead:
+
+A) create the design system
+B) migrate shared layout/components first
+C) then gradually migrate pages to use the global classes
+
+Priority pages:
+
+1. Reports
+2. Treasury
+3. POS
+4. Settings
+5. Forms / Modals
+
+==================================================
+8) POS SPECIFIC RULE
+====================
+
+POS must use the same theme system.
+
+But allow a dedicated mode:
+
+"Cashier Focus Mode"
+
+This mode may have:
+
+* larger buttons
+* larger totals
+* stronger contrast
+* fullscreen-friendly layout
+
+But it must STILL inherit from the same global theme system.
+
+Do NOT create a separate ad-hoc POS theme.
+
+==================================================
+9) PREVENT FUTURE BREAKAGE
+==========================
+
+Add a project rule:
+
+Any new page/component must not use inline colors.
+All new UI must use only:
+
+* theme tokens
+* global erp classes
+
+Optional:
+Add internal comment/header in global CSS:
+"THEME FOUNDATION — do not bypass with page-local colors"
+
+==================================================
+10) QA CHECKLIST
+================
+
+After implementation, verify:
+
+✔ reports work in light/dark
+✔ modals work in light/dark
+✔ searchable selects work in light/dark
+✔ POS setup screen works in light/dark
+✔ dropdowns no longer look native/broken
+✔ important text is readable in light mode
+✔ no page needs special light-mode patching
+
+==================================================
+11) OUTPUT REQUIRED
+===================
+
+Return:
+
+1. list of theme tokens added
+2. list of global classes added
+3. list of anti-patterns removed
+4. which shared components were migrated
+5. which pages still need migration
+6. confirmation that future pages can now inherit theme correctly
+
+==================================================
+12) IMPORTANT LIMIT
+===================
+
+Do NOT redesign the whole ERP visually.
+Do NOT change business logic.
+Do NOT break current pages.
+
+This is a foundation freeze, not a cosmetic experiment.

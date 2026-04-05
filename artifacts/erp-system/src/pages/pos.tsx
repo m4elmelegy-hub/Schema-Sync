@@ -145,21 +145,21 @@ function AdminPOSSetup({ onStart }: { onStart: (w: number, s: number) => void })
   }
 
   return (
-    <div className="pos-page fixed inset-0 z-50 flex items-center justify-center p-4" dir="rtl">
-      <div className="rpt-panel w-full max-w-md p-8 space-y-6">
+    <div className="erp-page fixed inset-0 z-50 flex items-center justify-center p-4" dir="rtl">
+      <div className="erp-panel w-full max-w-md p-8 space-y-6">
 
         {/* Header */}
         <div className="text-center space-y-2">
           <div className="w-16 h-16 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center mx-auto">
             <Store className="w-8 h-8 text-amber-400" />
           </div>
-          <h2 className="text-xl font-black rpt-strong">اختيار الفرع والخزينة</h2>
-          <p className="rpt-muted">وضع المدير — يُختار يدوياً ولا يُحفظ في الملف الشخصي</p>
+          <h2 className="erp-title text-xl">اختيار الفرع والخزينة</h2>
+          <p className="erp-text-muted">وضع المدير — يُختار يدوياً ولا يُحفظ في الملف الشخصي</p>
         </div>
 
         {/* Warehouse */}
         <div className="space-y-1.5">
-          <label className="rpt-label flex items-center gap-1.5">
+          <label className="erp-label flex items-center gap-1.5">
             <Vault className="w-3.5 h-3.5" />
             الفرع / المخزن
           </label>
@@ -175,7 +175,7 @@ function AdminPOSSetup({ onStart }: { onStart: (w: number, s: number) => void })
 
         {/* Safe */}
         <div className="space-y-1.5">
-          <label className="rpt-label flex items-center gap-1.5">
+          <label className="erp-label flex items-center gap-1.5">
             <Vault className="w-3.5 h-3.5" />
             الخزينة
           </label>
@@ -192,14 +192,14 @@ function AdminPOSSetup({ onStart }: { onStart: (w: number, s: number) => void })
         {/* Start button */}
         <button
           onClick={handleStart}
-          className={`w-full h-11 text-base ${ready ? "rpt-btn-primary" : "rpt-btn-disabled"}`}
+          className={`w-full h-11 text-base ${ready ? "erp-btn-primary" : "erp-btn-disabled"}`}
         >
           <Zap className="w-4 h-4" />
           بدء البيع
         </button>
 
         {ready && (
-          <p className="text-center rpt-muted">
+          <p className="text-center erp-text-muted">
             {warehouseItems.find(w => w.value === wId)?.label} ·{" "}
             {safeItems.find(s => s.value === sId)?.label}
           </p>
@@ -244,14 +244,14 @@ export default function POSPage() {
   if (!warehouseId || !safeId) {
     if (!isAdmin) {
       return (
-        <div className="pos-page fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 p-8" dir="rtl">
+        <div className="erp-page fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 p-8" dir="rtl">
           <div className="w-20 h-20 rounded-3xl bg-red-500/10 border border-red-500/30 flex items-center justify-center">
             <AlertTriangle className="w-10 h-10 text-red-400" />
           </div>
           <div className="text-center space-y-2 max-w-sm">
-            <h2 className="text-2xl font-black rpt-strong">وصول مرفوض</h2>
+            <h2 className="erp-title text-2xl">وصول مرفوض</h2>
             <p className="text-red-400 font-bold text-lg">يجب ربط حسابك بمخزن وخزينة أولاً</p>
-            <p className="rpt-muted">تواصل مع المدير لإتمام إعداد حسابك قبل استخدام نقطة البيع</p>
+            <p className="erp-text-muted">تواصل مع المدير لإتمام إعداد حسابك قبل استخدام نقطة البيع</p>
           </div>
         </div>
       );

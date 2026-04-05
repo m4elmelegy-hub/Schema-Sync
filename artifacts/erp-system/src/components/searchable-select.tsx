@@ -116,6 +116,8 @@ export function SearchableSelect({
 
   const displayValue = open ? query : selected ? selected.label : emptyLabel ?? "";
 
+  const triggerClass = inputClassName ?? "erp-searchable w-full";
+
   const dropdown =
     open && dropPos
       ? createPortal(
@@ -128,12 +130,13 @@ export function SearchableSelect({
               width: dropPos.width,
               zIndex: 9999,
             }}
-            className="bg-slate-900 border border-white/15 rounded-xl shadow-2xl max-h-64 overflow-y-auto"
+            className="erp-dropdown"
           >
             {emptyLabel && (
               <button
                 type="button"
-                className="w-full text-right px-3 py-2 text-sm text-white/40 hover:bg-white/5 border-b border-white/5 block"
+                className="erp-dropdown-item"
+                style={{ borderBottom: "1px solid var(--erp-border)", color: "var(--erp-text-3)" }}
                 onMouseDown={(e) => {
                   e.preventDefault();
                   onChange("");
@@ -144,7 +147,7 @@ export function SearchableSelect({
               </button>
             )}
             {filtered.length === 0 ? (
-              <div className="px-3 py-3 text-center text-white/30 text-sm">لا توجد نتائج</div>
+              <div className="erp-dropdown-empty">لا توجد نتائج</div>
             ) : (
               (() => {
                 let lastGroup = "";
@@ -154,15 +157,11 @@ export function SearchableSelect({
                   return (
                     <div key={item.value}>
                       {showGroup && (
-                        <div className="px-3 py-1 text-xs text-white/30 bg-white/5 border-b border-white/5 sticky top-0">
-                          {item.group}
-                        </div>
+                        <div className="erp-dropdown-group">{item.group}</div>
                       )}
                       <button
                         type="button"
-                        className={`w-full text-right px-3 py-2 text-sm hover:bg-white/10 transition-colors block ${
-                          value === item.value ? "bg-amber-500/10 text-amber-300" : "text-white"
-                        }`}
+                        className={`erp-dropdown-item${value === item.value ? " active" : ""}`}
                         onMouseDown={(e) => {
                           e.preventDefault();
                           handleSelect(item);
@@ -183,7 +182,7 @@ export function SearchableSelect({
   return (
     <div ref={wrapRef} className={`relative ${className ?? ""}`}>
       <div
-        className={`flex items-center gap-1 cursor-text ${inputClassName ?? "glass-input w-full"}`}
+        className={`flex items-center gap-1 cursor-text ${triggerClass}`}
         onClick={() => {
           inputRef.current?.focus();
           openDropdown();
@@ -192,8 +191,17 @@ export function SearchableSelect({
         <input
           ref={inputRef}
           type="text"
-          className="bg-transparent text-white outline-none flex-1 min-w-0 placeholder:text-white/30"
-          placeholder={open ? placeholder : placeholder}
+          style={{
+            background: "transparent",
+            border: "none",
+            outline: "none",
+            color: "var(--erp-input-text)",
+            flex: 1,
+            minWidth: 0,
+            fontFamily: "inherit",
+            fontSize: "0.875rem",
+          }}
+          placeholder={placeholder}
           value={displayValue}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -209,12 +217,18 @@ export function SearchableSelect({
           }}
         />
         {clearable && value && !open ? (
-          <button type="button" onClick={handleClear} className="text-white/30 hover:text-white/60 shrink-0 p-0.5">
+          <button
+            type="button"
+            onClick={handleClear}
+            style={{ color: "var(--erp-text-3)", flexShrink: 0, padding: "0.125rem" }}
+            className="hover:opacity-70"
+          >
             <X className="w-3 h-3" />
           </button>
         ) : (
           <ChevronDown
-            className={`w-3 h-3 text-white/30 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+            className={`w-3 h-3 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+            style={{ color: "var(--erp-text-3)" }}
           />
         )}
       </div>
