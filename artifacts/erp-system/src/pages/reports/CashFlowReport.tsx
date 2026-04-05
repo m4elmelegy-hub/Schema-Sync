@@ -1,3 +1,8 @@
+/**
+ * CashFlowReport — قائمة التدفقات النقدية
+ * الحالة: ✔ STABLE — النظام المالي جاهز للإنتاج، عربي بالكامل، ومجمَّد.
+ * Financial system is production-ready, fully Arabic, and frozen.
+ */
 import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { TrendingUp, TrendingDown, Activity } from "lucide-react";

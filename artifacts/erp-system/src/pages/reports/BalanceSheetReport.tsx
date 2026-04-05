@@ -1,3 +1,8 @@
+/**
+ * BalanceSheetReport — الميزانية العمومية
+ * الحالة: ✔ STABLE — النظام المالي جاهز للإنتاج، عربي بالكامل، ومجمَّد.
+ * Financial system is production-ready, fully Arabic, and frozen.
+ */
 import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -122,7 +127,6 @@ function SubSectionHd({ label }: { label: string }) {
         color: isLight ? "#374151" : "rgba(255,255,255,0.60)",
         fontWeight: 700, fontSize: 10.5, letterSpacing: "0.05em",
         padding: "6px 20px", borderBottom: `1px solid ${panelBdr}`,
-        textTransform: "uppercase",
       }}>
         {label}
       </td>
@@ -343,10 +347,10 @@ function BalanceSheetStatement({ data }: { data: BalanceSheetData }) {
         <tbody>
 
           {/* ══════ الأصول ══════ */}
-          <SectionHd label="الأصول" hint="Assets" />
+          <SectionHd label="الأصول" />
 
           {/* الأصول المتداولة */}
-          <SubSectionHd label="الأصول المتداولة — Current Assets" />
+          <SubSectionHd label="الأصول المتداولة" />
           <ChildRow label="النقدية — أرصدة الخزن الحالية" value={data.assets.cash} />
           <ChildRow
             label="ذمم العملاء المدينة"
@@ -373,7 +377,7 @@ function BalanceSheetStatement({ data }: { data: BalanceSheetData }) {
           <TotalRow label="= إجمالي الأصول المتداولة" value={data.assets.total} accent="#d97706" />
 
           {/* الأصول غير المتداولة — فارغة في هذا النظام */}
-          <SubSectionHd label="الأصول غير المتداولة — Fixed Assets" />
+          <SubSectionHd label="الأصول غير المتداولة" />
           <ChildRow label="أصول ثابتة — لا توجد في هذا النظام حالياً" value={0} dim />
           <TotalRow label="= إجمالي الأصول غير المتداولة" value={0} accent="#6b7280" />
 
@@ -382,10 +386,10 @@ function BalanceSheetStatement({ data }: { data: BalanceSheetData }) {
           <Spacer />
 
           {/* ══════ الخصوم ══════ */}
-          <SectionHd label="الخصوم" hint="Liabilities" />
+          <SectionHd label="الخصوم" />
 
           {/* الخصوم المتداولة */}
-          <SubSectionHd label="الخصوم المتداولة — Current Liabilities" />
+          <SubSectionHd label="الخصوم المتداولة" />
           <ChildRow
             label="ذمم الموردين الدائنة"
             value={data.liabilities.payables}
@@ -403,7 +407,7 @@ function BalanceSheetStatement({ data }: { data: BalanceSheetData }) {
           <TotalRow label="= إجمالي الخصوم المتداولة" value={data.liabilities.payables} accent="#6b7280" />
 
           {/* الخصوم طويلة الأجل */}
-          <SubSectionHd label="الخصوم طويلة الأجل — Long-term Liabilities" />
+          <SubSectionHd label="الخصوم طويلة الأجل" />
           <ChildRow label="التزامات طويلة الأجل — لا توجد حالياً" value={0} dim />
           <TotalRow label="= إجمالي الخصوم طويلة الأجل" value={0} accent="#6b7280" />
 
@@ -412,7 +416,7 @@ function BalanceSheetStatement({ data }: { data: BalanceSheetData }) {
           <Spacer />
 
           {/* ══════ حقوق الملكية ══════ */}
-          <SectionHd label="حقوق الملكية" hint="Equity" />
+          <SectionHd label="حقوق الملكية" />
           <ChildRow label="رأس المال المفتوح — الأرصدة الافتتاحية" value={data.equity.opening_capital} />
           <ChildRow
             label="الأرباح المحتجزة — صافي الربح الكلي (الإيراد − التكلفة − المصروفات)"
