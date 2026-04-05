@@ -17,10 +17,10 @@ const api = (p: string) => `${BASE}${p}`;
 
 /* ── Nav sections ───────────────────────────────── */
 const NAV_SECTIONS = [
-  { label: "الرئيسية",   hrefs: ["/", "/tasks"] },
-  { label: "التجارة",    hrefs: ["/sales", "/purchases", "/products", "/inventory", "/customers"] },
-  { label: "المالية",    hrefs: ["/profits", "/income", "/expenses", "/financial-transactions", "/reports"] },
-  { label: "المحاسبة",   hrefs: ["/accounts", "/journal-entries", "/receipt-vouchers", "/deposit-vouchers", "/payment-vouchers", "/safe-transfers"] },
+  { label: "الرئيسية",   hrefs: ["/", "/treasury"] },
+  { label: "التجارة",    hrefs: ["/pos", "/sales", "/purchases", "/products", "/inventory", "/customers"] },
+  { label: "المالية",    hrefs: ["/income", "/expenses", "/reports"] },
+  { label: "المحاسبة",   hrefs: ["/accounts", "/journal-entries", "/vouchers"] },
   { label: "النظام",     hrefs: ["/settings"] },
 ];
 
