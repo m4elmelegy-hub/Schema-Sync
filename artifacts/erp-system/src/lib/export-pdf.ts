@@ -912,3 +912,96 @@ export function printPLReport(data: PLReportData): void {
 </body></html>`);
   win.document.close();
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Cash Flow Statement PDF
+ * ─────────────────────────────────────────────────────────────────────── */
+export interface CashFlowPrintData {
+  total_in: number; total_out: number; net_cash_flow: number;
+  customer_receipts: number; receipts_in: number; cash_sales: number;
+  deposits_in: number; payments_out: number; expenses_out: number;
+  dateFrom: string; dateTo: string;
+}
+
+export function printCashFlow(data: CashFlowPrintData): void {
+  const s   = getSettings();
+  const sym = getCurrencySymbol();
+  const m   = (n: number) => `${Number(n ?? 0).toFixed(2)} ${sym}`;
+  const now = new Date().toLocaleDateString("ar-EG", { year:"numeric", month:"long", day:"numeric", hour:"2-digit", minute:"2-digit" });
+
+  const operatingNet = data.customer_receipts - data.payments_out - data.expenses_out;
+  const hasInvesting = data.deposits_in > 0;
+  const showSub      = data.receipts_in > 0 && data.cash_sales > 0;
+  const isPos        = data.net_cash_flow >= 0;
+  const fmtN = (n: number) => { const a = Math.abs(n).toFixed(2); return n < 0 ? `(${a})` : a; };
+
+  const investingSection = hasInvesting ? `
+    <tr class="sec-hd"><td colspan="2">التدفقات الاستثمارية</td></tr>
+    <tr class="sub"><td>إيداعات</td><td class="num" style="color:#2563eb">${m(data.deposits_in)}</td></tr>
+    <tr class="total"><td>= صافي التدفقات الاستثمارية</td><td class="num" style="color:#2563eb">${m(data.deposits_in)}</td></tr>` : "";
+
+  const html = `
+<div class="page">
+  <div class="pl-header">
+    <div>
+      <div class="pl-company">${s.companyName}</div>
+      ${s.phone   ? `<div class="pl-company-sub">📞 ${s.phone}</div>` : ""}
+      ${s.address ? `<div class="pl-company-sub">📍 ${s.address}</div>` : ""}
+    </div>
+    <div class="pl-title-block">
+      <div class="pl-title">قائمة التدفقات النقدية</div>
+      <div class="pl-subtitle">الفترة: ${data.dateFrom} — ${data.dateTo}</div>
+      <div class="pl-subtitle" style="font-size:10px;margin-top:2px">التحويلات بين الخزن مستثناة</div>
+    </div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi-box">
+      <div class="kpi-label">إجمالي الداخل النقدي</div>
+      <div class="kpi-value green">${m(data.total_in)}</div>
+    </div>
+    <div class="kpi-box">
+      <div class="kpi-label">إجمالي الخارج النقدي</div>
+      <div class="kpi-value red">${m(data.total_out)}</div>
+    </div>
+    <div class="kpi-box ${isPos ? "profit" : "loss"}">
+      <div class="kpi-label">صافي التدفق النقدي</div>
+      <div class="kpi-value ${isPos ? "green" : "red"}">${m(data.net_cash_flow)}</div>
+    </div>
+  </div>
+
+  <table class="stmt">
+    <tr class="sec-hd"><td colspan="2">التدفقات التشغيلية</td></tr>
+    <tr><td style="font-weight:600">مقبوضات من العملاء</td><td class="num green">${m(data.customer_receipts)}</td></tr>
+    ${showSub ? `
+    <tr class="sub"><td>· سندات القبض المرحّلة</td><td class="num">${m(data.receipts_in)}</td></tr>
+    <tr class="sub"><td>· مبيعات نقدية مباشرة</td><td class="num">${m(data.cash_sales)}</td></tr>` : ""}
+    <tr class="sub"><td>(−) مدفوعات للموردين</td><td class="num red">${data.payments_out > 0 ? `(${m(data.payments_out)})` : "—"}</td></tr>
+    <tr class="sub"><td>(−) مصروفات تشغيلية</td><td class="num red">${data.expenses_out > 0 ? `(${m(data.expenses_out)})` : "—"}</td></tr>
+    <tr class="total"><td>= صافي التدفق التشغيلي</td><td class="num ${operatingNet >= 0 ? "green" : "red"}">${fmtN(operatingNet)}</td></tr>
+    ${investingSection}
+    <tr class="${isPos ? "net-pos" : "net-neg"}">
+      <td>= صافي التدفق النقدي</td>
+      <td class="num" style="font-size:16px">${fmtN(data.net_cash_flow)}</td>
+    </tr>
+  </table>
+
+  <div class="pl-footer">
+    <span>تاريخ الطباعة: ${now}</span>
+    <span>Halal Tech ERP v2.0</span>
+  </div>
+</div>`;
+
+  const win = window.open("", "_blank");
+  if (!win) return;
+  win.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head>
+  <meta charset="UTF-8"><title>قائمة التدفقات النقدية — ${s.companyName}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <style>${PL_STYLES}</style>
+</head>
+<body>${html}
+<script>document.fonts.ready.then(()=>setTimeout(()=>window.print(),700));<\/script>
+</body></html>`);
+  win.document.close();
+}

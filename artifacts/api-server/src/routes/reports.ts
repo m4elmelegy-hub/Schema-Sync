@@ -626,6 +626,12 @@ router.get("/reports/cash-flow", wrap(async (req, res) => {
   const totIn  = days.reduce((s, d) => s + d.total_in,  0);
   const totOut = days.reduce((s, d) => s + d.total_out, 0);
 
+  const totReceiptsIn  = days.reduce((s, d) => s + d.receipts_in,  0);
+  const totCashSales   = days.reduce((s, d) => s + d.cash_sales,   0);
+  const totDepositsIn  = days.reduce((s, d) => s + d.deposits_in,  0);
+  const totPaymentsOut = days.reduce((s, d) => s + d.payments_out, 0);
+  const totExpensesOut = days.reduce((s, d) => s + d.expenses_out, 0);
+
   // ── تحقق: تحقق من الاتساق الداخلي للتدفق النقدي ─────────────────────────
   const cfDayWarnings: string[] = [];
   for (const d of days) {
@@ -654,9 +660,15 @@ router.get("/reports/cash-flow", wrap(async (req, res) => {
   res.json({
     days,
     summary: {
-      total_in:      r2(totIn),
-      total_out:     r2(totOut),
-      net_cash_flow: r2(totIn - totOut),
+      total_in:          r2(totIn),
+      total_out:         r2(totOut),
+      net_cash_flow:     r2(totIn - totOut),
+      customer_receipts: r2(totReceiptsIn + totCashSales),
+      receipts_in:       r2(totReceiptsIn),
+      cash_sales:        r2(totCashSales),
+      deposits_in:       r2(totDepositsIn),
+      payments_out:      r2(totPaymentsOut),
+      expenses_out:      r2(totExpensesOut),
     },
     validation: cashFlowValidation,
   });

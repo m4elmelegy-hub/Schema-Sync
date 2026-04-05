@@ -1,0 +1,171 @@
+Build a professional Cash Flow Statement module integrated with the existing financial system.
+
+⚠️ GOAL:
+Create a clean, accounting-grade Cash Flow report showing real money movement.
+
+Do NOT break existing logic.
+Reuse vouchers, treasury, and expenses data.
+
+==================================================
+
+1. REPORT STRUCTURE (ACCOUNTING FORMAT)
+   ==================================================
+
+Structure the Cash Flow into 3 main sections:
+
+1. التدفقات التشغيلية
+
+   * المقبوضات من العملاء (Receipts)
+   * المدفوعات للموردين (Payments)
+   * المصروفات التشغيلية (Expenses)
+
+2. التدفقات الاستثمارية (optional if exists)
+
+   * شراء أصول
+   * بيع أصول
+
+3. التدفقات التمويلية (optional)
+
+   * قروض
+   * سحب / إضافة رأس مال
+
+Final:
+
+= صافي التدفق النقدي
+
+==================================================
+2) DATA SOURCES
+===============
+
+Use existing system:
+
+* Receipts → from receipt vouchers
+* Payments → from payment vouchers
+* Expenses → from expenses module
+* Transfers → DO NOT count (internal movement)
+
+==================================================
+3) FILTERS (TOP BAR)
+====================
+
+Add:
+
+* Date range:
+  (اليوم / الأسبوع / الشهر / السنة / مخصص)
+
+* Branch selector:
+  all / single / multi-select
+
+==================================================
+4) SUMMARY (TOP)
+================
+
+Show:
+
+* إجمالي الداخل النقدي
+* إجمالي الخارج النقدي
+* صافي التدفق النقدي
+
+==================================================
+5) STATEMENT TABLE (MAIN)
+=========================
+
+Accounting-style table:
+
+التدفقات التشغيلية
+المقبوضات
+(−) المدفوعات
+(−) المصروفات
+
+= صافي التشغيل
+
+التدفقات الأخرى (اختياري)
+
+= صافي التدفق النقدي
+
+Use:
+
+✔ indentation
+✔ (−) for outflows
+✔ highlighted totals
+
+==================================================
+6) VISUAL STYLE
+===============
+
+* Same style as Profit & Loss (consistent design)
+* White background
+* Clean borders
+* Arabic only
+
+==================================================
+7) PDF EXPORT (CRITICAL)
+========================
+
+Build print-ready version:
+
+Header:
+
+* اسم الشركة
+* قائمة التدفقات النقدية
+* الفترة
+* الفروع
+
+Sections:
+
+* التشغيلية
+* الاستثمارية (إن وجدت)
+* التمويلية (إن وجدت)
+
+Totals clearly shown
+
+Footer:
+
+* تاريخ الطباعة
+* اسم النظام
+
+==================================================
+8) IMPORTANT RULES
+==================
+
+* Transfers between safes MUST NOT affect cash flow
+* Only real inflow/outflow counted
+* Expenses must be included
+* No duplicate counting
+
+==================================================
+9) PERFORMANCE
+==============
+
+* Use memoized calculations
+* Avoid heavy charts initially
+* Keep it lightweight
+
+==================================================
+10) OPTIONAL (AFTER BASIC VERSION)
+==================================
+
+Add:
+
+* simple bar chart (inflow vs outflow)
+* comparison with previous period
+
+==================================================
+11) FINAL RESULT
+================
+
+✔ Clear cash movement report
+✔ Accounting-grade structure
+✔ Works with branches
+✔ Printable and exportable
+✔ Easy to understand
+
+==================================================
+12) OUTPUT SUMMARY
+==================
+
+Return:
+
+* how inflow/outflow calculated
+* how expenses integrated
+* confirmation transfers excluded
