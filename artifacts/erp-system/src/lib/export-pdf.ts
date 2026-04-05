@@ -970,23 +970,46 @@ export function printBalanceSheet(data: BalanceSheetPrintData): void {
 
   <table class="stmt">
 
-    <!-- الأصول -->
+    <!-- ══ الأصول ══ -->
     <tr class="sec-hd"><td colspan="2">الأصول &nbsp;<span style="font-weight:400;font-size:10px;opacity:0.6">(Assets)</span></td></tr>
+
+    <!-- الأصول المتداولة -->
+    <tr style="background:#f3f4f6"><td colspan="2" style="padding:5px 16px;font-size:10px;font-weight:700;color:#6b7280;letter-spacing:0.05em;text-transform:uppercase">الأصول المتداولة — Current Assets</td></tr>
     <tr class="sub"><td>النقدية — أرصدة الخزن الحالية</td><td class="num">${m(data.assets.cash)}</td></tr>
     <tr class="sub"><td>ذمم العملاء المدينة</td><td class="num">${m(data.assets.receivables)}</td></tr>
     <tr class="sub"><td>المخزون — الكمية × سعر التكلفة</td><td class="num">${m(data.assets.inventory)}</td></tr>
-    <tr class="total"><td>= إجمالي الأصول</td><td class="num amber">${m(data.assets.total)}</td></tr>
+    <tr class="total"><td>= إجمالي الأصول المتداولة</td><td class="num amber">${m(data.assets.total)}</td></tr>
+
+    <!-- الأصول غير المتداولة -->
+    <tr style="background:#f3f4f6"><td colspan="2" style="padding:5px 16px;font-size:10px;font-weight:700;color:#6b7280;letter-spacing:0.05em;text-transform:uppercase">الأصول غير المتداولة — Fixed Assets</td></tr>
+    <tr class="sub" style="color:#9ca3af"><td style="color:#9ca3af;font-style:italic">أصول ثابتة — لا توجد حالياً</td><td class="num" style="color:#9ca3af">—</td></tr>
+    <tr class="total" style="color:#9ca3af"><td style="color:#9ca3af">= إجمالي الأصول غير المتداولة</td><td class="num" style="color:#9ca3af">0.00</td></tr>
+
+    <tr class="total" style="background:#1e293b08;border-top:2px solid #1e293b30;border-bottom:2px solid #1e293b30">
+      <td style="color:#1e293b;font-size:14px">= إجمالي الأصول</td>
+      <td class="num amber" style="font-size:14px">${m(data.assets.total)}</td>
+    </tr>
 
     <tr><td colspan="2" style="height:8px;background:#f9fafb"></td></tr>
 
-    <!-- الخصوم -->
+    <!-- ══ الخصوم ══ -->
     <tr class="sec-hd"><td colspan="2">الخصوم &nbsp;<span style="font-weight:400;font-size:10px;opacity:0.6">(Liabilities)</span></td></tr>
+
+    <!-- الخصوم المتداولة -->
+    <tr style="background:#f3f4f6"><td colspan="2" style="padding:5px 16px;font-size:10px;font-weight:700;color:#6b7280;letter-spacing:0.05em;text-transform:uppercase">الخصوم المتداولة — Current Liabilities</td></tr>
     <tr class="sub"><td>ذمم الموردين الدائنة</td><td class="num">${m(data.liabilities.payables)}</td></tr>
-    <tr class="total"><td>= إجمالي الخصوم</td><td class="num" style="color:#6b7280">${m(data.liabilities.total)}</td></tr>
+    <tr class="total" style="color:#6b7280"><td style="color:#6b7280">= إجمالي الخصوم المتداولة</td><td class="num" style="color:#6b7280">${m(data.liabilities.payables)}</td></tr>
+
+    <!-- الخصوم طويلة الأجل -->
+    <tr style="background:#f3f4f6"><td colspan="2" style="padding:5px 16px;font-size:10px;font-weight:700;color:#6b7280;letter-spacing:0.05em;text-transform:uppercase">الخصوم طويلة الأجل — Long-term Liabilities</td></tr>
+    <tr class="sub" style="color:#9ca3af"><td style="color:#9ca3af;font-style:italic">التزامات طويلة الأجل — لا توجد حالياً</td><td class="num" style="color:#9ca3af">—</td></tr>
+    <tr class="total" style="color:#9ca3af"><td style="color:#9ca3af">= إجمالي الخصوم طويلة الأجل</td><td class="num" style="color:#9ca3af">0.00</td></tr>
+
+    <tr class="total"><td style="color:#4b5563">= إجمالي الخصوم</td><td class="num" style="color:#4b5563">${m(data.liabilities.total)}</td></tr>
 
     <tr><td colspan="2" style="height:8px;background:#f9fafb"></td></tr>
 
-    <!-- حقوق الملكية -->
+    <!-- ══ حقوق الملكية ══ -->
     <tr class="sec-hd"><td colspan="2">حقوق الملكية &nbsp;<span style="font-weight:400;font-size:10px;opacity:0.6">(Equity)</span></td></tr>
     <tr class="sub"><td>رأس المال المفتوح — الأرصدة الافتتاحية</td><td class="num">${m(data.equity.opening_capital)}</td></tr>
     <tr class="sub"><td>الأرباح المحتجزة — صافي الربح الكلي</td><td class="num ${retainedIsPos ? "green" : "red"}">${m(data.equity.retained_earnings)}</td></tr>
@@ -997,11 +1020,15 @@ export function printBalanceSheet(data: BalanceSheetPrintData): void {
 
     <tr><td colspan="2" style="height:4px;background:#f9fafb"></td></tr>
 
-    <!-- معادلة التوازن -->
+    <!-- ══ معادلة التوازن ══ -->
     <tr class="${data.balanced ? "net-pos" : "net-neg"}">
       <td style="font-size:15px">= إجمالي الخصوم + حقوق الملكية &nbsp;${data.balanced ? "✓" : "⚠"}</td>
       <td class="num" style="font-size:15px">${m(data.total_liabilities_equity)}</td>
     </tr>
+    ${!data.balanced ? `
+    <tr style="background:#fef2f2"><td colspan="2" style="padding:8px 16px;font-size:11px;color:#dc2626;font-weight:700">
+      ⚠️ يوجد فرق: ${m(Math.abs(data.assets.total - data.total_liabilities_equity))} — الأصول (${m(data.assets.total)}) ≠ الخصوم + الملكية (${m(data.total_liabilities_equity)})
+    </td></tr>` : ""}
 
   </table>
 
