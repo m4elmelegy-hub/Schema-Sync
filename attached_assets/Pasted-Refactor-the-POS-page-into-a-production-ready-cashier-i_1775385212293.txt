@@ -1,0 +1,236 @@
+Refactor the POS page into a production-ready cashier interface using the new ERP Theme Foundation only.
+
+⚠️ CRITICAL:
+Use ONLY the new `erp-*` global theme classes and tokens.
+Do NOT use inline colors.
+Do NOT create page-local dark/light fixes.
+
+GOAL:
+Merge the strong layout logic of the new POS implementation with the better visual clarity and larger cashier controls from the old cashier-style screen.
+
+==================================================
+
+1. THEME RULES
+   ==================================================
+
+POS must use only:
+
+* erp-page
+* erp-panel
+* erp-card
+* erp-card-soft
+* erp-title
+* erp-subtitle
+* erp-label
+* erp-text
+* erp-text-muted
+* erp-number
+* erp-input
+* erp-search
+* erp-btn-primary
+* erp-btn-secondary
+* erp-btn-danger
+* erp-btn-disabled
+* erp-badge-*
+* erp-modal
+* erp-dropdown
+
+No inline colors.
+No hardcoded dark backgrounds.
+No page-specific rgba styling.
+
+==================================================
+2) POS LAYOUT
+=============
+
+Use a two-column layout:
+
+RIGHT:
+
+* search bar
+* products grid
+* category quick filter if available
+* empty state when no matches
+
+LEFT:
+
+* cart header
+* cart items
+* discount / totals
+* payment method
+* customer selection
+* action buttons
+
+Must work well in both:
+
+* normal desktop mode
+* large cashier mode
+
+==================================================
+3) CASHIER FOCUS MODE
+=====================
+
+Add a toggle/button:
+"وضع الكاشير"
+
+When enabled:
+
+* larger buttons
+* larger totals
+* larger search field
+* more compact surrounding info
+* fullscreen-friendly visual density
+
+This must still inherit from erp theme classes.
+
+Do NOT create separate theme logic.
+
+==================================================
+4) TOP STATUS BAR
+=================
+
+Show clearly:
+
+* الفرع الحالي
+* الخزينة الحالية
+* المستخدم الحالي
+
+Make it compact and readable.
+
+If admin selected branch/safe manually, show them clearly.
+
+==================================================
+5) PRODUCT GRID
+===============
+
+Improve product cards:
+
+Each card should show:
+
+* اسم المنتج
+* السعر
+* الكمية المتاحة
+* visual out-of-stock state
+
+In cashier mode:
+
+* make cards larger
+* make price more prominent
+
+==================================================
+6) CART PANEL
+=============
+
+Cart must show:
+
+* product name
+* quantity controls
+* line total
+* remove action
+
+Totals section:
+
+* subtotal
+* discount
+* final total
+* paid amount (if partial)
+* remaining amount
+
+Use erp-number for main totals.
+
+==================================================
+7) PAYMENT METHODS
+==================
+
+Show payment methods as clear segmented buttons:
+
+* نقدي
+* آجل
+* جزئي
+
+Selected state must be obvious in light/dark mode.
+
+==================================================
+8) ADMIN ENTRY FLOW
+===================
+
+Keep the AdminPOSSetup flow already built.
+
+After starting POS:
+
+* show selected branch/safe in header
+* allow admin to exit POS session and reselect if needed
+
+==================================================
+9) ACCESS + SAFETY
+==================
+
+Keep current access logic:
+
+* cashier requires assigned warehouse + safe
+* admin can select manually
+* no API changes
+* no business logic changes
+
+==================================================
+10) KEYBOARD UX
+===============
+
+Preserve and improve shortcuts:
+
+* F2 search
+* Enter add first matching product
+* F9 checkout
+* ESC clear search / close modal
+
+Display these hints in a cleaner compact style.
+
+==================================================
+11) EMPTY STATES
+================
+
+Use clean Arabic-only empty states:
+
+* السلة فارغة
+* لا توجد نتائج
+* لا توجد منتجات مطابقة
+
+No broken or dim unreadable empty placeholders.
+
+==================================================
+12) VISUAL QUALITY BAR
+======================
+
+POS must feel:
+
+* fast
+* clear
+* cashier-friendly
+* readable in light mode
+* elegant in dark mode
+* consistent with the ERP reports/settings
+
+==================================================
+13) DO NOT IMPLEMENT YET
+========================
+
+Do NOT add in this phase:
+
+* returns
+* barcode scanning
+* thermal printer integration
+* suspend/resume sale
+* split payment beyond current logic
+
+Those come later.
+
+==================================================
+14) OUTPUT REQUIRED
+===================
+
+After implementation return:
+
+1. what old POS pieces were kept
+2. what was visually improved
+3. how cashier mode works
+4. confirmation that POS now fully uses erp-* theme system

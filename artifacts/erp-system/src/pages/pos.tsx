@@ -325,6 +325,7 @@ function POSBody({
   const [successInvoice, setSuccessInvoice] = useState<SuccessInvoice | null>(null);
   const [recentlyAdded, setRecentlyAdded] = useState<number | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [cashierMode, setCashierMode]     = useState(false);
 
   /* ── Refs ── */
   const searchRef = useRef<HTMLInputElement>(null);
@@ -523,130 +524,169 @@ function POSBody({
 
   /* ── Payment options ── */
   const payOptions = [
-    { v: "cash"    as const, l: "نقدي",  icon: Banknote,    allow: canCash,    color: "emerald" },
-    { v: "credit"  as const, l: "آجل",   icon: Clock,       allow: canCredit,  color: "blue" },
-    { v: "partial" as const, l: "جزئي",  icon: CreditCard,  allow: canPartial, color: "amber" },
+    { v: "cash"    as const, l: "نقدي",  icon: Banknote,    allow: canCash,    active: "bg-emerald-500 border-emerald-500 text-white" },
+    { v: "credit"  as const, l: "آجل",   icon: Clock,       allow: canCredit,  active: "bg-blue-500 border-blue-500 text-white" },
+    { v: "partial" as const, l: "جزئي",  icon: CreditCard,  allow: canPartial, active: "bg-amber-500 border-amber-500 text-black" },
   ].filter(o => o.allow);
 
   const needsCustomer = payType === "credit" || payType === "partial";
 
-  /* ── Stock color ── */
-  const stockColor = (qty: number) =>
-    qty <= 0 ? "text-red-400" : qty <= 5 ? "text-amber-400" : "text-white/40";
+  /* ── Stock badge ── */
+  const stockClass = (qty: number) =>
+    qty <= 0 ? "erp-badge-danger" : qty <= 5 ? "erp-badge-warning" : "erp-badge-neutral";
+
+  /* ── Derived sizes for cashier mode ── */
+  const cm = cashierMode;
 
   return (
-    <div
-      className="fixed inset-0 flex flex-col overflow-hidden"
-      style={{ background: "hsl(225,28%,4%)", fontFamily: "'Inter', sans-serif" }}
-      dir="rtl"
-    >
-      {/* ═══════════════════════════════════ TOP BAR ══════════════════════════════════ */}
-      <header className="flex items-center justify-between px-4 py-2.5 shrink-0 border-b border-white/6"
-        style={{ background: "rgba(0,0,0,0.35)" }}>
+    <div className="erp-page fixed inset-0 flex flex-col overflow-hidden" dir="rtl">
+
+      {/* ════════════════════ TOP STATUS BAR ════════════════════ */}
+      <header
+        className="flex items-center justify-between px-4 shrink-0"
+        style={{ paddingTop: "0.5rem", paddingBottom: "0.5rem", background: "var(--erp-bg-soft)", borderBottom: "1px solid var(--erp-border)" }}
+      >
+        {/* Branch · Safe · User */}
         <div className="flex items-center gap-5">
-          {/* Branch */}
           <div className="flex items-center gap-2">
             <Store className="w-4 h-4 text-amber-400 shrink-0" />
             <div>
-              <p className="text-white/35 text-[10px] leading-none">الفرع</p>
-              <p className="text-white font-bold text-sm leading-tight">{warehouseName}</p>
+              <p className="erp-label text-[10px]">الفرع</p>
+              <p className="erp-text font-bold text-sm leading-tight">{warehouseName}</p>
             </div>
           </div>
-          {/* Safe */}
           <div className="flex items-center gap-2">
             <Vault className="w-4 h-4 text-violet-400 shrink-0" />
             <div>
-              <p className="text-white/35 text-[10px] leading-none">الخزينة</p>
-              <p className="text-white font-bold text-sm leading-tight">{safeName}</p>
+              <p className="erp-label text-[10px]">الخزينة</p>
+              <p className="erp-text font-bold text-sm leading-tight">{safeName}</p>
             </div>
           </div>
-          {/* User */}
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black shrink-0"
-              style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)", color: "#000" }}>
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black shrink-0 text-black"
+              style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)" }}>
               {(user?.name ?? "?").slice(0, 2)}
             </div>
-            <p className="text-white/60 text-sm font-medium">{user?.name}</p>
+            <p className="erp-text-muted text-sm font-medium">{user?.name}</p>
           </div>
         </div>
-        {/* Keyboard hints */}
-        <div className="hidden lg:flex items-center gap-3">
-          {[["F2", "بحث"], ["Enter", "إضافة"], ["F9", "دفع"], ["ESC", "مسح"]].map(([k, l]) => (
-            <div key={k} className="flex items-center gap-1.5">
-              <kbd className="px-2 py-0.5 rounded-md text-[10px] font-bold text-white/50 border border-white/12"
-                style={{ background: "rgba(255,255,255,0.06)" }}>{k}</kbd>
-              <span className="text-white/25 text-[10px]">{l}</span>
-            </div>
-          ))}
-          <Keyboard className="w-3.5 h-3.5 text-white/20 mr-1" />
+
+        {/* Keyboard hints + cashier toggle */}
+        <div className="flex items-center gap-4">
+          <div className="hidden lg:flex items-center gap-2">
+            {[["F2","بحث"],["Enter","إضافة"],["F9","دفع"],["ESC","مسح"]].map(([k,l]) => (
+              <div key={k} className="flex items-center gap-1">
+                <kbd className="px-1.5 py-0.5 rounded text-[10px] font-bold erp-label"
+                  style={{ background: "var(--erp-bg-elevated)", border: "1px solid var(--erp-border-strong)" }}>{k}</kbd>
+                <span className="erp-label text-[10px]">{l}</span>
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={() => setCashierMode(v => !v)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              cashierMode ? "bg-amber-500 text-black" : "erp-btn-secondary"
+            }`}
+          >
+            <Zap className="w-3.5 h-3.5" />
+            {cashierMode ? "عادي" : "وضع الكاشير"}
+          </button>
         </div>
       </header>
 
-      {/* ═══════════════════════════════════ BODY ═════════════════════════════════════ */}
+      {/* ════════════════════ BODY ════════════════════ */}
       <div className="flex flex-1 overflow-hidden">
 
-        {/* ═══ LEFT: PRODUCTS ═══ */}
-        <div className="flex flex-col flex-1 min-w-0 border-l border-white/6">
+        {/* ════ PRODUCTS PANEL (right in RTL) ════ */}
+        <div className="flex flex-col flex-1 min-w-0" style={{ borderLeft: "1px solid var(--erp-border)" }}>
 
           {/* Search bar */}
-          <div className="px-3 py-2.5 border-b border-white/6 shrink-0"
-            style={{ background: "rgba(0,0,0,0.2)" }}>
+          <div className="px-3 shrink-0"
+            style={{ paddingTop: "0.625rem", paddingBottom: "0.625rem", background: "var(--erp-bg-soft)", borderBottom: "1px solid var(--erp-border)" }}>
             <div className="relative">
-              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 erp-text-muted" style={{ color: "var(--erp-text-3)" }} />
               <input
                 ref={searchRef}
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="بحث عن صنف... (F2)"
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 pr-10 text-sm text-white placeholder:text-white/25 outline-none focus:border-amber-500/60 focus:ring-2 focus:ring-amber-500/15 transition-all"
+                className="erp-input pr-10"
+                style={{ fontSize: cm ? "1rem" : "0.875rem", paddingTop: cm ? "0.75rem" : "0.625rem", paddingBottom: cm ? "0.75rem" : "0.625rem" }}
               />
               {search && (
-                <button onClick={() => { setSearch(""); searchRef.current?.focus(); }}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/70">
+                <button
+                  onClick={() => { setSearch(""); searchRef.current?.focus(); }}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 erp-text-muted hover:opacity-100 opacity-50 transition-opacity"
+                  style={{ color: "var(--erp-text-3)" }}
+                >
                   <X className="w-4 h-4" />
                 </button>
               )}
             </div>
           </div>
 
+          {/* Products count */}
+          {search && (
+            <div className="px-3 py-1" style={{ background: "var(--erp-bg-soft)", borderBottom: "1px solid var(--erp-border)" }}>
+              <span className="erp-label text-[11px]">{filtered.length} نتيجة</span>
+            </div>
+          )}
+
           {/* Products grid */}
           <div className="flex-1 overflow-y-auto p-3">
             {filtered.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full gap-3 text-white/25">
-                <Search className="w-8 h-8" />
-                <p className="text-sm">لا توجد نتائج</p>
+              <div className="erp-empty h-full">
+                <Search className="w-8 h-8" style={{ color: "var(--erp-text-4)" }} />
+                <p>{search ? "لا توجد نتائج مطابقة" : "لا توجد منتجات"}</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+              <div className={`grid gap-2 ${cm
+                ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4"
+                : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"}`}>
                 {filtered.map(p => {
                   const qty = Number(p.quantity);
                   const outOfStock = qty <= 0;
                   const isJustAdded = recentlyAdded === p.id;
                   const inCart = cart.find(i => i.product_id === p.id);
+
+                  let cardStyle: React.CSSProperties = {
+                    background: "var(--erp-bg-card)",
+                    border: `1px solid var(--erp-border)`,
+                    borderRadius: "0.875rem",
+                    transition: "all 0.15s ease",
+                  };
+                  if (outOfStock)   { cardStyle = { ...cardStyle, opacity: 0.4, cursor: "not-allowed" }; }
+                  else if (isJustAdded) { cardStyle = { ...cardStyle, border: "1px solid rgba(245,158,11,0.7)", background: "rgba(245,158,11,0.08)", transform: "scale(0.97)" }; }
+                  else if (inCart)  { cardStyle = { ...cardStyle, border: "1px solid rgba(16,185,129,0.4)", background: "rgba(16,185,129,0.06)" }; }
+
                   return (
                     <button
                       key={p.id}
                       onClick={() => !outOfStock && addToCart(p)}
                       disabled={outOfStock}
-                      className={`relative flex flex-col text-right rounded-2xl p-3 border transition-all duration-150 text-start
-                        ${outOfStock
-                          ? "opacity-35 cursor-not-allowed border-white/6 bg-white/2"
-                          : isJustAdded
-                            ? "border-amber-500/70 bg-amber-500/12 scale-[0.97]"
-                            : inCart
-                              ? "border-emerald-500/40 bg-emerald-500/8 hover:border-emerald-500/60"
-                              : "border-white/8 bg-white/3 hover:border-white/20 hover:bg-white/6 active:scale-[0.97]"
-                        }`}
+                      className="relative flex flex-col text-right p-3 active:scale-[0.97]"
+                      style={cardStyle}
                     >
+                      {/* In-cart badge */}
                       {inCart && (
                         <div className="absolute top-2 left-2 w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center text-[10px] font-black text-white">
                           {inCart.quantity}
                         </div>
                       )}
-                      <p className="text-white font-bold text-sm leading-tight line-clamp-2 mb-2 flex-1">{p.name}</p>
-                      <div className="flex items-end justify-between mt-auto gap-1">
-                        <p className="text-amber-400 font-black text-base">{formatCurrency(p.sale_price)}</p>
-                        <p className={`text-xs font-semibold ${stockColor(qty)}`}>{qty > 0 ? qty : "نفد"}</p>
+                      {/* Name */}
+                      <p className="erp-text font-bold leading-snug line-clamp-2 mb-2 flex-1"
+                        style={{ fontSize: cm ? "0.9375rem" : "0.8125rem" }}>
+                        {p.name}
+                      </p>
+                      {/* Price + Stock */}
+                      <div className="flex items-end justify-between gap-1 mt-auto">
+                        <p className="text-amber-500 font-black"
+                          style={{ fontSize: cm ? "1.125rem" : "0.9375rem" }}>
+                          {formatCurrency(p.sale_price)}
+                        </p>
+                        <span className={`${stockClass(qty)} text-[10px]`}>
+                          {qty > 0 ? qty : "نفد"}
+                        </span>
                       </div>
                     </button>
                   );
@@ -656,14 +696,22 @@ function POSBody({
           </div>
         </div>
 
-        {/* ═══ RIGHT: CART + PAYMENT ═══ */}
-        <div className="flex flex-col w-[340px] lg:w-[400px] shrink-0" style={{ background: "rgba(0,0,0,0.25)" }}>
+        {/* ════ CART + PAYMENT PANEL ════ */}
+        <div className="flex flex-col shrink-0 erp-card-soft"
+          style={{
+            width: cm ? "420px" : "360px",
+            background: "var(--erp-bg-soft)",
+            borderRight: "none",
+            borderTop: "none",
+            borderBottom: "none",
+          }}>
 
           {/* Cart header */}
-          <div className="px-4 py-3 border-b border-white/6 flex items-center justify-between shrink-0">
+          <div className="px-4 py-3 flex items-center justify-between shrink-0"
+            style={{ borderBottom: "1px solid var(--erp-border)" }}>
             <div className="flex items-center gap-2">
-              <ShoppingCart className="w-4 h-4 text-amber-400" />
-              <span className="text-white font-bold text-sm">السلة</span>
+              <ShoppingCart className="w-4 h-4 text-amber-500" />
+              <span className="erp-subtitle">السلة</span>
               {cart.length > 0 && (
                 <span className="w-5 h-5 rounded-full bg-amber-500 text-black text-[11px] font-black flex items-center justify-center">
                   {cart.length}
@@ -672,7 +720,7 @@ function POSBody({
             </div>
             {cart.length > 0 && (
               <button onClick={() => setCart([])}
-                className="flex items-center gap-1 text-red-400/60 hover:text-red-400 text-xs transition-all">
+                className="erp-btn-ghost text-xs px-2 py-1 text-red-500 hover:text-red-500">
                 <Trash2 className="w-3 h-3" /> مسح الكل
               </button>
             )}
@@ -681,21 +729,20 @@ function POSBody({
           {/* Cart items */}
           <div className="flex-1 overflow-y-auto">
             {cart.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full gap-3 text-white/20">
-                <ShoppingCart className="w-10 h-10" />
-                <p className="text-sm">السلة فارغة</p>
-                <p className="text-xs">اضغط Enter لإضافة أول صنف</p>
+              <div className="erp-empty h-full">
+                <ShoppingCart className="w-10 h-10" style={{ color: "var(--erp-text-4)" }} />
+                <p className="erp-text-muted">السلة فارغة</p>
+                <p className="erp-label text-[11px]">اضغط Enter لإضافة أول صنف</p>
               </div>
             ) : (
               <div className="p-2 space-y-1.5">
                 {cart.map(item => (
                   <div key={item.product_id}
-                    className="flex items-center gap-2 rounded-xl px-3 py-2.5 border border-white/8"
-                    style={{ background: "rgba(255,255,255,0.04)" }}>
-                    {/* Name */}
+                    className="erp-card flex items-center gap-2 px-3 py-2.5"
+                    style={{ borderRadius: "0.75rem" }}>
+                    {/* Name + Price */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-white text-xs font-bold leading-snug line-clamp-1">{item.product_name}</p>
-                      {/* Price — editable if allowed */}
+                      <p className="erp-text text-xs font-bold leading-snug line-clamp-1">{item.product_name}</p>
                       {canEditPrice && editingPriceId === item.product_id ? (
                         <input
                           autoFocus
@@ -708,11 +755,12 @@ function POSBody({
                             if (e.key === "Enter") commitPrice(item.product_id, editingPriceVal);
                             if (e.key === "Escape") setEditingPriceId(null);
                           }}
-                          className="w-full bg-amber-500/10 border border-amber-500/40 rounded px-1.5 py-0.5 text-xs text-amber-300 outline-none mt-0.5"
+                          className="erp-input text-xs mt-0.5 py-0.5 px-1.5"
+                          style={{ borderColor: "rgba(245,158,11,0.5)" }}
                         />
                       ) : (
                         <p
-                          className={`text-amber-400/70 text-xs mt-0.5 ${canEditPrice ? "cursor-pointer hover:text-amber-400 hover:underline" : ""}`}
+                          className={`text-amber-500 text-xs mt-0.5 ${canEditPrice ? "cursor-pointer hover:underline" : ""}`}
                           onClick={() => {
                             if (!canEditPrice) return;
                             setEditingPriceId(item.product_id);
@@ -720,27 +768,28 @@ function POSBody({
                           }}
                         >
                           {formatCurrency(item.unit_price)}
-                          {canEditPrice && <span className="text-white/20 text-[10px] mr-1">✏</span>}
+                          {canEditPrice && <span className="erp-label text-[10px] mr-1">✏</span>}
                         </p>
                       )}
                     </div>
                     {/* Qty controls */}
                     <div className="flex items-center gap-1 shrink-0">
                       <button onClick={() => updateQty(item.product_id, -1)}
-                        className="w-7 h-7 rounded-lg bg-white/8 hover:bg-white/15 flex items-center justify-center text-white/70 hover:text-white transition-all">
+                        className="erp-btn-secondary w-7 h-7 p-0 rounded-lg">
                         <Minus className="w-3 h-3" />
                       </button>
-                      <span className="w-7 text-center text-white font-bold text-sm">{item.quantity}</span>
+                      <span className="erp-number w-7 text-center text-sm">{item.quantity}</span>
                       <button onClick={() => updateQty(item.product_id, 1)}
-                        className="w-7 h-7 rounded-lg bg-white/8 hover:bg-white/15 flex items-center justify-center text-white/70 hover:text-white transition-all">
+                        className="erp-btn-secondary w-7 h-7 p-0 rounded-lg">
                         <Plus className="w-3 h-3" />
                       </button>
                     </div>
-                    {/* Total */}
-                    <p className="text-white font-black text-sm w-16 text-left shrink-0">{formatCurrency(item.total_price)}</p>
+                    {/* Line total */}
+                    <p className="erp-number text-sm w-16 text-left shrink-0">{formatCurrency(item.total_price)}</p>
                     {/* Remove */}
                     <button onClick={() => removeItem(item.product_id)}
-                      className="w-6 h-6 rounded-lg flex items-center justify-center text-red-400/40 hover:text-red-400 hover:bg-red-500/10 transition-all shrink-0">
+                      className="w-6 h-6 rounded-lg flex items-center justify-center transition-all shrink-0 erp-btn-danger p-0"
+                      style={{ padding: 0 }}>
                       <X className="w-3 h-3" />
                     </button>
                   </div>
@@ -749,105 +798,118 @@ function POSBody({
             )}
           </div>
 
-          {/* ── PAYMENT PANEL ── */}
-          <div className="border-t border-white/8 p-3 space-y-3 shrink-0"
-            style={{ background: "rgba(0,0,0,0.3)" }}>
+          {/* ════ PAYMENT PANEL ════ */}
+          <div className="erp-divider p-3 space-y-3 shrink-0"
+            style={{ borderBottom: "none", borderLeft: "none", borderRight: "none", background: "var(--erp-bg-panel)" }}>
 
             {/* Discount */}
             <div className="flex items-center gap-2">
-              <label className="text-white/40 text-xs shrink-0">خصم %</label>
+              <label className="erp-label shrink-0 text-xs">خصم %</label>
               <input
                 type="number" min="0" max="100" step="0.5"
                 value={discountPct}
                 onChange={e => setDiscountPct(e.target.value)}
                 placeholder="0"
-                className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white text-center outline-none focus:border-amber-500/50 transition-all"
+                className="erp-input flex-1 text-center text-sm"
+                style={{ padding: "0.375rem 0.5rem" }}
               />
               {discountAmt > 0 && (
-                <span className="text-red-400 text-xs font-bold shrink-0">-{formatCurrency(discountAmt)}</span>
+                <span className="text-red-500 text-xs font-bold shrink-0">-{formatCurrency(discountAmt)}</span>
               )}
             </div>
 
-            {/* Payment type buttons */}
+            {/* Payment type */}
             {payOptions.length > 0 ? (
               <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${payOptions.length}, 1fr)` }}>
                 {payOptions.map(o => {
                   const Icon = o.icon;
-                  const active = payType === o.v;
+                  const isActive = payType === o.v;
                   return (
                     <button key={o.v} onClick={() => setPayType(o.v)}
-                      className={`flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl border transition-all font-bold text-xs
-                        ${active
-                          ? o.color === "emerald" ? "bg-emerald-500 border-emerald-400 text-white shadow-lg shadow-emerald-500/20"
-                            : o.color === "blue"    ? "bg-blue-500 border-blue-400 text-white shadow-lg shadow-blue-500/20"
-                                                   : "bg-amber-500 border-amber-400 text-black shadow-lg shadow-amber-500/20"
-                          : "bg-white/5 border-white/10 text-white/50 hover:border-white/25 hover:text-white/80"
-                        }`}>
-                      <Icon className="w-4 h-4" />
+                      className={`flex flex-col items-center justify-center gap-1 rounded-xl border font-bold transition-all
+                        ${isActive ? o.active : "erp-btn-secondary"}
+                      `}
+                      style={{
+                        paddingTop: cm ? "0.875rem" : "0.625rem",
+                        paddingBottom: cm ? "0.875rem" : "0.625rem",
+                        fontSize: cm ? "0.8125rem" : "0.75rem",
+                        boxShadow: isActive ? `0 4px 12px color-mix(in srgb, currentColor 25%, transparent)` : undefined,
+                      }}>
+                      <Icon className={cm ? "w-5 h-5" : "w-4 h-4"} />
                       {o.l}
                     </button>
                   );
                 })}
               </div>
             ) : (
-              <div className="text-center text-red-400 text-xs py-2 border border-red-500/20 rounded-xl bg-red-500/5">
+              <div className="text-center py-2 rounded-xl text-xs"
+                style={{ color: "#ef4444", background: "rgba(239,68,68,0.10)", border: "1px solid rgba(239,68,68,0.20)" }}>
                 ⚠ لا توجد صلاحية لأي نوع دفع
               </div>
             )}
 
-            {/* Customer select (credit / partial) */}
+            {/* Customer select */}
             {needsCustomer && (
-              <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5">
-                <span className="text-white/40 text-xs shrink-0">العميل</span>
+              <div className="erp-card flex items-center gap-2 px-3 py-1.5" style={{ borderRadius: "0.75rem" }}>
+                <span className="erp-label shrink-0">العميل</span>
                 <SearchableSelect
                   items={customerItems}
                   value={customerId}
                   onChange={setCustomerId}
-                  placeholder="ابحث..."
+                  placeholder="ابحث عن عميل..."
                   emptyLabel="-- اختر عميلاً --"
-                  className="flex-1 text-xs"
+                  className="flex-1"
                 />
               </div>
             )}
 
-            {/* Partial paid amount */}
+            {/* Partial amount */}
             {payType === "partial" && (
               <input
                 type="number" step="0.01"
-                placeholder="المبلغ المدفوع جزئياً..."
+                placeholder="المبلغ المدفوع..."
                 value={paidAmount}
                 onChange={e => setPaidAmount(e.target.value)}
-                className="w-full bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-amber-500/60 transition-all text-center"
+                className="erp-input text-center"
+                style={{ borderColor: "rgba(245,158,11,0.4)", fontSize: cm ? "1rem" : "0.875rem" }}
               />
             )}
 
             {/* Totals */}
-            <div className="space-y-1 py-1 border-t border-white/8">
+            <div className="space-y-1.5 pt-2 erp-divider" style={{ borderBottom: "none", borderLeft: "none", borderRight: "none" }}>
               {discountAmt > 0 && (
-                <div className="flex justify-between text-xs text-white/40">
-                  <span>المجموع</span><span>{formatCurrency(cartSubtotal)}</span>
-                </div>
-              )}
-              {discountAmt > 0 && (
-                <div className="flex justify-between text-xs text-red-400">
-                  <span>خصم {discountPct}%</span><span>-{formatCurrency(discountAmt)}</span>
-                </div>
+                <>
+                  <div className="flex justify-between items-center">
+                    <span className="erp-label">المجموع قبل الخصم</span>
+                    <span className="erp-text text-sm">{formatCurrency(cartSubtotal)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="erp-label text-red-500">خصم {discountPct}%</span>
+                    <span className="text-red-500 text-sm font-bold">-{formatCurrency(discountAmt)}</span>
+                  </div>
+                </>
               )}
               <div className="flex justify-between items-center">
-                <span className="text-white/60 text-sm font-semibold">الإجمالي</span>
-                <span className="text-white font-black text-2xl">{formatCurrency(cartTotal)}</span>
+                <span className="erp-subtitle">الإجمالي</span>
+                <span className="erp-number text-amber-500"
+                  style={{ fontSize: cm ? "2rem" : "1.5rem" }}>
+                  {formatCurrency(cartTotal)}
+                </span>
               </div>
               {payType === "partial" && (
-                <div className="flex justify-between text-xs text-amber-400">
-                  <span>المتبقي</span>
-                  <span>{formatCurrency(cartTotal - (parseFloat(paidAmount) || 0))}</span>
+                <div className="flex justify-between items-center">
+                  <span className="erp-label">المتبقي</span>
+                  <span className="text-amber-500 font-bold text-sm">
+                    {formatCurrency(Math.max(0, cartTotal - (parseFloat(paidAmount) || 0)))}
+                  </span>
                 </div>
               )}
             </div>
 
             {/* Error */}
             {checkoutError && (
-              <div className="flex items-center gap-2 text-red-400 text-xs bg-red-500/8 border border-red-500/20 rounded-xl px-3 py-2">
+              <div className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs"
+                style={{ color: "#ef4444", background: "rgba(239,68,68,0.10)", border: "1px solid rgba(239,68,68,0.20)" }}>
                 <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                 {checkoutError}
               </div>
@@ -857,22 +919,30 @@ function POSBody({
             <button
               onClick={handleCheckout}
               disabled={checkoutMutation.isPending || cart.length === 0 || payOptions.length === 0}
-              className={`w-full py-4 rounded-2xl font-black text-base flex items-center justify-center gap-3 transition-all
-                ${checkoutMutation.isPending || cart.length === 0 || payOptions.length === 0
-                  ? "opacity-40 cursor-not-allowed bg-white/5 border border-white/10 text-white/30"
-                  : "bg-gradient-to-l from-amber-500 to-amber-400 text-black hover:from-amber-400 hover:to-amber-300 shadow-lg shadow-amber-500/25 active:scale-[0.98]"
-                }`}
+              className={`w-full rounded-2xl font-black flex items-center justify-center gap-3 transition-all ${
+                checkoutMutation.isPending || cart.length === 0 || payOptions.length === 0
+                  ? "erp-btn-disabled"
+                  : "erp-btn-primary"
+              }`}
+              style={{
+                paddingTop: cm ? "1.125rem" : "0.875rem",
+                paddingBottom: cm ? "1.125rem" : "0.875rem",
+                fontSize: cm ? "1.0625rem" : "0.9375rem",
+                boxShadow: cart.length > 0 && !checkoutMutation.isPending
+                  ? "0 4px 18px rgba(245,158,11,0.30)"
+                  : undefined,
+              }}
             >
               {checkoutMutation.isPending ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin opacity-60" />
                   جارٍ التسجيل...
                 </>
               ) : (
                 <>
-                  <Zap className="w-5 h-5" />
+                  <Receipt className={cm ? "w-6 h-6" : "w-5 h-5"} />
                   إصدار الفاتورة
-                  <kbd className="text-xs font-bold opacity-60 bg-black/15 px-1.5 py-0.5 rounded">F9</kbd>
+                  <kbd className="text-[11px] font-bold opacity-50 bg-black/10 px-1.5 py-0.5 rounded">F9</kbd>
                 </>
               )}
             </button>
@@ -880,7 +950,7 @@ function POSBody({
         </div>
       </div>
 
-      {/* ═══ SUCCESS MODAL ═══ */}
+      {/* ════ SUCCESS MODAL ════ */}
       {successInvoice && (
         <SuccessModal invoice={successInvoice} onClose={() => {
           setSuccessInvoice(null);
