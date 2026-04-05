@@ -29,11 +29,8 @@ const ReceiptVouchers      = lazy(() => import("@/pages/receipt-vouchers"));
 const DepositVouchers      = lazy(() => import("@/pages/deposit-vouchers"));
 const PaymentVouchers      = lazy(() => import("@/pages/payment-vouchers"));
 const SafeTransfers        = lazy(() => import("@/pages/safe-transfers"));
-const FinancialTransactions = lazy(() => import("@/pages/financial-transactions"));
 const Tasks                = lazy(() => import("@/pages/tasks"));
-const Profits              = lazy(() => import("@/pages/profits"));
 const Products             = lazy(() => import("@/pages/products"));
-const Inventory            = lazy(() => import("@/pages/inventory"));
 const POS                  = lazy(() => import("@/pages/pos"));
 
 /* ── QueryClient with staleTime for performance ─────────── */
@@ -100,14 +97,14 @@ function Router() {
         <Route path="/purchases">{() => <Guard path="/purchases" component={Purchases} />}</Route>
         <Route path="/suppliers">{() => <Redirect to="/customers" />}</Route>
         <Route path="/products">{() => <Guard path="/products" component={Products} />}</Route>
-        <Route path="/inventory">{() => <Guard path="/inventory" component={Inventory} />}</Route>
+        <Route path="/inventory">{() => <Redirect to="/products" />}</Route>
         <Route path="/customers">{() => <Guard path="/customers" component={Customers} />}</Route>
         <Route path="/expenses">{() => <Guard path="/expenses" component={Expenses} />}</Route>
         <Route path="/income">{() => <Guard path="/income" component={Income} />}</Route>
         <Route path="/tasks">
           {() => <Suspense fallback={<PageFallback />}><Tasks /></Suspense>}
         </Route>
-        <Route path="/profits">{() => <Guard path="/profits" component={Profits} />}</Route>
+        <Route path="/profits">{() => <Redirect to="/reports" />}</Route>
         <Route path="/reports">{() => <Guard path="/reports" component={Reports} />}</Route>
         <Route path="/settings">{() => <Guard path="/settings" component={Settings} />}</Route>
         <Route path="/accounts">{() => <Guard path="/accounts" component={Accounts} />}</Route>
@@ -116,7 +113,7 @@ function Router() {
         <Route path="/deposit-vouchers">{() => <Guard path="/deposit-vouchers" component={DepositVouchers} />}</Route>
         <Route path="/payment-vouchers">{() => <Guard path="/payment-vouchers" component={PaymentVouchers} />}</Route>
         <Route path="/safe-transfers">{() => <Guard path="/safe-transfers" component={SafeTransfers} />}</Route>
-        <Route path="/financial-transactions">{() => <Guard path="/financial-transactions" component={FinancialTransactions} />}</Route>
+        <Route path="/financial-transactions">{() => <Redirect to="/reports" />}</Route>
         <Route component={NotFound} />
       </Switch>
     </AppLayout>
