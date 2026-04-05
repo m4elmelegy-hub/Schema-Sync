@@ -1,0 +1,182 @@
+Enhance Profit & Loss report readability and accounting flow without breaking existing logic.
+
+⚠️ DO NOT change APIs or calculations.
+⚠️ DO NOT remove any existing data.
+⚠️ ONLY improve structure, clarity, and UX.
+
+---
+
+🎯 GOAL:
+Make the report readable like a real accounting statement — not just numbers.
+
+---
+
+1. RESTRUCTURE ACCOUNTING FLOW
+
+---
+
+Ensure strict visual hierarchy in this exact order:
+
+1. الإيرادات
+
+   * إجمالي المبيعات
+   * (-) المرتجعات
+     = صافي المبيعات
+
+2. تكلفة البضاعة المباعة
+
+   * (-) تكلفة المنتجات
+
+3. = مجمل الربح
+
+4. المصروفات التشغيلية
+
+   * (-) كل المصروفات (إيجار / رواتب / صيانة ...)
+
+5. = صافي الربح / الخسارة
+
+---
+
+2. ADD VISUAL HIERARCHY (VERY IMPORTANT)
+
+---
+
+Apply indentation:
+
+.child-row {
+padding-right: 24px;
+color: #6b7280;
+}
+
+.parent-row {
+font-weight: 600;
+}
+
+.total-row {
+font-weight: 700;
+}
+
+---
+
+3. ADD ACCOUNTING PREFIXES
+
+---
+
+Display:
+
+(-) before:
+
+* costs
+* expenses
+* returns
+
+NO prefix for:
+
+* revenue
+* totals
+
+---
+
+4. IMPROVE SECTION SEPARATION
+
+---
+
+Between each section:
+
+<div class="border-t border-gray-200 my-4"></div>
+
+---
+
+5. IMPROVE TOTAL ROWS
+
+---
+
+Gross Profit:
+
+background: #fef9ec;
+font-weight: 700;
+
+Net Profit:
+
+if positive:
+color: #059669;
+background: #ecfdf5;
+
+if negative:
+color: #dc2626;
+background: #fef2f2;
+
+font-size: 18px;
+
+---
+
+6. ALIGN NUMBERS LIKE ACCOUNTING
+
+---
+
+All numbers:
+
+* right aligned
+* fixed width
+* negative values wrapped in ()
+
+Example:
+
+(300.00)
+1500.00
+
+---
+
+7. REMOVE CONFUSION (IMPORTANT)
+
+---
+
+DO NOT show duplicated totals.
+
+Only show:
+
+✔ إجمالي المبيعات
+✔ مجمل الربح
+✔ إجمالي المصروفات
+✔ صافي الربح
+
+Remove any repeated or unclear intermediate rows.
+
+---
+
+8. ADD SMALL LABELS FOR CLARITY
+
+---
+
+Add subtle hints under section titles:
+
+الإيرادات → (الدخل الناتج من المبيعات)
+المصروفات التشغيلية → (تكاليف التشغيل اليومية)
+
+---
+
+9. KEEP IT CLEAN
+
+---
+
+NO charts changes
+NO heavy UI additions
+NO animations
+
+This is a financial statement, not a dashboard.
+
+---
+
+10. FINAL RESULT
+
+---
+
+✔ Clear accounting flow
+✔ Easy to read
+✔ Professional ERP style
+✔ Works in Arabic only
+✔ No logic changes
+
+---
+
+Return only updated UI components.
