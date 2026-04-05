@@ -29,7 +29,7 @@ const ReceiptVouchers      = lazy(() => import("@/pages/receipt-vouchers"));
 const DepositVouchers      = lazy(() => import("@/pages/deposit-vouchers"));
 const PaymentVouchers      = lazy(() => import("@/pages/payment-vouchers"));
 const SafeTransfers        = lazy(() => import("@/pages/safe-transfers"));
-const Tasks                = lazy(() => import("@/pages/tasks"));
+const Treasury             = lazy(() => import("@/pages/treasury"));
 const Products             = lazy(() => import("@/pages/products"));
 const Vouchers             = lazy(() => import("@/pages/vouchers"));
 const POS                  = lazy(() => import("@/pages/pos"));
@@ -102,9 +102,8 @@ function Router() {
         <Route path="/customers">{() => <Guard path="/customers" component={Customers} />}</Route>
         <Route path="/expenses">{() => <Guard path="/expenses" component={Expenses} />}</Route>
         <Route path="/income">{() => <Guard path="/income" component={Income} />}</Route>
-        <Route path="/tasks">
-          {() => <Suspense fallback={<PageFallback />}><Tasks /></Suspense>}
-        </Route>
+        <Route path="/treasury">{() => <Guard path="/treasury" component={Treasury} />}</Route>
+        <Route path="/tasks">{() => <Redirect to="/treasury" />}</Route>
         <Route path="/profits">{() => <Redirect to="/reports" />}</Route>
         <Route path="/reports">{() => <Guard path="/reports" component={Reports} />}</Route>
         <Route path="/settings">{() => <Guard path="/settings" component={Settings} />}</Route>

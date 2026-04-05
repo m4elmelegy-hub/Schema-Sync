@@ -3,11 +3,11 @@
  * These are UI-level guards only — real security is enforced on the backend.
  */
 import {
-  LayoutDashboard, ClipboardList, Receipt, CreditCard,
+  LayoutDashboard, Receipt, CreditCard,
   Package, Users, TrendingUp,
   FileText, Settings, Zap,
-  BookOpen, HandCoins, ArrowDownToLine, ArrowUpFromLine,
-  ArrowLeftRight, ReceiptText,
+  BookOpen, HandCoins, ArrowUpFromLine,
+  ArrowLeftRight, ReceiptText, Wallet,
   type LucideIcon,
 } from "lucide-react";
 
@@ -17,7 +17,7 @@ export type UserRole = AppRole;
 /* ── Which roles can access each route ─────────────────── */
 export const ROUTE_ROLES: Record<string, AppRole[]> = {
   "/":                       ["admin", "manager", "cashier", "salesperson"],
-  "/tasks":                  ["admin", "manager", "cashier", "salesperson"],
+  "/treasury":               ["admin", "manager", "cashier", "salesperson"],
   "/pos":                    ["admin", "manager", "cashier", "salesperson"],
   "/sales":                  ["admin", "manager", "cashier", "salesperson"],
   "/purchases":              ["admin", "manager"],
@@ -35,7 +35,7 @@ export const ROUTE_ROLES: Record<string, AppRole[]> = {
 /* ── Nav items with role visibility + icons ─────────────── */
 export const NAV_ITEMS: { name: string; href: string; icon: LucideIcon; roles: AppRole[] }[] = [
   { name: "لوحة القيادة",      href: "/",                       icon: LayoutDashboard, roles: ["admin","manager","cashier","salesperson"] },
-  { name: "المهام السريعة",    href: "/tasks",                  icon: ClipboardList,   roles: ["admin","manager","cashier","salesperson"] },
+  { name: "السندات والخزينة", href: "/treasury",               icon: Wallet,          roles: ["admin","manager","cashier","salesperson"] },
   { name: "نقطة البيع POS",    href: "/pos",                    icon: Zap,             roles: ["admin","manager","cashier","salesperson"] },
   { name: "المبيعات",          href: "/sales",                  icon: Receipt,         roles: ["admin","manager","cashier","salesperson"] },
   { name: "المشتريات",         href: "/purchases",              icon: CreditCard,      roles: ["admin","manager"] },
