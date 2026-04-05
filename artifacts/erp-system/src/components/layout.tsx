@@ -20,7 +20,7 @@ const NAV_SECTIONS = [
   { label: "الرئيسية",   hrefs: ["/", "/treasury"] },
   { label: "التجارة",    hrefs: ["/pos", "/sales", "/purchases", "/products", "/inventory", "/customers"] },
   { label: "المالية",    hrefs: ["/income", "/expenses", "/reports"] },
-  { label: "المحاسبة",   hrefs: ["/accounts", "/journal-entries", "/vouchers"] },
+  { label: "المحاسبة",   hrefs: ["/accounts", "/journal-entries"] },
   { label: "النظام",     hrefs: ["/settings"] },
 ];
 
