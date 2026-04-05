@@ -1,0 +1,204 @@
+FIX AND REBUILD POS PAGE (pos.tsx) — THEME + ERRORS + UI CONSISTENCY
+
+⚠️ CRITICAL:
+POS page is currently broken in 3 areas:
+1) runtime error (missing hooks)
+2) completely broken light mode
+3) inconsistent UI (not using design system)
+
+You must FIX — not redesign randomly.
+
+---
+
+1. FIX RUNTIME ERROR
+
+Missing hook:
+useGetProducts
+
+DO:
+
+- search for correct hook name inside project
+- import it correctly
+
+example:
+import { useGetProducts } from "@workspace/api-client-react";
+
+If not exists:
+→ create simple query using useQuery
+
+---
+
+2. FORCE POS TO USE GLOBAL THEME SYSTEM
+
+⚠️ CURRENT PROBLEM:
+POS is using hardcoded dark styles → breaks light mode
+
+---
+
+REPLACE ALL:
+
+❌ style={{ background: "rgba(...)" }}
+❌ dark-only colors
+❌ inline styles
+
+---
+
+WITH:
+
+Use existing report classes:
+
+rpt-panel
+rpt-section
+rpt-strong
+rpt-muted
+rpt-input
+rpt-btn
+rpt-card
+
+---
+
+3. FIX ADMIN SETUP MODAL (IMPORTANT)
+
+Component: AdminPOSSetup
+
+PROBLEMS:
+- unreadable in light mode
+- dropdown broken
+- button disabled visually unclear
+
+---
+
+APPLY:
+
+Container:
+
+className="
+rpt-panel
+max-w-md
+mx-auto
+p-6
+rounded-2xl
+border
+shadow-sm
+text-center
+"
+
+---
+
+Title:
+
+className="text-lg font-semibold rpt-strong mb-2"
+
+---
+
+Description:
+
+className="text-sm rpt-muted mb-4"
+
+---
+
+Select fields:
+
+className="
+w-full
+h-11
+px-3
+rounded-xl
+border
+rpt-input
+bg-white
+text-black
+"
+
+---
+
+Dropdown FIX:
+
+- must not use native ugly dropdown
+- use SearchableSelect already imported
+
+REPLACE native select with:
+
+<SearchableSelect
+  options={warehouses}
+  value={warehouseId}
+  onChange={setWarehouseId}
+/>
+
+---
+
+4. BUTTON FIX
+
+"بدء البيع"
+
+PROBLEM:
+- looks disabled always
+
+FIX:
+
+enabled:
+className="rpt-btn-primary w-full h-11 mt-4"
+
+disabled:
+className="rpt-btn-disabled w-full h-11 mt-4"
+
+---
+
+5. FIX LIGHT MODE COLORS
+
+ADD in index.css if missing:
+
+html.light .pos-page {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+html.dark .pos-page {
+  background: #020617;
+}
+
+---
+
+6. WRAP PAGE
+
+Main wrapper:
+
+<div className="pos-page min-h-screen flex items-center justify-center">
+
+---
+
+7. ENSURE CONSISTENCY
+
+POS must visually match:
+
+✔ Reports page
+✔ Treasury page
+✔ Modals
+
+NOT standalone design
+
+---
+
+8. NO ENGLISH TEXT
+
+All UI must remain Arabic only
+
+---
+
+9. FINAL RESULT EXPECTED
+
+✔ POS opens without crash
+✔ Admin sees setup screen
+✔ Light mode fully readable
+✔ Dropdown styled correctly
+✔ Button clear state
+✔ Same design language as reports
+
+---
+
+DO NOT:
+- invent new design system
+- use inline styles
+- keep dark-only colors
+
+ONLY reuse existing system

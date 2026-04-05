@@ -116,90 +116,92 @@ function AdminPOSSetup({ onStart }: { onStart: (w: number, s: number) => void })
     queryKey: ["/api/settings/warehouses"],
     queryFn: () => authFetch(api("/api/settings/warehouses")).then(r => r.json()),
   });
-  const { data: safes = [] } = useGetSettingsSafes();
+  const { data: rawSafes = [] } = useGetSettingsSafes();
+  const safes = rawSafes as { id: number; name: string }[];
 
-  const [wId, setWId] = useState<number | null>(
-    () => { const v = localStorage.getItem("pos:lastWarehouse"); return v ? Number(v) : null; }
+  const [wId, setWId] = useState<string>(
+    () => localStorage.getItem("pos:lastWarehouse") ?? ""
   );
-  const [sId, setSId] = useState<number | null>(
-    () => { const v = localStorage.getItem("pos:lastSafe"); return v ? Number(v) : null; }
+  const [sId, setSId] = useState<string>(
+    () => localStorage.getItem("pos:lastSafe") ?? ""
   );
+
+  const warehouseItems = useMemo(() =>
+    warehouses.map(w => ({ value: String(w.id), label: w.name, searchKeys: [w.name] })),
+    [warehouses]
+  );
+  const safeItems = useMemo(() =>
+    safes.map(s => ({ value: String(s.id), label: s.name, searchKeys: [s.name] })),
+    [safes]
+  );
+
+  const ready = !!wId && !!sId;
 
   function handleStart() {
-    if (!wId || !sId) return;
-    localStorage.setItem("pos:lastWarehouse", String(wId));
-    localStorage.setItem("pos:lastSafe",      String(sId));
-    onStart(wId, sId);
+    if (!ready) return;
+    localStorage.setItem("pos:lastWarehouse", wId);
+    localStorage.setItem("pos:lastSafe",      sId);
+    onStart(Number(wId), Number(sId));
   }
 
-  const selClass = "w-full rounded-xl px-3 py-3 bg-[#1A2235] border border-white/10 text-white text-sm focus:outline-none focus:border-amber-500/50 appearance-none";
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: "hsl(225,25%,5%)" }} dir="rtl">
-      <div className="w-full max-w-sm rounded-3xl border border-white/10 shadow-2xl p-8 space-y-6"
-        style={{ background: "rgba(15,23,42,0.97)" }}>
+    <div className="pos-page fixed inset-0 z-50 flex items-center justify-center p-4" dir="rtl">
+      <div className="rpt-panel w-full max-w-md p-8 space-y-6">
 
         {/* Header */}
         <div className="text-center space-y-2">
           <div className="w-16 h-16 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center mx-auto">
             <Store className="w-8 h-8 text-amber-400" />
           </div>
-          <h2 className="text-white text-xl font-black">اختيار الفرع والخزينة</h2>
-          <p className="text-white/40 text-sm">وضع المدير — يُختار يدوياً ولا يُحفظ في الملف الشخصي</p>
+          <h2 className="text-xl font-black rpt-strong">اختيار الفرع والخزينة</h2>
+          <p className="rpt-muted">وضع المدير — يُختار يدوياً ولا يُحفظ في الملف الشخصي</p>
         </div>
 
         {/* Warehouse */}
         <div className="space-y-1.5">
-          <label className="text-white/50 text-xs font-semibold flex items-center gap-1.5">
+          <label className="rpt-label flex items-center gap-1.5">
             <Vault className="w-3.5 h-3.5" />
             الفرع / المخزن
           </label>
-          <select
-            value={wId ?? ""}
-            onChange={e => setWId(e.target.value ? Number(e.target.value) : null)}
-            className={selClass}
-          >
-            <option value="">— اختر الفرع —</option>
-            {warehouses.map(w => (
-              <option key={w.id} value={w.id}>{w.name}</option>
-            ))}
-          </select>
+          <SearchableSelect
+            items={warehouseItems}
+            value={wId}
+            onChange={setWId}
+            placeholder="ابحث باسم الفرع..."
+            emptyLabel="— اختر الفرع —"
+            clearable={false}
+          />
         </div>
 
         {/* Safe */}
         <div className="space-y-1.5">
-          <label className="text-white/50 text-xs font-semibold flex items-center gap-1.5">
+          <label className="rpt-label flex items-center gap-1.5">
             <Vault className="w-3.5 h-3.5" />
             الخزينة
           </label>
-          <select
-            value={sId ?? ""}
-            onChange={e => setSId(e.target.value ? Number(e.target.value) : null)}
-            className={selClass}
-          >
-            <option value="">— اختر الخزينة —</option>
-            {(safes as { id: number; name: string }[]).map(s => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
+          <SearchableSelect
+            items={safeItems}
+            value={sId}
+            onChange={setSId}
+            placeholder="ابحث باسم الخزينة..."
+            emptyLabel="— اختر الخزينة —"
+            clearable={false}
+          />
         </div>
 
         {/* Start button */}
         <button
-          disabled={!wId || !sId}
           onClick={handleStart}
-          className="w-full py-3.5 rounded-2xl font-black text-[#0a1220] text-base transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{ background: wId && sId ? "#f59e0b" : "#6b7280" }}
+          className={`w-full h-11 text-base ${ready ? "rpt-btn-primary" : "rpt-btn-disabled"}`}
         >
-          <Zap className="w-4 h-4 inline-block ml-1.5" />
+          <Zap className="w-4 h-4" />
           بدء البيع
         </button>
 
-        {wId && sId && (
-          <p className="text-center text-white/25 text-[11px]">
-            {warehouses.find(w => w.id === wId)?.name} ·{" "}
-            {(safes as { id: number; name: string }[]).find(s => s.id === sId)?.name}
+        {ready && (
+          <p className="text-center rpt-muted">
+            {warehouseItems.find(w => w.value === wId)?.label} ·{" "}
+            {safeItems.find(s => s.value === sId)?.label}
           </p>
         )}
       </div>
@@ -242,15 +244,14 @@ export default function POSPage() {
   if (!warehouseId || !safeId) {
     if (!isAdmin) {
       return (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 p-8"
-          style={{ background: "hsl(225,25%,5%)" }} dir="rtl">
+        <div className="pos-page fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 p-8" dir="rtl">
           <div className="w-20 h-20 rounded-3xl bg-red-500/10 border border-red-500/30 flex items-center justify-center">
             <AlertTriangle className="w-10 h-10 text-red-400" />
           </div>
           <div className="text-center space-y-2 max-w-sm">
-            <h2 className="text-2xl font-black text-white">وصول مرفوض</h2>
+            <h2 className="text-2xl font-black rpt-strong">وصول مرفوض</h2>
             <p className="text-red-400 font-bold text-lg">يجب ربط حسابك بمخزن وخزينة أولاً</p>
-            <p className="text-white/40 text-sm">تواصل مع المدير لإتمام إعداد حسابك قبل استخدام نقطة البيع</p>
+            <p className="rpt-muted">تواصل مع المدير لإتمام إعداد حسابك قبل استخدام نقطة البيع</p>
           </div>
         </div>
       );
@@ -293,7 +294,11 @@ function POSBody({
   const qc = useQueryClient();
 
   /* ── Data ── */
-  const { data: products = [] } = useGetProducts();
+  const { data: products = [] } = useQuery<{ id: number; name: string; sku: string | null; quantity: number; sale_price: number; cost_price: number; barcode?: string | null }[]>({
+    queryKey: ["/api/products"],
+    queryFn: () => authFetch(api("/api/products")).then(r => r.json()),
+    staleTime: 60_000,
+  });
   const { data: customers = [] } = useGetCustomers();
   const { data: safes    = [] } = useGetSettingsSafes();
   const { data: warehouses = [] } = useQuery<{ id: number; name: string }[]>({

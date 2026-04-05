@@ -3211,3 +3211,70 @@ html.light .rpt-dropdown {
   .text-red-400,     [style*="#dc2626"] { color: #dc2626 !important; }
   .text-amber-400,   [style*="#d97706"] { color: #d97706 !important; }
 }
+
+/* ── POS page theme ──────────────────────────────────────── */
+.pos-page {
+  background: #020617;
+  color: rgba(255,255,255,0.9);
+}
+html.light .pos-page {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+/* ── rpt-input (theme-aware form field) ──────────────────── */
+.rpt-input {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 0.75rem;
+  color: rgba(255,255,255,0.9);
+  transition: border-color 0.15s;
+}
+.rpt-input:focus {
+  outline: none;
+  border-color: rgba(245,158,11,0.5);
+}
+html.light .rpt-input {
+  background: #ffffff !important;
+  border: 1px solid #d1d5db !important;
+  color: #0f172a !important;
+}
+html.light .rpt-input:focus {
+  border-color: #f59e0b !important;
+}
+
+/* ── rpt-btn-primary ─────────────────────────────────────── */
+.rpt-btn-primary {
+  background: #f59e0b;
+  color: #0a1220;
+  font-weight: 700;
+  border: none;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+.rpt-btn-primary:hover  { opacity: 0.88; }
+.rpt-btn-primary:active { transform: scale(0.98); }
+
+/* ── rpt-btn-disabled ────────────────────────────────────── */
+.rpt-btn-disabled {
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.22);
+  font-weight: 700;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 0.75rem;
+  cursor: not-allowed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+html.light .rpt-btn-disabled {
+  background: #e5e7eb !important;
+  color: #9ca3af !important;
+  border-color: #d1d5db !important;
+}
