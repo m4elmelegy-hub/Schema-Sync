@@ -1,11 +1,15 @@
 /**
  * Reports — Main Orchestrator
  * Thin shell: tab bar + lazy render of each report component.
+ * Includes FinancialConsistencyBar — always-visible cross-report validation strip.
  */
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
+import { CheckCircle, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/contexts/auth";
 import { hasPermission } from "@/lib/permissions";
+import { api, authFetch, formatCurrency } from "./shared";
 
 import ProfitLossReport        from "./ProfitLossReport";
 import InventoryReport         from "./InventoryReport";
@@ -21,6 +25,75 @@ import BalanceSheetReport      from "./BalanceSheetReport";
 import TopReportsTab           from "./TopReportsTab";
 import HealthCheckReport       from "./HealthCheckReport";
 
+/* ── Types ─────────────────────────────────────────────────────────────── */
+interface BsSnapshot {
+  assets:      { total: number };
+  liabilities: { total: number };
+  equity:      { opening_capital: number; retained_earnings: number; total: number };
+  total_liabilities_equity: number;
+  balanced: boolean;
+}
+
+interface SafeRow { balance: string | number }
+
+/* ── Financial Consistency Bar ──────────────────────────────────────────── */
+function FinancialConsistencyBar() {
+  const { data: bs } = useQuery<BsSnapshot>({
+    queryKey: ["balance-sheet"],
+    queryFn: () => authFetch(api("/api/reports/balance-sheet")).then(r => r.json()),
+    staleTime: 120_000,
+  });
+
+  const { data: safes } = useQuery<SafeRow[]>({
+    queryKey: ["/api/settings/safes"],
+    queryFn: () => authFetch(api("/api/settings/safes")).then(r => r.json()),
+    staleTime: 120_000,
+  });
+
+  if (!bs) return null;
+
+  const treasury   = (safes ?? []).reduce((s, safe) => s + Number(safe.balance ?? 0), 0);
+  const diff       = Math.abs(bs.assets.total - bs.total_liabilities_equity);
+  const balanced   = bs.balanced;
+
+  const items: { label: string; value: string; color: string }[] = [
+    { label: "إجمالي الأصول",         value: formatCurrency(bs.assets.total),           color: "#d97706" },
+    { label: "رأس المال + الأرباح",    value: formatCurrency(bs.equity.total),            color: "#059669" },
+    { label: "الأرباح التراكمية",      value: formatCurrency(bs.equity.retained_earnings), color: "#6366f1" },
+    { label: "رصيد الخزينة",           value: formatCurrency(treasury),                   color: "#0ea5e9" },
+  ];
+
+  return (
+    <div
+      className="no-print flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl px-4 py-2.5"
+      style={{
+        background: balanced ? "rgba(5,150,105,0.06)" : "rgba(220,38,38,0.06)",
+        border: `1px solid ${balanced ? "rgba(5,150,105,0.20)" : "rgba(220,38,38,0.25)"}`,
+        fontFamily: "'Tajawal','Cairo',sans-serif",
+      }}
+      dir="rtl"
+    >
+      {/* Balance status badge */}
+      <span className="flex items-center gap-1.5 text-xs font-bold shrink-0" style={{ color: balanced ? "#059669" : "#dc2626" }}>
+        {balanced
+          ? <><CheckCircle className="w-3.5 h-3.5" /> الميزانية متوازنة</>
+          : <><AlertTriangle className="w-3.5 h-3.5" /> فرق {formatCurrency(diff)}</>}
+      </span>
+
+      <span style={{ color: "rgba(255,255,255,0.10)", fontSize: 18 }}>|</span>
+
+      {/* Key metrics */}
+      {items.map(it => (
+        <span key={it.label} className="flex items-center gap-1.5 text-xs shrink-0">
+          <span style={{ color: "rgba(255,255,255,0.35)" }}>{it.label}:</span>
+          <span style={{ color: it.color, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{it.value}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/* ── Tab config ─────────────────────────────────────────────────────────── */
 type Tab =
   | "health" | "pl" | "cashflow" | "balance" | "daily" | "products" | "analysis" | "customer"
   | "top" | "inventory" | "sales" | "purchases" | "vouchers";
@@ -41,6 +114,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "vouchers",  label: "🏦 سجل السندات" },
 ];
 
+/* ── Main Page ──────────────────────────────────────────────────────────── */
 export default function Reports() {
   const { user }  = useAuth();
   const canView   = hasPermission(user, "can_view_reports") === true;
@@ -58,7 +132,8 @@ export default function Reports() {
 
   return (
     <div className="space-y-4">
-      <div className="flex bg-white/5 rounded-2xl p-1 border border-white/10 flex-wrap gap-1">
+      {/* ── Tab bar ── */}
+      <div className="no-print flex bg-white/5 rounded-2xl p-1 border border-white/10 flex-wrap gap-1">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${tab === t.id ? "bg-amber-500 text-black shadow" : "text-white/50 hover:text-white"}`}
@@ -67,6 +142,9 @@ export default function Reports() {
           </button>
         ))}
       </div>
+
+      {/* ── Financial Consistency Bar — always visible ── */}
+      <FinancialConsistencyBar />
 
       <AnimatePresence mode="wait">
         <motion.div key={tab} initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-8 }} transition={{ duration:0.2 }}>

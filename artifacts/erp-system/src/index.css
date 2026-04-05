@@ -3155,3 +3155,59 @@ html.light .rpt-dropdown {
   border: 1px solid #e2e8f0 !important;
   box-shadow: 0 8px 24px rgba(0,0,0,0.12) !important;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   @media print — تخطيط الطباعة النظيف لجميع التقارير المالية
+   يخفي عناصر الواجهة ويطبق تخطيط A4 نظيف
+   ══════════════════════════════════════════════════════════════════════════ */
+@media print {
+  /* إخفاء عناصر الواجهة غير المطلوبة في الطباعة */
+  .no-print,
+  nav, aside,
+  [data-sidebar],
+  .tab-bar,
+  button,
+  input[type="date"],
+  input[type="text"],
+  select { display: none !important; }
+
+  /* إعداد صفحة A4 */
+  @page {
+    size: A4 portrait;
+    margin: 14mm 16mm;
+  }
+
+  html, body {
+    background: #ffffff !important;
+    color: #111827 !important;
+    font-family: 'Cairo', 'Tajawal', sans-serif !important;
+    font-size: 12px !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* إخفاء شريط التنقل الجانبي */
+  [class*="sidebar"],
+  [class*="Sidebar"],
+  [class*="nav-"],
+  [id*="sidebar"] { display: none !important; }
+
+  /* تخطيط التقارير */
+  .rpt-panel {
+    break-inside: avoid;
+    box-shadow: none !important;
+    border: 1px solid #e5e7eb !important;
+  }
+
+  /* الجداول لا تنكسر بين الصفحات */
+  table { break-inside: avoid; }
+  tr    { break-inside: avoid; }
+
+  /* الأرقام واضحة في الطباعة */
+  .tabular-nums { font-variant-numeric: tabular-nums; }
+
+  /* ألوان محفوظة في الطباعة */
+  .text-emerald-400, [style*="#059669"] { color: #059669 !important; }
+  .text-red-400,     [style*="#dc2626"] { color: #dc2626 !important; }
+  .text-amber-400,   [style*="#d97706"] { color: #d97706 !important; }
+}

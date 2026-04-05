@@ -744,7 +744,7 @@ export default function ProfitLossReport() {
     <div className="space-y-4" dir="rtl" style={{fontFamily:"'Tajawal','Cairo',sans-serif"}}>
 
       {/* ── Top bar ── */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="no-print flex flex-wrap items-center gap-2">
         {/* Date mode pills */}
         <div className="flex flex-wrap gap-1.5">
           {DATE_MODES.map(m=>(

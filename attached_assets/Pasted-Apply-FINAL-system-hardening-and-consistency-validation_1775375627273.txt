@@ -1,0 +1,114 @@
+Apply FINAL system hardening and consistency validation for financial reports.
+
+⚠️ This is a stabilization phase — NOT feature development.
+
+==================================================
+
+1. CROSS-REPORT CONSISTENCY CHECK
+   ==================================================
+
+Validate:
+
+* Net Profit (P&L) matches Retained Earnings (Balance Sheet)
+* Cash Flow closing balance matches Treasury balance
+* Balance Sheet equation always checked
+
+If mismatch:
+
+Show clear explanation message.
+
+==================================================
+2) GLOBAL DATE CONSISTENCY
+==========================
+
+Ensure:
+
+* P&L uses period range
+* Cash Flow uses period range
+* Balance Sheet uses "as of date"
+
+All filters must sync logically.
+
+==================================================
+3) GLOBAL CURRENCY FORMAT
+=========================
+
+Standardize:
+
+ج.م 1,250.00
+
+Across ALL reports.
+
+==================================================
+4) PRINT MODE (ALL REPORTS)
+===========================
+
+Ensure:
+
+* Clean A4 layout
+* No UI elements (buttons, shadows)
+* Same header style across all reports
+
+==================================================
+5) ERROR STATES
+===============
+
+Add safe states:
+
+* No data
+* Partial data
+* mismatch
+
+All must display clean messages.
+
+==================================================
+6) PERFORMANCE LOCK
+===================
+
+* Memoize all heavy calculations
+* No duplicate API calls
+* No unnecessary re-renders
+
+==================================================
+7) ROLE-BASED ACCESS (PREPARE)
+==============================
+
+Prepare for:
+
+* Admin → full access
+* Accountant → reports only
+* Cashier → no reports
+
+(No need to fully implement, just structure ready)
+
+==================================================
+8) FINAL QA CHECKLIST
+=====================
+
+* Arabic only ✔
+* No visual noise ✔
+* All numbers aligned ✔
+* All totals correct ✔
+* Reports match each other ✔
+
+==================================================
+9) FREEZE STATE
+===============
+
+Mark modules:
+
+* Profit & Loss → STABLE
+* Cash Flow → STABLE
+* Balance Sheet → STABLE
+
+No structural changes allowed after this.
+
+==================================================
+10) OUTPUT SUMMARY
+==================
+
+Return:
+
+* validation results
+* consistency confirmation
+* any mismatches found

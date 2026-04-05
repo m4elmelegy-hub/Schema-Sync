@@ -29,7 +29,7 @@ const EMPTY_CF: CashFlowSummary = {
 };
 
 function fmtAcct(n: number): string {
-  const abs = Math.abs(n).toFixed(2);
+  const abs = formatCurrency(Math.abs(n));
   return n < 0 ? `(${abs})` : abs;
 }
 
@@ -306,7 +306,7 @@ export default function CashFlowReport() {
     <div className="space-y-4" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>
 
       {/* ── Filter bar + PDF ── */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="no-print flex flex-wrap items-center justify-between gap-3">
         <DateFilterBar
           mode={mode} setMode={setMode}
           customFrom={customFrom} setCustomFrom={setCustomFrom}

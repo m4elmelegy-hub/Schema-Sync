@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Scale, Printer, AlertTriangle, CheckCircle,
@@ -89,7 +89,7 @@ function BalanceBadge({ balanced, diff }: { balanced: boolean; diff: number }) {
       style={{ background: "rgba(220,38,38,0.10)", border: "1px solid rgba(220,38,38,0.25)" }}>
       <AlertTriangle className="w-3.5 h-3.5" style={{ color: "#dc2626" }} />
       <span style={{ fontSize: 11, fontWeight: 700, color: "#dc2626" }}>
-        ⚠️ يوجد فرق: {Math.abs(diff).toFixed(2)} ج.م
+        ⚠️ يوجد فرق: {formatCurrency(Math.abs(diff))}
       </span>
     </div>
   );
@@ -160,7 +160,7 @@ function ChildRow({
         </span>
       </td>
       <td style={{ textAlign: "left", fontVariantNumeric: "tabular-nums", fontWeight: 600, fontSize: 13, color: dim ? txtDim : txtBody, paddingLeft: 20, paddingRight: 16, borderBottom: `1px solid ${bdColor}` }}>
-        {Number(value).toFixed(2)}
+        {formatCurrency(value)}
       </td>
     </tr>
   );
@@ -174,7 +174,7 @@ function TotalRow({ label, value, accent }: { label: string; value: number; acce
         {label}
       </td>
       <td style={{ textAlign: "left", fontWeight: 800, fontSize: 13.5, background: `${clr}18`, color: clr, borderTop: `2px solid ${clr}40`, borderBottom: `2px solid ${clr}40`, padding: "10px 16px", fontVariantNumeric: "tabular-nums" }}>
-        {Number(value).toFixed(2)}
+        {formatCurrency(value)}
       </td>
     </tr>
   );
@@ -189,7 +189,7 @@ function NetRow({ label, value, balanced }: { label: string; value: number; bala
         {label}
       </td>
       <td style={{ textAlign: "left", fontWeight: 900, fontSize: 16, background: bg, color: clr, borderTop: `2px solid ${clr}`, padding: "13px 16px", fontVariantNumeric: "tabular-nums" }}>
-        {Number(value).toFixed(2)}
+        {formatCurrency(value)}
       </td>
     </tr>
   );
@@ -220,7 +220,7 @@ function CustomerDrill({ isSupplier }: { isSupplier: boolean }) {
   const { isLight, txtSub, bdColor } = useTheme();
   const { data, isLoading } = useQuery<DrillCustomer[]>({
     queryKey: ["drill-customers", isSupplier],
-    queryFn: () => authFetch(`${api}/customers`).then(r => r.json()),
+    queryFn: () => authFetch(api("/api/customers")).then(r => r.json()),
     staleTime: 60_000,
   });
 
@@ -245,7 +245,7 @@ function CustomerDrill({ isSupplier }: { isSupplier: boolean }) {
             <tr key={c.id} style={{ borderTop: `1px solid ${bdColor}` }}>
               <td style={{ padding: "5px 10px", color: isLight ? "#374151" : "rgba(255,255,255,0.75)" }}>{c.name}</td>
               <td style={{ padding: "5px 10px", textAlign: "left", fontVariantNumeric: "tabular-nums", fontWeight: 600, color: "#d97706" }}>
-                {Number(c.balance).toFixed(2)}
+                {formatCurrency(Number(c.balance))}
               </td>
             </tr>
           ))}
@@ -254,7 +254,7 @@ function CustomerDrill({ isSupplier }: { isSupplier: boolean }) {
           <tr style={{ background: isLight ? "#f9fafb" : "rgba(255,255,255,0.04)", borderTop: `2px solid ${bdColor}` }}>
             <td style={{ padding: "5px 10px", fontWeight: 700, fontSize: 11, color: txtSub }}>الإجمالي ({filtered.length} {isSupplier ? "مورد" : "عميل"})</td>
             <td style={{ padding: "5px 10px", textAlign: "left", fontVariantNumeric: "tabular-nums", fontWeight: 800, color: "#d97706" }}>
-              {filtered.reduce((s, c) => s + Number(c.balance), 0).toFixed(2)}
+              {formatCurrency(filtered.reduce((s, c) => s + Number(c.balance), 0))}
             </td>
           </tr>
         </tfoot>
@@ -267,7 +267,7 @@ function InventoryDrill() {
   const { isLight, txtSub, bdColor } = useTheme();
   const { data, isLoading } = useQuery<DrillProduct[]>({
     queryKey: ["drill-products"],
-    queryFn: () => authFetch(`${api}/products`).then(r => r.json()),
+    queryFn: () => authFetch(api("/api/products")).then(r => r.json()),
     staleTime: 60_000,
   });
 
@@ -294,10 +294,10 @@ function InventoryDrill() {
           {filtered.map(p => (
             <tr key={p.id} style={{ borderTop: `1px solid ${bdColor}` }}>
               <td style={{ padding: "5px 10px", color: isLight ? "#374151" : "rgba(255,255,255,0.75)" }}>{p.name}</td>
-              <td style={{ padding: "5px 10px", textAlign: "center", color: isLight ? "#374151" : "rgba(255,255,255,0.75)" }}>{Number(p.quantity).toFixed(0)}</td>
-              <td style={{ padding: "5px 10px", textAlign: "center", fontVariantNumeric: "tabular-nums", color: isLight ? "#374151" : "rgba(255,255,255,0.75)" }}>{Number(p.cost_price).toFixed(2)}</td>
+              <td style={{ padding: "5px 10px", textAlign: "center", color: isLight ? "#374151" : "rgba(255,255,255,0.75)" }}>{Math.round(Number(p.quantity))}</td>
+              <td style={{ padding: "5px 10px", textAlign: "center", fontVariantNumeric: "tabular-nums", color: isLight ? "#374151" : "rgba(255,255,255,0.75)" }}>{formatCurrency(Number(p.cost_price))}</td>
               <td style={{ padding: "5px 10px", textAlign: "left", fontVariantNumeric: "tabular-nums", fontWeight: 600, color: "#059669" }}>
-                {p.value.toFixed(2)}
+                {formatCurrency(p.value)}
               </td>
             </tr>
           ))}
@@ -306,7 +306,7 @@ function InventoryDrill() {
           <tr style={{ background: isLight ? "#f9fafb" : "rgba(255,255,255,0.04)", borderTop: `2px solid ${bdColor}` }}>
             <td colSpan={3} style={{ padding: "5px 10px", fontWeight: 700, fontSize: 11, color: txtSub }}>إجمالي قيمة المخزون ({filtered.length} منتج)</td>
             <td style={{ padding: "5px 10px", textAlign: "left", fontVariantNumeric: "tabular-nums", fontWeight: 800, color: "#059669" }}>
-              {filtered.reduce((s, p) => s + p.value, 0).toFixed(2)}
+              {formatCurrency(filtered.reduce((s, p) => s + p.value, 0))}
             </td>
           </tr>
         </tfoot>
@@ -336,7 +336,7 @@ function BalanceSheetStatement({ data }: { data: BalanceSheetData }) {
               البيان
             </th>
             <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 10, fontWeight: 700, color: txtSub, letterSpacing: "0.06em", borderBottom: `1px solid ${panelBdr}` }}>
-              المبلغ (ج.م)
+              المبلغ
             </th>
           </tr>
         </thead>
@@ -446,12 +446,12 @@ export default function BalanceSheetReport() {
 
   const { data: raw, isLoading, error } = useQuery<BalanceSheetData>({
     queryKey: ["balance-sheet", asOfDate],
-    queryFn: () => authFetch(`${api}/reports/balance-sheet`).then(r => r.json()),
+    queryFn: () => authFetch(api("/api/reports/balance-sheet")).then(r => r.json()),
     staleTime: 60_000,
   });
 
   const data: BalanceSheetData = { ...EMPTY_BS, ...raw };
-  const diff = data.assets.total - data.total_liabilities_equity;
+  const diff = useMemo(() => data.assets.total - data.total_liabilities_equity, [data.assets.total, data.total_liabilities_equity]);
 
   function handlePrint() {
     const printData: BalanceSheetPrintData = {
@@ -499,7 +499,7 @@ export default function BalanceSheetReport() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="no-print flex items-center gap-2 flex-wrap">
           {/* Date picker */}
           <div className="flex items-center gap-2 rounded-xl px-3 py-1.5" style={{ background: isLight ? "#f3f4f6" : "rgba(255,255,255,0.06)", border: `1px solid ${panelBdr}` }}>
             <span style={{ fontSize: 10, color: txtSub, fontWeight: 700 }}>كما في</span>
@@ -558,10 +558,10 @@ export default function BalanceSheetReport() {
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: "#dc2626" }} />
           <div>
             <p style={{ fontSize: 12, fontWeight: 800, color: "#dc2626" }}>
-              الميزانية غير متوازنة — يوجد فرق: {Math.abs(diff).toFixed(2)} ج.م
+              الميزانية غير متوازنة — يوجد فرق: {formatCurrency(Math.abs(diff))}
             </p>
             <p style={{ fontSize: 11, color: "#dc2626", opacity: 0.75, marginTop: 3 }}>
-              إجمالي الأصول ({data.assets.total.toFixed(2)}) ≠ الخصوم + حقوق الملكية ({data.total_liabilities_equity.toFixed(2)})
+              إجمالي الأصول ({formatCurrency(data.assets.total)}) ≠ الخصوم + حقوق الملكية ({formatCurrency(data.total_liabilities_equity)})
             </p>
           </div>
         </div>
