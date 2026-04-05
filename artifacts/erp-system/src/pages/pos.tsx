@@ -109,6 +109,105 @@ function SuccessModal({ invoice, onClose }: { invoice: SuccessInvoice; onClose: 
 }
 
 /* ─────────────────────────────────────────────────────────────
+   ADMIN POS SETUP — اختيار الفرع والخزينة للمدير
+───────────────────────────────────────────────────────────── */
+function AdminPOSSetup({ onStart }: { onStart: (w: number, s: number) => void }) {
+  const { data: warehouses = [] } = useQuery<{ id: number; name: string }[]>({
+    queryKey: ["/api/settings/warehouses"],
+    queryFn: () => authFetch(api("/api/settings/warehouses")).then(r => r.json()),
+  });
+  const { data: safes = [] } = useGetSettingsSafes();
+
+  const [wId, setWId] = useState<number | null>(
+    () => { const v = localStorage.getItem("pos:lastWarehouse"); return v ? Number(v) : null; }
+  );
+  const [sId, setSId] = useState<number | null>(
+    () => { const v = localStorage.getItem("pos:lastSafe"); return v ? Number(v) : null; }
+  );
+
+  function handleStart() {
+    if (!wId || !sId) return;
+    localStorage.setItem("pos:lastWarehouse", String(wId));
+    localStorage.setItem("pos:lastSafe",      String(sId));
+    onStart(wId, sId);
+  }
+
+  const selClass = "w-full rounded-xl px-3 py-3 bg-[#1A2235] border border-white/10 text-white text-sm focus:outline-none focus:border-amber-500/50 appearance-none";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "hsl(225,25%,5%)" }} dir="rtl">
+      <div className="w-full max-w-sm rounded-3xl border border-white/10 shadow-2xl p-8 space-y-6"
+        style={{ background: "rgba(15,23,42,0.97)" }}>
+
+        {/* Header */}
+        <div className="text-center space-y-2">
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center mx-auto">
+            <Store className="w-8 h-8 text-amber-400" />
+          </div>
+          <h2 className="text-white text-xl font-black">اختيار الفرع والخزينة</h2>
+          <p className="text-white/40 text-sm">وضع المدير — يُختار يدوياً ولا يُحفظ في الملف الشخصي</p>
+        </div>
+
+        {/* Warehouse */}
+        <div className="space-y-1.5">
+          <label className="text-white/50 text-xs font-semibold flex items-center gap-1.5">
+            <Vault className="w-3.5 h-3.5" />
+            الفرع / المخزن
+          </label>
+          <select
+            value={wId ?? ""}
+            onChange={e => setWId(e.target.value ? Number(e.target.value) : null)}
+            className={selClass}
+          >
+            <option value="">— اختر الفرع —</option>
+            {warehouses.map(w => (
+              <option key={w.id} value={w.id}>{w.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Safe */}
+        <div className="space-y-1.5">
+          <label className="text-white/50 text-xs font-semibold flex items-center gap-1.5">
+            <Vault className="w-3.5 h-3.5" />
+            الخزينة
+          </label>
+          <select
+            value={sId ?? ""}
+            onChange={e => setSId(e.target.value ? Number(e.target.value) : null)}
+            className={selClass}
+          >
+            <option value="">— اختر الخزينة —</option>
+            {(safes as { id: number; name: string }[]).map(s => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Start button */}
+        <button
+          disabled={!wId || !sId}
+          onClick={handleStart}
+          className="w-full py-3.5 rounded-2xl font-black text-[#0a1220] text-base transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{ background: wId && sId ? "#f59e0b" : "#6b7280" }}
+        >
+          <Zap className="w-4 h-4 inline-block ml-1.5" />
+          بدء البيع
+        </button>
+
+        {wId && sId && (
+          <p className="text-center text-white/25 text-[11px]">
+            {warehouses.find(w => w.id === wId)?.name} ·{" "}
+            {(safes as { id: number; name: string }[]).find(s => s.id === sId)?.name}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
    MAIN POS PAGE
 ───────────────────────────────────────────────────────────── */
 export default function POSPage() {
@@ -122,24 +221,46 @@ export default function POSPage() {
   const canCredit      = hasPermission(user, "can_credit_sale") === true;
   const canPartial     = hasPermission(user, "can_partial_sale") === true;
 
-  /* ── User-bound IDs (never from body for cashier) ── */
-  const warehouseId = user?.warehouse_id ?? null;
-  const safeId      = user?.safe_id ?? null;
+  /* ── Role detection ── */
+  const isAdmin = user?.role === "admin";
 
-  /* ── Block: no warehouse or safe ── */
+  /* ── User-bound IDs (never from body for cashier) ── */
+  const profileWarehouse = user?.warehouse_id ?? null;
+  const profileSafe      = user?.safe_id ?? null;
+
+  /* ── Admin manual selection (session-only, not saved to DB) ── */
+  const [adminSetup, setAdminSetup] = useState<{ warehouseId: number | null; safeId: number | null }>({
+    warehouseId: null,
+    safeId:      null,
+  });
+
+  /* ── Resolve final IDs ── */
+  const warehouseId = profileWarehouse ?? adminSetup.warehouseId;
+  const safeId      = profileSafe      ?? adminSetup.safeId;
+
+  /* ── Block: non-admin without warehouse/safe ── */
   if (!warehouseId || !safeId) {
+    if (!isAdmin) {
+      return (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 p-8"
+          style={{ background: "hsl(225,25%,5%)" }} dir="rtl">
+          <div className="w-20 h-20 rounded-3xl bg-red-500/10 border border-red-500/30 flex items-center justify-center">
+            <AlertTriangle className="w-10 h-10 text-red-400" />
+          </div>
+          <div className="text-center space-y-2 max-w-sm">
+            <h2 className="text-2xl font-black text-white">وصول مرفوض</h2>
+            <p className="text-red-400 font-bold text-lg">يجب ربط حسابك بمخزن وخزينة أولاً</p>
+            <p className="text-white/40 text-sm">تواصل مع المدير لإتمام إعداد حسابك قبل استخدام نقطة البيع</p>
+          </div>
+        </div>
+      );
+    }
+
+    /* ── Admin: show branch/safe picker ── */
     return (
-      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 p-8"
-        style={{ background: "hsl(225,25%,5%)" }} dir="rtl">
-        <div className="w-20 h-20 rounded-3xl bg-red-500/10 border border-red-500/30 flex items-center justify-center">
-          <AlertTriangle className="w-10 h-10 text-red-400" />
-        </div>
-        <div className="text-center space-y-2 max-w-sm">
-          <h2 className="text-2xl font-black text-white">وصول مرفوض</h2>
-          <p className="text-red-400 font-bold text-lg">يجب ربط حسابك بمخزن وخزينة أولاً</p>
-          <p className="text-white/40 text-sm">تواصل مع المدير لإتمام إعداد حسابك قبل استخدام نقطة البيع</p>
-        </div>
-      </div>
+      <AdminPOSSetup
+        onStart={(w, s) => setAdminSetup({ warehouseId: w, safeId: s })}
+      />
     );
   }
 
