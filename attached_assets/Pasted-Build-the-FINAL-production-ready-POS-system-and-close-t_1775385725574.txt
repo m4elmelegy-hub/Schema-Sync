@@ -1,0 +1,350 @@
+Build the FINAL production-ready POS system and close the cashier module completely.
+
+⚠️ GOAL:
+Create one official cashier screen for daily sales operations.
+Separate cashier workflow from sales management workflow.
+Use the new ERP Theme Foundation across the POS completely.
+
+This is the final POS consolidation phase.
+
+==================================================
+
+1. OFFICIAL ARCHITECTURE DECISION
+   ==================================================
+
+Adopt this final architecture:
+
+A) /pos
+The ONLY official cashier screen for:
+
+* selling
+* scanning
+* checkout
+* returns
+* receipt printing
+
+B) /sales
+Sales management screen only:
+
+* invoices list
+* filters
+* review
+* details
+* reporting/admin tasks
+
+Do NOT use /sales as cashier UI.
+
+==================================================
+2) POS MUST BECOME THE SINGLE CASHIER ENTRY POINT
+=================================================
+
+Consolidate all cashier actions inside /pos.
+
+Required inside POS:
+
+* product search
+* product grid
+* cart
+* totals
+* discount
+* payment methods
+* customer selection when needed
+* checkout
+* return flow
+* barcode flow
+* receipt print
+
+No duplicate cashier actions should remain inside /sales.
+
+==================================================
+3) ROLE SEPARATION
+==================
+
+Implement clear role logic:
+
+Cashier:
+
+* access /pos
+* cannot access advanced sales management page unless explicitly allowed
+
+Admin / Owner:
+
+* access /pos
+* access /sales
+* can review invoices and management tools
+
+Sales manager / accountant:
+
+* access /sales
+* optional access to /pos if allowed
+
+==================================================
+4) GLOBAL THEME FOUNDATION RULE
+===============================
+
+POS must now use ONLY the new ERP theme foundation.
+
+Use only:
+
+* erp-page
+* erp-panel
+* erp-card
+* erp-card-soft
+* erp-title
+* erp-subtitle
+* erp-label
+* erp-text
+* erp-text-muted
+* erp-number
+* erp-input
+* erp-search
+* erp-select
+* erp-btn-primary
+* erp-btn-secondary
+* erp-btn-danger
+* erp-btn-disabled
+* erp-badge-*
+* erp-modal
+* erp-dropdown
+
+NO inline colors
+NO page-local dark/light fixes
+NO old custom styling blocks
+
+==================================================
+5) MERGE THE BEST OF BOTH POS VERSIONS
+======================================
+
+Keep from the new POS:
+
+* correct business logic
+* permissions
+* cart flow
+* shortcuts
+* admin setup flow
+* safe/warehouse handling
+
+Keep from the old cashier-style POS:
+
+* larger and clearer controls
+* stronger cashier-focused visibility
+* more obvious action buttons
+* better fullscreen usability
+
+Build one final merged POS.
+
+==================================================
+6) CASHIER FOCUS MODE
+=====================
+
+Add a clear toggle/button:
+"وضع الكاشير"
+
+When enabled:
+
+* bigger buttons
+* bigger search bar
+* bigger totals
+* larger product cards
+* more compact secondary info
+* fullscreen-friendly layout
+
+This must still use the same erp theme system.
+
+==================================================
+7) BARCODE SUPPORT
+==================
+
+Add barcode-first workflow.
+
+Requirements:
+
+* barcode input integrated with search
+* when barcode matches exact product:
+  add immediately to cart
+* if multiple matches or no exact match:
+  fallback to normal search results
+
+Must support scanner behavior:
+
+* fast input + Enter
+* no extra clicks required
+
+If product has barcode field, use it in matching.
+
+==================================================
+8) RETURNS INSIDE POS
+=====================
+
+Returns must happen inside POS, not inside vouchers.
+
+Add a return mode:
+"مرتجع"
+
+In return mode:
+
+* search by invoice number or sale reference if available
+* select item(s) to return
+* reduce quantities properly
+* affect totals safely
+* create proper return transaction
+* respect financial lock rules if relevant
+
+No direct mutation of old locked records.
+
+==================================================
+9) THERMAL RECEIPT PRINT
+========================
+
+Add thermal receipt print flow.
+
+Requirements:
+
+* small receipt-friendly layout
+* Arabic
+* company name
+* invoice number
+* date/time
+* cashier name
+* branch / safe
+* items
+* totals
+* payment type
+* customer name if exists
+
+Create print CSS specifically for receipt printer width if possible.
+
+Also keep normal print option if needed.
+
+==================================================
+10) POS LAYOUT (FINAL)
+======================
+
+Use a two-column cashier layout:
+
+RIGHT:
+
+* search / barcode input
+* product grid
+* category quick actions if available
+
+LEFT:
+
+* cart
+* totals
+* payment type
+* customer selector
+* checkout / new sale / cancel / return actions
+
+Top status bar must show:
+
+* branch
+* safe
+* current user
+* cashier mode status
+
+==================================================
+11) SALES PAGE CLEANUP
+======================
+
+Clean /sales so it becomes management-only.
+
+Keep in /sales:
+
+* invoices table
+* filters
+* search
+* details
+* review
+
+Remove cashier-style actions from /sales if duplicated.
+
+If there is currently a button opening cashier fullscreen from sales:
+
+* replace it with clear navigation to /pos
+  or
+* remove it if confusing
+
+==================================================
+12) ADMIN ENTRY FLOW
+====================
+
+Keep AdminPOSSetup.
+
+If admin has no assigned warehouse/safe:
+
+* choose manually
+* not persisted to DB
+* can remember in localStorage for convenience
+
+Also add:
+"تغيير الفرع / الخزينة"
+inside POS for admin only.
+
+==================================================
+13) KEYBOARD UX
+===============
+
+Keep and improve:
+
+* F2 search
+* Enter add product / confirm search
+* F9 checkout
+* ESC clear / close
+* optional shortcut for return mode
+* optional shortcut for new sale
+
+Show hints cleanly, not noisy.
+
+==================================================
+14) EMPTY STATES
+================
+
+Arabic only:
+
+* السلة فارغة
+* لا توجد منتجات مطابقة
+* امسح باركود أو ابحث عن صنف
+* لا توجد عملية مرتجع مطابقة
+
+==================================================
+15) SAFETY
+==========
+
+Do NOT break:
+
+* existing sales API
+* existing treasury flow
+* existing customer logic
+* financial lock rules
+* reports integration
+
+Returns and checkout must remain financially safe.
+
+==================================================
+16) FINAL QUALITY BAR
+=====================
+
+Final POS must feel:
+
+* fast
+* clear
+* Arabic-first
+* cashier-friendly
+* readable in light mode
+* elegant in dark mode
+* production ready
+
+==================================================
+17) OUTPUT REQUIRED
+===================
+
+After implementation return:
+
+1. what was merged from both POS versions
+2. what cashier actions now live only in /pos
+3. how /sales was cleaned up
+4. how barcode flow works
+5. how return flow works
+6. how thermal print works
+7. confirmation that POS now fully uses erp-* theme foundation

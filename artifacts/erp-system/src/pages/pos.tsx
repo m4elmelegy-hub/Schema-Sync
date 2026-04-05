@@ -10,7 +10,8 @@ import { SearchableSelect } from "@/components/searchable-select";
 import {
   ShoppingCart, Search, Plus, Minus, Trash2, Receipt,
   AlertTriangle, Zap, X, CreditCard, Banknote, Clock,
-  Store, Vault, CheckCircle2, Keyboard, Printer, Tag,
+  Store, Vault, CheckCircle2, Printer, RotateCcw,
+  Scan, RefreshCw, Settings,
 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -35,10 +36,100 @@ interface SuccessInvoice {
   customer_phone: string | null;
   payment_type: string;
   items: CartItem[];
+  warehouseName?: string;
+  safeName?: string;
+  cashierName?: string;
+}
+
+interface ReturnSaleItem {
+  id: number;
+  product_id: number;
+  product_name: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+}
+
+interface ReturnSale {
+  id: number;
+  invoice_no: string;
+  customer_id: number | null;
+  customer_name: string | null;
+  total_amount: number;
+  payment_type: string;
+  items: ReturnSaleItem[];
+}
+
+interface ReturnItem {
+  id: number;
+  product_id: number;
+  product_name: string;
+  max_qty: number;
+  return_qty: number;
+  unit_price: number;
 }
 
 /* ─────────────────────────────────────────────────────────────
-   WHATSAPP SUCCESS MODAL
+   THERMAL RECEIPT PRINT
+───────────────────────────────────────────────────────────── */
+function printReceipt(invoice: SuccessInvoice) {
+  const payLabel: Record<string, string> = { cash: "نقدي", credit: "آجل", partial: "جزئي" };
+  const now = new Date();
+  const dateStr = now.toLocaleDateString("ar-EG");
+  const timeStr = now.toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" });
+
+  const html = `<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="utf-8"/>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: 'Courier New', monospace; font-size: 12px; width: 80mm; max-width: 80mm; padding: 4mm; color: #000; }
+  .center { text-align:center; }
+  .bold { font-weight:bold; }
+  .title { font-size:14px; font-weight:900; margin-bottom:2px; }
+  .sep { border-top: 1px dashed #000; margin: 4px 0; }
+  .row { display:flex; justify-content:space-between; margin: 2px 0; }
+  .total-row { font-size:14px; font-weight:900; border-top:2px solid #000; padding-top:4px; margin-top:4px; }
+  .footer { text-align:center; margin-top:6px; font-size:10px; }
+  table { width:100%; border-collapse:collapse; }
+  td { padding: 1px 0; vertical-align:top; }
+  td:last-child { text-align:left; white-space:nowrap; }
+  @media print { @page { margin:0; size: 80mm auto; } }
+</style>
+</head>
+<body>
+<div class="center bold title">Halal Tech</div>
+<div class="center" style="font-size:10px;">فاتورة مبيعات</div>
+<div class="sep"></div>
+<div class="row"><span>رقم الفاتورة:</span><span class="bold">${invoice.invoice_no}</span></div>
+<div class="row"><span>التاريخ:</span><span>${dateStr} ${timeStr}</span></div>
+${invoice.cashierName ? `<div class="row"><span>الكاشير:</span><span>${invoice.cashierName}</span></div>` : ""}
+${invoice.warehouseName ? `<div class="row"><span>الفرع:</span><span>${invoice.warehouseName}</span></div>` : ""}
+${invoice.safeName ? `<div class="row"><span>الخزينة:</span><span>${invoice.safeName}</span></div>` : ""}
+${invoice.customer_name ? `<div class="row"><span>العميل:</span><span>${invoice.customer_name}</span></div>` : ""}
+<div class="sep"></div>
+<table>
+  <tr><td class="bold">الصنف</td><td class="bold" style="text-align:center;">كمية</td><td class="bold">سعر</td><td class="bold">إجمالي</td></tr>
+  ${invoice.items.map(i => `<tr><td>${i.product_name}</td><td style="text-align:center;">${i.quantity}</td><td>${i.unit_price.toFixed(2)}</td><td>${i.total_price.toFixed(2)}</td></tr>`).join("")}
+</table>
+<div class="sep"></div>
+<div class="row total-row"><span>الإجمالي</span><span>${invoice.total_amount.toFixed(2)} ج.م</span></div>
+<div class="row" style="margin-top:3px;"><span>طريقة الدفع:</span><span>${payLabel[invoice.payment_type] ?? invoice.payment_type}</span></div>
+<div class="sep"></div>
+<div class="footer">شكراً لتعاملكم معنا 🙏<br/>Halal Tech © ${now.getFullYear()}</div>
+</body></html>`;
+
+  const w = window.open("", "_blank", "width=340,height=600");
+  if (!w) return;
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  setTimeout(() => { w.print(); w.close(); }, 250);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   SUCCESS MODAL
 ───────────────────────────────────────────────────────────── */
 function SuccessModal({ invoice, onClose }: { invoice: SuccessInvoice; onClose: () => void }) {
   const payLabel: Record<string, string> = { cash: "نقدي", credit: "آجل", partial: "جزئي" };
@@ -70,37 +161,46 @@ function SuccessModal({ invoice, onClose }: { invoice: SuccessInvoice; onClose: 
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
-      <div className="rounded-3xl p-8 w-full max-w-sm border border-emerald-500/40 shadow-2xl text-center space-y-5"
-        style={{ background: "rgba(10,18,32,0.97)" }}>
-        <div className="w-20 h-20 bg-emerald-500/15 rounded-full flex items-center justify-center mx-auto border border-emerald-500/30">
+    <div className="erp-backdrop fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="erp-modal w-full max-w-sm text-center space-y-5">
+        <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto"
+          style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.30)" }}>
           <CheckCircle2 className="w-10 h-10 text-emerald-400" />
         </div>
         <div>
-          <h3 className="text-2xl font-black text-white">تم إصدار الفاتورة ✅</h3>
-          <p className="text-amber-400 font-bold text-xl mt-1">{invoice.invoice_no}</p>
-          <p className="text-white/60 text-sm mt-2">
-            الإجمالي: <span className="text-white font-black text-lg">{formatCurrency(invoice.total_amount)}</span>
+          <h3 className="erp-title text-2xl">تم إصدار الفاتورة</h3>
+          <p className="text-amber-500 font-bold text-xl mt-1">{invoice.invoice_no}</p>
+          <p className="erp-text-muted text-sm mt-2">
+            الإجمالي: <span className="erp-number text-lg">{formatCurrency(invoice.total_amount)}</span>
           </p>
           {invoice.customer_name && (
-            <p className="text-white/50 text-sm mt-1">العميل: <span className="text-white font-semibold">{invoice.customer_name}</span></p>
+            <p className="erp-label mt-1">العميل: <span className="erp-text font-semibold">{invoice.customer_name}</span></p>
           )}
         </div>
-        <div className="space-y-3">
+
+        <div className="space-y-2.5">
+          {/* Print receipt */}
+          <button
+            onClick={() => printReceipt(invoice)}
+            className="erp-btn-secondary w-full py-3 rounded-2xl font-bold flex items-center justify-center gap-2">
+            <Printer className="w-4 h-4" />
+            طباعة الفاتورة
+          </button>
+
+          {/* WhatsApp */}
           {invoice.customer_phone && (
             <a href={waUrl} target="_blank" rel="noopener noreferrer"
-              className="flex items-center justify-center gap-3 w-full py-3.5 rounded-2xl font-bold transition-all"
-              style={{ background: "rgba(37,211,102,0.15)", border: "1px solid rgba(37,211,102,0.35)", color: "#25D366" }}>
+              className="flex items-center justify-center gap-3 w-full py-3 rounded-2xl font-bold transition-all"
+              style={{ background: "rgba(37,211,102,0.12)", border: "1px solid rgba(37,211,102,0.30)", color: "#25D366" }}>
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
               </svg>
               إرسال واتساب
             </a>
           )}
-          <button onClick={onClose}
-            className="w-full py-3.5 rounded-2xl font-bold text-white/70 border border-white/10 hover:border-white/25 hover:text-white transition-all"
-            style={{ background: "rgba(255,255,255,0.04)" }}>
-            إغلاق (ESC / F9)
+
+          <button onClick={onClose} className="erp-btn-ghost w-full py-3 rounded-2xl font-bold">
+            فاتورة جديدة (Enter / F9)
           </button>
         </div>
       </div>
@@ -272,6 +372,8 @@ export default function POSPage() {
     canCash={canCash}
     canCredit={canCredit}
     canPartial={canPartial}
+    isAdmin={isAdmin}
+    onResetSetup={() => setAdminSetup({ warehouseId: null, safeId: null })}
   />;
 }
 
@@ -281,6 +383,7 @@ export default function POSPage() {
 function POSBody({
   warehouseId, safeId,
   canEditPrice, canCash, canCredit, canPartial,
+  isAdmin, onResetSetup,
 }: {
   warehouseId: number;
   safeId: number;
@@ -288,11 +391,12 @@ function POSBody({
   canCash: boolean;
   canCredit: boolean;
   canPartial: boolean;
+  isAdmin: boolean;
+  onResetSetup: () => void;
 }) {
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
-
   /* ── Data ── */
   const { data: products = [] } = useQuery<{ id: number; name: string; sku: string | null; quantity: number; sale_price: number; cost_price: number; barcode?: string | null }[]>({
     queryKey: ["/api/products"],
@@ -327,6 +431,15 @@ function POSBody({
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [cashierMode, setCashierMode]     = useState(false);
 
+  /* ── Return mode ── */
+  const [returnMode, setReturnMode]       = useState(false);
+  const [returnInvoiceNo, setReturnInvoiceNo] = useState("");
+  const [returnSale, setReturnSale]       = useState<ReturnSale | null>(null);
+  const [returnItems, setReturnItems]     = useState<ReturnItem[]>([]);
+  const [returnRefundType, setReturnRefundType] = useState<"cash" | "credit">("cash");
+  const [returnReason, setReturnReason]   = useState("");
+  const [returnFetching, setReturnFetching] = useState(false);
+
   /* ── Refs ── */
   const searchRef = useRef<HTMLInputElement>(null);
   const checkoutRef = useRef<() => void>(() => {});
@@ -336,10 +449,14 @@ function POSBody({
 
   /* ── Filtered products ── */
   const filtered = useMemo(() =>
-    products.filter(p =>
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      (p.sku && p.sku.toLowerCase().includes(search.toLowerCase()))
-    ),
+    products.filter(p => {
+      const q = search.toLowerCase();
+      return (
+        p.name.toLowerCase().includes(q) ||
+        (p.sku && p.sku.toLowerCase().includes(q)) ||
+        (p.barcode && p.barcode.toLowerCase().includes(q))
+      );
+    }),
     [products, search]
   );
 
@@ -447,6 +564,9 @@ function POSBody({
         customer_phone: selectedCustomer?.phone ?? null,
         payment_type:  payType,
         items: [...cart],
+        warehouseName: warehouses.find(w => w.id === warehouseId)?.name,
+        safeName: safes.find(s => s.id === safeId)?.name,
+        cashierName: user?.name ?? user?.username ?? undefined,
       });
       /* Reset */
       setCart([]);
@@ -461,6 +581,90 @@ function POSBody({
       toast({ title: "❌ فشل التسجيل", description: e.message, variant: "destructive" });
     },
   });
+
+  /* ── Return: fetch sale by invoice no ── */
+  const fetchReturnSale = useCallback(async () => {
+    const inv = returnInvoiceNo.trim();
+    if (!inv) return;
+    setReturnFetching(true);
+    setReturnSale(null);
+    setReturnItems([]);
+    try {
+      const res = await authFetch(api(`/api/sales?invoice_no=${encodeURIComponent(inv)}`));
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "خطأ في البحث");
+      const list: ReturnSale[] = Array.isArray(data) ? data : (data.data ?? []);
+      const sale = list.find((s: ReturnSale) => s.invoice_no === inv) ?? list[0];
+      if (!sale) { toast({ title: "❌ لم يتم العثور على الفاتورة", variant: "destructive" }); return; }
+      /* fetch sale with items */
+      const r2 = await authFetch(api(`/api/sales/${sale.id}`));
+      const full: ReturnSale = await r2.json();
+      if (!r2.ok) throw new Error("خطأ في تحميل الفاتورة");
+      setReturnSale(full);
+      setReturnItems(full.items.map((it: ReturnSaleItem, idx: number) => ({
+        id: idx,
+        product_id: it.product_id,
+        product_name: it.product_name,
+        max_qty: it.quantity,
+        return_qty: it.quantity,
+        unit_price: it.unit_price,
+      })));
+    } catch (e: unknown) {
+      toast({ title: "❌ " + (e instanceof Error ? e.message : "خطأ"), variant: "destructive" });
+    } finally {
+      setReturnFetching(false);
+    }
+  }, [returnInvoiceNo, toast]);
+
+  /* ── Return mutation ── */
+  const returnMutation = useMutation({
+    mutationFn: (body: object) =>
+      authFetch(api("/api/sales-returns"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error || "خطأ"); return j; }),
+    onSuccess: () => {
+      toast({ title: "✅ تم تسجيل المرتجع بنجاح" });
+      qc.invalidateQueries({ queryKey: ["/api/sales"] });
+      qc.invalidateQueries({ queryKey: ["/api/products"] });
+      qc.invalidateQueries({ queryKey: ["/api/settings/safes"] });
+      setReturnMode(false);
+      setReturnSale(null);
+      setReturnItems([]);
+      setReturnInvoiceNo("");
+      setReturnReason("");
+    },
+    onError: (e: Error) => {
+      toast({ title: "❌ فشل المرتجع", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const handleReturn = useCallback(() => {
+    if (!returnSale) return;
+    const activeItems = returnItems.filter(i => i.return_qty > 0);
+    if (activeItems.length === 0) { toast({ title: "اختر صنفاً واحداً على الأقل", variant: "destructive" }); return; }
+    const total = activeItems.reduce((s, i) => s + i.return_qty * i.unit_price, 0);
+    returnMutation.mutate({
+      sale_id:       returnSale.id,
+      customer_id:   returnSale.customer_id,
+      customer_name: returnSale.customer_name,
+      items: activeItems.map(i => ({
+        original_sale_item_id: i.id,
+        product_id:    i.product_id,
+        product_name:  i.product_name,
+        quantity:      i.return_qty,
+        unit_price:    i.unit_price,
+        total_price:   i.return_qty * i.unit_price,
+      })),
+      reason:      returnReason,
+      notes:       "",
+      date:        new Date().toISOString().split("T")[0],
+      refund_type: returnRefundType,
+      safe_id:     safeId,
+      total_amount: total,
+    });
+  }, [returnSale, returnItems, returnReason, returnRefundType, safeId, returnMutation, toast]);
 
   /* ── handleCheckout ── */
   const handleCheckout = useCallback(() => {
@@ -511,16 +715,24 @@ function POSBody({
         });
         return;
       }
-      /* Enter → add first product */
-      if (e.key === "Enter" && document.activeElement === searchRef.current && filtered.length > 0) {
+      /* Enter → barcode exact match first, then first result */
+      if (e.key === "Enter" && document.activeElement === searchRef.current) {
         e.preventDefault();
-        addToCart(filtered[0]);
+        const trimmed = search.trim();
+        if (trimmed && filtered.length > 0) {
+          const barcodeMatch = products.find(
+            p => p.barcode && p.barcode.toLowerCase() === trimmed.toLowerCase()
+          );
+          const target = barcodeMatch ?? filtered[0];
+          addToCart(target);
+          if (barcodeMatch) setSearch("");
+        }
         return;
       }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [filtered, addToCart]);
+  }, [filtered, addToCart, products, search]);
 
   /* ── Payment options ── */
   const payOptions = [
@@ -582,6 +794,18 @@ function POSBody({
               </div>
             ))}
           </div>
+          {/* Return mode toggle */}
+          <button
+            onClick={() => { setReturnMode(v => !v); setReturnSale(null); setReturnItems([]); setReturnInvoiceNo(""); }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              returnMode ? "bg-red-500 text-white" : "erp-btn-secondary"
+            }`}
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            {returnMode ? "إلغاء المرتجع" : "مرتجع"}
+          </button>
+
+          {/* Cashier mode toggle */}
           <button
             onClick={() => setCashierMode(v => !v)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
@@ -591,6 +815,18 @@ function POSBody({
             <Zap className="w-3.5 h-3.5" />
             {cashierMode ? "عادي" : "وضع الكاشير"}
           </button>
+
+          {/* Admin: change branch/safe */}
+          {isAdmin && (
+            <button
+              onClick={onResetSetup}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold erp-btn-ghost transition-all"
+              title="تغيير الفرع والخزينة"
+            >
+              <Settings className="w-3.5 h-3.5" />
+              تغيير
+            </button>
+          )}
         </div>
       </header>
 
@@ -696,8 +932,141 @@ function POSBody({
           </div>
         </div>
 
+        {/* ════ RETURN PANEL ════ */}
+        {returnMode && (
+          <div className="flex flex-col shrink-0 overflow-hidden"
+            style={{ width: cm ? "420px" : "380px", background: "var(--erp-bg-soft)", borderRight: "none", borderTop: "none", borderBottom: "none" }}>
+
+            {/* Header */}
+            <div className="px-4 py-3 flex items-center gap-2 shrink-0"
+              style={{ borderBottom: "1px solid var(--erp-border)", background: "rgba(239,68,68,0.08)" }}>
+              <RotateCcw className="w-4 h-4 text-red-400" />
+              <span className="erp-subtitle text-red-400">وضع المرتجع</span>
+            </div>
+
+            {/* Invoice lookup */}
+            <div className="px-4 py-3 shrink-0" style={{ borderBottom: "1px solid var(--erp-border)" }}>
+              <p className="erp-label text-xs mb-1.5">رقم الفاتورة الأصلية</p>
+              <div className="flex gap-2">
+                <input
+                  value={returnInvoiceNo}
+                  onChange={e => setReturnInvoiceNo(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") fetchReturnSale(); }}
+                  placeholder="INV-0001"
+                  className="erp-input flex-1 text-sm"
+                  dir="ltr"
+                />
+                <button
+                  onClick={fetchReturnSale}
+                  disabled={returnFetching}
+                  className="erp-btn-primary px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5"
+                >
+                  <Scan className="w-3.5 h-3.5" />
+                  {returnFetching ? "..." : "بحث"}
+                </button>
+              </div>
+            </div>
+
+            {/* Sale info + items */}
+            {returnSale && (
+              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+                <div className="rounded-xl p-3 space-y-1" style={{ background: "var(--erp-bg-elevated)", border: "1px solid var(--erp-border)" }}>
+                  <div className="flex justify-between">
+                    <span className="erp-label text-xs">الفاتورة</span>
+                    <span className="erp-text font-bold text-sm" dir="ltr">{returnSale.invoice_no}</span>
+                  </div>
+                  {returnSale.customer_name && (
+                    <div className="flex justify-between">
+                      <span className="erp-label text-xs">العميل</span>
+                      <span className="erp-text text-sm">{returnSale.customer_name}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="erp-label text-xs">الإجمالي</span>
+                    <span className="text-amber-500 font-bold text-sm">{formatCurrency(returnSale.total_amount)}</span>
+                  </div>
+                </div>
+
+                <p className="erp-label text-xs">الأصناف المرتجعة</p>
+                {returnItems.map((item, idx) => (
+                  <div key={idx} className="rounded-xl p-3" style={{ background: "var(--erp-bg-card)", border: "1px solid var(--erp-border)" }}>
+                    <p className="erp-text text-sm font-bold mb-2">{item.product_name}</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="erp-label text-xs">الكمية (max {item.max_qty})</span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => setReturnItems(prev => prev.map((it, i) => i !== idx ? it : { ...it, return_qty: Math.max(0, it.return_qty - 1) }))}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center erp-btn-ghost text-lg font-bold"
+                        >−</button>
+                        <span className="erp-number w-6 text-center">{item.return_qty}</span>
+                        <button
+                          onClick={() => setReturnItems(prev => prev.map((it, i) => i !== idx ? it : { ...it, return_qty: Math.min(it.max_qty, it.return_qty + 1) }))}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center erp-btn-ghost text-lg font-bold"
+                        >+</button>
+                      </div>
+                      <span className="erp-number text-sm">{formatCurrency(item.return_qty * item.unit_price)}</span>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Reason */}
+                <div>
+                  <p className="erp-label text-xs mb-1.5">سبب المرتجع</p>
+                  <input
+                    value={returnReason}
+                    onChange={e => setReturnReason(e.target.value)}
+                    placeholder="اختياري..."
+                    className="erp-input w-full text-sm"
+                  />
+                </div>
+
+                {/* Refund type */}
+                <div>
+                  <p className="erp-label text-xs mb-1.5">طريقة الاسترداد</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {([["cash","نقدي"],["credit","رصيد"]] as const).map(([v,l]) => (
+                      <button key={v} onClick={() => setReturnRefundType(v)}
+                        className={`py-2 rounded-xl text-sm font-bold transition-all ${
+                          returnRefundType === v
+                            ? v === "cash" ? "bg-emerald-500 text-white" : "bg-blue-500 text-white"
+                            : "erp-btn-ghost"
+                        }`}>
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Total + submit */}
+                <div className="rounded-xl p-3" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)" }}>
+                  <div className="flex justify-between items-center mb-3">
+                    <span className="erp-label text-sm">إجمالي المرتجع</span>
+                    <span className="text-red-400 font-black text-lg">
+                      {formatCurrency(returnItems.filter(i => i.return_qty > 0).reduce((s, i) => s + i.return_qty * i.unit_price, 0))}
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleReturn}
+                    disabled={returnMutation.isPending}
+                    className="w-full py-3 rounded-xl font-bold text-white transition-all"
+                    style={{ background: returnMutation.isPending ? "rgba(239,68,68,0.4)" : "rgba(239,68,68,0.85)" }}>
+                    {returnMutation.isPending ? "جارٍ التسجيل..." : "تأكيد المرتجع"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!returnSale && (
+              <div className="erp-empty flex-1">
+                <RefreshCw className="w-10 h-10 mx-auto mb-3 opacity-20" style={{ color: "var(--erp-text-3)" }} />
+                <p className="erp-text-muted text-sm">أدخل رقم الفاتورة للبحث</p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ════ CART + PAYMENT PANEL ════ */}
-        <div className="flex flex-col shrink-0 erp-card-soft"
+        {!returnMode && <div className="flex flex-col shrink-0 erp-card-soft"
           style={{
             width: cm ? "420px" : "360px",
             background: "var(--erp-bg-soft)",
@@ -947,7 +1316,7 @@ function POSBody({
               )}
             </button>
           </div>
-        </div>
+        </div>}
       </div>
 
       {/* ════ SUCCESS MODAL ════ */}

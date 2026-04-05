@@ -11,6 +11,7 @@ import { hasPermission } from "@/lib/permissions";
 import { TableSkeleton } from "@/components/skeletons";
 import { ConfirmModal } from "@/components/confirm-modal";
 import { SearchableSelect } from "@/components/searchable-select";
+import { Link } from "wouter";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
@@ -783,10 +784,8 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
         <WhatsAppSuccessModal invoice={successInvoice} onClose={() => { setSuccessInvoice(null); onDone(); }} />
       )}
 
-      {/* ════════════════════════════════════════════════════
-          وضع الكاشير — Full Screen POS Overlay
-          ════════════════════════════════════════════════════ */}
-      {posMode && (
+      {/* ════════════════════════════════════════════════════ */}
+      {false && posMode && (
         <div
           className="fixed inset-0 z-[200] flex flex-col overflow-hidden select-none"
           style={{ background: "linear-gradient(135deg, #06080f 0%, #0c0f1e 50%, #080b16 100%)" }}
@@ -1151,17 +1150,16 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
       )}
       {/* ════════════════════════════════════════════════════ */}
 
-      {/* ── زر تفعيل وضع الكاشير ── */}
+      {/* ── رابط نقطة البيع ── */}
       <div className="flex items-center justify-between mb-1">
-        <div className="text-white/30 text-xs hidden">نقطة البيع</div>
-        <button
-          onClick={() => { setPosMode(true); setTimeout(() => searchInputRef.current?.focus(), 100); }}
-          className="flex items-center gap-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/25 hover:border-indigo-500/50 px-4 py-2 rounded-xl font-bold text-sm transition-all group"
+        <Link
+          href="/pos"
+          className="flex items-center gap-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/25 hover:border-amber-500/50 px-4 py-2 rounded-xl font-bold text-sm transition-all group"
         >
           <Maximize2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
-          وضع الكاشير
-          <span className="text-indigo-400/40 text-xs font-normal hidden sm:block">شاشة كاملة</span>
-        </button>
+          فتح الكاشير
+          <span className="text-amber-400/40 text-xs font-normal hidden sm:block">/pos</span>
+        </Link>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-220px)]">
