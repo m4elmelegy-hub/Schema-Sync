@@ -87,12 +87,18 @@ export interface ProfitsData {
   total_revenue: number; total_cost: number; gross_profit: number;
   profit_margin: number; net_profit: number; total_expenses: number;
   invoice_count: number; item_count: number;
-  by_product: Array<{ product_id: number; product_name: string; qty_sold: number; revenue: number; cost: number; profit: number; profit_margin: number }>;
-  by_month: Array<{ month: string; revenue: number; cost: number; profit: number }>;
-  by_day:   Array<{ day:   string; revenue: number; cost: number; profit: number }>;
+  cash_sales:    number; credit_sales: number; partial_sales: number; return_amount: number;
+  by_product:  Array<{ product_id: number; product_name: string; qty_sold: number; revenue: number; cost: number; profit: number; profit_margin: number }>;
+  by_month:    Array<{ month: string; revenue: number; cost: number; profit: number }>;
+  by_day:      Array<{ day:   string; revenue: number; cost: number; profit: number }>;
   by_expense_category: Array<{ category: string; total: number }>;
+  by_warehouse: Array<{ warehouse_id: number; warehouse_name: string; revenue: number; cost: number; gross_profit: number; invoice_count: number }>;
 }
-export const EMPTY_PL: ProfitsData = { total_revenue:0, total_cost:0, gross_profit:0, profit_margin:0, net_profit:0, total_expenses:0, invoice_count:0, item_count:0, by_product:[], by_month:[], by_day:[], by_expense_category:[] };
+export const EMPTY_PL: ProfitsData = {
+  total_revenue:0, total_cost:0, gross_profit:0, profit_margin:0, net_profit:0, total_expenses:0,
+  invoice_count:0, item_count:0, cash_sales:0, credit_sales:0, partial_sales:0, return_amount:0,
+  by_product:[], by_month:[], by_day:[], by_expense_category:[], by_warehouse:[],
+};
 
 /* ── Shared small components ─────────────────────────────────────────────── */
 
