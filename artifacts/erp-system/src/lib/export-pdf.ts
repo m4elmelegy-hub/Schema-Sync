@@ -921,6 +921,7 @@ export interface CashFlowPrintData {
   customer_receipts: number; receipts_in: number; cash_sales: number;
   deposits_in: number; payments_out: number; expenses_out: number;
   dateFrom: string; dateTo: string;
+  closingBalance?: number;
 }
 
 export function printCashFlow(data: CashFlowPrintData): void {
@@ -929,16 +930,18 @@ export function printCashFlow(data: CashFlowPrintData): void {
   const m   = (n: number) => `${Number(n ?? 0).toFixed(2)} ${sym}`;
   const now = new Date().toLocaleDateString("ar-EG", { year:"numeric", month:"long", day:"numeric", hour:"2-digit", minute:"2-digit" });
 
-  const operatingNet = data.customer_receipts - data.payments_out - data.expenses_out;
-  const hasInvesting = data.deposits_in > 0;
-  const showSub      = data.receipts_in > 0 && data.cash_sales > 0;
-  const isPos        = data.net_cash_flow >= 0;
+  const operatingNet   = data.customer_receipts - data.payments_out - data.expenses_out;
+  const hasInvesting   = data.deposits_in > 0;
+  const showSub        = data.receipts_in > 0 && data.cash_sales > 0;
+  const isPos          = data.net_cash_flow >= 0;
+  const closingBal     = data.closingBalance ?? null;
+  const openingBal     = closingBal !== null ? closingBal - data.net_cash_flow : null;
   const fmtN = (n: number) => { const a = Math.abs(n).toFixed(2); return n < 0 ? `(${a})` : a; };
 
   const investingSection = hasInvesting ? `
     <tr class="sec-hd"><td colspan="2">التدفقات الاستثمارية</td></tr>
-    <tr class="sub"><td>إيداعات</td><td class="num" style="color:#2563eb">${m(data.deposits_in)}</td></tr>
-    <tr class="total"><td>= صافي التدفقات الاستثمارية</td><td class="num" style="color:#2563eb">${m(data.deposits_in)}</td></tr>` : "";
+    <tr class="sub"><td>إيداعات</td><td class="num" style="color:#4b5563">${m(data.deposits_in)}</td></tr>
+    <tr class="total"><td>= صافي التدفقات الاستثمارية</td><td class="num" style="color:#4b5563">${m(data.deposits_in)}</td></tr>` : "";
 
   const html = `
 <div class="page">
@@ -971,6 +974,8 @@ export function printCashFlow(data: CashFlowPrintData): void {
   </div>
 
   <table class="stmt">
+    ${openingBal !== null ? `
+    <tr style="background:#f9fafb"><td style="color:#6b7280;font-style:italic;padding:10px 16px;border-bottom:1px solid #f3f4f6;font-size:12px">رصيد أول الفترة (الخزينة)</td><td class="num" style="color:#6b7280;font-style:italic;font-size:12px;padding:10px 16px;border-bottom:1px solid #f3f4f6">${m(openingBal)}</td></tr>` : ""}
     <tr class="sec-hd"><td colspan="2">التدفقات التشغيلية</td></tr>
     <tr><td style="font-weight:600">مقبوضات من العملاء</td><td class="num green">${m(data.customer_receipts)}</td></tr>
     ${showSub ? `
@@ -981,9 +986,11 @@ export function printCashFlow(data: CashFlowPrintData): void {
     <tr class="total"><td>= صافي التدفق التشغيلي</td><td class="num ${operatingNet >= 0 ? "green" : "red"}">${fmtN(operatingNet)}</td></tr>
     ${investingSection}
     <tr class="${isPos ? "net-pos" : "net-neg"}">
-      <td>= صافي التدفق النقدي</td>
-      <td class="num" style="font-size:16px">${fmtN(data.net_cash_flow)}</td>
+      <td style="font-size:17px">= صافي التدفق النقدي</td>
+      <td class="num" style="font-size:17px">${fmtN(data.net_cash_flow)}</td>
     </tr>
+    ${closingBal !== null ? `
+    <tr style="background:#f8fafc;border-top:1px solid #e5e7eb"><td style="font-weight:700;padding:12px 16px;border-bottom:none">= رصيد آخر الفترة (الخزينة)</td><td class="num" style="padding:12px 16px;border-bottom:none;font-weight:700">${m(closingBal)}</td></tr>` : ""}
   </table>
 
   <div class="pl-footer">

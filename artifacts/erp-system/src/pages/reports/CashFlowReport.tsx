@@ -1,9 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { TrendingUp, TrendingDown, Activity } from "lucide-react";
 import {
   api, authFetch, formatCurrency, useCountUp,
-  DateFilterBar, getDateRange, DateMode, thisMonthStart, todayStr,
+  DateFilterBar, getDateRange, getPrevRange, DateMode, thisMonthStart, todayStr,
 } from "./shared";
 import { useAppSettings } from "@/contexts/app-settings";
 
@@ -20,6 +20,8 @@ interface CashFlowData {
   }>;
   summary: CashFlowSummary;
 }
+interface Safe { id: number; name: string; balance: string; }
+
 const EMPTY_CF: CashFlowSummary = {
   total_in: 0, total_out: 0, net_cash_flow: 0,
   customer_receipts: 0, receipts_in: 0, cash_sales: 0,
@@ -39,20 +41,20 @@ function CfKPICard({ label, hint, value, variant, icon: Icon }: {
   const { settings } = useAppSettings();
   const isLight = (settings.theme ?? "dark") === "light";
   const animated = useCountUp(value);
+  const isPos    = value >= 0;
 
-  const isPos = value >= 0;
   const clr =
     variant === "green" ? "#059669" :
     variant === "red"   ? "#dc2626" :
-    isPos ? "#2563eb" : "#dc2626";
+    isPos ? "#059669" : "#dc2626";
   const bg =
     variant === "green" ? (isLight ? "#f0fdf4" : "rgba(5,150,105,0.08)") :
     variant === "red"   ? (isLight ? "#fef2f2" : "rgba(220,38,38,0.08)") :
-    isPos ? (isLight ? "#eff6ff" : "rgba(37,99,235,0.08)") : (isLight ? "#fef2f2" : "rgba(220,38,38,0.08)");
+    isPos ? (isLight ? "#f0fdf4" : "rgba(5,150,105,0.08)") : (isLight ? "#fef2f2" : "rgba(220,38,38,0.08)");
   const bdr =
     variant === "green" ? (isLight ? "#bbf7d0" : "rgba(5,150,105,0.20)") :
     variant === "red"   ? (isLight ? "#fecaca" : "rgba(220,38,38,0.20)") :
-    isPos ? (isLight ? "#bfdbfe" : "rgba(37,99,235,0.20)") : (isLight ? "#fecaca" : "rgba(220,38,38,0.20)");
+    isPos ? (isLight ? "#bbf7d0" : "rgba(5,150,105,0.20)") : (isLight ? "#fecaca" : "rgba(220,38,38,0.20)");
   const txtHint = isLight ? "#9ca3af" : "rgba(255,255,255,0.35)";
 
   return (
@@ -70,25 +72,42 @@ function CfKPICard({ label, hint, value, variant, icon: Icon }: {
 }
 
 /* ── Accounting Statement ─────────────────────────────────────────────────── */
-function CashFlowStatement({ cf }: { cf: CashFlowSummary }) {
+function CashFlowStatement({
+  cf, closingBalance, prevNetCf,
+}: {
+  cf: CashFlowSummary;
+  closingBalance: number | null;
+  prevNetCf: number | null;
+}) {
   const { settings } = useAppSettings();
   const isLight = (settings.theme ?? "dark") === "light";
 
-  const border  = isLight ? "#e5e7eb"               : "rgba(255,255,255,0.08)";
-  const txtMain = isLight ? "#111827"               : "rgba(255,255,255,0.90)";
-  const txtSub  = isLight ? "#6b7280"               : "rgba(255,255,255,0.40)";
-  const txtHint = isLight ? "#9ca3af"               : "rgba(255,255,255,0.28)";
-  const secBg   = isLight ? "#f8fafc"               : "rgba(255,255,255,0.03)";
-  const totalBg = isLight ? "#f1f5f9"               : "rgba(255,255,255,0.05)";
-  const netBg   = cf.net_cash_flow >= 0
-    ? (isLight ? "#ecfdf5" : "rgba(5,150,105,0.10)")
-    : (isLight ? "#fef2f2" : "rgba(220,38,38,0.10)");
-  const netColor = cf.net_cash_flow >= 0 ? "#059669" : "#dc2626";
+  const border    = isLight ? "#e5e7eb"              : "rgba(255,255,255,0.08)";
+  const txtMain   = isLight ? "#111827"              : "rgba(255,255,255,0.90)";
+  const txtSub    = isLight ? "#6b7280"              : "rgba(255,255,255,0.40)";
+  const txtHint   = isLight ? "#9ca3af"              : "rgba(255,255,255,0.28)";
+  const secBg     = isLight ? "#f8fafc"              : "rgba(255,255,255,0.03)";
+  const totalBg   = isLight ? "#f1f5f9"              : "rgba(255,255,255,0.05)";
+  const neutralClr = isLight ? "#4b5563"             : "rgba(255,255,255,0.55)";
 
-  const operatingNet = cf.customer_receipts - cf.payments_out - cf.expenses_out;
-  const hasInvesting = cf.deposits_in > 0;
-  const showSubBreakdown = cf.receipts_in > 0 && cf.cash_sales > 0;
+  const netColor  = cf.net_cash_flow >= 0 ? "#059669" : "#dc2626";
+  const netBg     = cf.net_cash_flow >= 0
+    ? (isLight ? "#ecfdf5" : "rgba(5,150,105,0.12)")
+    : (isLight ? "#fef2f2" : "rgba(220,38,38,0.12)");
 
+  const openingBalance = closingBalance !== null ? closingBalance - cf.net_cash_flow : null;
+  const operatingNet   = cf.customer_receipts - cf.payments_out - cf.expenses_out;
+  const hasInvesting   = cf.deposits_in > 0;
+  const showSubBreak   = cf.receipts_in > 0 && cf.cash_sales > 0;
+
+  /* Comparison with previous period */
+  const changeAmt  = prevNetCf !== null ? cf.net_cash_flow - prevNetCf : null;
+  const changePct  = prevNetCf !== null && prevNetCf !== 0
+    ? ((cf.net_cash_flow - prevNetCf) / Math.abs(prevNetCf)) * 100
+    : null;
+  const isImproved = changeAmt !== null && changeAmt >= 0;
+
+  /* ── Cell helpers ── */
   const cell = (extra?: React.CSSProperties): React.CSSProperties => ({
     padding: "10px 20px", borderBottom: `1px solid ${border}`,
     color: txtMain, fontSize: 13, verticalAlign: "middle", ...extra,
@@ -127,6 +146,7 @@ function CashFlowStatement({ cf }: { cf: CashFlowSummary }) {
 
   return (
     <div className="rpt-panel rounded-2xl overflow-hidden">
+      {/* Title bar */}
       <div className="flex items-center justify-between px-5 py-3.5 border-b" style={{ borderColor: border }}>
         <div>
           <p className="rpt-strong font-bold text-sm">قائمة التدفقات النقدية</p>
@@ -143,6 +163,16 @@ function CashFlowStatement({ cf }: { cf: CashFlowSummary }) {
           </colgroup>
           <tbody>
 
+            {/* ══ رصيد أول الفترة ══ */}
+            {openingBalance !== null && (
+              <tr style={{ background: isLight ? "#fafafa" : "rgba(255,255,255,0.02)" }}>
+                <td style={cell({ color: txtSub, fontSize: 12.5, fontStyle: "italic" })}>رصيد أول الفترة (الخزينة)</td>
+                <td style={cellNum({ color: txtSub, fontSize: 12.5, fontStyle: "italic" })}>{formatCurrency(openingBalance)}</td>
+              </tr>
+            )}
+
+            <Spacer />
+
             {/* ══ 1. التدفقات التشغيلية ══ */}
             <SectionHd label="التدفقات التشغيلية" hint="حركة النقد من النشاط الرئيسي للشركة" />
 
@@ -150,9 +180,9 @@ function CashFlowStatement({ cf }: { cf: CashFlowSummary }) {
               <td style={cell({ fontWeight: 600 })}>مقبوضات من العملاء</td>
               <td style={cellNum({ color: "#059669" })}>{formatCurrency(cf.customer_receipts)}</td>
             </tr>
-            {showSubBreakdown && <>
-              <ChildRow label="  · سندات القبض المرحّلة" amount={formatCurrency(cf.receipts_in)} color={txtSub} />
-              <ChildRow label="  · مبيعات نقدية مباشرة"  amount={formatCurrency(cf.cash_sales)}  color={txtSub} />
+            {showSubBreak && <>
+              <ChildRow label="  · سندات القبض المرحّلة" amount={formatCurrency(cf.receipts_in)}  color={txtSub} />
+              <ChildRow label="  · مبيعات نقدية مباشرة"  amount={formatCurrency(cf.cash_sales)}   color={txtSub} />
             </>}
 
             <ChildRow
@@ -178,23 +208,47 @@ function CashFlowStatement({ cf }: { cf: CashFlowSummary }) {
               <ChildRow
                 label="إيداعات"
                 amount={formatCurrency(cf.deposits_in)}
-                color="#2563eb" />
+                color={neutralClr} />
               <TotalRow
                 label="= صافي التدفقات الاستثمارية"
                 amount={formatCurrency(cf.deposits_in)}
-                color="#2563eb" />
+                color={neutralClr} />
               <Spacer />
             </>}
 
-            {/* ══ 3. صافي التدفق النقدي الإجمالي ══ */}
+            {/* ══ صافي التدفق النقدي ══ */}
             <tr style={{ background: netBg }}>
-              <td style={cell({ fontWeight: 800, fontSize: 18, color: netColor, borderBottom: "none", borderTop: `2px solid ${netColor}30`, paddingTop: 18, paddingBottom: 18 })}>
-                = صافي التدفق النقدي
+              <td style={cell({
+                fontWeight: 800, fontSize: 20, color: netColor,
+                borderBottom: "none", borderTop: `2px solid ${netColor}35`,
+                paddingTop: 20, paddingBottom: changePct !== null ? 12 : 20,
+              })}>
+                <div>= صافي التدفق النقدي</div>
+                {changePct !== null && (
+                  <div style={{ fontSize: 11, fontWeight: 600, color: isImproved ? "#059669" : "#dc2626", marginTop: 4, opacity: 0.85 }}>
+                    {isImproved ? "↑" : "↓"} {Math.abs(changePct).toFixed(1)}% {isImproved ? "أعلى" : "أقل"} من الفترة السابقة
+                  </div>
+                )}
               </td>
-              <td style={cellNum({ fontWeight: 800, fontSize: 18, color: netColor, borderBottom: "none", borderTop: `2px solid ${netColor}30`, paddingTop: 18, paddingBottom: 18 })}>
+              <td style={cellNum({
+                fontWeight: 800, fontSize: 20, color: netColor,
+                borderBottom: "none", borderTop: `2px solid ${netColor}35`,
+                paddingTop: 20, paddingBottom: 20, verticalAlign: "middle",
+              })}>
                 {fmtAcct(cf.net_cash_flow)}
               </td>
             </tr>
+
+            {/* ══ رصيد آخر الفترة ══ */}
+            {closingBalance !== null && (
+              <>
+                <Spacer />
+                <tr style={{ background: isLight ? "#f8fafc" : "rgba(255,255,255,0.03)" }}>
+                  <td style={cell({ fontWeight: 700, color: txtMain, fontSize: 13 })}>= رصيد آخر الفترة (الخزينة)</td>
+                  <td style={cellNum({ fontWeight: 700, color: txtMain, fontSize: 13 })}>{formatCurrency(closingBalance)}</td>
+                </tr>
+              </>
+            )}
 
           </tbody>
         </table>
@@ -209,18 +263,43 @@ export default function CashFlowReport() {
   const [customFrom, setCustomFrom] = useState(thisMonthStart());
   const [customTo,   setCustomTo]   = useState(todayStr());
   const [dateFrom, dateTo]          = getDateRange(mode, customFrom, customTo);
+  const [prevFrom, prevTo]          = getPrevRange(dateFrom, dateTo);
 
+  /* ── Current period ── */
   const { data, isLoading } = useQuery<CashFlowData>({
     queryKey:  ["/api/reports/cash-flow", dateFrom, dateTo],
     queryFn:   () => authFetch(api(`/api/reports/cash-flow?date_from=${dateFrom}&date_to=${dateTo}`)).then(r => r.json()),
     staleTime: 60_000,
   });
 
+  /* ── Previous period (for comparison) ── */
+  const { data: prevData } = useQuery<CashFlowData>({
+    queryKey:  ["/api/reports/cash-flow", prevFrom, prevTo],
+    queryFn:   () => authFetch(api(`/api/reports/cash-flow?date_from=${prevFrom}&date_to=${prevTo}`)).then(r => r.json()),
+    staleTime: 300_000,
+  });
+
+  /* ── Safe balances (closing balance = current treasury total) ── */
+  const { data: safes } = useQuery<Safe[]>({
+    queryKey:  ["/api/settings/safes"],
+    queryFn:   () => authFetch(api("/api/settings/safes")).then(r => r.json()),
+    staleTime: 120_000,
+  });
+
   const cf = { ...EMPTY_CF, ...(data?.summary ?? {}) };
+  const prevNetCf      = prevData?.summary?.net_cash_flow ?? null;
+  const closingBalance = useMemo(() => {
+    if (!safes?.length) return null;
+    return safes.reduce((s, safe) => s + Number(safe.balance ?? 0), 0);
+  }, [safes]);
 
   const handlePdf = async () => {
     const { printCashFlow } = await import("@/lib/export-pdf");
-    printCashFlow({ ...cf, dateFrom, dateTo });
+    printCashFlow({
+      ...cf,
+      dateFrom, dateTo,
+      closingBalance: closingBalance ?? undefined,
+    });
   };
 
   return (
@@ -257,7 +336,10 @@ export default function CashFlowReport() {
       {isLoading ? (
         <div className="rpt-panel rounded-2xl p-8 animate-pulse h-72" />
       ) : (
-        <CashFlowStatement cf={cf} />
+        <CashFlowStatement
+          cf={cf}
+          closingBalance={closingBalance}
+          prevNetCf={prevNetCf} />
       )}
 
     </div>
