@@ -1,0 +1,114 @@
+Build a professional Balance Sheet (الميزانية العمومية) module.
+
+⚠️ GOAL:
+Create a formal accounting statement showing assets, liabilities, and equity.
+
+Do NOT break existing logic.
+Reuse data from:
+
+* treasury
+* customers
+* suppliers
+* inventory
+* accounting entries
+
+==================================================
+
+1. STRUCTURE (ACCOUNTING STANDARD)
+   ==================================================
+
+Divide into 3 sections:
+
+1. الأصول (Assets)
+
+   * النقدية (الخزنة)
+   * حسابات العملاء
+   * المخزون
+
+2. الخصوم (Liabilities)
+
+   * حسابات الموردين
+   * التزامات أخرى
+
+3. حقوق الملكية (Equity)
+
+   * رأس المال
+   * الأرباح المحتجزة
+
+Final:
+
+= إجمالي الأصول
+= إجمالي الخصوم + حقوق الملكية
+
+==================================================
+2) ACCOUNTING RULE
+==================
+
+Must satisfy:
+
+Assets = Liabilities + Equity
+
+==================================================
+3) DATA SOURCES
+===============
+
+* Treasury → cash
+* Customers → receivables
+* Suppliers → payables
+* Inventory → stock value
+* P&L → retained earnings
+
+==================================================
+4) FILTERS
+==========
+
+* Date (as of date)
+* Branch selection
+
+==================================================
+5) VISUAL STYLE
+===============
+
+* Same as P&L & Cash Flow
+* Clean white layout
+* Arabic only
+* Clear hierarchy
+
+==================================================
+6) TABLE FORMAT
+===============
+
+Two columns:
+
+Right:
+الأصول
+
+Left:
+الخصوم + حقوق الملكية
+
+Totals at bottom.
+
+==================================================
+7) PDF EXPORT
+=============
+
+* Clean accounting format
+* White background
+* Structured layout
+
+==================================================
+8) FINAL RESULT
+===============
+
+✔ Full financial position
+✔ Accounting-grade report
+✔ Matches P&L + Cash Flow
+✔ Ready for business use
+
+==================================================
+9) OUTPUT SUMMARY
+=================
+
+* how assets calculated
+* how liabilities calculated
+* how equity derived

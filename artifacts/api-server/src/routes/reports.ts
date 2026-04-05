@@ -1190,4 +1190,135 @@ router.get("/reports/manager-sales", wrap(async (req, res) => {
   });
 }));
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * 10. الميزانية العمومية (Balance Sheet)
+ * GET /api/reports/balance-sheet
+ * ─────────────────────────────────────────────────────────────────────────
+ * يعرض المركز المالي للمنشأة في لحظة زمنية (snapshot):
+ *   الأصول = النقدية + ذمم العملاء + المخزون
+ *   الخصوم = ذمم الموردين
+ *   حقوق الملكية = رأس المال المفتوح + الأرباح المحتجزة (صافي الربح الكلي)
+ *   معادلة المحاسبة: الأصول = الخصوم + حقوق الملكية
+ * ─────────────────────────────────────────────────────────────────────────*/
+router.get("/reports/balance-sheet", wrap(async (_req, res) => {
+
+  const [cashRow, receivablesRow, inventoryRow, payablesRow, capitalRow, plRow] = await Promise.all([
+
+    /* ── النقدية: مجموع أرصدة الخزن ── */
+    db.execute(sql.raw(`
+      SELECT COALESCE(SUM(CAST(balance AS FLOAT8)), 0) AS total_cash
+      FROM safes
+    `)),
+
+    /* ── ذمم العملاء المدينة: عملاء برصيد موجب (غير موردين) ── */
+    db.execute(sql.raw(`
+      SELECT COALESCE(SUM(CAST(balance AS FLOAT8)), 0) AS total_receivables
+      FROM customers
+      WHERE is_supplier = false AND CAST(balance AS FLOAT8) > 0.001
+    `)),
+
+    /* ── قيمة المخزون: الكمية × سعر التكلفة ── */
+    db.execute(sql.raw(`
+      SELECT COALESCE(SUM(CAST(quantity AS FLOAT8) * CAST(cost_price AS FLOAT8)), 0) AS inventory_value
+      FROM products
+      WHERE CAST(quantity AS FLOAT8) > 0
+    `)),
+
+    /* ── ذمم الموردين الدائنة: موردون برصيد موجب ── */
+    db.execute(sql.raw(`
+      SELECT COALESCE(SUM(CAST(balance AS FLOAT8)), 0) AS total_payables
+      FROM customers
+      WHERE is_supplier = true AND CAST(balance AS FLOAT8) > 0.001
+    `)),
+
+    /* ── رأس المال المفتوح: مجموع إدخالات الأرصدة الافتتاحية للخزينة ── */
+    db.execute(sql.raw(`
+      SELECT COALESCE(SUM(CAST(amount AS FLOAT8)), 0) AS opening_capital
+      FROM transactions
+      WHERE reference_type IN ('treasury_opening', 'customer_opening', 'supplier_opening', 'inventory_opening')
+    `)),
+
+    /* ── صافي الربح الكلي (الأرباح المحتجزة) ── */
+    db.execute(sql.raw(`
+      WITH
+        revenue AS (
+          SELECT
+            COALESCE((SELECT SUM(CAST(amount AS FLOAT8)) FROM receipt_vouchers WHERE posting_status = 'posted'), 0)
+          + COALESCE((SELECT SUM(CAST(paid_amount AS FLOAT8)) FROM sales WHERE posting_status = 'posted' AND payment_type = 'cash'), 0)
+          AS total_revenue
+        ),
+        cogs AS (
+          SELECT COALESCE(SUM(CAST(si.cost_total AS FLOAT8)), 0) AS total_cogs
+          FROM sale_items si
+          JOIN sales s ON s.id = si.sale_id
+          WHERE s.posting_status = 'posted'
+        ),
+        expenses AS (
+          SELECT COALESCE(SUM(CAST(amount AS FLOAT8)), 0) AS total_expenses FROM expenses
+        )
+      SELECT
+        r.total_revenue,
+        c.total_cogs,
+        e.total_expenses,
+        r.total_revenue - c.total_cogs - e.total_expenses AS net_profit
+      FROM revenue r, cogs c, expenses e
+    `)),
+  ]);
+
+  const totalCash        = r2(Number((cashRow.rows[0] as any)?.total_cash        ?? 0));
+  const totalReceivables = r2(Number((receivablesRow.rows[0] as any)?.total_receivables ?? 0));
+  const inventoryValue   = r2(Number((inventoryRow.rows[0] as any)?.inventory_value   ?? 0));
+  const totalPayables    = r2(Number((payablesRow.rows[0] as any)?.total_payables    ?? 0));
+  const openingCapital   = r2(Number((capitalRow.rows[0] as any)?.opening_capital   ?? 0));
+  const totalRevenue     = r2(Number((plRow.rows[0] as any)?.total_revenue     ?? 0));
+  const totalCogs        = r2(Number((plRow.rows[0] as any)?.total_cogs        ?? 0));
+  const totalExpenses    = r2(Number((plRow.rows[0] as any)?.total_expenses    ?? 0));
+  const retainedEarnings = r2(Number((plRow.rows[0] as any)?.net_profit        ?? 0));
+
+  const totalAssets     = r2(totalCash + totalReceivables + inventoryValue);
+  const totalLiabilities = r2(totalPayables);
+  const totalEquity      = r2(openingCapital + retainedEarnings);
+  const totalLiabEquity  = r2(totalLiabilities + totalEquity);
+
+  const bsValidation = buildValidation([
+    {
+      name:     "الأصول = الخصوم + حقوق الملكية",
+      expected: totalAssets,
+      actual:   totalLiabEquity,
+    },
+    {
+      name:     "الأرباح المحتجزة = الإيراد - التكلفة - المصروفات",
+      expected: r2(totalRevenue - totalCogs - totalExpenses),
+      actual:   retainedEarnings,
+    },
+  ]);
+
+  res.json({
+    assets: {
+      cash:        totalCash,
+      receivables: totalReceivables,
+      inventory:   inventoryValue,
+      total:       totalAssets,
+    },
+    liabilities: {
+      payables: totalPayables,
+      total:    totalLiabilities,
+    },
+    equity: {
+      opening_capital:   openingCapital,
+      retained_earnings: retainedEarnings,
+      total:             totalEquity,
+    },
+    total_liabilities_equity: totalLiabEquity,
+    pl_detail: {
+      total_revenue: totalRevenue,
+      total_cogs:    totalCogs,
+      total_expenses: totalExpenses,
+    },
+    balanced:   Math.abs(totalAssets - totalLiabEquity) <= TOLERANCE,
+    validation: bsValidation,
+    as_of:      new Date().toISOString().split("T")[0],
+  });
+}));
+
 export default router;

@@ -913,9 +913,118 @@ export function printPLReport(data: PLReportData): void {
   win.document.close();
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
- * Cash Flow Statement PDF
- * ─────────────────────────────────────────────────────────────────────── */
+/* ── Balance Sheet PDF ─────────────────────────────────────────────────── */
+export interface BalanceSheetPrintData {
+  assets:      { cash: number; receivables: number; inventory: number; total: number };
+  liabilities: { payables: number; total: number };
+  equity:      { opening_capital: number; retained_earnings: number; total: number };
+  total_liabilities_equity: number;
+  balanced: boolean;
+  as_of: string;
+}
+
+export function printBalanceSheet(data: BalanceSheetPrintData): void {
+  const s   = getSettings();
+  const sym = getCurrencySymbol();
+  const m   = (n: number) => `${Number(n ?? 0).toFixed(2)} ${sym}`;
+  const now = new Date().toLocaleDateString("ar-EG", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  const asOf = new Date(data.as_of).toLocaleDateString("ar-EG", { year: "numeric", month: "long", day: "numeric" });
+
+  const retainedIsPos = data.equity.retained_earnings >= 0;
+  const eqIsPos       = data.equity.total >= 0;
+  const eqColor       = eqIsPos ? "#059669" : "#dc2626";
+  const eqBg          = eqIsPos ? "#f0fdf4"  : "#fef2f2";
+  const eqBdr         = eqIsPos ? "#059669"  : "#dc2626";
+
+  const html = `
+<div class="page">
+  <div class="pl-header">
+    <div>
+      <div class="pl-company">${s.companyName}</div>
+      ${s.phone   ? `<div class="pl-company-sub">📞 ${s.phone}</div>` : ""}
+      ${s.address ? `<div class="pl-company-sub">📍 ${s.address}</div>` : ""}
+    </div>
+    <div class="pl-title-block">
+      <div class="pl-title">الميزانية العمومية</div>
+      <div class="pl-subtitle">المركز المالي في: ${asOf}</div>
+    </div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi-box" style="border-color:#d97706;background:#fffbeb">
+      <div class="kpi-label">إجمالي الأصول</div>
+      <div class="kpi-value amber">${m(data.assets.total)}</div>
+      <div class="kpi-sub">النقدية + الذمم + المخزون</div>
+    </div>
+    <div class="kpi-box" style="border-color:#dc2626;background:#fef2f2">
+      <div class="kpi-label">إجمالي الخصوم</div>
+      <div class="kpi-value red">${m(data.liabilities.total)}</div>
+      <div class="kpi-sub">ذمم الموردين الدائنة</div>
+    </div>
+    <div class="kpi-box ${eqIsPos ? "profit" : "loss"}">
+      <div class="kpi-label">حقوق الملكية</div>
+      <div class="kpi-value ${eqIsPos ? "green" : "red"}">${m(data.equity.total)}</div>
+      <div class="kpi-sub">رأس المال + الأرباح المحتجزة</div>
+    </div>
+  </div>
+
+  <table class="stmt">
+
+    <!-- الأصول -->
+    <tr class="sec-hd"><td colspan="2">الأصول &nbsp;<span style="font-weight:400;font-size:10px;opacity:0.6">(Assets)</span></td></tr>
+    <tr class="sub"><td>النقدية — أرصدة الخزن الحالية</td><td class="num">${m(data.assets.cash)}</td></tr>
+    <tr class="sub"><td>ذمم العملاء المدينة</td><td class="num">${m(data.assets.receivables)}</td></tr>
+    <tr class="sub"><td>المخزون — الكمية × سعر التكلفة</td><td class="num">${m(data.assets.inventory)}</td></tr>
+    <tr class="total"><td>= إجمالي الأصول</td><td class="num amber">${m(data.assets.total)}</td></tr>
+
+    <tr><td colspan="2" style="height:8px;background:#f9fafb"></td></tr>
+
+    <!-- الخصوم -->
+    <tr class="sec-hd"><td colspan="2">الخصوم &nbsp;<span style="font-weight:400;font-size:10px;opacity:0.6">(Liabilities)</span></td></tr>
+    <tr class="sub"><td>ذمم الموردين الدائنة</td><td class="num">${m(data.liabilities.payables)}</td></tr>
+    <tr class="total"><td>= إجمالي الخصوم</td><td class="num" style="color:#6b7280">${m(data.liabilities.total)}</td></tr>
+
+    <tr><td colspan="2" style="height:8px;background:#f9fafb"></td></tr>
+
+    <!-- حقوق الملكية -->
+    <tr class="sec-hd"><td colspan="2">حقوق الملكية &nbsp;<span style="font-weight:400;font-size:10px;opacity:0.6">(Equity)</span></td></tr>
+    <tr class="sub"><td>رأس المال المفتوح — الأرصدة الافتتاحية</td><td class="num">${m(data.equity.opening_capital)}</td></tr>
+    <tr class="sub"><td>الأرباح المحتجزة — صافي الربح الكلي</td><td class="num ${retainedIsPos ? "green" : "red"}">${m(data.equity.retained_earnings)}</td></tr>
+    <tr class="total" style="background:${eqBg};border-top-color:${eqBdr};border-bottom-color:${eqBdr}">
+      <td style="color:${eqColor}">= إجمالي حقوق الملكية</td>
+      <td class="num" style="color:${eqColor}">${m(data.equity.total)}</td>
+    </tr>
+
+    <tr><td colspan="2" style="height:4px;background:#f9fafb"></td></tr>
+
+    <!-- معادلة التوازن -->
+    <tr class="${data.balanced ? "net-pos" : "net-neg"}">
+      <td style="font-size:15px">= إجمالي الخصوم + حقوق الملكية &nbsp;${data.balanced ? "✓" : "⚠"}</td>
+      <td class="num" style="font-size:15px">${m(data.total_liabilities_equity)}</td>
+    </tr>
+
+  </table>
+
+  <div class="pl-footer">
+    <span>تاريخ الطباعة: ${now}</span>
+    <span>Halal Tech ERP v2.0</span>
+  </div>
+</div>`;
+
+  const win = window.open("", "_blank");
+  if (!win) return;
+  win.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head>
+  <meta charset="UTF-8"><title>الميزانية العمومية — ${s.companyName}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <style>${PL_STYLES}</style>
+</head>
+<body>${html}
+<script>document.fonts.ready.then(()=>setTimeout(()=>window.print(),700));<\/script>
+</body></html>`);
+  win.document.close();
+}
+
 export interface CashFlowPrintData {
   total_in: number; total_out: number; net_cash_flow: number;
   customer_receipts: number; receipts_in: number; cash_sales: number;

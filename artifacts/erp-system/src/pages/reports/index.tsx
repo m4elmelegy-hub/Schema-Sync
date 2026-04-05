@@ -17,21 +17,23 @@ import ProductProfitReport     from "./ProductProfitReport";
 import SalesAnalysisReport     from "./SalesAnalysisReport";
 import CustomerStatementReport from "./CustomerStatementReport";
 import CashFlowReport          from "./CashFlowReport";
+import BalanceSheetReport      from "./BalanceSheetReport";
 import TopReportsTab           from "./TopReportsTab";
 import HealthCheckReport       from "./HealthCheckReport";
 
 type Tab =
-  | "health" | "pl" | "daily" | "products" | "analysis" | "customer"
-  | "cashflow" | "top" | "inventory" | "sales" | "purchases" | "vouchers";
+  | "health" | "pl" | "cashflow" | "balance" | "daily" | "products" | "analysis" | "customer"
+  | "top" | "inventory" | "sales" | "purchases" | "vouchers";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "health",    label: "🩺 صحة النظام" },
   { id: "pl",        label: "📊 الأرباح والخسائر" },
+  { id: "cashflow",  label: "💰 التدفق النقدي" },
+  { id: "balance",   label: "⚖️ الميزانية العمومية" },
   { id: "daily",     label: "📅 يومي" },
   { id: "products",  label: "📦 ربحية المنتجات" },
   { id: "analysis",  label: "📈 تحليل المبيعات" },
   { id: "customer",  label: "👤 كشف عميل" },
-  { id: "cashflow",  label: "💰 تدفق نقدي" },
   { id: "top",       label: "🏆 الأعلى" },
   { id: "inventory", label: "🏪 المخزون" },
   { id: "sales",     label: "🧾 فواتير المبيعات" },
@@ -75,6 +77,7 @@ export default function Reports() {
           {tab === "analysis"  && <SalesAnalysisReport />}
           {tab === "customer"  && <CustomerStatementReport />}
           {tab === "cashflow"  && <CashFlowReport />}
+          {tab === "balance"   && <BalanceSheetReport />}
           {tab === "top"       && <TopReportsTab />}
           {tab === "inventory" && <InventoryReport />}
           {tab === "sales"     && <SalesInvoicesReport />}
