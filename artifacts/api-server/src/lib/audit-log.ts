@@ -7,14 +7,32 @@
 
 import { db, auditLogsTable } from "@workspace/db";
 
-export type AuditAction = "create" | "update" | "delete" | "cancel" | "price_override";
+export type AuditAction =
+  | "create"
+  | "update"
+  | "delete"
+  | "cancel"
+  | "price_override"
+  | "lock_period"
+  | "unlock_period"
+  | "lock_blocked"
+  | "reversal_created"
+  | "correction_created";
+
 export type AuditRecordType =
   | "customer"
   | "supplier"
   | "sale"
   | "sale_return"
   | "purchase_return"
-  | "product";
+  | "product"
+  | "financial_lock"
+  | "expense"
+  | "safe_transfer"
+  | "receipt_voucher"
+  | "payment_voucher"
+  | "deposit_voucher"
+  | "treasury_voucher";
 
 interface AuditUser {
   id?: number;
@@ -28,6 +46,7 @@ export async function writeAuditLog(opts: {
   old_value?: object | null;
   new_value?: object | null;
   user?: AuditUser | null;
+  note?: string;
 }): Promise<void> {
   try {
     await db.insert(auditLogsTable).values({

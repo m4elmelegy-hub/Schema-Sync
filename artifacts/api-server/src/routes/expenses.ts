@@ -9,6 +9,8 @@ import {
 } from "@workspace/api-zod";
 import { wrap, httpError } from "../lib/async-handler";
 import { hasPermission } from "../lib/permissions";
+import { assertPeriodOpen } from "../lib/period-lock";
+import { writeAuditLog } from "../lib/audit-log";
 
 const router: IRouter = Router();
 
@@ -28,6 +30,8 @@ router.post("/expenses", wrap(async (req, res) => {
   if (!hasPermission(req.user, "can_add_expense")) {
     res.status(403).json({ error: "غير مصرح بإضافة مصروفات" }); return;
   }
+
+  await assertPeriodOpen(new Date().toISOString().split("T")[0], req);
 
   const parsed = CreateExpenseBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
@@ -66,6 +70,8 @@ router.post("/expenses", wrap(async (req, res) => {
 router.delete("/expenses/:id", wrap(async (req, res) => {
   const params = DeleteExpenseParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const [preCheck] = await db.select().from(expensesTable).where(eq(expensesTable.id, params.data.id));
+  if (preCheck) await assertPeriodOpen(preCheck.created_at?.toISOString().split("T")[0] ?? null, req);
   await db.transaction(async (tx) => {
     const [exp] = await tx.select().from(expensesTable).where(eq(expensesTable.id, params.data.id));
     if (exp?.safe_id) {

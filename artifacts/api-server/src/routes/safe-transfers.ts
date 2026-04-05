@@ -3,6 +3,7 @@ import { eq, desc } from "drizzle-orm";
 import { db, safesTable, safeTransfersTable, transactionsTable } from "@workspace/db";
 
 import { wrap, httpError } from "../lib/async-handler";
+import { assertPeriodOpen } from "../lib/period-lock";
 
 const router: IRouter = Router();
 
@@ -19,6 +20,9 @@ router.get("/safe-transfers", wrap(async (_req, res) => {
 
 router.post("/safe-transfers", wrap(async (req, res) => {
   const { from_safe_id, to_safe_id, amount, notes, date } = req.body;
+
+  await assertPeriodOpen(date ?? new Date().toISOString().split("T")[0], req);
+
   if (!from_safe_id || !to_safe_id || !amount) {
     res.status(400).json({ error: "البيانات غير مكتملة" }); return;
   }

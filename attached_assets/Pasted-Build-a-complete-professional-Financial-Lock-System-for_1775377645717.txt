@@ -1,0 +1,407 @@
+Build a complete professional Financial Lock System for the ERP.
+
+⚠️ GOAL:
+Protect closed financial periods from direct modification while still allowing safe accounting corrections through reversal/adjustment entries and full audit trail.
+
+This must be implemented as an accounting-grade control system, not a simple UI lock.
+
+==================================================
+
+1. CORE CONCEPT
+   ==================================================
+
+After a period is financially locked:
+
+❌ No direct edit of old records
+❌ No direct delete of old records
+❌ No changing amounts/dates/customers/safes/invoices inside locked periods
+
+✅ Corrections must happen only through:
+
+* reversal entries
+* adjustment entries
+* return transactions
+* compensating vouchers
+
+This is the critical accounting rule.
+
+==================================================
+2) WHERE IT LIVES IN THE SYSTEM
+===============================
+
+Add a dedicated section inside:
+
+Settings → Financial Settings
+
+New section title:
+"إغلاق الفترات المالية"
+
+This section must be visible to:
+
+* Admin
+* Owner
+
+NOT visible to:
+
+* Cashier
+* Regular employee
+* Sales rep
+
+==================================================
+3) UI / SETTINGS PANEL
+======================
+
+Create a professional control panel with:
+
+A) Toggle:
+"تفعيل الإغلاق المالي التلقائي"
+
+B) Auto-lock rule:
+
+* بعد يوم
+* بعد 3 أيام
+* بعد 7 أيام
+* نهاية اليوم
+* نهاية الشهر
+* يدوي فقط
+
+C) Manual lock action:
+"إغلاق حتى تاريخ"
+
+Input:
+[ date picker ]
+
+Button:
+"تنفيذ الإغلاق"
+
+D) Current status display:
+
+* الإغلاق مفعل / غير مفعل
+* آخر تاريخ مغلق
+* آخر مستخدم قام بالإغلاق
+* وضع الإغلاق: تلقائي / يدوي
+
+E) Warning box:
+"بعد إغلاق الفترة لا يمكن تعديل السجلات القديمة مباشرة، ويتم التصحيح فقط من خلال قيود أو سندات عكسية."
+
+==================================================
+4) DATABASE / STORAGE MODEL
+===========================
+
+Create proper persistent storage.
+
+Suggested table:
+financial_locks
+
+Fields:
+
+* id
+* is_enabled
+* lock_mode
+* auto_lock_rule
+* locked_until_date
+* last_locked_by_user_id
+* created_at
+* updated_at
+
+Optional:
+financial_period_locks
+if you want history per lock action
+
+Also keep lock history if possible.
+
+==================================================
+5) WHAT MUST BE LOCKED
+======================
+
+When a record date is <= locked_until_date:
+
+Prevent direct modification of:
+
+* receipt vouchers
+* payment vouchers
+* treasury actions
+* expenses
+* sales invoices
+* purchase invoices
+* customer balances via old edits
+* supplier balances via old edits
+* journal entries (if appropriate)
+
+Protected operations:
+
+* edit
+* delete
+* change date
+* repost/undo in locked period
+
+==================================================
+6) USER EXPERIENCE WHEN BLOCKED
+===============================
+
+If user tries to modify a locked record:
+
+Show message:
+
+"لا يمكن تعديل هذا السجل لأنه ضمن فترة مالية مغلقة."
+
+Add small explanation:
+"للتصحيح، استخدم إجراء عكسي أو سند/قيد تصحيحي جديد."
+
+No crash.
+No silent failure.
+No confusing message.
+
+==================================================
+7) CORRECTION SYSTEM (CRITICAL)
+===============================
+
+Do NOT allow old record edit after lock.
+
+Instead implement safe correction workflows.
+
+A) Reverse Voucher
+For locked receipt/payment:
+
+* create opposite voucher
+* same amount
+* linked to original voucher
+* marked as "عكسي"
+
+B) Adjustment Voucher
+Allow new correction entry with:
+
+* correction reason
+* linked original record
+* created_by
+* created_at
+
+C) Sales correction
+Use:
+
+* return invoice
+* correction invoice
+  NOT direct invoice mutation
+
+D) Expense correction
+Use:
+
+* negative reversing expense
+* then correct new entry
+
+==================================================
+8) LINKED CORRECTION RELATIONSHIPS
+==================================
+
+Every correction must preserve traceability.
+
+Add fields where needed:
+
+* original_record_id
+* correction_type
+* reversed_by_id
+* reversal_reason
+* correction_note
+
+User must always see:
+"هذا السجل تم عكسه / تصحيحه بواسطة سجل آخر"
+
+==================================================
+9) AUDIT LOG (MANDATORY)
+========================
+
+Add full audit trail.
+
+Suggested table:
+audit_logs
+
+Fields:
+
+* id
+* user_id
+* action_type
+* entity_type
+* entity_id
+* before_json
+* after_json
+* note
+* created_at
+
+Log at least:
+
+* lock action
+* unlock action
+* reversal action
+* correction action
+* failed edit attempt on locked record
+
+==================================================
+10) UNLOCK POLICY
+=================
+
+Unlock must be strictly controlled.
+
+Only Admin/Owner can:
+
+* change lock date
+* disable lock
+* reopen a period
+
+Every unlock action must require:
+
+* reason
+* confirmation dialog
+
+Audit log required.
+
+==================================================
+11) AUTO-LOCK LOGIC
+===================
+
+If auto-lock enabled:
+
+Examples:
+
+* after 1 day → yesterday and earlier become locked
+* after 7 days → older than 7 days locked
+* month end → previous month locked
+
+This must run safely without breaking existing operations.
+
+If cron/background job is not available:
+implement evaluation at app/backend service layer on relevant requests.
+
+==================================================
+12) ROLE-BASED ACCESS
+=====================
+
+Admin / Owner:
+
+* full visibility of lock settings
+* can lock / unlock
+* can perform corrections
+
+Accountant:
+
+* can view lock status
+* can create corrections if permitted
+* cannot change lock policy unless explicitly allowed
+
+Cashier / Employee:
+
+* no lock settings
+* no unlock
+* no direct old edits
+* can only create new records within open periods
+
+==================================================
+13) REPORTING IMPACT
+====================
+
+Reports must remain accurate.
+
+Locked records still appear in reports normally.
+Reversal / correction entries must also appear properly and affect totals correctly.
+
+Add clear labels:
+
+* عكسي
+* تصحيحي
+* مغلق
+
+If useful, show in reports:
+"الفترة المالية مغلقة حتى: [date]"
+
+==================================================
+14) TREASURY + SALES + EXPENSES INTEGRATION
+===========================================
+
+Apply the lock system consistently to:
+
+* treasury
+* vouchers
+* expenses
+* sales
+* purchases
+* accounting reports
+
+If a sales invoice is in locked period:
+❌ no direct edit
+✅ only return / correction path
+
+If an expense is in locked period:
+❌ no direct edit
+✅ reverse + recreate
+
+==================================================
+15) PRINT / STATUS / VISUALS
+============================
+
+Add small status chip where useful:
+
+* فترة مفتوحة
+* فترة مغلقة
+* سجل عكسي
+* سجل تصحيحي
+
+Keep UI clean and Arabic-only.
+
+==================================================
+16) NO BREAKING CHANGES
+=======================
+
+Do NOT break:
+
+* existing APIs
+* current reports
+* financial calculations
+
+This must be integrated safely on top of the current system.
+
+==================================================
+17) FINAL WORKFLOW EXAMPLES
+===========================
+
+Example 1:
+Locked receipt entered by mistake
+→ user cannot edit
+→ admin/accountant creates reversal voucher
+→ creates correct new voucher
+
+Example 2:
+Locked expense wrong amount
+→ create reversing expense
+→ create corrected expense
+
+Example 3:
+Locked sales invoice
+→ create return / correcting invoice
+→ never edit original directly
+
+==================================================
+18) VALIDATION CHECKLIST
+========================
+
+After implementation verify:
+
+✔ old locked records cannot be edited
+✔ corrections remain possible
+✔ unlock is admin-only
+✔ lock history exists
+✔ audit log exists
+✔ no runtime errors
+✔ Arabic-only UI
+
+==================================================
+19) OUTPUT SUMMARY REQUIRED
+===========================
+
+After implementation return:
+
+1. Where lock settings were added
+2. Lock table / model used
+3. Which modules are protected
+4. How reversal/correction works
+5. How audit log works
+6. Which roles can lock/unlock
+7. Confirmation that reports remain accurate

@@ -61,10 +61,12 @@ export async function assertPeriodOpen(
   const overrideRequested = req.body?.admin_override === true;
   if (isAdmin && overrideRequested) return;
 
-  const adminHint = isAdmin
-    ? " — أرسل admin_override: true للتجاوز"
-    : "";
-  throw httpError(423, `هذه الفترة مقفلة (تاريخ الإغلاق: ${closingDate})${adminHint}`);
+  const adminHint = isAdmin ? " (المدير: أرسل admin_override: true للتجاوز)" : "";
+  throw httpError(423,
+    `لا يمكن تعديل هذا السجل لأنه ضمن فترة مالية مغلقة (حتى ${closingDate}).` +
+    ` للتصحيح، استخدم إجراءً عكسياً أو سند/قيد تصحيحي جديد.` +
+    adminHint
+  );
 }
 
 /** مسح الذاكرة المؤقتة (يُستدعى عند تغيير الإعداد) */
