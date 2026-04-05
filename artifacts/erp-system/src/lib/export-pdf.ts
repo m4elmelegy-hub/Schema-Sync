@@ -680,64 +680,52 @@ export interface PLReportData {
 const PL_STYLES = `
   * { margin:0; padding:0; box-sizing:border-box; }
   body { font-family:'Cairo','Arial',sans-serif; direction:rtl; background:#fff; color:#111827; font-size:13px; line-height:1.6; }
-  .page { padding:32px 36px; max-width:960px; margin:0 auto; }
+  .page { padding:28px 32px; max-width:900px; margin:0 auto; }
 
   /* ── Header ── */
-  .pl-header { display:flex; justify-content:space-between; align-items:flex-start; padding-bottom:16px; border-bottom:3px solid #111827; margin-bottom:20px; }
-  .pl-company { font-size:22px; font-weight:900; color:#111827; }
+  .pl-header { display:flex; justify-content:space-between; align-items:flex-start; padding-bottom:14px; border-bottom:3px solid #111827; margin-bottom:22px; }
+  .pl-company { font-size:20px; font-weight:900; color:#111827; }
   .pl-company-sub { font-size:11px; color:#6b7280; margin-top:3px; }
   .pl-title-block { text-align:left; }
-  .pl-title { font-size:18px; font-weight:900; color:#111827; letter-spacing:0.01em; }
-  .pl-subtitle { font-size:12px; color:#374151; margin-top:4px; font-weight:600; }
-  .pl-period { font-size:11px; color:#6b7280; margin-top:2px; }
+  .pl-title { font-size:18px; font-weight:900; color:#111827; }
+  .pl-subtitle { font-size:11px; color:#6b7280; margin-top:3px; }
 
-  /* ── Summary KPI boxes ── */
-  .kpi-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:24px; }
-  .kpi-box { border:1.5px solid #e5e7eb; border-radius:8px; padding:12px 14px; background:#fafafa; }
+  /* ── KPI boxes (3 only) ── */
+  .kpi-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:24px; }
+  .kpi-box  { border:1.5px solid #e5e7eb; border-radius:6px; padding:14px 16px; }
   .kpi-box.profit { border-color:#059669; background:#f0fdf4; }
   .kpi-box.loss   { border-color:#dc2626; background:#fef2f2; }
-  .kpi-label { font-size:10px; color:#6b7280; font-weight:600; margin-bottom:5px; letter-spacing:0.02em; text-transform:uppercase; }
-  .kpi-value { font-size:16px; font-weight:900; color:#111827; }
+  .kpi-label { font-size:10px; color:#6b7280; font-weight:700; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.04em; }
+  .kpi-value { font-size:18px; font-weight:900; }
   .kpi-value.green  { color:#059669; }
   .kpi-value.red    { color:#dc2626; }
   .kpi-value.dark   { color:#111827; }
+  .kpi-sub { font-size:10px; color:#9ca3af; margin-top:3px; }
 
-  /* ── Accounting statement ── */
-  .stmt { width:100%; border-collapse:collapse; margin-bottom:20px; }
-  .stmt-section-hd td { background:#111827; color:#fff; font-size:11px; font-weight:700; padding:8px 14px; letter-spacing:0.04em; text-transform:uppercase; }
-  .stmt tr { border-bottom:1px solid #f3f4f6; }
-  .stmt .stmt-row td { padding:9px 14px; font-size:13px; color:#374151; }
-  .stmt .stmt-row.sub td:first-child { padding-right:32px; color:#6b7280; font-size:12px; }
-  .stmt .stmt-total td { padding:10px 14px; font-weight:900; font-size:14px; background:#f9fafb; border-top:2px solid #e5e7eb; border-bottom:2px solid #e5e7eb; }
-  .stmt .stmt-net td  { padding:12px 14px; font-weight:900; font-size:15px; }
-  .stmt .stmt-net.pos td { background:#f0fdf4; color:#059669; }
-  .stmt .stmt-net.neg td { background:#fef2f2; color:#dc2626; }
+  /* ── Accounting Statement ── */
+  .stmt { width:100%; border-collapse:collapse; margin-bottom:24px; }
+  .stmt td { padding:10px 16px; border-bottom:1px solid #f3f4f6; font-size:13px; color:#374151; }
+  .stmt .sec-hd td { background:#1f2937; color:#fff; font-size:11px; font-weight:700; padding:7px 16px; letter-spacing:0.04em; border-bottom:none; }
+  .stmt .sub td:first-child { padding-right:34px; color:#6b7280; font-size:12px; }
+  .stmt .total td { font-weight:800; font-size:14px; background:#f8fafc; border-top:2px solid #e5e7eb; border-bottom:2px solid #e5e7eb; }
+  .stmt .gross td { font-weight:800; font-size:14px; background:#fef9ec; border-top:2px solid #e5e7eb; border-bottom:2px solid #e5e7eb; }
+  .stmt .net-pos td { font-weight:900; font-size:15px; background:#f0fdf4; color:#059669; border-top:2px solid #059669; padding-top:13px; padding-bottom:13px; }
+  .stmt .net-neg td { font-weight:900; font-size:15px; background:#fef2f2; color:#dc2626; border-top:2px solid #dc2626; padding-top:13px; padding-bottom:13px; }
   .num { text-align:left; font-variant-numeric:tabular-nums; font-weight:700; }
-  .num.red    { color:#dc2626; }
   .num.green  { color:#059669; }
+  .num.red    { color:#dc2626; }
   .num.amber  { color:#d97706; }
 
-  /* ── Section heading ── */
-  .sec-hd { font-size:12px; font-weight:800; padding:7px 12px; background:#f3f4f6; border-right:3px solid #111827; color:#111827; margin:20px 0 8px; }
-
-  /* ── Tables ── */
-  table.data { width:100%; border-collapse:collapse; margin-bottom:14px; font-size:12px; }
-  table.data thead th { background:#1f2937; color:#fff; padding:8px 12px; text-align:right; font-weight:700; }
+  /* ── Branch table ── */
+  .sec-hd-bar { font-size:12px; font-weight:800; padding:7px 12px; background:#f3f4f6; border-right:3px solid #374151; color:#111827; margin:18px 0 8px; }
+  table.data { width:100%; border-collapse:collapse; font-size:12px; margin-bottom:14px; }
+  table.data thead th { background:#374151; color:#fff; padding:8px 12px; text-align:right; font-weight:700; }
   table.data tbody td { padding:7px 12px; text-align:right; border-bottom:1px solid #f3f4f6; color:#374151; }
   table.data tbody tr:nth-child(even) { background:#fafafa; }
-  table.data tfoot td { padding:8px 12px; text-align:right; font-weight:900; background:#f3f4f6; border-top:2px solid #e5e7eb; color:#111827; }
-  .bar-cell { width:80px; }
-  .bar-track { background:#e5e7eb; border-radius:3px; height:5px; overflow:hidden; margin-top:2px; }
-  .bar-fill  { background:#059669; border-radius:3px; height:5px; }
-
-  /* ── Payment breakdown ── */
-  .pay-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:18px; }
-  .pay-box { border:1px solid #e5e7eb; border-radius:6px; padding:10px 12px; text-align:center; background:#fafafa; }
-  .pay-box-label { font-size:10px; color:#6b7280; font-weight:600; margin-bottom:3px; }
-  .pay-box-val { font-size:14px; font-weight:900; color:#111827; }
+  table.data tfoot td { padding:8px 12px; font-weight:900; background:#f3f4f6; border-top:2px solid #e5e7eb; }
 
   /* ── Footer ── */
-  .pl-footer { margin-top:28px; padding-top:12px; border-top:1.5px solid #e5e7eb; display:flex; justify-content:space-between; font-size:10px; color:#9ca3af; }
+  .pl-footer { margin-top:24px; padding-top:10px; border-top:1px solid #e5e7eb; display:flex; justify-content:space-between; font-size:10px; color:#9ca3af; }
 
   @media print {
     body { -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; }
@@ -806,6 +794,12 @@ export function printPLReport(data: PLReportData): void {
   const retAmt   = data.return_amount ?? 0;
   const hasPayBreakdown = cashS + creditS + partialS + retAmt > 0;
 
+  /* ── Build expense lines for statement ── */
+  const expLines = expenses.slice(0, 8).map(e =>
+    `<tr class="sub"><td>(−) ${e.category}</td><td class="num red">(${m(e.total)})</td></tr>`
+  ).join("");
+  const otherExpAmt = expenses.slice(8).reduce((s,e)=>s+e.total, 0);
+
   const html = `
 <div class="page">
 
@@ -813,29 +807,21 @@ export function printPLReport(data: PLReportData): void {
   <div class="pl-header">
     <div>
       <div class="pl-company">${s.companyName}</div>
-      ${s.phone ? `<div class="pl-company-sub">📞 ${s.phone}</div>` : ""}
-      ${s.address ? `<div class="pl-company-sub">📍 ${s.address}</div>` : ""}
+      ${s.phone    ? `<div class="pl-company-sub">📞 ${s.phone}</div>` : ""}
+      ${s.address  ? `<div class="pl-company-sub">📍 ${s.address}</div>` : ""}
     </div>
     <div class="pl-title-block">
       <div class="pl-title">قائمة الأرباح والخسائر</div>
-      <div class="pl-subtitle">Income Statement</div>
-      <div class="pl-period">الفترة: ${data.dateFrom} — ${data.dateTo}</div>
+      <div class="pl-subtitle">Income Statement · الفترة: ${data.dateFrom} — ${data.dateTo}</div>
     </div>
   </div>
 
-  <!-- KPI Boxes -->
+  <!-- KPI Summary (3 only) -->
   <div class="kpi-grid">
     <div class="kpi-box">
       <div class="kpi-label">إجمالي المبيعات</div>
       <div class="kpi-value dark">${m(data.total_revenue)}</div>
-    </div>
-    <div class="kpi-box">
-      <div class="kpi-label">تكلفة البضاعة (COGS)</div>
-      <div class="kpi-value red">${m(data.total_cost)}</div>
-    </div>
-    <div class="kpi-box">
-      <div class="kpi-label">مجمل الربح</div>
-      <div class="kpi-value ${data.gross_profit>=0?"green":"red"}">${m(data.gross_profit)}</div>
+      <div class="kpi-sub">${data.invoice_count} فاتورة</div>
     </div>
     <div class="kpi-box">
       <div class="kpi-label">إجمالي المصروفات</div>
@@ -844,68 +830,62 @@ export function printPLReport(data: PLReportData): void {
     <div class="kpi-box ${isProfit?"profit":"loss"}">
       <div class="kpi-label">صافي الربح</div>
       <div class="kpi-value ${isProfit?"green":"red"}">${m(data.net_profit)}</div>
+      <div class="kpi-sub">${pct(netMargin)}</div>
     </div>
   </div>
 
   <!-- Accounting Statement -->
-  <div class="sec-hd">قائمة الدخل — التفصيل المحاسبي</div>
   <table class="stmt">
-    <tr class="stmt-section-hd"><td colspan="2">الإيرادات</td></tr>
-    <tr class="stmt-row"><td>إجمالي المبيعات</td><td class="num green">${m(data.total_revenue)}</td></tr>
-    ${retAmt > 0 ? `<tr class="stmt-row sub"><td>(−) مرتجعات المبيعات</td><td class="num red">(${m(retAmt)})</td></tr>` : ""}
-    <tr class="stmt-section-hd"><td colspan="2">التكاليف</td></tr>
-    <tr class="stmt-row sub"><td>(−) تكلفة البضاعة المباعة (COGS)</td><td class="num red">(${m(data.total_cost)})</td></tr>
-    <tr class="stmt-total"><td>= مجمل الربح (Gross Profit)</td><td class="num ${data.gross_profit>=0?"green":"red"}">${m(data.gross_profit)} &nbsp;<span style="font-size:11px;opacity:0.7">${pct(grossMargin)}</span></td></tr>
-    <tr class="stmt-section-hd"><td colspan="2">المصروفات التشغيلية</td></tr>
-    ${expenses.slice(0,5).map(e=>`<tr class="stmt-row sub"><td>(−) ${e.category}</td><td class="num red">(${m(e.total)})</td></tr>`).join("")}
-    ${expenses.length > 5 ? `<tr class="stmt-row sub"><td>(−) مصروفات أخرى</td><td class="num red">(${m(expenses.slice(5).reduce((s,e)=>s+e.total,0))})</td></tr>` : ""}
-    ${data.total_expenses > 0 ? `<tr class="stmt-row"><td style="font-weight:700">إجمالي المصروفات</td><td class="num red">(${m(data.total_expenses)})</td></tr>` : ""}
-    <tr class="stmt-net ${isProfit?"pos":"neg"}">
+    <!-- Revenue -->
+    <tr class="sec-hd"><td colspan="2">الإيرادات · Revenue</td></tr>
+    <tr><td>إجمالي المبيعات</td><td class="num green">${m(data.total_revenue)}</td></tr>
+    ${retAmt > 0 ? `<tr class="sub"><td>(−) مرتجعات المبيعات</td><td class="num red">(${m(retAmt)})</td></tr>
+    <tr class="total"><td>صافي الإيرادات</td><td class="num">${m(data.total_revenue - retAmt)}</td></tr>` : ""}
+
+    <!-- COGS -->
+    <tr class="sec-hd"><td colspan="2">تكلفة البضاعة المباعة · COGS</td></tr>
+    <tr class="sub"><td>(−) تكلفة البضاعة المباعة</td><td class="num red">(${m(data.total_cost)})</td></tr>
+    <tr class="gross">
+      <td>= مجمل الربح (Gross Profit)</td>
+      <td class="num ${data.gross_profit>=0?"amber":"red"}">${m(data.gross_profit)} <span style="font-size:11px;opacity:0.65">${pct(grossMargin)}</span></td>
+    </tr>
+
+    <!-- Expenses -->
+    <tr class="sec-hd"><td colspan="2">المصروفات التشغيلية · Operating Expenses</td></tr>
+    ${expLines || (data.total_expenses > 0 ? `<tr class="sub"><td>(−) مصروفات تشغيلية</td><td class="num red">(${m(data.total_expenses)})</td></tr>` : `<tr><td colspan="2" style="color:#9ca3af;text-align:center;font-style:italic">لا توجد مصروفات</td></tr>`)}
+    ${otherExpAmt > 0 ? `<tr class="sub"><td>(−) مصروفات أخرى</td><td class="num red">(${m(otherExpAmt)})</td></tr>` : ""}
+    ${expenses.length > 0 ? `<tr class="total"><td>إجمالي المصروفات</td><td class="num red">(${m(data.total_expenses)})</td></tr>` : ""}
+
+    <!-- Net Profit -->
+    <tr class="${isProfit?"net-pos":"net-neg"}">
       <td>= صافي الربح / الخسارة (Net Profit)</td>
-      <td class="num" style="font-size:16px">${m(data.net_profit)} &nbsp;<span style="font-size:11px;opacity:0.75">${pct(netMargin)}</span></td>
+      <td class="num" style="font-size:16px">${m(data.net_profit)} <span style="font-size:11px;opacity:0.7">${pct(netMargin)}</span></td>
     </tr>
   </table>
 
-  ${hasPayBreakdown ? `
-  <!-- Payment Breakdown -->
-  <div class="sec-hd">تفصيل طرق البيع</div>
-  <div class="pay-grid">
-    ${cashS>0 ? `<div class="pay-box"><div class="pay-box-label">نقدي</div><div class="pay-box-val" style="color:#059669">${m(cashS)}</div></div>` : ""}
-    ${creditS>0 ? `<div class="pay-box"><div class="pay-box-label">آجل</div><div class="pay-box-val" style="color:#2563eb">${m(creditS)}</div></div>` : ""}
-    ${partialS>0 ? `<div class="pay-box"><div class="pay-box-label">جزئي</div><div class="pay-box-val" style="color:#d97706">${m(partialS)}</div></div>` : ""}
-    ${retAmt>0 ? `<div class="pay-box"><div class="pay-box-label">مرتجعات</div><div class="pay-box-val" style="color:#dc2626">${m(retAmt)}</div></div>` : ""}
-  </div>` : ""}
-
   ${branches.length > 1 ? `
-  <!-- Branch Performance -->
-  <div class="sec-hd">أداء الفروع (${branches.length} فروع)</div>
+  <!-- Branch Comparison -->
+  <div class="sec-hd-bar">مقارنة الفروع · ${branches.length} فروع</div>
   <table class="data">
-    <thead><tr><th>الفرع</th><th>المبيعات</th><th>التكلفة</th><th>مجمل الربح</th><th>الهامش</th><th>الفواتير</th><th>الأداء</th></tr></thead>
-    <tbody>${branchRows}</tbody>
+    <thead><tr><th>الفرع</th><th>المبيعات</th><th>التكلفة</th><th>مجمل الربح</th><th>الهامش</th><th>الفواتير</th></tr></thead>
+    <tbody>${branches.map(w => {
+      const mg = w.revenue > 0 ? (w.gross_profit / w.revenue) * 100 : 0;
+      return `<tr>
+        <td style="font-weight:700">${w.warehouse_name}</td>
+        <td>${m(w.revenue)}</td>
+        <td style="color:#dc2626">${m(w.cost)}</td>
+        <td style="font-weight:700;color:${w.gross_profit>=0?"#059669":"#dc2626"}">${m(w.gross_profit)}</td>
+        <td>${mg.toFixed(1)}%</td>
+        <td>${w.invoice_count}</td>
+      </tr>`;
+    }).join("")}</tbody>
     <tfoot><tr>
       <td>الإجمالي</td>
       <td>${m(branches.reduce((s,b)=>s+b.revenue,0))}</td>
       <td>${m(branches.reduce((s,b)=>s+b.cost,0))}</td>
       <td style="color:${branches.reduce((s,b)=>s+b.gross_profit,0)>=0?"#059669":"#dc2626"}">${m(branches.reduce((s,b)=>s+b.gross_profit,0))}</td>
-      <td colspan="3"></td>
+      <td colspan="2"></td>
     </tr></tfoot>
-  </table>` : ""}
-
-  ${expenses.length > 0 ? `
-  <!-- Expense Breakdown -->
-  <div class="sec-hd">تفصيل المصروفات (${expenses.length} فئة)</div>
-  <table class="data">
-    <thead><tr><th>الفئة</th><th>المبلغ</th><th>النسبة</th></tr></thead>
-    <tbody>${expRows}</tbody>
-    <tfoot><tr><td>الإجمالي</td><td>${m(data.total_expenses)}</td><td>100%</td></tr></tfoot>
-  </table>` : ""}
-
-  ${topProducts.length > 0 ? `
-  <!-- Top Products -->
-  <div class="sec-hd">أعلى المنتجات ربحية (أول ${topProducts.length})</div>
-  <table class="data">
-    <thead><tr><th>#</th><th>المنتج</th><th>الكمية</th><th>الإيراد</th><th>التكلفة</th><th>الربح</th><th>الهامش</th></tr></thead>
-    <tbody>${productRows}</tbody>
   </table>` : ""}
 
   <!-- Footer -->

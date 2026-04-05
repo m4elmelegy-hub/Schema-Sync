@@ -1,0 +1,213 @@
+Refine the existing Profit & Loss implementation into a formal accounting-grade report WITHOUT breaking any existing functionality.
+
+⚠️ IMPORTANT:
+
+* Do NOT rewrite from scratch
+* Do NOT change APIs
+* Do NOT break existing data flow
+* This is a STRUCTURE + UX REFINEMENT only
+
+==================================================
+
+1. CONVERT FROM DASHBOARD → ACCOUNTING STATEMENT
+   ==================================================
+
+Current issue:
+The page still feels like a dashboard.
+
+Required:
+
+* Reduce visual weight of cards
+* Make the main focus the statement table
+
+KEEP:
+✔ KPI summary (top)
+✔ Branch table
+
+REDUCE:
+
+* visual dominance of cards
+* excessive spacing between sections
+
+==================================================
+2) MAKE STATEMENT THE CENTER OF THE PAGE
+========================================
+
+The Profit & Loss table must be the PRIMARY element.
+
+Structure:
+
+[ Header ]
+[ Filters ]
+[ KPI Summary - compact ]
+[ ⚠️ MAIN: Accounting Statement Table ]
+[ Branch Comparison ]
+
+The table must visually dominate the page.
+
+==================================================
+3) ACCOUNTING TABLE IMPROVEMENT
+===============================
+
+Enhance existing statement table:
+
+* Increase row height (better readability)
+* Add clear section separation:
+
+الإيرادات
+تكلفة البضاعة
+مجمل الربح
+المصروفات
+صافي الربح
+
+* Highlight key rows:
+
+Gross Profit → subtle background
+Net Profit → strong highlight
+
+* Use accounting formatting:
+
+negative values:
+(300.00)
+
+positive values:
+300.00
+
+==================================================
+4) REMOVE NON-ESSENTIAL VISUALS (SAFE CLEANUP)
+==============================================
+
+Do NOT delete logic — only hide or lazy-load UI.
+
+Remove or collapse:
+
+❌ Top Products section
+❌ Sales breakdown bars (if no data)
+❌ Insights (move to collapsible section)
+
+Default view should be CLEAN.
+
+==================================================
+5) KPI SIMPLIFICATION
+=====================
+
+Keep ONLY 3 KPIs:
+
+* Net Profit
+* Total Sales
+* Total Expenses
+
+Make them:
+
+* equal width
+* strong typography
+* minimal design
+
+==================================================
+6) LIGHT MODE FINAL FIX
+=======================
+
+Ensure:
+
+* NO transparent text
+* NO faded numbers
+
+Force:
+
+.rpt-kpi-value → #0f172a
+.rpt-strong → always solid
+
+Tables:
+
+* background: #ffffff
+* header: #f1f5f9
+* borders: #e2e8f0
+
+==================================================
+7) PDF — MAKE IT ACCOUNTING GRADE
+=================================
+
+Keep your current PDF logic, but refine:
+
+REMOVE from PDF:
+❌ decorative bars
+❌ visual performance strips
+
+KEEP ONLY:
+
+✔ Header
+✔ KPI summary
+✔ Statement table
+✔ Branch table (if multi-branch)
+
+STYLE:
+
+* white background
+* black text
+* no shadows
+* no UI elements
+
+Font sizes:
+
+title: 18–20px
+body: 12–13px
+
+PDF must look like:
+👉 exported accounting report
+NOT UI screenshot
+
+==================================================
+8) MULTI-BRANCH CLARITY
+=======================
+
+Improve clarity:
+
+* If 1 branch:
+  show: "فرع الدقي"
+
+* If multiple:
+  show: "3 فروع محددة"
+
+* If all:
+  show: "جميع الفروع"
+
+==================================================
+9) EMPTY STATE FIX
+==================
+
+Replace any empty charts with:
+
+"لا توجد بيانات للفترة المحددة"
+
+Centered + clean
+
+==================================================
+10) PERFORMANCE SAFETY
+======================
+
+* Do NOT introduce heavy charts
+* Lazy-load optional sections
+* Keep current queries unchanged
+
+==================================================
+11) FINAL TARGET
+================
+
+After this refinement, the page should feel:
+
+✔ Formal
+✔ Clean
+✔ Accounting-grade
+✔ Easy to read in 5 seconds
+✔ Printable without UI artifacts
+
+==================================================
+12) OUTPUT SUMMARY
+==================
+
+After implementation, return:
+
+* What UI sections were simplified
+* What was removed or hidden
+* How statement table improved
+* How PDF was refined without breaking existing export
