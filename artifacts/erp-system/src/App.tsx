@@ -31,6 +31,7 @@ const PaymentVouchers      = lazy(() => import("@/pages/payment-vouchers"));
 const SafeTransfers        = lazy(() => import("@/pages/safe-transfers"));
 const Tasks                = lazy(() => import("@/pages/tasks"));
 const Products             = lazy(() => import("@/pages/products"));
+const Vouchers             = lazy(() => import("@/pages/vouchers"));
 const POS                  = lazy(() => import("@/pages/pos"));
 
 /* ── QueryClient with staleTime for performance ─────────── */
@@ -109,10 +110,11 @@ function Router() {
         <Route path="/settings">{() => <Guard path="/settings" component={Settings} />}</Route>
         <Route path="/accounts">{() => <Guard path="/accounts" component={Accounts} />}</Route>
         <Route path="/journal-entries">{() => <Guard path="/journal-entries" component={JournalEntries} />}</Route>
-        <Route path="/receipt-vouchers">{() => <Guard path="/receipt-vouchers" component={ReceiptVouchers} />}</Route>
-        <Route path="/deposit-vouchers">{() => <Guard path="/deposit-vouchers" component={DepositVouchers} />}</Route>
-        <Route path="/payment-vouchers">{() => <Guard path="/payment-vouchers" component={PaymentVouchers} />}</Route>
-        <Route path="/safe-transfers">{() => <Guard path="/safe-transfers" component={SafeTransfers} />}</Route>
+        <Route path="/vouchers">{() => <Guard path="/vouchers" component={Vouchers} />}</Route>
+        <Route path="/receipt-vouchers">{() => <Redirect to="/vouchers" />}</Route>
+        <Route path="/deposit-vouchers">{() => <Redirect to="/vouchers" />}</Route>
+        <Route path="/payment-vouchers">{() => <Redirect to="/vouchers" />}</Route>
+        <Route path="/safe-transfers">{() => <Redirect to="/vouchers" />}</Route>
         <Route path="/financial-transactions">{() => <Redirect to="/reports" />}</Route>
         <Route component={NotFound} />
       </Switch>

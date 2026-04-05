@@ -28,10 +28,7 @@ export const ROUTE_ROLES: Record<string, AppRole[]> = {
   "/reports":                ["admin", "manager"],
   "/expenses":               ["admin", "manager"],
   "/income":                 ["admin", "manager"],
-  "/receipt-vouchers":       ["admin", "manager"],
-  "/deposit-vouchers":       ["admin", "manager"],
-  "/payment-vouchers":       ["admin", "manager"],
-  "/safe-transfers":         ["admin", "manager"],
+  "/vouchers":               ["admin", "manager"],
   "/settings":               ["admin"],
 };
 
@@ -49,10 +46,7 @@ export const NAV_ITEMS: { name: string; href: string; icon: LucideIcon; roles: A
   { name: "التقارير",          href: "/reports",                icon: FileText,        roles: ["admin","manager"] },
   { name: "شجرة الحسابات",    href: "/accounts",               icon: BookOpen,        roles: ["admin"] },
   { name: "القيود اليومية",    href: "/journal-entries",        icon: FileText,        roles: ["admin"] },
-  { name: "سندات القبض",       href: "/receipt-vouchers",       icon: HandCoins,       roles: ["admin","manager"] },
-  { name: "سندات التوريد",     href: "/deposit-vouchers",       icon: ArrowDownToLine, roles: ["admin","manager"] },
-  { name: "سندات الصرف",       href: "/payment-vouchers",       icon: ArrowUpFromLine, roles: ["admin","manager"] },
-  { name: "تحويل الخزائن",     href: "/safe-transfers",         icon: ArrowLeftRight,  roles: ["admin","manager"] },
+  { name: "السندات",            href: "/vouchers",               icon: HandCoins,       roles: ["admin","manager"] },
   { name: "الإعدادات",         href: "/settings",               icon: Settings,        roles: ["admin"] },
 ];
 
