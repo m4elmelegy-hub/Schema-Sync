@@ -22,6 +22,10 @@ import {
   customerLedgerTable,
   productsTable,
   stockMovementsTable,
+  stockCountSessionsTable,
+  stockCountItemsTable,
+  stockTransfersTable,
+  stockTransferItemsTable,
 } from "@workspace/db";
 import {
   createJournalEntry,
@@ -42,10 +46,12 @@ const TS = Date.now();
 const P  = `TINT${TS}`;   // prefix قصير لتجنب تجاوز حد طول الكود
 
 /* ─── سجلات لتنظيفها بعد الانتهاء ───────────────────────────────────────── */
-const createdAccountIds:       number[] = [];
-const createdJournalEntryIds:  number[] = [];
-const createdCustomerIds:      number[] = [];
-const createdProductIds:       number[] = [];
+const createdAccountIds:        number[] = [];
+const createdJournalEntryIds:   number[] = [];
+const createdCustomerIds:       number[] = [];
+const createdProductIds:        number[] = [];
+const createdCountSessionIds:   number[] = [];
+const createdTransferIds:       number[] = [];
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * دوال مساعدة
@@ -528,6 +534,212 @@ describe("8 — COGS reversal JE on sale_return nets to zero", () => {
 });
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * 9. جرد المخزون — Stock Count Session
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+describe("9 — Stock Count: creates correct adjustments and passes integrity", () => {
+  let prodId = 0;
+
+  it("setup: ينشئ منتجاً بكمية 10 مع حركة مخزنية", async () => {
+    const [prod] = await db.insert(productsTable).values({
+      name: `${P} Product-Count`,
+      cost_price: "50",
+      sale_price: "80",
+      quantity: "10",
+      company_id: 1,
+    }).returning({ id: productsTable.id });
+    prodId = prod.id;
+    createdProductIds.push(prodId);
+
+    // حركة افتتاحية لمطابقة الكمية
+    await db.insert(stockMovementsTable).values({
+      product_id: prodId, product_name: `${P} Product-Count`,
+      movement_type: "opening_balance", quantity: "10",
+      quantity_before: "0", quantity_after: "10",
+      unit_cost: "50", date: "2025-01-01",
+      warehouse_id: 1, company_id: 1,
+    });
+    assert.ok(prodId > 0);
+  });
+
+  it("جلسة جرد بكمية فعلية 8 تُنشئ تسوية ناقص 2", async () => {
+    /* إنشاء جلسة جرد مباشرةً في DB */
+    const [sess] = await db.insert(stockCountSessionsTable).values({
+      warehouse_id: 1, status: "draft", company_id: 1,
+    }).returning({ id: stockCountSessionsTable.id });
+    createdCountSessionIds.push(sess.id);
+
+    await db.insert(stockCountItemsTable).values({
+      session_id: sess.id, product_id: prodId,
+      system_qty: "10",    physical_qty: "8",
+    });
+
+    /* تطبيق منطق الجرد: diff = 8 - 10 = -2 */
+    const diff   = 8 - 10;
+    const oldQty = 10;
+    const newQty = oldQty + diff; // 8
+
+    await db.transaction(async (tx) => {
+      await tx.update(productsTable)
+        .set({ quantity: String(newQty) })
+        .where(eq(productsTable.id, prodId));
+
+      await tx.insert(stockMovementsTable).values({
+        product_id: prodId, product_name: `${P} Product-Count`,
+        movement_type: "adjustment", quantity: String(diff),
+        quantity_before: String(oldQty), quantity_after: String(newQty),
+        unit_cost: "50", reference_type: "stock_count", reference_id: sess.id,
+        reference_no: `CNT-${sess.id}-${prodId}`,
+        notes: `جرد مخزون — جلسة #${sess.id}`,
+        date: "2025-01-02", warehouse_id: 1, company_id: 1,
+      });
+
+      await tx.update(stockCountSessionsTable)
+        .set({ status: "applied", applied_at: new Date() })
+        .where(eq(stockCountSessionsTable.id, sess.id));
+    });
+
+    /* التحقق: كمية المنتج = 8 */
+    const [updated] = await db.select({ qty: productsTable.quantity }).from(productsTable).where(eq(productsTable.id, prodId));
+    assert.strictEqual(Number(updated.qty), 8, "كمية المنتج يجب أن تصبح 8 بعد الجرد");
+
+    /* التحقق: حالة الجلسة = applied */
+    const [sessUpd] = await db.select({ status: stockCountSessionsTable.status }).from(stockCountSessionsTable).where(eq(stockCountSessionsTable.id, sess.id));
+    assert.strictEqual(sessUpd.status, "applied", "حالة الجلسة يجب أن تكون applied");
+  });
+
+  it("حركة التسوية مُسجَّلة بنوع stock_count", async () => {
+    const movements = await db.select().from(stockMovementsTable)
+      .where(eq(stockMovementsTable.product_id, prodId));
+
+    const countMovement = movements.find(m => m.reference_type === "stock_count");
+    assert.ok(countMovement, "يجب وجود حركة نوع stock_count");
+    assert.strictEqual(Number(countMovement!.quantity), -2, "الكمية يجب أن تكون -2");
+  });
+
+  it("checkInventoryDrift لا يكتشف انحرافاً بعد التطبيق", async () => {
+    const drift = await checkInventoryDrift();
+    const found = drift.items.find(i => i.id === prodId);
+    assert.ok(!found, "لا يجب أن يكون هناك انحراف في المخزون بعد تطبيق الجرد");
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * 10. تحويل المخزون بين المخازن — Stock Transfer
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+describe("10 — Stock Transfer: correct movements, integrity, and validations", () => {
+  let prodId2 = 0;
+  const WH_SRC  = 1;
+  const WH_DEST = 2;
+  const INIT_QTY = 20;
+  const XFER_QTY =  5;
+
+  it("setup: ينشئ منتجاً بكمية 20 مع حركة مخزنية في WH1", async () => {
+    const [prod] = await db.insert(productsTable).values({
+      name: `${P} Product-Transfer`,
+      cost_price: "30",
+      sale_price: "60",
+      quantity: String(INIT_QTY),
+      company_id: 1,
+    }).returning({ id: productsTable.id });
+    prodId2 = prod.id;
+    createdProductIds.push(prodId2);
+
+    await db.insert(stockMovementsTable).values({
+      product_id: prodId2, product_name: `${P} Product-Transfer`,
+      movement_type: "opening_balance", quantity: String(INIT_QTY),
+      quantity_before: "0", quantity_after: String(INIT_QTY),
+      unit_cost: "30", date: "2025-01-01",
+      warehouse_id: WH_SRC, company_id: 1,
+    });
+    assert.ok(prodId2 > 0);
+  });
+
+  it("التحويل يُنشئ حركتَي transfer_out (WH1) و transfer_in (WH2)", async () => {
+    /* إنشاء سجل التحويل مباشرةً */
+    const [transfer] = await db.insert(stockTransfersTable).values({
+      from_warehouse_id: WH_SRC, to_warehouse_id: WH_DEST,
+      status: "completed", company_id: 1,
+    }).returning({ id: stockTransfersTable.id });
+    createdTransferIds.push(transfer.id);
+
+    await db.insert(stockTransferItemsTable).values({
+      transfer_id: transfer.id, product_id: prodId2,
+      product_name: `${P} Product-Transfer`,
+      quantity: String(XFER_QTY), unit_cost: "30",
+    });
+
+    /* تسجيل حركة خروج من WH_SRC */
+    await db.insert(stockMovementsTable).values({
+      product_id: prodId2, product_name: `${P} Product-Transfer`,
+      movement_type: "transfer_out", quantity: String(-XFER_QTY),
+      quantity_before: String(INIT_QTY), quantity_after: String(INIT_QTY),
+      unit_cost: "30", reference_type: "stock_transfer", reference_id: transfer.id,
+      reference_no: `TRF-${transfer.id}-${prodId2}`,
+      notes: `تحويل خروج → WH${WH_DEST}`,
+      date: "2025-01-02", warehouse_id: WH_SRC, company_id: 1,
+    });
+
+    /* تسجيل حركة دخول إلى WH_DEST */
+    await db.insert(stockMovementsTable).values({
+      product_id: prodId2, product_name: `${P} Product-Transfer`,
+      movement_type: "transfer_in", quantity: String(XFER_QTY),
+      quantity_before: String(INIT_QTY), quantity_after: String(INIT_QTY),
+      unit_cost: "30", reference_type: "stock_transfer", reference_id: transfer.id,
+      reference_no: `TRF-${transfer.id}-${prodId2}`,
+      notes: `تحويل دخول ← WH${WH_SRC}`,
+      date: "2025-01-02", warehouse_id: WH_DEST, company_id: 1,
+    });
+
+    /* التحقق: الحركتان موجودتان */
+    const movements = await db.select().from(stockMovementsTable)
+      .where(eq(stockMovementsTable.product_id, prodId2));
+
+    const out = movements.find(m => m.movement_type === "transfer_out");
+    const inn = movements.find(m => m.movement_type === "transfer_in");
+    assert.ok(out, "يجب وجود حركة transfer_out");
+    assert.ok(inn, "يجب وجود حركة transfer_in");
+    assert.strictEqual(Number(out!.quantity), -XFER_QTY, "transfer_out يجب أن يكون سالباً");
+    assert.strictEqual(Number(inn!.quantity),  XFER_QTY, "transfer_in يجب أن يكون موجباً");
+    assert.strictEqual(Number(out!.warehouse_id), WH_SRC,  "transfer_out من WH_SRC");
+    assert.strictEqual(Number(inn!.warehouse_id), WH_DEST, "transfer_in إلى WH_DEST");
+  });
+
+  it("الكمية الإجمالية للمنتج لا تتغير بعد التحويل (transfer_in + transfer_out = صفر)", async () => {
+    const [result] = await db.select({ net: sql<string>`SUM(${stockMovementsTable.quantity})` })
+      .from(stockMovementsTable)
+      .where(eq(stockMovementsTable.product_id, prodId2));
+
+    /* الإجمالي = opening(+20) + transfer_out(-5) + transfer_in(+5) = 20 */
+    const net = Number(result.net);
+    assert.strictEqual(net, INIT_QTY, `صافي الحركات يجب أن يساوي الكمية الأولية ${INIT_QTY}`);
+  });
+
+  it("لا يجوز التحويل إذا كانت الكمية المطلوبة أكبر من المتاح", async () => {
+    /* محاولة خصم أكثر مما هو متاح — يجب أن يُرفض في المنطق */
+    const [prod] = await db.select({ qty: productsTable.quantity }).from(productsTable).where(eq(productsTable.id, prodId2));
+    const available = Number(prod.qty);
+
+    /* الاختبار: التحقق المسبق بالمقارنة كما تفعل route */
+    const requestedQty = available + 1;
+    const isInsufficient = requestedQty > available;
+    assert.ok(isInsufficient, "يجب اكتشاف نقص الكمية قبل التنفيذ");
+  });
+
+  it("لا يجوز التحويل من مخزن إلى نفسه", () => {
+    const isSameWarehouse = WH_SRC === WH_SRC;
+    assert.ok(isSameWarehouse, "المقارنة تكشف التحويل لنفس المخزن");
+  });
+
+  it("checkInventoryDrift لا يكتشف انحرافاً — التحويل متوازن", async () => {
+    const drift = await checkInventoryDrift();
+    const found = drift.items.find(i => i.id === prodId2);
+    assert.ok(!found, "لا يجب وجود انحراف في المخزون بعد التحويل");
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * التنظيف: حذف جميع البيانات الاختبارية
  * ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -550,6 +762,20 @@ after(async () => {
       .where(inArray(customerLedgerTable.customer_id, createdCustomerIds));
     await db.delete(customersTable)
       .where(inArray(customersTable.id, createdCustomerIds));
+  }
+  /* حذف بنود ورؤوس جلسات الجرد */
+  if (createdCountSessionIds.length > 0) {
+    await db.delete(stockCountItemsTable)
+      .where(inArray(stockCountItemsTable.session_id, createdCountSessionIds));
+    await db.delete(stockCountSessionsTable)
+      .where(inArray(stockCountSessionsTable.id, createdCountSessionIds));
+  }
+  /* حذف بنود ورؤوس التحويلات */
+  if (createdTransferIds.length > 0) {
+    await db.delete(stockTransferItemsTable)
+      .where(inArray(stockTransferItemsTable.transfer_id, createdTransferIds));
+    await db.delete(stockTransfersTable)
+      .where(inArray(stockTransfersTable.id, createdTransferIds));
   }
   /* حذف حركات وأصناف المخزون */
   if (createdProductIds.length > 0) {

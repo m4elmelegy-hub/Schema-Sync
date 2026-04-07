@@ -18,3 +18,5 @@ export * from "./alerts";
 export * from "./backups";
 export * from "./companies";
 export * from "./customer-ledger";
+export * from "./stock-count";
+export * from "./stock-transfers";

@@ -1,0 +1,239 @@
+أريد منك الآن أن تتصرف كـ **Senior ERP Inventory Control Architect**.
+
+النظام الحالي يحتوي بالفعل على:
+
+* stock movements
+* inventory adjustments
+* inventory review
+* WAC costing
+* audit logs
+* integrity checks
+
+لكن ما زال ينقصه **Inventory Control حقيقي**.
+
+## الهدف
+
+إضافة المكونات الحرجة التالية بشكل production-grade:
+
+1. **Inventory Count / Stock Count**
+2. **Stock Transfer Between Warehouses**
+   ثم ربطهما مع:
+
+* stock_movements
+* products.quantity أو cached quantity
+* audit logs
+* integrity
+* multi-warehouse support
+
+---
+
+## المطلوب بالتفصيل
+
+# 1) Inventory Count / جرد المخزون
+
+أضف نظام جرد فعلي واضح، وليس مجرد مراجعة أو عرض.
+
+## المطلوب وظيفيًا
+
+* إنشاء شاشة أو flow باسم:
+
+  * `جرد المخزون`
+* يتيح للمستخدم:
+
+  * اختيار المخزن
+  * تحميل المنتجات الموجودة في هذا المخزن
+  * رؤية:
+
+    * الكمية الحالية في النظام
+    * الكمية الفعلية التي يعدّها المستخدم
+    * الفرق (computed)
+  * ثم تنفيذ التسوية بناءً على الفرق
+
+## السلوك المطلوب
+
+* لا يتم تعديل الكمية مباشرة من الجرد
+* الجرد يجب أن ينتهي إلى **Inventory Adjustments** صحيحة
+* كل فرق يجب أن يتحول إلى movement مناسب في `stock_movements`
+* كل تسوية ناتجة عن الجرد يجب أن تُسجَّل في `audit_logs`
+
+## السيناريوهات المطلوبة
+
+* إذا الكمية الفعلية أقل من النظام → نقصان / فاقد / تلف
+* إذا الكمية الفعلية أعلى من النظام → زيادة مكتشفة
+* دعم وجود ملاحظات لكل سطر أو للجلسة كلها إن أمكن
+
+## المطلوب تقنيًا
+
+إذا لم توجد بنية مناسبة، أضف ما يلزم بأقل refactor ممكن، مثل:
+
+* stock_count_sessions
+* stock_count_items
+  أو أي naming مناسب
+
+لكن:
+
+* لا تكسر البنية الحالية
+* لا تعيد بناء النظام من الصفر
+* استخدم ما هو موجود قدر الإمكان
+
+---
+
+# 2) Stock Transfer Between Warehouses / تحويل بين المخازن
+
+أضف workflow صحيح لتحويل المخزون من مخزن إلى مخزن.
+
+## المطلوب وظيفيًا
+
+* إنشاء عملية تحويل تحتوي على:
+
+  * from_warehouse_id
+  * to_warehouse_id
+  * items[]
+* كل item يحتوي:
+
+  * product_id
+  * quantity
+
+## السلوك المطلوب
+
+عند تنفيذ التحويل:
+
+* يتم خصم الكمية من المخزن المصدر
+* يتم إضافة نفس الكمية إلى المخزن الهدف
+* يتم تسجيل حركتين واضحتين في `stock_movements`:
+
+  * حركة خروج من المصدر
+  * حركة دخول إلى الهدف
+
+## شروط مهمة
+
+* لا تسمح بالتحويل إلى نفس المخزن
+* لا تسمح بالتحويل إذا الكمية غير كافية
+* يجب أن يتم كل شيء داخل transaction واحدة
+* يجب تسجيل العملية في `audit_logs`
+
+## إذا احتجت بنية إضافية
+
+يمكنك إضافة:
+
+* stock_transfers
+* stock_transfer_items
+
+أو أي تصميم مناسب
+لكن حافظ على الاتساق مع النظام الحالي
+
+---
+
+# 3) Multi-Warehouse Integrity
+
+راجع دعم المخازن المتعددة وتأكد من أن:
+
+* كل movement مربوط بمخزن واضح
+* الجرد يعمل لكل مخزن على حدة
+* التحويل ينعكس على المخزنين بشكل منفصل
+* أي cached quantity أو product quantity يتم تحديثه بشكل صحيح أو يتم توضيح source of truth بدقة
+
+---
+
+# 4) Audit Logging
+
+تأكد أن الأحداث التالية تُسجَّل صراحة:
+
+* `INVENTORY_COUNT_APPLIED`
+* `INVENTORY_ADJUSTMENT`
+* `INVENTORY_TRANSFER`
+
+إذا احتجت لتوسيع `AuditAction` أو `AuditRecordType` فافعل ذلك **بشكل minimal فقط**.
+
+---
+
+# 5) Integrity + Tests
+
+أضف اختبارات حرجة تغطي على الأقل:
+
+## Inventory Count
+
+* count session creates correct adjustments
+* difference is calculated correctly
+* quantity after apply matches physical count
+* audit record is written
+
+## Stock Transfer
+
+* transfer decreases source
+* transfer increases destination
+* insufficient quantity is rejected
+* same warehouse transfer is rejected
+* audit record is written
+
+## Integrity
+
+* stock movements after count remain consistent
+* stock movements after transfer remain consistent
+* inventory drift checks continue to pass
+
+---
+
+# 6) UI scope
+
+أضف فقط الحد الأدنى من UI اللازم للتشغيل:
+
+* زر / تبويب `جرد المخزون`
+* زر / تبويب `تحويل مخزون`
+
+داخل صفحة المخزون أو في أقرب مكان منطقي
+
+لكن:
+
+* لا تبدأ cleanup الآن
+* لا تبدأ redesign واسع
+* لا تمس باقي التقارير
+* لا تحذف أي شاشة الآن
+
+نحن سنفعل cleanup بعد التأكد أن Inventory Control اكتمل واختبرناه.
+
+---
+
+## المطلوب في النهاية
+
+### A) WHAT WAS IMPLEMENTED
+
+ما الذي تم بناؤه بالضبط
+
+### B) FILES UPDATED
+
+ما الملفات التي تم تعديلها أو إضافتها
+
+### C) NEW FLOWS
+
+اشرح بإيجاز:
+
+* Flow الجرد
+* Flow التحويل
+
+### D) TESTS ADDED
+
+ما الاختبارات التي أضيفت
+
+### E) INVENTORY CONTROL STATUS
+
+هل النظام الآن يدعم فعليًا:
+
+* inventory count
+* stock adjustments from count
+* warehouse transfer
+* multi-warehouse control
+
+### F) REMAINING GAPS
+
+اذكر فقط النواقص الحقيقية المتبقية إن وجدت
+
+## قواعد مهمة جدًا
+
+* لا تعمل cleanup الآن
+* لا تحذف صفحات الآن
+* لا تنقل صفحات من التقارير الآن
+* لا تعمل redesign واسع
+* ركّز فقط على بناء Inventory Control الحقيقي بشكل صحيح وآمن ومتكامل مع النظام الحالي
+
+ابدأ التنفيذ مباشرة.

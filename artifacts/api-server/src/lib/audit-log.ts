@@ -19,9 +19,11 @@ export type AuditAction =
   | "reversal_created"
   | "correction_created"
   // ── ERP critical events ────────────────────────────────────────────────────
-  | "INTEGRITY_REPAIR"       // إصلاح انحراف محاسبي (أرصدة حسابات أو عملاء)
-  | "INVENTORY_ADJUSTMENT"   // تسوية يدوية للمخزون
-  | "PERIOD_OVERRIDE";       // تجاوز مدير للقفل المالي
+  | "INTEGRITY_REPAIR"          // إصلاح انحراف محاسبي (أرصدة حسابات أو عملاء)
+  | "INVENTORY_ADJUSTMENT"      // تسوية يدوية للمخزون
+  | "INVENTORY_COUNT_APPLIED"   // تطبيق جلسة جرد مخزون
+  | "INVENTORY_TRANSFER"        // تحويل مخزون بين مخازن
+  | "PERIOD_OVERRIDE";          // تجاوز مدير للقفل المالي
 
 export type AuditRecordType =
   | "customer"
