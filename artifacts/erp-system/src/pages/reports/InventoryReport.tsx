@@ -73,7 +73,7 @@ export default function InventoryReport() {
   const { data:detail, isLoading:detailLoading } = useQuery<ProductDetail>({
     queryKey:["/api/inventory/product",selectedProductId],
     enabled:!!selectedProductId,
-    queryFn:()=>authFetch(api(`/api/inventory/product/${selectedProductId}`)).then(r=>r.json()),
+    queryFn:()=>authFetch(api(`/api/inventory/product/${selectedProductId}`)).then(async r=>{ if(!r.ok) throw new Error(`API Error: ${r.status}`); return r.json(); }),
     staleTime:30_000,
   });
   const stockChartData = useMemo(()=>{

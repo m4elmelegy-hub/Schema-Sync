@@ -41,13 +41,13 @@ interface SafeRow { balance: string | number }
 function FinancialConsistencyBar() {
   const { data: bs } = useQuery<BsSnapshot>({
     queryKey: ["balance-sheet"],
-    queryFn: () => authFetch(api("/api/reports/balance-sheet")).then(r => r.json()),
+    queryFn: () => authFetch(api("/api/reports/balance-sheet")).then(async r => { if (!r.ok) throw new Error(`API Error: ${r.status}`); return r.json(); }),
     staleTime: 120_000,
   });
 
   const { data: safes } = useQuery<SafeRow[]>({
     queryKey: ["/api/settings/safes"],
-    queryFn: () => authFetch(api("/api/settings/safes")).then(r => r.json()),
+    queryFn: () => authFetch(api("/api/settings/safes")).then(async r => { if (!r.ok) throw new Error(`API Error: ${r.status}`); return r.json(); }),
     staleTime: 120_000,
   });
 

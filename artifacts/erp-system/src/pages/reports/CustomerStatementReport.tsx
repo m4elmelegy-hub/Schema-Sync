@@ -24,12 +24,12 @@ export default function CustomerStatementReport() {
 
   const { data:customers=[] } = useQuery<any[]>({
     queryKey:["/api/customers"],
-    queryFn:()=>authFetch(api("/api/customers")).then(r=>r.json()),
+    queryFn:()=>authFetch(api("/api/customers")).then(async r=>{ if(!r.ok) throw new Error(`API Error: ${r.status}`); return r.json(); }),
     staleTime:120_000,
   });
   const { data, isLoading, isFetching } = useQuery<CustomerStatementData>({
     queryKey:["/api/reports/customer-statement",customerId,dateFrom,dateTo],
-    queryFn:()=>authFetch(api(`/api/reports/customer-statement?customer_id=${customerId}&date_from=${dateFrom}&date_to=${dateTo}`)).then(r=>r.json()),
+    queryFn:()=>authFetch(api(`/api/reports/customer-statement?customer_id=${customerId}&date_from=${dateFrom}&date_to=${dateTo}`)).then(async r=>{ if(!r.ok) throw new Error(`API Error: ${r.status}`); return r.json(); }),
     enabled:!!customerId,
     staleTime:30_000,
   });

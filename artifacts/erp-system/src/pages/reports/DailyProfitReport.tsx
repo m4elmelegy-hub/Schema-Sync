@@ -15,7 +15,7 @@ export default function DailyProfitReport() {
 
   const { data, isLoading } = useQuery<DailyProfitData>({
     queryKey:["/api/reports/daily-profit",dateFrom,dateTo],
-    queryFn:()=>authFetch(api(`/api/reports/daily-profit?date_from=${dateFrom}&date_to=${dateTo}`)).then(r=>r.json()),
+    queryFn:()=>authFetch(api(`/api/reports/daily-profit?date_from=${dateFrom}&date_to=${dateTo}`)).then(async r=>{ if(!r.ok) throw new Error(`API Error: ${r.status}`); return r.json(); }),
     staleTime:60_000,
   });
   const days    = data?.days ?? [];

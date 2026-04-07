@@ -11,6 +11,7 @@ import {
   Search, CheckCircle, XCircle, ChevronRight, ChevronLeft, Filter,
 } from "lucide-react";
 import { api, authFetch, formatCurrency, TableSkeleton, DateFilterBar, getDateRange, DateMode, thisMonthStart, todayStr } from "./shared";
+import { safeArray } from "@/lib/safe-data";
 import { useToast } from "@/hooks/use-toast";
 
 /* ─── Types ─────────────────────────────────────────────────────────────── */
@@ -81,10 +82,14 @@ export default function VouchersHistoryReport() {
   const { toast } = useToast();
   const { data:safes=[] } = useGetSettingsSafes();
 
-  const { data:receipts=[], isLoading:l1  } = useQuery<RV[]>({ queryKey:["/api/receipt-vouchers"],  queryFn:()=>authFetch(api("/api/receipt-vouchers")).then(r=>r.json()) });
-  const { data:deposits=[], isLoading:l2  } = useQuery<DV[]>({ queryKey:["/api/deposit-vouchers"],  queryFn:()=>authFetch(api("/api/deposit-vouchers")).then(r=>r.json()) });
-  const { data:payments=[], isLoading:l3  } = useQuery<PV[]>({ queryKey:["/api/payment-vouchers"],  queryFn:()=>authFetch(api("/api/payment-vouchers")).then(r=>r.json()) });
-  const { data:transfers=[], isLoading:l4 } = useQuery<ST[]>({ queryKey:["/api/safe-transfers"],    queryFn:()=>authFetch(api("/api/safe-transfers")).then(r=>r.json()) });
+  const { data:receiptsRaw,  isLoading:l1 } = useQuery<RV[]>({ queryKey:["/api/receipt-vouchers"],  queryFn:()=>authFetch(api("/api/receipt-vouchers")).then(async r=>{ if(!r.ok) throw new Error(`API Error: ${r.status}`); return r.json(); }) });
+  const { data:depositsRaw,  isLoading:l2 } = useQuery<DV[]>({ queryKey:["/api/deposit-vouchers"],  queryFn:()=>authFetch(api("/api/deposit-vouchers")).then(async r=>{ if(!r.ok) throw new Error(`API Error: ${r.status}`); return r.json(); }) });
+  const { data:paymentsRaw,  isLoading:l3 } = useQuery<PV[]>({ queryKey:["/api/payment-vouchers"],  queryFn:()=>authFetch(api("/api/payment-vouchers")).then(async r=>{ if(!r.ok) throw new Error(`API Error: ${r.status}`); return r.json(); }) });
+  const { data:transfersRaw, isLoading:l4 } = useQuery<ST[]>({ queryKey:["/api/safe-transfers"],    queryFn:()=>authFetch(api("/api/safe-transfers")).then(async r=>{ if(!r.ok) throw new Error(`API Error: ${r.status}`); return r.json(); }) });
+  const receipts  = safeArray<RV>(receiptsRaw);
+  const deposits  = safeArray<DV>(depositsRaw);
+  const payments  = safeArray<PV>(paymentsRaw);
+  const transfers = safeArray<ST>(transfersRaw);
   const isLoading = l1||l2||l3||l4;
 
   const [vFilter,setVFilter]         = useState<VFilter>("الكل");

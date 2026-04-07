@@ -224,7 +224,7 @@ function CustomerDrill({ isSupplier }: { isSupplier: boolean }) {
   const { isLight, txtSub, bdColor } = useTheme();
   const { data, isLoading } = useQuery<DrillCustomer[]>({
     queryKey: ["drill-customers", isSupplier],
-    queryFn: () => authFetch(api("/api/customers")).then(r => r.json()),
+    queryFn: () => authFetch(api("/api/customers")).then(async r => { if (!r.ok) throw new Error(`API Error: ${r.status}`); return r.json(); }),
     staleTime: 60_000,
   });
 
@@ -271,7 +271,7 @@ function InventoryDrill() {
   const { isLight, txtSub, bdColor } = useTheme();
   const { data, isLoading } = useQuery<DrillProduct[]>({
     queryKey: ["drill-products"],
-    queryFn: () => authFetch(api("/api/products")).then(r => r.json()),
+    queryFn: () => authFetch(api("/api/products")).then(async r => { if (!r.ok) throw new Error(`API Error: ${r.status}`); return r.json(); }),
     staleTime: 60_000,
   });
 
@@ -450,7 +450,7 @@ export default function BalanceSheetReport() {
 
   const { data: raw, isLoading, error } = useQuery<BalanceSheetData>({
     queryKey: ["balance-sheet", asOfDate],
-    queryFn: () => authFetch(api("/api/reports/balance-sheet")).then(r => r.json()),
+    queryFn: () => authFetch(api("/api/reports/balance-sheet")).then(async r => { if (!r.ok) throw new Error(`API Error: ${r.status}`); return r.json(); }),
     staleTime: 60_000,
   });
 

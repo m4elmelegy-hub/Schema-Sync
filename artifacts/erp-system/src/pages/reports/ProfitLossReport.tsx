@@ -710,7 +710,7 @@ export default function ProfitLossReport() {
 
   const { data:warehouses=[] } = useQuery<Warehouse[]>({
     queryKey:["/api/settings/warehouses"],
-    queryFn: ()=>authFetch(api("/api/settings/warehouses")).then(r=>r.json()),
+    queryFn: ()=>authFetch(api("/api/settings/warehouses")).then(async r=>{ if(!r.ok) throw new Error(`API Error: ${r.status}`); return r.json(); }),
     staleTime:300_000,
   });
 
@@ -722,12 +722,12 @@ export default function ProfitLossReport() {
 
   const {data:plData,isLoading} = useQuery<ProfitsData>({
     queryKey:["/api/profits",dateFrom,dateTo,branches.join(",")],
-    queryFn: ()=>authFetch(api(buildQS(dateFrom,dateTo,branches))).then(r=>r.json()),
+    queryFn: ()=>authFetch(api(buildQS(dateFrom,dateTo,branches))).then(async r=>{ if(!r.ok) throw new Error(`API Error: ${r.status}`); return r.json(); }),
     staleTime:60_000,
   });
   const {data:prevData} = useQuery<ProfitsData>({
     queryKey:["/api/profits",prevFrom,prevTo,branches.join(",")],
-    queryFn: ()=>authFetch(api(buildQS(prevFrom,prevTo,branches))).then(r=>r.json()),
+    queryFn: ()=>authFetch(api(buildQS(prevFrom,prevTo,branches))).then(async r=>{ if(!r.ok) throw new Error(`API Error: ${r.status}`); return r.json(); }),
     staleTime:60_000, enabled:!!prevFrom,
   });
 

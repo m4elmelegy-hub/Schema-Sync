@@ -26,7 +26,7 @@ export default function ReceiptModal({ onClose }: Props) {
   const safes = safeArray(safesRaw);
   const { data: customersRaw } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],
-    queryFn: () => authFetch(api("/api/customers")).then(r => r.json()),
+    queryFn: () => authFetch(api("/api/customers")).then(async r => { if (!r.ok) throw new Error(`API Error: ${r.status}`); return r.json(); }),
   });
   const customers = safeArray(customersRaw);
 

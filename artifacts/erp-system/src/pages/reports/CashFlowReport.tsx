@@ -273,21 +273,21 @@ export default function CashFlowReport() {
   /* ── Current period ── */
   const { data, isLoading } = useQuery<CashFlowData>({
     queryKey:  ["/api/reports/cash-flow", dateFrom, dateTo],
-    queryFn:   () => authFetch(api(`/api/reports/cash-flow?date_from=${dateFrom}&date_to=${dateTo}`)).then(r => r.json()),
+    queryFn:   () => authFetch(api(`/api/reports/cash-flow?date_from=${dateFrom}&date_to=${dateTo}`)).then(async r => { if (!r.ok) throw new Error(`API Error: ${r.status}`); return r.json(); }),
     staleTime: 60_000,
   });
 
   /* ── Previous period (for comparison) ── */
   const { data: prevData } = useQuery<CashFlowData>({
     queryKey:  ["/api/reports/cash-flow", prevFrom, prevTo],
-    queryFn:   () => authFetch(api(`/api/reports/cash-flow?date_from=${prevFrom}&date_to=${prevTo}`)).then(r => r.json()),
+    queryFn:   () => authFetch(api(`/api/reports/cash-flow?date_from=${prevFrom}&date_to=${prevTo}`)).then(async r => { if (!r.ok) throw new Error(`API Error: ${r.status}`); return r.json(); }),
     staleTime: 300_000,
   });
 
   /* ── Safe balances (closing balance = current treasury total) ── */
   const { data: safes } = useQuery<Safe[]>({
     queryKey:  ["/api/settings/safes"],
-    queryFn:   () => authFetch(api("/api/settings/safes")).then(r => r.json()),
+    queryFn:   () => authFetch(api("/api/settings/safes")).then(async r => { if (!r.ok) throw new Error(`API Error: ${r.status}`); return r.json(); }),
     staleTime: 120_000,
   });
 

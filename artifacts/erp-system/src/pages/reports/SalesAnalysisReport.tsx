@@ -17,7 +17,7 @@ export default function SalesAnalysisReport() {
 
   const { data, isLoading } = useQuery<SalesAnalysisData>({
     queryKey:["/api/reports/sales-analysis",dateFrom,dateTo],
-    queryFn:()=>authFetch(api(`/api/reports/sales-analysis?date_from=${dateFrom}&date_to=${dateTo}`)).then(r=>r.json()),
+    queryFn:()=>authFetch(api(`/api/reports/sales-analysis?date_from=${dateFrom}&date_to=${dateTo}`)).then(async r=>{ if(!r.ok) throw new Error(`API Error: ${r.status}`); return r.json(); }),
     staleTime:60_000,
   });
 

@@ -18,7 +18,7 @@ export default function ProductProfitReport() {
 
   const { data, isLoading } = useQuery<ProductProfitData>({
     queryKey:["/api/reports/product-profit",dateFrom,dateTo],
-    queryFn:()=>authFetch(api(`/api/reports/product-profit?date_from=${dateFrom}&date_to=${dateTo}`)).then(r=>r.json()),
+    queryFn:()=>authFetch(api(`/api/reports/product-profit?date_from=${dateFrom}&date_to=${dateTo}`)).then(async r=>{ if(!r.ok) throw new Error(`API Error: ${r.status}`); return r.json(); }),
     staleTime:60_000,
   });
 

@@ -3586,13 +3586,13 @@ function FinancialLockTab() {
 
   const { data: status, isLoading: statusLoading } = useQuery<PeriodStatus>({
     queryKey: ["period-status"],
-    queryFn: () => authFetch(api("/api/settings/period")).then(r => r.json()),
+    queryFn: () => authFetch(api("/api/settings/period")).then(async r => { if (!r.ok) throw new Error(`API Error: ${r.status}`); return r.json(); }),
     staleTime: 10_000,
   });
 
   const { data: auditLogs = [], isLoading: logsLoading } = useQuery<AuditLogEntry[]>({
     queryKey: ["financial-audit-logs"],
-    queryFn: () => authFetch(api("/api/settings/audit-logs?limit=100")).then(r => r.json()),
+    queryFn: () => authFetch(api("/api/settings/audit-logs?limit=100")).then(async r => { if (!r.ok) throw new Error(`API Error: ${r.status}`); return r.json(); }),
     staleTime: 30_000,
     enabled: showAuditLog,
   });

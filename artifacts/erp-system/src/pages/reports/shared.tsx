@@ -129,7 +129,9 @@ export function InvoicePdfButton({ type, id }: { type: "sales" | "purchases"; id
     setLoading(true);
     try {
       const { printSaleInvoice, printPurchaseInvoice } = await import("@/lib/export-pdf");
-      const data = await authFetch(api(`/api/${type}/${id}`)).then(r => r.json());
+      const res = await authFetch(api(`/api/${type}/${id}`));
+      if (!res.ok) throw new Error(`API Error: ${res.status}`);
+      const data = await res.json();
       if (type === "sales") printSaleInvoice(data);
       else printPurchaseInvoice(data);
     } catch { /* silent */ } finally { setLoading(false); }

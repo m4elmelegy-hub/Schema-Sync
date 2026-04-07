@@ -407,7 +407,7 @@ function POSBody({
   /* ── Data ── */
   const { data: products = [] } = useQuery<{ id: number; name: string; sku: string | null; quantity: number; sale_price: number; cost_price: number; barcode?: string | null }[]>({
     queryKey: ["/api/products"],
-    queryFn: () => authFetch(api("/api/products")).then(r => r.json()),
+    queryFn: () => authFetch(api("/api/products")).then(async r => { if (!r.ok) throw new Error(`API Error: ${r.status}`); return r.json(); }),
     staleTime: 60_000,
   });
   const { data: customersRaw } = useGetCustomers();
