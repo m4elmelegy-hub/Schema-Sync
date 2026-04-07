@@ -45,25 +45,23 @@ export default function SalesAnalysisReport() {
         <>
           {/* ── Quick sort + top-N controls ── */}
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setTopLimit("all")}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold border border-amber-500/40 bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 transition-all">
+            <span className="px-3 py-1.5 rounded-xl text-xs font-bold border border-amber-500/40 bg-amber-500/15 text-amber-400 select-none">
               🏆 الأعلى مبيعًا
-            </button>
-            <select
-              value={topLimit}
-              onChange={e => setTopLimit(e.target.value as "all"|"5"|"10")}
-              className="glass-input rounded-xl px-3 py-1.5 text-xs font-bold text-white/70 cursor-pointer">
-              <option value="all">الكل</option>
-              <option value="5">Top 5</option>
-              <option value="10">Top 10</option>
-            </select>
+            </span>
+            <div className="flex rounded-xl overflow-hidden border border-white/10 bg-white/5">
+              {(["all","5","10"] as const).map((v) => (
+                <button key={v} onClick={() => setTopLimit(v)}
+                  className={`px-3 py-1.5 text-xs font-bold transition-all ${topLimit===v ? "bg-amber-500 text-black" : "text-white/50 hover:text-white"}`}>
+                  {v === "all" ? "الكل" : v}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
             <div className="overflow-x-auto">
               <table className="w-full text-right text-sm whitespace-nowrap">
-                <thead className="bg-white/5 border-b border-white/10"><tr><th className="p-3 text-white/50">#</th><th className="p-3 text-white/50">المنتج</th><th className="p-3 text-white/50">الكمية</th><th className="p-3 text-white/50">متوسط السعر</th><th className="p-3 text-white/50">إجمالي المبيعات</th><th className="p-3 text-white/50">% من الإجمالي</th><th className="p-3 text-white/50">عدد الفواتير</th></tr></thead>
+                <thead className="bg-white/5 border-b border-white/10"><tr><th className="p-3 text-white/50">#</th><th className="p-3 text-white/50">المنتج</th><th className="p-3 text-white/50">الكمية</th><th className="p-3 text-white/50">متوسط السعر</th><th className="p-3 text-white/50"><span title="مرتب حسب الأعلى مبيعًا" className="inline-flex items-center gap-1 cursor-default">إجمالي المبيعات <span className="text-amber-400">↓</span></span></th><th className="p-3 text-white/50">% من الإجمالي</th><th className="p-3 text-white/50">عدد الفواتير</th></tr></thead>
                 <tbody>
                   {isLoading ? <TableSkeleton cols={7} rows={5}/> :
                    byProductSorted.length===0 ? <tr><td colSpan={7} className="p-12 text-center text-white/40">لا توجد بيانات</td></tr> :
