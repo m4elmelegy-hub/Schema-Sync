@@ -3,6 +3,7 @@ import { eq, sql, and } from "drizzle-orm";
 import { db, stockMovementsTable, productsTable } from "@workspace/db";
 import { wrap } from "../lib/async-handler";
 import { hasPermission } from "../lib/permissions";
+import { writeAuditLog } from "../lib/audit-log";
 
 interface AuditRow {
   id: unknown;
@@ -261,6 +262,15 @@ router.post("/inventory/adjustment", wrap(async (req, res) => {
       date: new Date().toISOString().split("T")[0],
       company_id: req.user?.company_id ?? undefined,
     });
+  });
+
+  void writeAuditLog({
+    action:      "INVENTORY_ADJUSTMENT",
+    record_type: "product",
+    record_id:   prodId,
+    old_value:   { quantity: oldQty, product_name: product.name, sku: product.sku },
+    new_value:   { quantity: newQty, diff, notes: notes ?? "تسوية يدوية" },
+    user:        { id: req.user?.id, username: req.user?.username },
   });
 
   res.json({

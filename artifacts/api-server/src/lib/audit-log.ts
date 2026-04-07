@@ -17,7 +17,11 @@ export type AuditAction =
   | "unlock_period"
   | "lock_blocked"
   | "reversal_created"
-  | "correction_created";
+  | "correction_created"
+  // ── ERP critical events ────────────────────────────────────────────────────
+  | "INTEGRITY_REPAIR"       // إصلاح انحراف محاسبي (أرصدة حسابات أو عملاء)
+  | "INVENTORY_ADJUSTMENT"   // تسوية يدوية للمخزون
+  | "PERIOD_OVERRIDE";       // تجاوز مدير للقفل المالي
 
 export type AuditRecordType =
   | "customer"
@@ -32,7 +36,10 @@ export type AuditRecordType =
   | "receipt_voucher"
   | "payment_voucher"
   | "deposit_voucher"
-  | "treasury_voucher";
+  | "treasury_voucher"
+  // ── ERP critical types ─────────────────────────────────────────────────────
+  | "account_balances"        // إصلاح أرصدة الحسابات المحاسبية
+  | "customer_balances";      // إصلاح أرصدة العملاء
 
 interface AuditUser {
   id?: number;

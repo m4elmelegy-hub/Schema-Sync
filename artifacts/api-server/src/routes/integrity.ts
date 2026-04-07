@@ -18,6 +18,7 @@ import {
   repairAccountBalances,
   repairCustomerBalances,
 } from "../lib/integrity";
+import { writeAuditLog } from "../lib/audit-log";
 
 const router: IRouter = Router();
 
@@ -66,8 +67,16 @@ router.post(
   "/integrity/repair-accounts",
   authenticate,
   requireRole("admin"),
-  wrap(async (_req, res) => {
+  wrap(async (req, res) => {
     const result = await repairAccountBalances();
+    void writeAuditLog({
+      action:      "INTEGRITY_REPAIR",
+      record_type: "account_balances",
+      record_id:   0,
+      old_value:   { status: "DRIFT_DETECTED" },
+      new_value:   { repaired: result.repaired, source: "journal_entry_lines", method: "recalculate" },
+      user:        { id: req.user?.id, username: req.user?.username },
+    });
     res.json({
       success:  true,
       repaired: result.repaired,
@@ -81,8 +90,16 @@ router.post(
   "/integrity/repair-customers",
   authenticate,
   requireRole("admin"),
-  wrap(async (_req, res) => {
+  wrap(async (req, res) => {
     const result = await repairCustomerBalances();
+    void writeAuditLog({
+      action:      "INTEGRITY_REPAIR",
+      record_type: "customer_balances",
+      record_id:   0,
+      old_value:   { status: "DRIFT_DETECTED" },
+      new_value:   { repaired: result.repaired, source: "customer_ledger", method: "recalculate" },
+      user:        { id: req.user?.id, username: req.user?.username },
+    });
     res.json({
       success:  true,
       repaired: result.repaired,

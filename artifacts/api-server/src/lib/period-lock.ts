@@ -14,6 +14,7 @@
 import { eq } from "drizzle-orm";
 import { db, systemSettingsTable } from "@workspace/db";
 import { httpError } from "./async-handler";
+import { writeAuditLog } from "./audit-log";
 import type { Request } from "express";
 
 const CACHE_TTL_MS = 5_000; // إعادة القراءة من DB كل 5 ثواني كحد أقصى
@@ -59,7 +60,17 @@ export async function assertPeriodOpen(
   // السماح للأدمن بالتجاوز إذا أرسل admin_override: true
   const isAdmin   = req.user?.role === "admin";
   const overrideRequested = req.body?.admin_override === true;
-  if (isAdmin && overrideRequested) return;
+  if (isAdmin && overrideRequested) {
+    void writeAuditLog({
+      action:      "PERIOD_OVERRIDE",
+      record_type: "financial_lock",
+      record_id:   0,
+      old_value:   { closing_date: closingDate, doc_date: docDate ?? "today", status: "LOCKED" },
+      new_value:   { overridden: true, admin: req.user?.username, role: "admin" },
+      user:        { id: req.user?.id, username: req.user?.username },
+    });
+    return;
+  }
 
   const adminHint = isAdmin ? " (المدير: أرسل admin_override: true للتجاوز)" : "";
   throw httpError(423,
