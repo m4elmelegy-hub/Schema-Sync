@@ -124,6 +124,15 @@ function SalesReturnsPanel() {
   const returnTotal = activeReturnItems.reduce((s, i) => s + i.returnQty * i.unit_price, 0);
   const totalReturns = returns_.reduce((s, r) => s + r.total_amount, 0);
 
+  // ── Invoice return limits (derived from item quantity_returned tracked by backend) ──
+  const invoiceAlreadyReturned = saleDetail?.items
+    ? saleDetail.items.reduce((s, i) => s + (i.quantity_returned ?? 0) * i.unit_price, 0)
+    : 0;
+  const invoiceReturnableRemaining = saleDetail
+    ? saleDetail.total_amount - invoiceAlreadyReturned
+    : 0;
+  const isOverInvoiceLimit = saleDetail != null && returnTotal > invoiceReturnableRemaining + 0.01;
+
   // ── Standalone form helpers ──
   const standaloneProduct = products.find(p => String(p.id) === standalone.item_id);
   const standaloneCustomer = customers.find(c => String(c.id) === standalone.customer_id);
@@ -170,6 +179,7 @@ function SalesReturnsPanel() {
   // ── Submit invoice-based return ──
   const handleSubmitReturn = () => {
     if (!activeReturnItems.length) { toast({ title: "حدد كمية إرجاع على الأقل لصنف واحد", variant: "destructive" }); return; }
+    if (isOverInvoiceLimit) { toast({ title: "لا يمكن إرجاع أكثر من قيمة الفاتورة المتاحة للإرجاع", variant: "destructive" }); return; }
     if (refundType === "cash" && !safeId) { toast({ title: "اختر الخزينة للاسترداد النقدي", variant: "destructive" }); return; }
     createMutation.mutate({
       sale_id: selectedSaleId,
@@ -454,10 +464,37 @@ function SalesReturnsPanel() {
                     </div>
                   </div>
 
+                  {/* Invoice return limits summary */}
+                  {saleDetail && invoiceAlreadyReturned > 0 && (
+                    <div className="bg-white/3 border border-white/8 rounded-xl px-3 py-2 text-xs space-y-1">
+                      <div className="flex justify-between text-white/40">
+                        <span>تم إرجاعه سابقاً</span>
+                        <span className="tabular-nums">{formatCurrency(invoiceAlreadyReturned)}</span>
+                      </div>
+                      <div className="flex justify-between text-white/55 font-bold">
+                        <span>الحد الأقصى المتاح</span>
+                        <span className="tabular-nums text-amber-400/80">{formatCurrency(invoiceReturnableRemaining)}</span>
+                      </div>
+                    </div>
+                  )}
+
                   {activeReturnItems.length > 0 && (
-                    <div className="bg-orange-500/10 border border-orange-500/25 rounded-2xl px-4 py-3 flex justify-between items-center">
-                      <span className="text-white/60 text-sm font-bold">إجمالي المرتجع ({activeReturnItems.length} صنف)</span>
-                      <span className="text-orange-400 font-black text-lg tabular-nums">{formatCurrency(returnTotal)}</span>
+                    <div className={`rounded-2xl px-4 py-3 flex justify-between items-center border transition-all ${
+                      isOverInvoiceLimit
+                        ? "bg-red-500/10 border-red-500/30"
+                        : "bg-orange-500/10 border-orange-500/25"
+                    }`}>
+                      <div>
+                        <span className={`text-sm font-bold ${isOverInvoiceLimit ? "text-red-400" : "text-white/60"}`}>
+                          إجمالي المرتجع ({activeReturnItems.length} صنف)
+                        </span>
+                        {isOverInvoiceLimit && (
+                          <p className="text-red-400 text-xs mt-0.5">⚠ يتجاوز الحد المسموح به</p>
+                        )}
+                      </div>
+                      <span className={`font-black text-lg tabular-nums ${isOverInvoiceLimit ? "text-red-400" : "text-orange-400"}`}>
+                        {formatCurrency(returnTotal)}
+                      </span>
                     </div>
                   )}
                 </>
@@ -468,9 +505,9 @@ function SalesReturnsPanel() {
             {returnItems.length > 0 && saleDetail && (
               <div className="p-5 border-t border-white/10 shrink-0 flex gap-3">
                 <button onClick={handleSubmitReturn}
-                  disabled={createMutation.isPending || activeReturnItems.length === 0}
-                  className="flex-1 btn-primary py-3 font-bold disabled:opacity-40">
-                  {createMutation.isPending ? "جاري التسجيل…" : `✦ تسجيل المرتجع${returnTotal > 0 ? ` — ${formatCurrency(returnTotal)}` : ""}`}
+                  disabled={createMutation.isPending || activeReturnItems.length === 0 || isOverInvoiceLimit}
+                  className={`flex-1 py-3 font-bold disabled:opacity-40 rounded-xl transition-all ${isOverInvoiceLimit ? "bg-red-500/20 border border-red-500/30 text-red-400 cursor-not-allowed" : "btn-primary"}`}>
+                  {createMutation.isPending ? "جاري التسجيل…" : isOverInvoiceLimit ? "⚠ تجاوز حد الإرجاع" : `✦ تسجيل المرتجع${returnTotal > 0 ? ` — ${formatCurrency(returnTotal)}` : ""}`}
                 </button>
                 <button onClick={() => { setPhase("list"); setSelectedSaleId(null); setReturnItems([]); }}
                   className="px-5 btn-secondary py-3">إلغاء</button>

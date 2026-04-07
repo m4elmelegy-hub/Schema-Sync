@@ -1,10 +1,10 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, sum } from "drizzle-orm";
 import {
   db, salesReturnsTable, saleReturnItemsTable,
   purchaseReturnsTable, purchaseReturnItemsTable,
   productsTable, customersTable, safesTable, transactionsTable, stockMovementsTable,
-  saleItemsTable, purchaseItemsTable, customerLedgerTable,
+  saleItemsTable, purchaseItemsTable, customerLedgerTable, salesTable,
 } from "@workspace/db";
 
 import { wrap, httpError } from "../lib/async-handler";
@@ -85,6 +85,58 @@ router.post("/sales-returns", wrap(async (req, res) => {
   const return_no = `SR-${Date.now()}`;
   const rtype: string = refund_type === "cash" ? "cash" : "credit";
   const txDate = date ?? new Date().toISOString().split("T")[0];
+
+  // ── Pre-transaction validation ────────────────────────────────────────────
+  // Validation 1: total returned for this invoice must not exceed invoice total
+  if (sale_id) {
+    const [origSale] = await db
+      .select({ total_amount: salesTable.total_amount })
+      .from(salesTable)
+      .where(eq(salesTable.id, parseInt(sale_id)));
+
+    if (!origSale) {
+      res.status(400).json({ error: "الفاتورة الأصلية غير موجودة" }); return;
+    }
+
+    const [retAgg] = await db
+      .select({ returned: sql<string>`coalesce(sum(total_amount::numeric), 0)` })
+      .from(salesReturnsTable)
+      .where(eq(salesReturnsTable.sale_id, parseInt(sale_id)));
+
+    const alreadyReturnedForInvoice = Number(retAgg?.returned ?? 0);
+    const invoiceTotal = Number(origSale.total_amount);
+
+    if (alreadyReturnedForInvoice + total > invoiceTotal + 0.01) {
+      res.status(400).json({
+        error: `إجمالي المرتجعات (${(alreadyReturnedForInvoice + total).toFixed(2)}) يتجاوز إجمالي الفاتورة (${invoiceTotal.toFixed(2)}). تم إرجاع ${alreadyReturnedForInvoice.toFixed(2)} مسبقاً`,
+      }); return;
+    }
+  }
+
+  // Validation 2: total returned for this customer must not exceed total purchased
+  if (customer_id) {
+    const custId = parseInt(customer_id);
+
+    const [salesAgg] = await db
+      .select({ total: sql<string>`coalesce(sum(total_amount::numeric), 0)` })
+      .from(salesTable)
+      .where(eq(salesTable.customer_id, custId));
+
+    const [returnsAgg] = await db
+      .select({ returned: sql<string>`coalesce(sum(total_amount::numeric), 0)` })
+      .from(salesReturnsTable)
+      .where(eq(salesReturnsTable.customer_id, custId));
+
+    const totalSalesForCustomer = Number(salesAgg?.total ?? 0);
+    const alreadyReturnedForCustomer = Number(returnsAgg?.returned ?? 0);
+
+    if (alreadyReturnedForCustomer + total > totalSalesForCustomer + 0.01) {
+      res.status(400).json({
+        error: "لا يمكن إرجاع كمية أكبر من المباعة للعميل",
+      }); return;
+    }
+  }
+  // ── End validation ────────────────────────────────────────────────────────
 
   await assertPeriodOpen(txDate, req);
 
