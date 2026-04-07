@@ -36,7 +36,7 @@ export const ROUTE_ROLES: Record<string, AppRole[]> = {
 export const NAV_ITEMS: { name: string; href: string; icon: LucideIcon; roles: AppRole[] }[] = [
   { name: "لوحة القيادة",      href: "/",                       icon: LayoutDashboard, roles: ["admin","manager","cashier","salesperson"] },
   { name: "السندات والخزينة", href: "/treasury",               icon: Wallet,          roles: ["admin","manager","cashier","salesperson"] },
-  { name: "نقطة البيع POS",    href: "/pos",                    icon: Zap,             roles: ["admin","manager","cashier","salesperson"] },
+  { name: "نقطة البيع",        href: "/pos",                    icon: Zap,             roles: ["admin","manager","cashier","salesperson"] },
   { name: "المبيعات",          href: "/sales",                  icon: Receipt,         roles: ["admin","manager","cashier","salesperson"] },
   { name: "المشتريات",         href: "/purchases",              icon: CreditCard,      roles: ["admin","manager"] },
   { name: "المنتجات والمخزون", href: "/products",               icon: Package,         roles: ["admin","manager","cashier","salesperson"] },

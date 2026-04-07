@@ -4,7 +4,7 @@ import { authFetch } from "@/lib/auth-fetch";
 import { useGetSales, useGetSaleById, useGetProducts, useGetCustomers, useGetSettingsSafes } from "@workspace/api-client-react";
 import { useWarehouse } from "@/contexts/warehouse";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { Search, Plus, Minus, Trash2, X, Printer, ShoppingCart, User, Package, Receipt, RotateCcw, Percent, Vault, Lock, CheckCircle, XCircle, ClipboardList, Maximize2 } from "lucide-react";
+import { Search, Plus, Minus, Trash2, X, Printer, ShoppingCart, User, Package, Receipt, RotateCcw, Percent, Vault, Lock, CheckCircle, XCircle, ClipboardList } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth";
@@ -774,18 +774,6 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
       {successInvoice && (
         <WhatsAppSuccessModal invoice={successInvoice} onClose={() => { setSuccessInvoice(null); onDone(); }} />
       )}
-      {/* ── رابط نقطة البيع ── */}
-      <div className="flex items-center justify-between mb-1">
-        <Link
-          href="/pos"
-          className="flex items-center gap-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/25 hover:border-amber-500/50 px-4 py-2 rounded-xl font-bold text-sm transition-all group"
-        >
-          <Maximize2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
-          فتح الكاشير
-          <span className="text-amber-400/40 text-xs font-normal hidden sm:block">/pos</span>
-        </Link>
-      </div>
-
       <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-220px)]">
         {/* Products grid */}
         <div className="flex-1 flex flex-col min-h-0">

@@ -456,6 +456,7 @@ function POSBody({
   const [returnRefundType, setReturnRefundType] = useState<"cash" | "credit">("cash");
   const [returnReason, setReturnReason]   = useState("");
   const [returnFetching, setReturnFetching] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
 
   /* ── Refs ── */
   const searchRef = useRef<HTMLInputElement>(null);
@@ -730,9 +731,10 @@ function POSBody({
         setCart([]);
         return;
       }
-      /* ESC — priority: modal → return mode → navigate away */
+      /* ESC — priority: modal → returnMode → cart confirm → navigate */
       if (e.key === "Escape") {
         if (successInvoice) { setSuccessInvoice(null); return; }
+        if (showExitConfirm) { setShowExitConfirm(false); return; }
         if (returnMode) {
           setReturnMode(false);
           setReturnSale(null);
@@ -740,6 +742,7 @@ function POSBody({
           setReturnInvoiceNo("");
           return;
         }
+        if (cart.length > 0) { setShowExitConfirm(true); return; }
         navigate("/sales");
         return;
       }
@@ -760,7 +763,7 @@ function POSBody({
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [filtered, addToCart, products, search, successInvoice, returnMode, navigate]);
+  }, [filtered, addToCart, products, search, successInvoice, returnMode, cart, showExitConfirm, navigate]);
 
   /* ── Payment options ── */
   const payOptions = [
@@ -780,6 +783,35 @@ function POSBody({
 
   return (
     <div className="erp-page fixed inset-0 flex flex-col overflow-hidden" dir="rtl">
+
+      {/* ════════════════════ EXIT CONFIRM MODAL ════════════════ */}
+      {showExitConfirm && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center" style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}>
+          <div className="erp-card-soft rounded-2xl p-6 w-full max-w-xs text-center space-y-4 border border-white/10 shadow-2xl">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center mx-auto">
+              <span className="text-2xl">⚠️</span>
+            </div>
+            <div>
+              <p className="erp-text font-bold text-base">فاتورة غير مكتملة</p>
+              <p className="erp-label text-sm mt-1">السلة تحتوي على {cart.length} صنف. هل تريد الخروج بدون إتمام البيع؟</p>
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={() => setShowExitConfirm(false)}
+                className="flex-1 erp-btn-secondary rounded-xl py-2 text-sm font-bold"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={() => { setCart([]); setShowExitConfirm(false); navigate("/sales"); }}
+                className="flex-1 rounded-xl py-2 text-sm font-bold bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 hover:border-red-500/50 transition-colors"
+              >
+                خروج بدون حفظ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ════════════════════ TOP STATUS BAR ════════════════════ */}
       <header
