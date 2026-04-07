@@ -3,6 +3,7 @@ import { eq, desc } from "drizzle-orm";
 import { db, treasuryVouchersTable, safesTable, transactionsTable } from "@workspace/db";
 
 import { wrap } from "../lib/async-handler";
+import { hasPermission } from "../lib/permissions";
 
 const router: IRouter = Router();
 
@@ -10,12 +11,18 @@ function fmt(v: typeof treasuryVouchersTable.$inferSelect) {
   return { ...v, amount: Number(v.amount), created_at: v.created_at.toISOString() };
 }
 
-router.get("/treasury-vouchers", wrap(async (_req, res) => {
+router.get("/treasury-vouchers", wrap(async (req, res) => {
+  if (!hasPermission(req.user, "can_view_treasury")) {
+    res.status(403).json({ error: "ليس لديك صلاحية عرض الخزينة" }); return;
+  }
   const vouchers = await db.select().from(treasuryVouchersTable).orderBy(desc(treasuryVouchersTable.created_at));
   res.json(vouchers.map(fmt));
 }));
 
 router.get("/treasury-vouchers/safe/:safeId", wrap(async (req, res) => {
+  if (!hasPermission(req.user, "can_view_treasury")) {
+    res.status(403).json({ error: "ليس لديك صلاحية عرض الخزينة" }); return;
+  }
   const safeId = parseInt(req.params.safeId as string);
   if (isNaN(safeId)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
   const vouchers = await db.select().from(treasuryVouchersTable)

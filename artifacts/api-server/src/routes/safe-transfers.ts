@@ -4,10 +4,14 @@ import { db, safesTable, safeTransfersTable, transactionsTable } from "@workspac
 
 import { wrap, httpError } from "../lib/async-handler";
 import { assertPeriodOpen } from "../lib/period-lock";
+import { hasPermission } from "../lib/permissions";
 
 const router: IRouter = Router();
 
-router.get("/safe-transfers", wrap(async (_req, res) => {
+router.get("/safe-transfers", wrap(async (req, res) => {
+  if (!hasPermission(req.user, "can_view_treasury")) {
+    res.status(403).json({ error: "ليس لديك صلاحية عرض الخزينة" }); return;
+  }
   const items = await db.select().from(transactionsTable)
     .where(eq(transactionsTable.reference_type, "safe_transfer"))
     .orderBy(desc(transactionsTable.created_at));
