@@ -4,8 +4,7 @@ import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
   useGetSettingsUsers, useCreateSettingsUser, useUpdateSettingsUser, useDeleteSettingsUser,
-  useGetSettingsSafes,
-  useGetSettingsWarehouses, useCreateSettingsWarehouse, useDeleteSettingsWarehouse,
+  useGetSettingsSafes, useGetSettingsWarehouses,
   useResetDatabase,
   useGetProducts, useGetCustomers,
 } from "@workspace/api-client-react";
@@ -16,7 +15,7 @@ import {
   type CurrencyCode, type FontFamily, type NumberFormat, type LightVariant,
 } from "@/contexts/app-settings";
 import {
-  Users, Warehouse, AlertTriangle, Plus, Trash2, Edit2, X, Check,
+  Users, AlertTriangle, Plus, Trash2, Edit2, X, Check,
   ArrowLeftRight, Eye, EyeOff, Save, DollarSign, Database,
   Upload, Download, RefreshCcw, Building2, Loader2, CheckCircle2,
   HardDrive, History, BookOpen, Package, UserCircle, Truck, Banknote,
@@ -29,14 +28,13 @@ import * as XLSX from "xlsx";
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
 
-type Tab = "users" | "warehouses" | "currency" | "backup" | "data" | "opening-balance" | "financial-lock";
+type Tab = "users" | "currency" | "backup" | "data" | "opening-balance" | "financial-lock";
 
 const TAB_SECTIONS: { section: string; tabs: { id: Tab; label: string; icon: React.FC<{ className?: string }> }[] }[] = [
   {
     section: "الإدارة",
     tabs: [
-      { id: "users",      label: "المستخدمون", icon: Users },
-      { id: "warehouses", label: "المخازن",    icon: Warehouse },
+      { id: "users", label: "المستخدمون", icon: Users },
     ],
   },
   {
@@ -487,7 +485,6 @@ export default function Settings() {
       {/* ── Content ── */}
       <main className="flex-1 min-w-0">
         {tab === "users"           && <UsersTab />}
-        {tab === "warehouses"      && <WarehousesTab />}
         {tab === "opening-balance" && <OpeningBalanceTab />}
         {tab === "financial-lock"  && <FinancialLockTab />}
         {tab === "currency"        && <CurrencyTab />}
@@ -871,134 +868,6 @@ function UsersTab() {
               تأكيد الحذف
             </DangerBtn>
             <GhostBtn onClick={() => setDeleteTarget(null)} className="flex-1">إلغاء</GhostBtn>
-          </div>
-        </Modal>
-      )}
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════════════════════════════
-   WAREHOUSES TAB
-   ══════════════════════════════════════════════════════════════════ */
-function WarehousesTab() {
-  const { data: warehousesRaw, isLoading } = useGetSettingsWarehouses();
-  const warehouses = safeArray(warehousesRaw);
-  const createWarehouse = useCreateSettingsWarehouse();
-  const deleteWarehouse = useDeleteSettingsWarehouse();
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-  const [showForm, setShowForm]         = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
-  const [form, setForm]                 = useState({ name: "", address: "" });
-
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["/api/settings/warehouses"] });
-
-  return (
-    <div>
-      <PageHeader
-        title="إدارة المخازن"
-        sub="أماكن تخزين البضاعة والمنتجات"
-        action={
-          <PrimaryBtn onClick={() => setShowForm(true)}>
-            <Plus className="w-4 h-4" /> إضافة مخزن
-          </PrimaryBtn>
-        }
-      />
-
-      {isLoading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1,2].map(i => <CardSkeleton key={i} />)}
-        </div>
-      ) : warehouses.length === 0 ? (
-        /* ── Beautiful empty state ── */
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="w-24 h-24 rounded-3xl bg-[#1A2235] border border-white/5 flex items-center justify-center mb-5">
-            <svg viewBox="0 0 64 64" className="w-12 h-12 text-white/15 fill-current">
-              <path d="M32 4L4 20v4h56v-4L32 4zM8 28v24h4V28H8zm10 0v24h4V28h-4zm14 0v24h4V28h-4zm10 0v24h4V28h-4zm10 0v24h4V28h-4zM4 54h56v4H4v-4z"/>
-            </svg>
-          </div>
-          <h3 className="text-white/50 font-bold text-lg mb-2">لا توجد مخازن بعد</h3>
-          <p className="text-white/25 text-sm mb-6 max-w-xs">أضف مخزنك الأول لتنظيم المنتجات والمخزون وتتبع الحركة بدقة</p>
-          <PrimaryBtn onClick={() => setShowForm(true)}>
-            <Plus className="w-4 h-4" /> إضافة أول مخزن
-          </PrimaryBtn>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-          {warehouses.map((w: any) => (
-            <div
-              key={w.id}
-              className="group bg-[#111827] border border-white/5 hover:border-blue-500/20 rounded-2xl p-5 transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(0,0,0,0.4)]"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
-                  <Warehouse className="w-5 h-5 text-blue-400" />
-                </div>
-                <button
-                  onClick={() => setDeleteTarget({ id: w.id, name: w.name })}
-                  className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <p className="text-white font-bold text-sm mb-1">{w.name}</p>
-              {w.address && <p className="text-white/40 text-xs">{w.address}</p>}
-              <p className="text-white/20 text-xs mt-2">{formatDate(w.created_at)}</p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* ── Add Modal ── */}
-      {showForm && (
-        <Modal title="إضافة مخزن جديد" icon={Warehouse} onClose={() => setShowForm(false)}>
-          <div className="p-6 space-y-4">
-            <div>
-              <FieldLabel>اسم المخزن</FieldLabel>
-              <SInput placeholder="المخزن الرئيسي" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-            </div>
-            <div>
-              <FieldLabel>العنوان (اختياري)</FieldLabel>
-              <SInput placeholder="القاهرة، مصر" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
-            </div>
-          </div>
-          <div className="flex gap-3 px-6 py-4 border-t border-white/8">
-            <PrimaryBtn className="flex-1" disabled={createWarehouse.isPending}
-              onClick={() => {
-                if (!form.name.trim()) { toast({ title: "الاسم مطلوب", variant: "destructive" }); return; }
-                createWarehouse.mutate({ name: form.name, address: form.address || undefined }, {
-                  onSuccess: () => { invalidate(); toast({ title: "تم إضافة المخزن" }); setForm({ name: "", address: "" }); setShowForm(false); },
-                });
-              }}
-            >
-              {createWarehouse.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              إضافة
-            </PrimaryBtn>
-            <GhostBtn className="flex-1" onClick={() => setShowForm(false)}>إلغاء</GhostBtn>
-          </div>
-        </Modal>
-      )}
-
-      {/* ── Delete Modal ── */}
-      {deleteTarget && (
-        <Modal title="تأكيد الحذف" icon={Trash2} onClose={() => setDeleteTarget(null)}>
-          <div className="p-6 text-center space-y-4">
-            <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto">
-              <Warehouse className="w-6 h-6 text-red-400" />
-            </div>
-            <p className="text-white font-bold">حذف مخزن <span className="text-red-400">"{deleteTarget.name}"</span>؟</p>
-          </div>
-          <div className="flex gap-3 px-6 py-4 border-t border-white/8">
-            <DangerBtn className="flex-1" disabled={deleteWarehouse.isPending}
-              onClick={() => deleteWarehouse.mutate(deleteTarget.id, {
-                onSuccess: () => { invalidate(); toast({ title: "تم الحذف" }); setDeleteTarget(null); },
-              })}
-            >
-              {deleteWarehouse.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-              حذف
-            </DangerBtn>
-            <GhostBtn className="flex-1" onClick={() => setDeleteTarget(null)}>إلغاء</GhostBtn>
           </div>
         </Modal>
       )}

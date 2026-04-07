@@ -6,97 +6,54 @@ import { useAuth } from "@/contexts/auth";
 import { hasPermission } from "@/lib/permissions";
 import { formatCurrency } from "@/lib/format";
 import {
-  Package, AlertTriangle, TrendingDown, TrendingUp,
-  Search, X, RefreshCw, ChevronDown, ChevronUp, Edit3,
-  ShieldX, ClipboardList, Truck, Plus, Trash2, CheckCircle,
+  Package, AlertTriangle, TrendingDown, Search, X, RefreshCw,
+  ChevronUp, ChevronDown, Edit3, ShieldX, ClipboardList, Truck,
+  Plus, Trash2, CheckCircle, Warehouse, Loader2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TableSkeleton } from "@/components/skeletons";
 import { safeArray } from "@/lib/safe-data";
+import {
+  useGetSettingsWarehouses,
+  useCreateSettingsWarehouse,
+  useDeleteSettingsWarehouse,
+} from "@workspace/api-client-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
 interface AuditProduct {
-  id: number;
-  name: string;
-  sku: string | null;
-  category: string | null;
-  actual_qty: number;
-  cost_price: number;
-  sale_price: number;
-  low_stock_threshold: number | null;
-  opening_qty: number;
-  purchased_qty: number;
-  sold_qty: number;
-  sale_return_qty: number;
-  purchase_return_qty: number;
-  adjustment_qty: number;
-  calculated_qty: number;
-  discrepancy: number;
-  total_value: number;
+  id: number; name: string; sku: string | null; category: string | null;
+  actual_qty: number; cost_price: number; sale_price: number;
+  low_stock_threshold: number | null; opening_qty: number; purchased_qty: number;
+  sold_qty: number; sale_return_qty: number; purchase_return_qty: number;
+  adjustment_qty: number; calculated_qty: number; discrepancy: number; total_value: number;
 }
-
 interface AuditSummary {
-  total_products: number;
-  total_inventory_value: number;
-  low_stock_count: number;
-  zero_stock_count: number;
+  total_products: number; total_inventory_value: number;
+  low_stock_count: number; zero_stock_count: number;
 }
-
 interface StockMovement {
-  id: number;
-  product_id: number;
-  product_name: string;
-  movement_type: string;
-  quantity: number;
-  quantity_before: number;
-  quantity_after: number;
-  unit_cost: number;
-  reference_type: string | null;
-  reference_id: number | null;
-  reference_no: string | null;
-  notes: string | null;
-  date: string | null;
-  created_at: string;
+  id: number; product_id: number; product_name: string; movement_type: string;
+  quantity: number; quantity_before: number; quantity_after: number;
+  unit_cost: number; reference_type: string | null; reference_id: number | null;
+  reference_no: string | null; notes: string | null; date: string | null; created_at: string;
 }
-
 interface ProductDetail {
   product: { id: number; name: string; sku: string | null; quantity: number; cost_price: number; sale_price: number };
-  movements: StockMovement[];
-  calculated_qty: number;
-  actual_qty: number;
-  discrepancy: number;
-  breakdown: Record<string, number>;
-  formula: string;
+  movements: StockMovement[]; calculated_qty: number; actual_qty: number;
+  discrepancy: number; breakdown: Record<string, number>; formula: string;
 }
-
-interface Warehouse {
-  id: number;
-  name: string;
-  address: string | null;
-}
-
 interface CountSession {
-  id: number;
-  warehouse_id: number;
-  status: string;
-  notes: string | null;
-  created_at: string;
-  applied_at: string | null;
+  id: number; warehouse_id: number; status: string; notes: string | null;
+  created_at: string; applied_at: string | null;
 }
-
 interface StockTransfer {
-  id: number;
-  from_warehouse_id: number;
-  to_warehouse_id: number;
-  status: string;
-  notes: string | null;
-  created_at: string;
+  id: number; from_warehouse_id: number; to_warehouse_id: number;
+  status: string; notes: string | null; created_at: string;
 }
 
-/* ─── movement type labels ───────────────────────────────────────────────── */
 const movementTypeLabel: Record<string, { label: string; color: string }> = {
   opening_balance: { label: "رصيد افتتاحي",  color: "bg-blue-500/20 text-blue-300" },
   purchase:        { label: "مشتريات",        color: "bg-emerald-500/20 text-emerald-300" },
@@ -110,6 +67,10 @@ const movementTypeLabel: Record<string, { label: string; color: string }> = {
 
 type Tab = "review" | "count" | "transfer";
 
+/* ─── helpers ──────────────────────────────────────────────────────────────── */
+function today() { return new Date().toISOString().slice(0, 10); }
+function nowTime() { return new Date().toTimeString().slice(0, 5); }
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * Main Component
  * ═══════════════════════════════════════════════════════════════════════════ */
@@ -120,8 +81,21 @@ export default function Inventory() {
   const { currentWarehouseId } = useWarehouse();
   const canViewInventory   = hasPermission(user, "can_view_inventory")   === true;
   const canAdjustInventory = hasPermission(user, "can_adjust_inventory") === true;
+  const isAdmin = user?.role === "admin";
 
   const [activeTab, setActiveTab] = useState<Tab>("review");
+
+  /* ── warehouse CRUD ── */
+  const { data: warehousesRaw, isLoading: loadingWH } = useGetSettingsWarehouses();
+  const warehouses = safeArray(warehousesRaw) as { id: number; name: string; address: string | null; created_at: string }[];
+  const createWH = useCreateSettingsWarehouse();
+  const deleteWH = useDeleteSettingsWarehouse();
+
+  const [showAddWH, setShowAddWH]               = useState(false);
+  const [deleteWHTarget, setDeleteWHTarget]     = useState<{ id: number; name: string } | null>(null);
+  const [whForm, setWhForm]                     = useState({ name: "", address: "" });
+
+  const invalidateWH = () => qc.invalidateQueries({ queryKey: ["/api/settings/warehouses"] });
 
   if (!canViewInventory) {
     return (
@@ -134,44 +108,182 @@ export default function Inventory() {
   }
 
   return (
-    <div className="p-6 space-y-6 text-right" dir="rtl">
-      {/* ── رأس الصفحة ──────────────────────────────────────────────────── */}
+    <div className="p-6 space-y-8 text-right" dir="rtl">
+
+      {/* ══════════════════════════════════════════════════════
+          قسم إدارة المخازن
+          ══════════════════════════════════════════════════════ */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-white">المخازن</h2>
+            <p className="text-white/40 text-sm mt-0.5">أضف وأدر مواقع التخزين</p>
+          </div>
+          {isAdmin && (
+            <button
+              onClick={() => { setWhForm({ name: "", address: "" }); setShowAddWH(true); }}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-violet-500/20 border border-violet-500/30 text-violet-300 hover:bg-violet-500/30 transition-all"
+            >
+              <Plus className="w-4 h-4" /> إضافة مخزن
+            </button>
+          )}
+        </div>
+
+        {loadingWH ? (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1, 2].map(i => (
+              <div key={i} className="h-28 bg-white/5 border border-white/5 rounded-2xl animate-pulse" />
+            ))}
+          </div>
+        ) : warehouses.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-14 text-center bg-white/3 border border-white/5 rounded-2xl">
+            <Warehouse className="w-10 h-10 text-white/15 mb-3" />
+            <p className="text-white/40 font-bold">لا توجد مخازن بعد</p>
+            {isAdmin && (
+              <button onClick={() => { setWhForm({ name: "", address: "" }); setShowAddWH(true); }}
+                className="mt-3 px-4 py-2 rounded-xl text-sm font-bold bg-violet-500/20 border border-violet-500/30 text-violet-300 hover:bg-violet-500/30 transition-all">
+                إضافة أول مخزن
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {warehouses.map(w => (
+              <div key={w.id}
+                className="group relative bg-[#111827] border border-white/5 hover:border-violet-500/20 rounded-2xl p-5 transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(0,0,0,0.4)]">
+                {/* Delete button */}
+                {isAdmin && (
+                  <button
+                    onClick={() => setDeleteWHTarget({ id: w.id, name: w.name })}
+                    className="absolute top-3 left-3 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all"
+                    title="حذف المخزن"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center mb-3">
+                  <Warehouse className="w-5 h-5 text-violet-400" />
+                </div>
+                <p className="text-white font-bold text-sm">{w.name}</p>
+                {w.address && <p className="text-white/40 text-xs mt-1 truncate">{w.address}</p>}
+                {currentWarehouseId === w.id && (
+                  <span className="inline-block mt-2 px-2 py-0.5 rounded-lg text-xs bg-violet-500/20 text-violet-300 font-medium">
+                    المخزن الحالي
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* ══════════════════════════════════════════════════════
+          تبويبات المخزون
+          ══════════════════════════════════════════════════════ */}
       <div>
-        <h1 className="text-2xl font-bold text-white">إدارة المخزون</h1>
-        <p className="text-white/50 text-sm mt-1">مراجعة — جرد — تحويل</p>
+        <div className="flex gap-2 border-b border-white/10 mb-6">
+          <TabBtn id="review"   label="مراجعة المخزون" icon={<Package className="w-4 h-4" />}      active={activeTab} onClick={setActiveTab} />
+          {canAdjustInventory && (
+            <TabBtn id="count"  label="جرد المخزون"    icon={<ClipboardList className="w-4 h-4" />} active={activeTab} onClick={setActiveTab} />
+          )}
+          {canAdjustInventory && (
+            <TabBtn id="transfer" label="تحويل مخزون"  icon={<Truck className="w-4 h-4" />}         active={activeTab} onClick={setActiveTab} />
+          )}
+        </div>
+
+        {activeTab === "review"   && <ReviewTab currentWarehouseId={currentWarehouseId} canAdjustInventory={canAdjustInventory} qc={qc} toast={toast} />}
+        {activeTab === "count"    && <CountTab  warehouses={warehouses} currentWarehouseId={currentWarehouseId} qc={qc} toast={toast} />}
+        {activeTab === "transfer" && <TransferTab warehouses={warehouses} qc={qc} toast={toast} />}
       </div>
 
-      {/* ── تبويبات ─────────────────────────────────────────────────────── */}
-      <div className="flex gap-2 border-b border-white/10 pb-0">
-        <TabBtn id="review"   label="مراجعة المخزون"  icon={<Package className="w-4 h-4" />}      active={activeTab} onClick={setActiveTab} />
-        {canAdjustInventory && (
-          <TabBtn id="count"    label="جرد المخزون"     icon={<ClipboardList className="w-4 h-4" />} active={activeTab} onClick={setActiveTab} />
-        )}
-        {canAdjustInventory && (
-          <TabBtn id="transfer" label="تحويل مخزون"     icon={<Truck className="w-4 h-4" />}         active={activeTab} onClick={setActiveTab} />
-        )}
-      </div>
+      {/* ── Add Warehouse Modal ── */}
+      {showAddWH && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowAddWH(false)}>
+          <div className="bg-[#111827] border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <Warehouse className="w-5 h-5 text-violet-400" /> إضافة مخزن جديد
+              </h3>
+              <button onClick={() => setShowAddWH(false)} className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"><X className="w-4 h-4 text-white/60" /></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-white/60 text-xs mb-1.5">اسم المخزن *</label>
+                <input type="text" className="glass-input" placeholder="المخزن الرئيسي"
+                  value={whForm.name} onChange={e => setWhForm(f => ({ ...f, name: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-white/60 text-xs mb-1.5">العنوان (اختياري)</label>
+                <input type="text" className="glass-input" placeholder="القاهرة، مصر"
+                  value={whForm.address} onChange={e => setWhForm(f => ({ ...f, address: e.target.value }))} />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                disabled={createWH.isPending}
+                onClick={() => {
+                  if (!whForm.name.trim()) { toast({ title: "الاسم مطلوب", variant: "destructive" }); return; }
+                  createWH.mutate({ name: whForm.name, address: whForm.address || undefined }, {
+                    onSuccess: () => { invalidateWH(); toast({ title: "✅ تم إضافة المخزن" }); setShowAddWH(false); },
+                    onError: (e: any) => toast({ title: e?.message ?? "فشل الإضافة", variant: "destructive" }),
+                  });
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-violet-500 hover:bg-violet-400 disabled:opacity-50 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2">
+                {createWH.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                إضافة
+              </button>
+              <button onClick={() => setShowAddWH(false)} className="flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white/60 font-bold text-sm transition-colors">
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-      {/* ── محتوى التبويبات ──────────────────────────────────────────────── */}
-      {activeTab === "review"   && <ReviewTab currentWarehouseId={currentWarehouseId} canAdjustInventory={canAdjustInventory} qc={qc} toast={toast} />}
-      {activeTab === "count"    && <CountTab  currentWarehouseId={currentWarehouseId} qc={qc} toast={toast} />}
-      {activeTab === "transfer" && <TransferTab qc={qc} toast={toast} />}
+      {/* ── Delete Warehouse Modal ── */}
+      {deleteWHTarget && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setDeleteWHTarget(null)}>
+          <div className="bg-[#111827] border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl text-center" onClick={e => e.stopPropagation()}>
+            <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-4">
+              <Warehouse className="w-7 h-7 text-red-400" />
+            </div>
+            <h3 className="text-white font-bold text-lg mb-1">حذف المخزن</h3>
+            <p className="text-white/50 text-sm mb-1">
+              هل تريد حذف <span className="text-red-400 font-bold">"{deleteWHTarget.name}"</span>؟
+            </p>
+            <p className="text-white/30 text-xs mb-6">لا يمكن حذف مخزن له حركات أو جلسات جرد أو تحويلات مسجّلة</p>
+            <div className="flex gap-3">
+              <button
+                disabled={deleteWH.isPending}
+                onClick={() => deleteWH.mutate(deleteWHTarget.id, {
+                  onSuccess: () => { invalidateWH(); toast({ title: "تم حذف المخزن" }); setDeleteWHTarget(null); },
+                  onError: (e: any) => { toast({ title: e?.message ?? "فشل الحذف", variant: "destructive" }); setDeleteWHTarget(null); },
+                })}
+                className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-400 disabled:opacity-50 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2">
+                {deleteWH.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                حذف
+              </button>
+              <button onClick={() => setDeleteWHTarget(null)} className="flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white/60 font-bold text-sm transition-colors">
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
+/* ─── TabBtn ─────────────────────────────────────────────────────────────── */
 function TabBtn({ id, label, icon, active, onClick }: {
-  id: Tab; label: string; icon: React.ReactNode; active: Tab;
-  onClick: (t: Tab) => void;
+  id: Tab; label: string; icon: React.ReactNode; active: Tab; onClick: (t: Tab) => void;
 }) {
   const isActive = id === active;
   return (
     <button
       onClick={() => onClick(id)}
-      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
-        isActive
-          ? "border-violet-400 text-violet-300"
-          : "border-transparent text-white/50 hover:text-white/80"
+      className={`flex items-center gap-2 px-5 py-2.5 text-sm font-bold border-b-2 transition-colors -mb-px ${
+        isActive ? "border-violet-400 text-violet-300" : "border-transparent text-white/50 hover:text-white/80"
       }`}
     >
       {icon}{label}
@@ -180,21 +292,19 @@ function TabBtn({ id, label, icon, active, onClick }: {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * TAB 1 — مراجعة المخزون (existing)
+ * TAB 1 — مراجعة المخزون
  * ═══════════════════════════════════════════════════════════════════════════ */
 function ReviewTab({ currentWarehouseId, canAdjustInventory, qc, toast }: {
-  currentWarehouseId: number | null;
-  canAdjustInventory: boolean;
-  qc: ReturnType<typeof useQueryClient>;
-  toast: ReturnType<typeof useToast>["toast"];
+  currentWarehouseId: number | null; canAdjustInventory: boolean;
+  qc: ReturnType<typeof useQueryClient>; toast: ReturnType<typeof useToast>["toast"];
 }) {
-  const [search, setSearch] = useState("");
+  const [search, setSearch]               = useState("");
   const [selectedProduct, setSelectedProduct] = useState<number | null>(null);
-  const [sortKey, setSortKey] = useState<keyof AuditProduct>("name");
-  const [sortAsc, setSortAsc] = useState(true);
-  const [showAdjust, setShowAdjust] = useState<number | null>(null);
-  const [adjustQty, setAdjustQty] = useState("");
-  const [adjustNotes, setAdjustNotes] = useState("");
+  const [sortKey, setSortKey]             = useState<keyof AuditProduct>("name");
+  const [sortAsc, setSortAsc]             = useState(true);
+  const [showAdjust, setShowAdjust]       = useState<number | null>(null);
+  const [adjustQty, setAdjustQty]         = useState("");
+  const [adjustNotes, setAdjustNotes]     = useState("");
 
   const warehouseParam = currentWarehouseId ? `?warehouse_id=${currentWarehouseId}` : "";
 
@@ -212,8 +322,7 @@ function ReviewTab({ currentWarehouseId, canAdjustInventory, qc, toast }: {
   const adjustMutation = useMutation({
     mutationFn: ({ product_id, new_quantity, notes }: { product_id: number; new_quantity: number; notes: string }) =>
       authFetch(api("/api/inventory/adjustment"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ product_id, new_quantity, notes }),
       }).then(r => { if (!r.ok) throw new Error("خطأ"); return r.json(); }),
     onSuccess: () => {
@@ -226,7 +335,7 @@ function ReviewTab({ currentWarehouseId, canAdjustInventory, qc, toast }: {
   });
 
   const products = auditData?.products ?? [];
-  const summary = auditData?.summary;
+  const summary  = auditData?.summary;
 
   const filtered = products
     .filter(p =>
@@ -246,39 +355,37 @@ function ReviewTab({ currentWarehouseId, canAdjustInventory, qc, toast }: {
     else { setSortKey(key); setSortAsc(true); }
   }
 
-  const SortIcon = ({ k }: { k: keyof AuditProduct }) => sortKey === k
-    ? (sortAsc ? <ChevronUp className="w-3 h-3 inline ms-1" /> : <ChevronDown className="w-3 h-3 inline ms-1" />)
-    : null;
+  const SortIcon = ({ k }: { k: keyof AuditProduct }) =>
+    sortKey === k ? (sortAsc ? <ChevronUp className="w-3 h-3 inline ms-1" /> : <ChevronDown className="w-3 h-3 inline ms-1" />) : null;
 
   return (
     <div className="space-y-4">
-      {/* ملخص */}
       <div className="flex items-center justify-between">
-        <div />
-        <button onClick={() => refetch()} className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-colors">
-          <RefreshCw className="w-4 h-4" /> تحديث
+        <div className="flex flex-wrap gap-2 text-xs">
+          {[
+            { c: "bg-blue-500/20 text-blue-300",    t: "↑ افتتاحي" },
+            { c: "bg-emerald-500/20 text-emerald-300", t: "↑ مشتريات" },
+            { c: "bg-teal-500/20 text-teal-300",    t: "↑ مرتجع مبيعات" },
+            { c: "bg-red-500/20 text-red-300",      t: "↓ مبيعات" },
+            { c: "bg-orange-500/20 text-orange-300",t: "↓ مرتجع مشتريات" },
+            { c: "bg-violet-500/20 text-violet-300",t: "± تسوية" },
+            { c: "bg-amber-500/20 text-amber-300",  t: "↓ خروج" },
+            { c: "bg-cyan-500/20 text-cyan-300",    t: "↑ دخول" },
+          ].map(b => <span key={b.t} className={`px-2 py-1 rounded-lg ${b.c}`}>{b.t}</span>)}
+        </div>
+        <button onClick={() => refetch()} className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-xl transition-colors">
+          <RefreshCw className="w-3.5 h-3.5" /> تحديث
         </button>
       </div>
 
       {summary && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <SummaryCard label="إجمالي المنتجات" value={String(summary.total_products)} color="text-white" />
-          <SummaryCard label="قيمة المخزون" value={formatCurrency(summary.total_inventory_value)} color="text-emerald-400" />
-          <SummaryCard label="تحت حد الطلب"  value={String(summary.low_stock_count)}  color={summary.low_stock_count > 0 ? "text-amber-400" : "text-white/40"} />
-          <SummaryCard label="نفد المخزون"    value={String(summary.zero_stock_count)} color={summary.zero_stock_count > 0 ? "text-red-400" : "text-white/40"} />
+          <SummaryCard label="إجمالي المنتجات"  value={String(summary.total_products)}   color="text-white" />
+          <SummaryCard label="قيمة المخزون"      value={formatCurrency(summary.total_inventory_value)} color="text-emerald-400" />
+          <SummaryCard label="تحت حد الطلب"     value={String(summary.low_stock_count)}  color={summary.low_stock_count > 0  ? "text-amber-400" : "text-white/40"} />
+          <SummaryCard label="نفد المخزون"       value={String(summary.zero_stock_count)} color={summary.zero_stock_count > 0 ? "text-red-400"   : "text-white/40"} />
         </div>
       )}
-
-      <div className="flex flex-wrap gap-2 text-xs">
-        <span className="px-2 py-1 rounded-lg bg-blue-500/20 text-blue-300">↑ رصيد افتتاحي</span>
-        <span className="px-2 py-1 rounded-lg bg-emerald-500/20 text-emerald-300">↑ مشتريات</span>
-        <span className="px-2 py-1 rounded-lg bg-teal-500/20 text-teal-300">↑ مرتجع مبيعات</span>
-        <span className="px-2 py-1 rounded-lg bg-red-500/20 text-red-300">↓ مبيعات</span>
-        <span className="px-2 py-1 rounded-lg bg-orange-500/20 text-orange-300">↓ مرتجع مشتريات</span>
-        <span className="px-2 py-1 rounded-lg bg-violet-500/20 text-violet-300">± تسوية</span>
-        <span className="px-2 py-1 rounded-lg bg-amber-500/20 text-amber-300">↓ تحويل خروج</span>
-        <span className="px-2 py-1 rounded-lg bg-cyan-500/20 text-cyan-300">↑ تحويل دخول</span>
-      </div>
 
       <div className="relative">
         <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
@@ -288,27 +395,25 @@ function ReviewTab({ currentWarehouseId, canAdjustInventory, qc, toast }: {
       </div>
 
       {isLoading ? (
-        <div className="overflow-x-auto rounded-2xl border border-white/10">
-          <table className="w-full text-sm min-w-[1100px]"><tbody><TableSkeleton cols={13} rows={7} /></tbody></table>
-        </div>
+        <div className="overflow-x-auto rounded-2xl border border-white/10"><table className="w-full text-sm min-w-[1100px]"><tbody><TableSkeleton cols={12} rows={7} /></tbody></table></div>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-white/10">
           <table className="w-full text-sm min-w-[1100px]">
             <thead>
               <tr className="border-b border-white/10 bg-white/5">
-                {[
-                  { key: "name" as const, label: "المنتج" },
-                  { key: "opening_qty" as const, label: "افتتاحي" },
-                  { key: "purchased_qty" as const, label: "وارد مشتريات" },
-                  { key: "sale_return_qty" as const, label: "مرتجع مبيعات" },
-                  { key: "sold_qty" as const, label: "صادر مبيعات" },
+                {([
+                  { key: "name"              as const, label: "المنتج" },
+                  { key: "opening_qty"       as const, label: "افتتاحي" },
+                  { key: "purchased_qty"     as const, label: "وارد" },
+                  { key: "sale_return_qty"   as const, label: "مرتجع مبيعات" },
+                  { key: "sold_qty"          as const, label: "صادر" },
                   { key: "purchase_return_qty" as const, label: "مرتجع مشتريات" },
-                  { key: "calculated_qty" as const, label: "محسوب" },
-                  { key: "actual_qty" as const, label: "فعلي" },
-                  { key: "discrepancy" as const, label: "فرق" },
-                  { key: "cost_price" as const, label: "تكلفة" },
-                  { key: "total_value" as const, label: "قيمة المخزون" },
-                ].map(col => (
+                  { key: "calculated_qty"    as const, label: "محسوب" },
+                  { key: "actual_qty"        as const, label: "فعلي" },
+                  { key: "discrepancy"       as const, label: "فرق" },
+                  { key: "cost_price"        as const, label: "تكلفة" },
+                  { key: "total_value"       as const, label: "قيمة المخزون" },
+                ] as { key: keyof AuditProduct; label: string }[]).map(col => (
                   <th key={col.key} onClick={() => toggleSort(col.key)}
                     className="p-3 text-right text-white/60 font-medium cursor-pointer hover:text-white/90 select-none whitespace-nowrap">
                     {col.label}<SortIcon k={col.key} />
@@ -402,22 +507,17 @@ function ReviewTab({ currentWarehouseId, canAdjustInventory, qc, toast }: {
               <button onClick={() => setSelectedProduct(null)} className="text-white/40 hover:text-white"><X className="w-5 h-5" /></button>
             </div>
             <div className="grid grid-cols-3 gap-3 mb-4">
-              <div className="bg-white/5 rounded-xl p-3 text-center">
-                <div className="text-xs text-white/40">كمية محسوبة</div>
-                <div className="text-xl font-bold text-white">{productDetail.calculated_qty.toFixed(2)}</div>
-              </div>
-              <div className="bg-white/5 rounded-xl p-3 text-center">
-                <div className="text-xs text-white/40">كمية فعلية</div>
-                <div className={`text-xl font-bold ${productDetail.actual_qty <= 0 ? "text-red-400" : "text-emerald-400"}`}>
-                  {productDetail.actual_qty.toFixed(2)}
+              {[
+                { label: "كمية محسوبة", val: productDetail.calculated_qty.toFixed(2), cls: "text-white" },
+                { label: "كمية فعلية",  val: productDetail.actual_qty.toFixed(2),    cls: productDetail.actual_qty <= 0 ? "text-red-400" : "text-emerald-400" },
+                { label: "فرق",         val: Math.abs(productDetail.discrepancy) > 0.001 ? productDetail.discrepancy.toFixed(2) : "✓ صفر",
+                  cls: Math.abs(productDetail.discrepancy) > 0.001 ? "text-red-400" : "text-emerald-400" },
+              ].map(c => (
+                <div key={c.label} className="bg-white/5 rounded-xl p-3 text-center">
+                  <div className="text-xs text-white/40">{c.label}</div>
+                  <div className={`text-xl font-bold ${c.cls}`}>{c.val}</div>
                 </div>
-              </div>
-              <div className="bg-white/5 rounded-xl p-3 text-center">
-                <div className="text-xs text-white/40">فرق</div>
-                <div className={`text-xl font-bold ${Math.abs(productDetail.discrepancy) > 0.001 ? "text-red-400" : "text-emerald-400"}`}>
-                  {Math.abs(productDetail.discrepancy) > 0.001 ? productDetail.discrepancy.toFixed(2) : "✓ صفر"}
-                </div>
-              </div>
+              ))}
             </div>
             <div className="space-y-2">
               <h3 className="text-sm font-semibold text-white/60 mb-2">سجل الحركات ({productDetail.movements.length})</h3>
@@ -501,29 +601,31 @@ function ReviewTab({ currentWarehouseId, canAdjustInventory, qc, toast }: {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * TAB 2 — جرد المخزون (Stock Count)
+ * TAB 2 — جرد المخزون (Enhanced)
  * ═══════════════════════════════════════════════════════════════════════════ */
-function CountTab({ currentWarehouseId, qc, toast }: {
+function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
+  warehouses: { id: number; name: string }[];
   currentWarehouseId: number | null;
   qc: ReturnType<typeof useQueryClient>;
   toast: ReturnType<typeof useToast>["toast"];
 }) {
-  const [selectedWarehouse, setSelectedWarehouse] = useState<number>(currentWarehouseId ?? 1);
+  const defaultWH = warehouses.length > 0 ? (warehouses.find(w => w.id === currentWarehouseId)?.id ?? warehouses[0].id) : 0;
+  const [selectedWarehouse, setSelectedWarehouse] = useState<number>(defaultWH);
+  const [countDate, setCountDate]   = useState(today());
+  const [countTime, setCountTime]   = useState(nowTime());
   const [sessionNotes, setSessionNotes] = useState("");
+  const [countMode, setCountMode]   = useState<"full" | "partial">("full");
   const [physicalQtys, setPhysicalQtys] = useState<Record<number, string>>({});
-  const [itemNotes, setItemNotes] = useState<Record<number, string>>({});
+  const [itemNotes, setItemNotes]   = useState<Record<number, string>>({});
   const [sessionView, setSessionView] = useState<"new" | "history">("new");
   const [applyingId, setApplyingId] = useState<number | null>(null);
 
-  const { data: warehouses } = useQuery<Warehouse[]>({
-    queryKey: ["warehouses"],
-    queryFn: () => authFetch(api("/api/settings/warehouses")).then(r => r.json()),
-  });
-
   const warehouseParam = selectedWarehouse ? `?warehouse_id=${selectedWarehouse}` : "";
+
   const { data: auditData, isLoading: loadingProducts } = useQuery<{ products: AuditProduct[]; summary: AuditSummary }>({
     queryKey: ["inventory-audit", selectedWarehouse],
     queryFn: () => authFetch(api(`/api/inventory/audit${warehouseParam}`)).then(r => { if (!r.ok) throw new Error("خطأ"); return r.json(); }),
+    enabled: selectedWarehouse > 0,
   });
 
   const { data: sessions, refetch: refetchSessions } = useQuery<CountSession[]>({
@@ -531,25 +633,41 @@ function CountTab({ currentWarehouseId, qc, toast }: {
     queryFn: () => authFetch(api("/api/inventory/count-sessions")).then(r => r.json()),
   });
 
-  const products = auditData?.products ?? [];
+  const allProducts = auditData?.products ?? [];
+
+  const displayProducts = countMode === "full"
+    ? allProducts
+    : allProducts.filter(p => physicalQtys[p.id] !== undefined && physicalQtys[p.id] !== "");
+
+  const diffEntries = allProducts.filter(p => physicalQtys[p.id] !== undefined && physicalQtys[p.id] !== "");
+  const itemsWithDiff = diffEntries.filter(p => {
+    const phys = parseFloat(physicalQtys[p.id] || "0");
+    return Math.abs(phys - p.actual_qty) > 0.001;
+  });
+  const totalDiff = diffEntries.reduce((acc, p) => acc + Math.abs(parseFloat(physicalQtys[p.id] || "0") - p.actual_qty), 0);
 
   const createAndApplyMutation = useMutation({
     mutationFn: async () => {
-      const items = products
+      if (!selectedWarehouse) throw new Error("اختر مخزناً أولاً");
+      if (!countDate) throw new Error("التاريخ مطلوب");
+      if (!countTime) throw new Error("الوقت مطلوب");
+
+      const items = allProducts
         .filter(p => physicalQtys[p.id] !== undefined && physicalQtys[p.id] !== "")
         .map(p => ({
-          product_id:   p.id,
+          product_id: p.id,
           physical_qty: parseFloat(physicalQtys[p.id] || "0"),
-          notes:        itemNotes[p.id] ?? undefined,
+          notes: itemNotes[p.id] ?? undefined,
         }));
 
       if (items.length === 0) throw new Error("أدخل كمية فعلية لمنتج واحد على الأقل");
 
-      // 1. إنشاء الجلسة
+      const notesWithDateTime = `جرد ${countDate} الساعة ${countTime}${sessionNotes ? ` — ${sessionNotes}` : ""}`;
+
       const createRes = await authFetch(api("/api/inventory/count-sessions"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ warehouse_id: selectedWarehouse, notes: sessionNotes || undefined, items }),
+        body: JSON.stringify({ warehouse_id: selectedWarehouse, notes: notesWithDateTime, items }),
       });
       if (!createRes.ok) {
         const err = await createRes.json().catch(() => ({}));
@@ -557,7 +675,6 @@ function CountTab({ currentWarehouseId, qc, toast }: {
       }
       const { session_id } = await createRes.json();
 
-      // 2. تطبيق الجلسة
       const applyRes = await authFetch(api(`/api/inventory/count-sessions/${session_id}/apply`), { method: "POST" });
       if (!applyRes.ok) {
         const err = await applyRes.json().catch(() => ({}));
@@ -566,8 +683,9 @@ function CountTab({ currentWarehouseId, qc, toast }: {
       return applyRes.json();
     },
     onSuccess: (data) => {
-      toast({ title: `تم تطبيق الجرد — ${data.adjustments_applied} تسوية` });
+      toast({ title: `✅ تم تطبيق الجرد — ${data.adjustments_applied} تسوية` });
       setPhysicalQtys({}); setItemNotes({}); setSessionNotes("");
+      setCountDate(today()); setCountTime(nowTime());
       qc.invalidateQueries({ queryKey: ["inventory-audit"] });
       qc.invalidateQueries({ queryKey: ["count-sessions"] });
     },
@@ -587,70 +705,108 @@ function CountTab({ currentWarehouseId, qc, toast }: {
     onError: (e) => { toast({ title: String(e), variant: "destructive" }); setApplyingId(null); },
   });
 
-  const diffEntries = products.filter(p => physicalQtys[p.id] !== undefined && physicalQtys[p.id] !== "");
-  const totalDiffs = diffEntries.reduce((acc, p) => {
-    const phys = parseFloat(physicalQtys[p.id] || "0");
-    return acc + Math.abs(phys - p.actual_qty);
-  }, 0);
+  const canApply = diffEntries.length > 0 && selectedWarehouse > 0 && !!countDate && !!countTime;
 
   return (
     <div className="space-y-6">
-      {/* ── شريط التبديل */}
+      {/* ── شريط التبديل ── */}
       <div className="flex gap-2">
         <button onClick={() => setSessionView("new")}
-          className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${sessionView === "new" ? "bg-violet-500 text-white" : "bg-white/10 text-white/60 hover:text-white"}`}>
+          className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${sessionView === "new" ? "bg-violet-500 text-white" : "bg-white/10 text-white/60 hover:text-white"}`}>
           جرد جديد
         </button>
         <button onClick={() => setSessionView("history")}
-          className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${sessionView === "history" ? "bg-violet-500 text-white" : "bg-white/10 text-white/60 hover:text-white"}`}>
+          className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${sessionView === "history" ? "bg-violet-500 text-white" : "bg-white/10 text-white/60 hover:text-white"}`}>
           سجل الجرد ({safeArray(sessions).length})
         </button>
       </div>
 
       {sessionView === "new" && (
-        <div className="space-y-4">
-          {/* إعدادات الجلسة */}
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
-            <h3 className="text-sm font-semibold text-white/70">إعدادات جلسة الجرد</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="space-y-5">
+          {/* ── إعدادات الجلسة ── */}
+          <div className="bg-[#111827] border border-white/8 rounded-2xl p-5 space-y-4">
+            <h3 className="text-sm font-bold text-white/70 flex items-center gap-2">
+              <ClipboardList className="w-4 h-4 text-violet-400" /> إعدادات جلسة الجرد
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* مخزن */}
               <div>
-                <label className="text-xs text-white/50 mb-1 block">المخزن</label>
+                <label className="block text-white/50 text-xs mb-1.5">المخزن <span className="text-red-400">*</span></label>
                 <select value={selectedWarehouse} onChange={e => setSelectedWarehouse(Number(e.target.value))}
-                  className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-violet-400/50 text-sm">
-                  {safeArray(warehouses).map(w => <option key={w.id} value={w.id} className="bg-[#1a1a2e]">{w.name}</option>)}
+                  className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-400/50">
+                  <option value={0} className="bg-[#1a1a2e]">— اختر مخزناً —</option>
+                  {warehouses.map(w => <option key={w.id} value={w.id} className="bg-[#1a1a2e]">{w.name}</option>)}
                 </select>
               </div>
+              {/* تاريخ */}
               <div>
-                <label className="text-xs text-white/50 mb-1 block">ملاحظات الجلسة (اختياري)</label>
+                <label className="block text-white/50 text-xs mb-1.5">تاريخ الجرد <span className="text-red-400">*</span></label>
+                <input type="date" value={countDate} onChange={e => setCountDate(e.target.value)}
+                  className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-400/50" />
+              </div>
+              {/* وقت */}
+              <div>
+                <label className="block text-white/50 text-xs mb-1.5">وقت الجرد <span className="text-red-400">*</span></label>
+                <input type="time" value={countTime} onChange={e => setCountTime(e.target.value)}
+                  className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-400/50" />
+              </div>
+              {/* ملاحظات */}
+              <div>
+                <label className="block text-white/50 text-xs mb-1.5">ملاحظات (اختياري)</label>
                 <input type="text" value={sessionNotes} onChange={e => setSessionNotes(e.target.value)}
                   placeholder="مثال: جرد نهاية الشهر"
-                  className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-violet-400/50 text-sm" />
+                  className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white text-sm placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-violet-400/50" />
+              </div>
+            </div>
+            {/* نوع الجرد */}
+            <div className="flex items-center gap-4 pt-1">
+              <span className="text-white/50 text-xs">نوع الجرد:</span>
+              <div className="flex gap-2">
+                {([
+                  { v: "full"    as const, label: "شامل — كل المنتجات" },
+                  { v: "partial" as const, label: "جزئي — منتجات مُدخلة فقط" },
+                ]).map(opt => (
+                  <button key={opt.v} onClick={() => setCountMode(opt.v)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                      countMode === opt.v ? "bg-violet-500 text-white" : "bg-white/10 text-white/50 hover:text-white"
+                    }`}>
+                    {opt.label}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
 
-          {/* ملخص الفروق */}
+          {/* ── ملخص الفروق ── */}
           {diffEntries.length > 0 && (
-            <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-amber-300 text-sm font-medium">
-                  {diffEntries.length} منتج بفارق إجمالي {totalDiffs.toFixed(2)} وحدة
-                </span>
-                <button
-                  onClick={() => createAndApplyMutation.mutate()}
-                  disabled={createAndApplyMutation.isPending}
-                  className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white rounded-xl text-sm font-medium transition-colors flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4" />
-                  {createAndApplyMutation.isPending ? "جاري التطبيق..." : "تطبيق الجرد"}
-                </button>
+            <div className={`rounded-2xl p-4 flex items-center justify-between ${itemsWithDiff.length > 0 ? "bg-amber-500/10 border border-amber-500/20" : "bg-emerald-500/10 border border-emerald-500/20"}`}>
+              <div>
+                <p className={`font-bold text-sm ${itemsWithDiff.length > 0 ? "text-amber-300" : "text-emerald-300"}`}>
+                  {itemsWithDiff.length > 0
+                    ? `${diffEntries.length} منتج مُسجَّل — ${itemsWithDiff.length} بفرق — فارق إجمالي: ${totalDiff.toFixed(2)} وحدة`
+                    : `${diffEntries.length} منتج مُسجَّل — لا توجد فروق ✓`}
+                </p>
+                <p className="text-white/40 text-xs mt-0.5">
+                  {!selectedWarehouse && "⚠ اختر مخزناً "}{!countDate && "⚠ التاريخ مطلوب "}{!countTime && "⚠ الوقت مطلوب"}
+                </p>
               </div>
+              <button
+                onClick={() => createAndApplyMutation.mutate()}
+                disabled={createAndApplyMutation.isPending || !canApply}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition-colors whitespace-nowrap">
+                {createAndApplyMutation.isPending
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> جاري التطبيق...</>
+                  : <><CheckCircle className="w-4 h-4" /> تطبيق الجرد</>}
+              </button>
             </div>
           )}
 
-          {/* جدول المنتجات */}
-          {loadingProducts ? (
+          {/* ── جدول المنتجات ── */}
+          {selectedWarehouse === 0 ? (
+            <div className="text-center py-16 text-white/30">اختر مخزناً لعرض المنتجات</div>
+          ) : loadingProducts ? (
             <div className="overflow-x-auto rounded-2xl border border-white/10">
-              <table className="w-full text-sm"><tbody><TableSkeleton cols={5} rows={5} /></tbody></table>
+              <table className="w-full text-sm"><tbody><TableSkeleton cols={5} rows={6} /></tbody></table>
             </div>
           ) : (
             <div className="overflow-x-auto rounded-2xl border border-white/10">
@@ -660,50 +816,55 @@ function CountTab({ currentWarehouseId, qc, toast }: {
                     <th className="p-3 text-right text-white/60 font-medium">المنتج</th>
                     <th className="p-3 text-right text-white/60 font-medium">كمية النظام</th>
                     <th className="p-3 text-right text-white/60 font-medium">الكمية الفعلية</th>
-                    <th className="p-3 text-right text-white/60 font-medium">الفرق</th>
-                    <th className="p-3 text-right text-white/60 font-medium">ملاحظة</th>
+                    <th className="p-3 text-right text-white/60 font-medium w-28">الفرق</th>
+                    <th className="p-3 text-right text-white/60 font-medium">سبب الفرق</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {products.map(p => {
+                  {(countMode === "full" ? allProducts : displayProducts).map(p => {
                     const rawPhys = physicalQtys[p.id];
                     const physQty = rawPhys !== undefined && rawPhys !== "" ? parseFloat(rawPhys) : null;
                     const diff    = physQty !== null ? physQty - p.actual_qty : null;
+                    const hasDiff = diff !== null && Math.abs(diff) > 0.001;
                     return (
-                      <tr key={p.id} className="border-b border-white/5 erp-table-row">
+                      <tr key={p.id} className={`border-b border-white/5 erp-table-row ${hasDiff ? "bg-amber-500/5" : ""}`}>
                         <td className="p-3">
                           <div className="text-white font-medium">{p.name}</div>
                           {p.sku && <div className="text-white/40 text-xs">{p.sku}</div>}
+                          {p.category && <div className="text-white/30 text-xs">{p.category}</div>}
                         </td>
-                        <td className="p-3 font-mono text-white/70">{p.actual_qty.toFixed(2)}</td>
+                        <td className="p-3 font-mono text-white/70 font-bold">{p.actual_qty.toFixed(2)}</td>
                         <td className="p-3">
-                          <input
-                            type="number" min="0" step="0.001"
+                          <input type="number" min="0" step="0.001"
                             value={physicalQtys[p.id] ?? ""}
                             onChange={e => setPhysicalQtys(prev => ({ ...prev, [p.id]: e.target.value }))}
-                            placeholder="أدخل العدد"
-                            className="w-28 bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-violet-400/50 text-sm font-mono" />
+                            placeholder="أدخل الكمية"
+                            className="w-28 bg-white/10 border border-white/20 rounded-lg px-2 py-1.5 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-violet-400/50 text-sm font-mono" />
                         </td>
-                        <td className="p-3 font-mono">
-                          {diff === null ? <span className="text-white/30">—</span> :
-                            diff === 0 ? <span className="text-emerald-400">✓ صفر</span> :
-                            <span className={diff > 0 ? "text-teal-400 font-bold" : "text-red-400 font-bold"}>
+                        <td className="p-3 font-mono w-28">
+                          {diff === null ? <span className="text-white/20">—</span> :
+                            diff === 0 ? <span className="text-emerald-400 font-bold">✓ صفر</span> :
+                            <span className={`font-bold ${diff > 0 ? "text-teal-400" : "text-red-400"}`}>
                               {diff > 0 ? `+${diff.toFixed(3)}` : diff.toFixed(3)}
                             </span>}
                         </td>
                         <td className="p-3">
-                          {physQty !== null && diff !== null && diff !== 0 && (
+                          {hasDiff && (
                             <input type="text" value={itemNotes[p.id] ?? ""}
                               onChange={e => setItemNotes(prev => ({ ...prev, [p.id]: e.target.value }))}
                               placeholder="سبب الفرق"
-                              className="w-36 bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-white placeholder:text-white/30 focus:outline-none text-xs" />
+                              className="w-40 bg-white/10 border border-amber-500/30 rounded-lg px-2 py-1 text-white placeholder:text-white/30 focus:outline-none text-xs" />
                           )}
                         </td>
                       </tr>
                     );
                   })}
-                  {products.length === 0 && (
-                    <tr><td colSpan={5} className="text-center text-white/40 py-12">لا توجد منتجات في هذا المخزن</td></tr>
+                  {(countMode === "full" ? allProducts : displayProducts).length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="text-center text-white/40 py-12">
+                        {countMode === "partial" ? "لم تُدخل كميات بعد" : "لا توجد منتجات في هذا المخزن"}
+                      </td>
+                    </tr>
                   )}
                 </tbody>
               </table>
@@ -712,40 +873,47 @@ function CountTab({ currentWarehouseId, qc, toast }: {
         </div>
       )}
 
+      {/* ── سجل الجلسات ── */}
       {sessionView === "history" && (
         <div className="space-y-3">
           {safeArray(sessions).length === 0 && (
             <p className="text-white/40 text-center py-12">لا توجد جلسات جرد سابقة</p>
           )}
-          {safeArray(sessions).map(s => (
-            <div key={s.id} className="bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-white font-medium">جلسة #{s.id}</span>
-                  <span className={`px-2 py-0.5 rounded-lg text-xs font-medium ${s.status === "applied" ? "bg-emerald-500/20 text-emerald-300" : "bg-amber-500/20 text-amber-300"}`}>
-                    {s.status === "applied" ? "مطبّق" : "مسودة"}
-                  </span>
-                </div>
-                <div className="text-white/40 text-xs mt-1">
-                  مخزن #{s.warehouse_id} — {new Date(s.created_at).toLocaleDateString("ar-EG")}
-                  {s.notes && ` — ${s.notes}`}
-                </div>
-                {s.applied_at && (
-                  <div className="text-emerald-400/60 text-xs mt-0.5">
-                    طُبِّق: {new Date(s.applied_at).toLocaleDateString("ar-EG")}
+          {safeArray(sessions).map(s => {
+            const whName = warehouses.find(w => w.id === s.warehouse_id)?.name ?? `مخزن #${s.warehouse_id}`;
+            return (
+              <div key={s.id} className="bg-[#111827] border border-white/8 rounded-2xl p-4 flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-white font-bold">جلسة #{s.id}</span>
+                    <span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${s.status === "applied" ? "bg-emerald-500/20 text-emerald-300" : "bg-amber-500/20 text-amber-300"}`}>
+                      {s.status === "applied" ? "مطبّق" : "مسودة"}
+                    </span>
                   </div>
+                  <div className="text-white/40 text-xs mt-1">
+                    {whName} — {new Date(s.created_at).toLocaleDateString("ar-EG")}
+                    {s.notes && ` — ${s.notes}`}
+                  </div>
+                  {s.applied_at && (
+                    <div className="text-emerald-400/60 text-xs mt-0.5">
+                      طُبِّق: {new Date(s.applied_at).toLocaleDateString("ar-EG")}
+                    </div>
+                  )}
+                </div>
+                {s.status === "draft" && (
+                  <button
+                    onClick={() => { setApplyingId(s.id); applyExistingMutation.mutate(s.id); }}
+                    disabled={applyExistingMutation.isPending && applyingId === s.id}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 rounded-xl text-xs font-bold transition-colors disabled:opacity-50">
+                    {applyExistingMutation.isPending && applyingId === s.id
+                      ? <Loader2 className="w-3 h-3 animate-spin" />
+                      : <CheckCircle className="w-3 h-3" />}
+                    تطبيق
+                  </button>
                 )}
               </div>
-              {s.status === "draft" && (
-                <button
-                  onClick={() => { setApplyingId(s.id); applyExistingMutation.mutate(s.id); }}
-                  disabled={applyExistingMutation.isPending && applyingId === s.id}
-                  className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 rounded-xl text-xs font-medium transition-colors disabled:opacity-50">
-                  {applyExistingMutation.isPending && applyingId === s.id ? "جاري..." : "تطبيق"}
-                </button>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -753,24 +921,22 @@ function CountTab({ currentWarehouseId, qc, toast }: {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * TAB 3 — تحويل المخزون بين المخازن
+ * TAB 3 — تحويل المخزون (Improved UI)
  * ═══════════════════════════════════════════════════════════════════════════ */
 interface TransferLine { product_id: number; product_name: string; quantity: string }
 
-function TransferTab({ qc, toast }: {
+function TransferTab({ warehouses, qc, toast }: {
+  warehouses: { id: number; name: string }[];
   qc: ReturnType<typeof useQueryClient>;
   toast: ReturnType<typeof useToast>["toast"];
 }) {
-  const [fromWH, setFromWH] = useState<number>(1);
-  const [toWH, setToWH] = useState<number>(2);
+  const defaultFirst  = warehouses[0]?.id ?? 1;
+  const defaultSecond = warehouses[1]?.id ?? 2;
+  const [fromWH, setFromWH]           = useState<number>(defaultFirst);
+  const [toWH, setToWH]               = useState<number>(defaultSecond);
   const [transferNotes, setTransferNotes] = useState("");
-  const [lines, setLines] = useState<TransferLine[]>([{ product_id: 0, product_name: "", quantity: "" }]);
-  const [view, setView] = useState<"new" | "history">("new");
-
-  const { data: warehouses } = useQuery<Warehouse[]>({
-    queryKey: ["warehouses"],
-    queryFn: () => authFetch(api("/api/settings/warehouses")).then(r => r.json()),
-  });
+  const [lines, setLines]             = useState<TransferLine[]>([{ product_id: 0, product_name: "", quantity: "" }]);
+  const [view, setView]               = useState<"new" | "history">("new");
 
   const { data: auditData } = useQuery<{ products: AuditProduct[]; summary: AuditSummary }>({
     queryKey: ["inventory-audit", null],
@@ -793,15 +959,14 @@ function TransferTab({ qc, toast }: {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          from_warehouse_id: fromWH,
-          to_warehouse_id:   toWH,
-          notes:             transferNotes || undefined,
+          from_warehouse_id: fromWH, to_warehouse_id: toWH,
+          notes: transferNotes || undefined,
           items: validLines.map(l => ({ product_id: l.product_id, quantity: parseFloat(l.quantity) })),
         }),
       }).then(r => r.json().then(d => { if (!r.ok) throw new Error(d.error ?? "خطأ في التحويل"); return d; }));
     },
     onSuccess: (data) => {
-      toast({ title: `تم التحويل بنجاح — ${data.from_warehouse} ← ${data.to_warehouse}` });
+      toast({ title: `✅ تم التحويل — ${data.from_warehouse} ← ${data.to_warehouse}` });
       setLines([{ product_id: 0, product_name: "", quantity: "" }]);
       setTransferNotes("");
       qc.invalidateQueries({ queryKey: ["inventory-audit"] });
@@ -823,80 +988,85 @@ function TransferTab({ qc, toast }: {
     });
   }
 
-  function addLine() { setLines(prev => [...prev, { product_id: 0, product_name: "", quantity: "" }]); }
-  function removeLine(idx: number) { setLines(prev => prev.filter((_, i) => i !== idx)); }
-
-  const whs = safeArray(warehouses);
+  const validLinesCount = lines.filter(l => l.product_id > 0 && parseFloat(l.quantity) > 0).length;
 
   return (
     <div className="space-y-6">
-      {/* ── شريط التبديل */}
+      {/* ── شريط التبديل ── */}
       <div className="flex gap-2">
         <button onClick={() => setView("new")}
-          className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${view === "new" ? "bg-violet-500 text-white" : "bg-white/10 text-white/60 hover:text-white"}`}>
+          className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${view === "new" ? "bg-violet-500 text-white" : "bg-white/10 text-white/60 hover:text-white"}`}>
           تحويل جديد
         </button>
         <button onClick={() => setView("history")}
-          className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${view === "history" ? "bg-violet-500 text-white" : "bg-white/10 text-white/60 hover:text-white"}`}>
+          className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${view === "history" ? "bg-violet-500 text-white" : "bg-white/10 text-white/60 hover:text-white"}`}>
           سجل التحويلات ({safeArray(transfers).length})
         </button>
       </div>
 
       {view === "new" && (
-        <div className="space-y-4">
-          {/* اختيار المخازن */}
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
-            <h3 className="text-sm font-semibold text-white/70">بيانات التحويل</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="space-y-5">
+          {/* ── اتجاه التحويل ── */}
+          <div className="bg-[#111827] border border-white/8 rounded-2xl p-5 space-y-4">
+            <h3 className="text-sm font-bold text-white/70 flex items-center gap-2">
+              <Truck className="w-4 h-4 text-violet-400" /> بيانات التحويل
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-3 items-end">
               <div>
-                <label className="text-xs text-white/50 mb-1 block">من مخزن</label>
+                <label className="block text-white/50 text-xs mb-1.5">من مخزن <span className="text-red-400">*</span></label>
                 <select value={fromWH} onChange={e => setFromWH(Number(e.target.value))}
-                  className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-violet-400/50 text-sm">
-                  {whs.map(w => <option key={w.id} value={w.id} className="bg-[#1a1a2e]">{w.name}</option>)}
+                  className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-400/50">
+                  {warehouses.map(w => <option key={w.id} value={w.id} className="bg-[#1a1a2e]">{w.name}</option>)}
                 </select>
               </div>
-              <div className="flex items-end justify-center">
-                <div className="text-white/40 text-2xl pb-2">←</div>
+              <div className="flex items-center justify-center pb-1">
+                <div className="w-10 h-10 rounded-full bg-violet-500/20 border border-violet-500/30 flex items-center justify-center">
+                  <Truck className="w-4 h-4 text-violet-400" />
+                </div>
               </div>
               <div>
-                <label className="text-xs text-white/50 mb-1 block">إلى مخزن</label>
+                <label className="block text-white/50 text-xs mb-1.5">إلى مخزن <span className="text-red-400">*</span></label>
                 <select value={toWH} onChange={e => setToWH(Number(e.target.value))}
-                  className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-violet-400/50 text-sm">
-                  {whs.map(w => <option key={w.id} value={w.id} className="bg-[#1a1a2e]">{w.name}</option>)}
+                  className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-400/50">
+                  {warehouses.map(w => <option key={w.id} value={w.id} className="bg-[#1a1a2e]">{w.name}</option>)}
                 </select>
               </div>
             </div>
             {fromWH === toWH && (
-              <p className="text-amber-400 text-xs">⚠ لا يمكن التحويل من مخزن إلى نفسه</p>
+              <p className="text-amber-400 text-xs bg-amber-500/10 px-3 py-2 rounded-xl border border-amber-500/20">
+                ⚠ لا يمكن التحويل من مخزن إلى نفسه
+              </p>
             )}
             <div>
-              <label className="text-xs text-white/50 mb-1 block">ملاحظات (اختياري)</label>
+              <label className="block text-white/50 text-xs mb-1.5">ملاحظات (اختياري)</label>
               <input type="text" value={transferNotes} onChange={e => setTransferNotes(e.target.value)}
                 placeholder="مثال: تحويل لتغطية طلبات فرع ثاني"
-                className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-violet-400/50 text-sm" />
+                className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white text-sm placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-violet-400/50" />
             </div>
           </div>
 
-          {/* قائمة المنتجات */}
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
+          {/* ── المنتجات المُحوَّلة ── */}
+          <div className="bg-[#111827] border border-white/8 rounded-2xl p-5 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-white/70">المنتجات المُحوَّلة</h3>
-              <button onClick={addLine} className="flex items-center gap-1 px-3 py-1.5 bg-violet-500/20 hover:bg-violet-500/30 text-violet-300 rounded-xl text-xs font-medium transition-colors">
-                <Plus className="w-3 h-3" /> إضافة منتج
+              <h3 className="text-sm font-bold text-white/70">المنتجات المُحوَّلة</h3>
+              <button
+                onClick={() => setLines(prev => [...prev, { product_id: 0, product_name: "", quantity: "" }])}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-500/20 hover:bg-violet-500/30 text-violet-300 rounded-xl text-xs font-bold transition-colors">
+                <Plus className="w-3.5 h-3.5" /> إضافة منتج
               </button>
             </div>
 
             <div className="space-y-2">
               {lines.map((line, idx) => {
-                const product = allProducts.find(p => p.id === line.product_id);
-                const available = product ? product.actual_qty : 0;
-                const reqQty = parseFloat(line.quantity) || 0;
+                const product      = allProducts.find(p => p.id === line.product_id);
+                const available    = product ? product.actual_qty : 0;
+                const reqQty       = parseFloat(line.quantity) || 0;
                 const isInsufficient = line.product_id > 0 && reqQty > 0 && reqQty > available;
                 return (
                   <div key={idx} className="flex gap-2 items-start">
                     <select value={line.product_id}
                       onChange={e => updateLine(idx, "product_id", e.target.value)}
-                      className="flex-1 bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-violet-400/50 text-sm">
+                      className="flex-1 bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-400/50">
                       <option value={0} className="bg-[#1a1a2e]">— اختر منتجاً —</option>
                       {allProducts.map(p => (
                         <option key={p.id} value={p.id} className="bg-[#1a1a2e]">
@@ -908,11 +1078,14 @@ function TransferTab({ qc, toast }: {
                       <input type="number" min="0.001" step="0.001" value={line.quantity}
                         onChange={e => updateLine(idx, "quantity", e.target.value)}
                         placeholder="الكمية"
-                        className={`w-28 bg-white/10 border rounded-xl px-3 py-2 text-white placeholder:text-white/30 focus:outline-none text-sm font-mono ${isInsufficient ? "border-red-400/50" : "border-white/20"}`} />
-                      {isInsufficient && <span className="text-red-400 text-xs">الكمية غير كافية ({available.toFixed(1)})</span>}
+                        className={`w-28 bg-white/10 border rounded-xl px-3 py-2 text-white placeholder:text-white/30 focus:outline-none text-sm font-mono ${
+                          isInsufficient ? "border-red-400/50 focus:ring-2 focus:ring-red-400/30" : "border-white/20 focus:ring-2 focus:ring-violet-400/50"
+                        }`} />
+                      {isInsufficient && <span className="text-red-400 text-xs">غير كافٍ ({available.toFixed(1)})</span>}
                     </div>
                     {lines.length > 1 && (
-                      <button onClick={() => removeLine(idx)} className="p-2 text-white/30 hover:text-red-400 transition-colors mt-0.5">
+                      <button onClick={() => setLines(prev => prev.filter((_, i) => i !== idx))}
+                        className="p-2 text-white/30 hover:text-red-400 transition-colors mt-0.5">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     )}
@@ -923,39 +1096,41 @@ function TransferTab({ qc, toast }: {
 
             <button
               onClick={() => transferMutation.mutate()}
-              disabled={transferMutation.isPending || fromWH === toWH}
-              className="w-full py-2.5 bg-violet-500 hover:bg-violet-400 disabled:opacity-50 text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2">
-              <Truck className="w-4 h-4" />
-              {transferMutation.isPending ? "جاري التحويل..." : "تنفيذ التحويل"}
+              disabled={transferMutation.isPending || fromWH === toWH || validLinesCount === 0}
+              className="w-full py-3 bg-violet-500 hover:bg-violet-400 disabled:opacity-50 text-white rounded-xl font-bold text-sm transition-colors flex items-center justify-center gap-2">
+              {transferMutation.isPending
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> جاري التحويل...</>
+                : <><Truck className="w-4 h-4" /> تنفيذ التحويل ({validLinesCount > 0 ? `${validLinesCount} منتج` : ""})</>}
             </button>
           </div>
         </div>
       )}
 
+      {/* ── سجل التحويلات ── */}
       {view === "history" && (
         <div className="space-y-3">
           {safeArray(transfers).length === 0 && (
             <p className="text-white/40 text-center py-12">لا توجد عمليات تحويل سابقة</p>
           )}
           {safeArray(transfers).map(t => {
-            const fromName = whs.find(w => w.id === t.from_warehouse_id)?.name ?? `مخزن #${t.from_warehouse_id}`;
-            const toName   = whs.find(w => w.id === t.to_warehouse_id)?.name   ?? `مخزن #${t.to_warehouse_id}`;
+            const fromName = warehouses.find(w => w.id === t.from_warehouse_id)?.name ?? `مخزن #${t.from_warehouse_id}`;
+            const toName   = warehouses.find(w => w.id === t.to_warehouse_id)?.name   ?? `مخزن #${t.to_warehouse_id}`;
             return (
-              <div key={t.id} className="bg-white/5 border border-white/10 rounded-2xl p-4">
+              <div key={t.id} className="bg-[#111827] border border-white/8 rounded-2xl p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-white font-medium">تحويل #{t.id}</span>
-                      <span className="px-2 py-0.5 rounded-lg text-xs bg-emerald-500/20 text-emerald-300">مكتمل</span>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-white font-bold">تحويل #{t.id}</span>
+                      <span className="px-2 py-0.5 rounded-lg text-xs font-bold bg-emerald-500/20 text-emerald-300">مكتمل</span>
                     </div>
-                    <div className="text-white/60 text-sm mt-1 flex items-center gap-2">
-                      <span>{fromName}</span>
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-amber-300 font-medium">{fromName}</span>
                       <span className="text-white/30">←</span>
-                      <span className="text-cyan-300">{toName}</span>
+                      <span className="text-cyan-300 font-medium">{toName}</span>
                     </div>
                     {t.notes && <div className="text-white/40 text-xs mt-1">{t.notes}</div>}
                   </div>
-                  <div className="text-white/40 text-xs">
+                  <div className="text-white/40 text-xs text-left">
                     {new Date(t.created_at).toLocaleDateString("ar-EG")}
                   </div>
                 </div>
@@ -968,7 +1143,7 @@ function TransferTab({ qc, toast }: {
   );
 }
 
-/* ─── مساعد: بطاقة ملخص ────────────────────────────────────────────────── */
+/* ─── بطاقة ملخص ─────────────────────────────────────────────────────────── */
 function SummaryCard({ label, value, color }: { label: string; value: string; color: string }) {
   return (
     <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
