@@ -3,6 +3,7 @@
  * Purple theme | Calls /api/safe-transfers
  */
 import { useState } from "react";
+import { safeArray } from "@/lib/safe-data";
 import { authFetch } from "@/lib/auth-fetch";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useGetSettingsSafes } from "@workspace/api-client-react";
@@ -19,7 +20,8 @@ interface Props { onClose: () => void; }
 export default function TransferModal({ onClose }: Props) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { data: safes = [] } = useGetSettingsSafes();
+  const { data: safesRaw } = useGetSettingsSafes();
+  const safes = safeArray(safesRaw);
 
   const [form, setForm] = useState({
     from_safe_id: "", to_safe_id: "", amount: "", notes: "", date: today(),

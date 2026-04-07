@@ -10,6 +10,7 @@ import { CheckCircle, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/contexts/auth";
 import { hasPermission } from "@/lib/permissions";
 import { api, authFetch, formatCurrency } from "./shared";
+import { safeArray } from "@/lib/safe-data";
 
 import ProfitLossReport        from "./ProfitLossReport";
 import InventoryReport         from "./InventoryReport";
@@ -50,9 +51,9 @@ function FinancialConsistencyBar() {
     staleTime: 120_000,
   });
 
-  if (!bs) return null;
+  if (!bs || !bs.assets) return null;
 
-  const treasury   = (safes ?? []).reduce((s, safe) => s + Number(safe.balance ?? 0), 0);
+  const treasury   = safeArray<SafeRow>(safes).reduce((s, safe) => s + Number(safe.balance ?? 0), 0);
   const diff       = Math.abs(bs.assets.total - bs.total_liabilities_equity);
   const balanced   = bs.balanced;
 

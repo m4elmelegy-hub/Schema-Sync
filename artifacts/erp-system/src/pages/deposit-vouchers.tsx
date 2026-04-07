@@ -1,3 +1,4 @@
+import { safeArray } from "@/lib/safe-data";
 import { useState } from "react";
 import { authFetch } from "@/lib/auth-fetch";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -30,7 +31,8 @@ function PostingBadge({ status }: { status: string }) {
 export default function DepositVouchers() {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { data: safes = [] } = useGetSettingsSafes();
+  const { data: safesRaw } = useGetSettingsSafes();
+  const safes = safeArray(safesRaw);
   const { data: vouchers = [], isLoading } = useQuery<DepositVoucher[]>({
     queryKey: ["/api/deposit-vouchers"],
     queryFn: () => authFetch(api("/api/deposit-vouchers")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),

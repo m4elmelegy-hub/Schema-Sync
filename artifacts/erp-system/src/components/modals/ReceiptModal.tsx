@@ -3,6 +3,7 @@
  * Minimal: customer + safe + amount + date + notes
  */
 import { useState, useMemo } from "react";
+import { safeArray } from "@/lib/safe-data";
 import { authFetch } from "@/lib/auth-fetch";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useGetSettingsSafes } from "@workspace/api-client-react";
@@ -21,11 +22,13 @@ interface Props { onClose: () => void; }
 export default function ReceiptModal({ onClose }: Props) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { data: safes = [] } = useGetSettingsSafes();
-  const { data: customers = [] } = useQuery<Customer[]>({
+  const { data: safesRaw } = useGetSettingsSafes();
+  const safes = safeArray(safesRaw);
+  const { data: customersRaw } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],
     queryFn: () => authFetch(api("/api/customers")).then(r => r.json()),
   });
+  const customers = safeArray(customersRaw);
 
   const [form, setForm] = useState({
     customer_id: "", safe_id: "", amount: "", notes: "", date: today(),

@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { safeArray } from "@/lib/safe-data";
 import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -509,10 +510,12 @@ function getInitials(name: string) {
 }
 
 function UsersTab() {
-  const { data: users = [], isLoading } = useGetSettingsUsers();
+  const { data: usersRaw, isLoading } = useGetSettingsUsers();
+  const users = safeArray(usersRaw);
   const { data: warehousesRaw } = useGetSettingsWarehouses();
-  const warehouses = Array.isArray(warehousesRaw) ? warehousesRaw : [];
-  const { data: safes = [] } = useGetSettingsSafes();
+  const warehouses = safeArray(warehousesRaw);
+  const { data: safesRaw } = useGetSettingsSafes();
+  const safes = safeArray(safesRaw);
   const createUser = useCreateSettingsUser();
   const updateUser = useUpdateSettingsUser();
   const deleteUser = useDeleteSettingsUser();
@@ -881,7 +884,8 @@ function UsersTab() {
    SAFES TAB
    ══════════════════════════════════════════════════════════════════ */
 function SafesTab() {
-  const { data: safes = [], isLoading } = useGetSettingsSafes();
+  const { data: safesRaw, isLoading } = useGetSettingsSafes();
+  const safes = safeArray(safesRaw);
   const createSafe = useCreateSettingsSafe();
   const deleteSafe = useDeleteSettingsSafe();
   const queryClient = useQueryClient();
@@ -1133,7 +1137,7 @@ function SafesTab() {
    ══════════════════════════════════════════════════════════════════ */
 function WarehousesTab() {
   const { data: warehousesRaw, isLoading } = useGetSettingsWarehouses();
-  const warehouses = Array.isArray(warehousesRaw) ? warehousesRaw : [];
+  const warehouses = safeArray(warehousesRaw);
   const createWarehouse = useCreateSettingsWarehouse();
   const deleteWarehouse = useDeleteSettingsWarehouse();
   const queryClient = useQueryClient();
@@ -3137,7 +3141,8 @@ function OBEntryTable({ entries, loading, columns }: {
 /* ── Treasury sub-tab ── */
 function OBTreasuryTab() {
   const { data: entries, loading, reload } = useOBData("/opening-balance/treasury");
-  const { data: safes = [] } = useGetSettingsSafes();
+  const { data: safesRaw } = useGetSettingsSafes();
+  const safes = safeArray(safesRaw);
   const { toast } = useToast();
   const [form, setForm]   = useState({ safe_id: "", amount: "", date: new Date().toISOString().split("T")[0], notes: "" });
   const [saving, setSaving] = useState(false);
@@ -3211,7 +3216,8 @@ function OBTreasuryTab() {
 /* ── Products sub-tab ── */
 function OBProductsTab() {
   const { data: entries, loading, reload } = useOBData("/opening-balance/product");
-  const { data: products = [] } = useGetProducts();
+  const { data: productsRaw } = useGetProducts();
+  const products = safeArray(productsRaw);
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [form, setForm]     = useState({ product_id: "", quantity: "", cost_price: "", date: new Date().toISOString().split("T")[0], notes: "" });
@@ -3315,7 +3321,8 @@ function OBProductsTab() {
 /* ── Customers sub-tab ── */
 function OBCustomersTab() {
   const { data: entries, loading, reload } = useOBData("/opening-balance/customer");
-  const { data: customers = [] } = useGetCustomers();
+  const { data: customersRaw } = useGetCustomers();
+  const customers = safeArray(customersRaw);
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [form, setForm]     = useState({ customer_id: "", amount: "", date: new Date().toISOString().split("T")[0], notes: "" });
@@ -3398,7 +3405,8 @@ function OBCustomersTab() {
 /* ── Suppliers sub-tab ── */
 function OBSuppliersTab() {
   const { data: entries, loading, reload } = useOBData("/opening-balance/supplier");
-  const { data: allCustomers = [] } = useGetCustomers();
+  const { data: allCustomersRaw } = useGetCustomers();
+  const allCustomers = safeArray(allCustomersRaw);
   const suppliers = allCustomers.filter(c => c.is_supplier);
   const { toast } = useToast();
   const [search, setSearch] = useState("");

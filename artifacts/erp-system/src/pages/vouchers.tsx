@@ -1,3 +1,4 @@
+import { safeArray } from "@/lib/safe-data";
 /**
  * Vouchers page — READ ONLY
  * Shows unified list of all vouchers with filters and actions (post/cancel/delete)
@@ -126,7 +127,8 @@ export default function Vouchers() {
   const [, navigate] = useLocation();
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { data: safes = [] } = useGetSettingsSafes();
+  const { data: safesRaw } = useGetSettingsSafes();
+  const safes = safeArray(safesRaw);
 
   const { data: receipts  = [], isLoading: l1 } = useQuery<ReceiptVoucher[]>({
     queryKey: ["/api/receipt-vouchers"],

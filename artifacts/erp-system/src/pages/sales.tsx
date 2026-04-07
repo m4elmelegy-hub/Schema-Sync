@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { safeArray } from "@/lib/safe-data";
 import { authFetch } from "@/lib/auth-fetch";
 import { useGetSales, useGetSaleById, useGetProducts, useGetCustomers, useGetSettingsSafes } from "@workspace/api-client-react";
 import { useWarehouse } from "@/contexts/warehouse";
@@ -36,9 +37,12 @@ function SalesReturnsPanel() {
     queryKey: ["/api/sales-returns"],
     queryFn: () => authFetch(api("/api/sales-returns")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
-  const { data: products = [] } = useGetProducts();
-  const { data: customers = [] } = useGetCustomers();
-  const { data: safes = [] } = useGetSettingsSafes();
+  const { data: productsRaw } = useGetProducts();
+  const products = safeArray(productsRaw);
+  const { data: customersRaw } = useGetCustomers();
+  const customers = safeArray(customersRaw);
+  const { data: safesRaw } = useGetSettingsSafes();
+  const safes = safeArray(safesRaw);
 
   const createMutation = useMutation({
     mutationFn: (data: object) => authFetch(api("/api/sales-returns"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error); return j; }),
@@ -531,9 +535,12 @@ function WhatsAppSuccessModal({ invoice, onClose }: { invoice: SuccessInvoice; o
 function NewSalePanel({ onDone }: { onDone: () => void }) {
   const { user: currentUser } = useAuth();
   const canEditPrice = hasPermission(currentUser, "can_edit_price") === true;
-  const { data: products = [] } = useGetProducts();
-  const { data: customers = [] } = useGetCustomers();
-  const { data: safes = [] } = useGetSettingsSafes();
+  const { data: productsRaw } = useGetProducts();
+  const products = safeArray(productsRaw);
+  const { data: customersRaw } = useGetCustomers();
+  const customers = safeArray(customersRaw);
+  const { data: safesRaw } = useGetSettingsSafes();
+  const safes = safeArray(safesRaw);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -542,10 +549,10 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
     queryFn: () => authFetch(api("/api/settings/warehouses")).then(async r => {
       if (!r.ok) throw new Error("خطأ في جلب البيانات");
       const j = await r.json();
-      return Array.isArray(j) ? j : [];
+      return safeArray(j);
     }),
   });
-  const warehouses = Array.isArray(warehousesRaw) ? warehousesRaw : [];
+  const warehouses = safeArray(warehousesRaw);
 
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);

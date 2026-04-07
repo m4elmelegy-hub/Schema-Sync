@@ -1,3 +1,4 @@
+import { safeArray } from "@/lib/safe-data";
 import { useState } from "react";
 import { authFetch } from "@/lib/auth-fetch";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -22,7 +23,8 @@ export default function Income() {
     queryKey: ["/api/income"],
     queryFn: () => authFetch(api("/api/income")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
-  const { data: safes = [] } = useGetSettingsSafes();
+  const { data: safesRaw } = useGetSettingsSafes();
+  const safes = safeArray(safesRaw);
   const deleteMutation = useDeleteIncome();
   const queryClient = useQueryClient();
   const { toast } = useToast();

@@ -3,6 +3,7 @@
  * Gold/amber theme | Reads /api/financial-transactions
  */
 import { useState } from "react";
+import { safeArray } from "@/lib/safe-data";
 import { authFetch } from "@/lib/auth-fetch";
 import { useQuery } from "@tanstack/react-query";
 import { useGetSettingsSafes } from "@workspace/api-client-react";
@@ -38,12 +39,13 @@ interface Props { onClose: () => void; }
 
 export default function CloseSafeModal({ onClose }: Props) {
   const { toast } = useToast();
-  const { data: safes = [] } = useGetSettingsSafes();
+  const { data: safesRaw } = useGetSettingsSafes();
+  const safes = safeArray(safesRaw);
   const [safeId,      setSafeId]      = useState(safes.length > 0 ? String(safes[0].id) : "");
   const [closingDate, setClosingDate] = useState(today());
   const [actualBal,   setActualBal]   = useState("");
 
-  const { data: txToday = [] } = useQuery<Transaction[]>({
+  const { data: txTodayRaw } = useQuery<Transaction[]>({
     queryKey: ["/api/financial-transactions", safeId, closingDate],
     queryFn: () =>
       safeId
@@ -52,6 +54,7 @@ export default function CloseSafeModal({ onClose }: Props) {
         : Promise.resolve([]),
     enabled: !!safeId,
   });
+  const txToday = safeArray(txTodayRaw);
 
   const selectedSafe  = safes.find(s => String(s.id) === safeId);
   const systemBalance = selectedSafe ? Number(selectedSafe.balance) : 0;

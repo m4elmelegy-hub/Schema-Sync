@@ -1,3 +1,4 @@
+import { safeArray } from "@/lib/safe-data";
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
@@ -297,7 +298,8 @@ function CustomDropdown({
 
 export default function FinancialTransactions() {
   const [, navigate] = useLocation();
-  const { data: safes = [] } = useGetSettingsSafes();
+  const { data: safesRaw } = useGetSettingsSafes();
+  const safes = safeArray(safesRaw);
   const { settings } = useAppSettings();
   const isDark = settings.theme !== "light";
 

@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/auth";
 import { useAppSettings } from "@/contexts/app-settings";
 import { useWarehouse } from "@/contexts/warehouse";
 import { authFetch } from "@/lib/auth-fetch";
+import { safeArray } from "@/lib/safe-data";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NAV_ITEMS, canAccess, type UserRole } from "@/lib/rbac";
 import { hasPermission } from "@/lib/permissions";
@@ -142,11 +143,11 @@ export function AppLayout({ children }: LayoutProps) {
     queryFn: () => authFetch(api("/api/settings/warehouses")).then(async r => {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const j = await r.json();
-      return Array.isArray(j) ? j : [];
+      return safeArray(j);
     }),
     staleTime: 5 * 60_000,
   });
-  const warehouses = Array.isArray(warehousesRaw) ? warehousesRaw : [];
+  const warehouses = safeArray(warehousesRaw);
 
   const role = (user?.role ?? "cashier") as UserRole;
   const canSelectWarehouse = role === "admin" || role === "manager";

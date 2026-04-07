@@ -1,3 +1,4 @@
+import { safeArray } from "@/lib/safe-data";
 import { useState } from "react";
 import { authFetch } from "@/lib/auth-fetch";
 import { useQuery } from "@tanstack/react-query";
@@ -20,7 +21,9 @@ type ModalType = "receipt" | "payment" | "transfer" | "safe-closing" | null;
 export default function Treasury() {
   const [openModal, setOpenModal] = useState<ModalType>(null);
 
-  const { data: safes = [] } = useGetSettingsSafes();
+  const { data: safesRaw } = useGetSettingsSafes();
+
+  const safes = safeArray(safesRaw);
   const { data: stats }      = useQuery<Record<string, number>>({
     queryKey: ["/api/dashboard/stats"],
     queryFn: () => authFetch(api("/api/dashboard/stats")).then(r => { if (!r.ok) throw new Error("خطأ"); return r.json(); }),

@@ -1,3 +1,4 @@
+import { safeArray } from "@/lib/safe-data";
 import { useState } from "react";
 import { useAuth } from "@/contexts/auth";
 import { hasPermission } from "@/lib/permissions";
@@ -277,8 +278,11 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
     onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
   });
 
-  const { data: allSales = [] } = useGetSales();
-  const { data: allPurchases = [] } = useGetPurchases();
+  const { data: allSalesRaw } = useGetSales();
+
+  const allSales = safeArray(allSalesRaw);
+  const { data: allPurchasesRaw } = useGetPurchases();
+  const allPurchases = safeArray(allPurchasesRaw);
   const { data: receiptVouchers = [] } = useQuery<ReceiptVoucher[]>({
     queryKey: ["/api/receipt-vouchers"],
     queryFn: () => authFetch(api("/api/receipt-vouchers")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
@@ -699,7 +703,8 @@ export default function Customers() {
   const canViewCustomers = hasPermission(user, "can_view_customers") === true;
   const canManageCustomers = hasPermission(user, "can_manage_customers") === true;
   const createMutation = useCreateCustomer();
-  const { data: safes = [] } = useGetSettingsSafes();
+  const { data: safesRaw } = useGetSettingsSafes();
+  const safes = safeArray(safesRaw);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 

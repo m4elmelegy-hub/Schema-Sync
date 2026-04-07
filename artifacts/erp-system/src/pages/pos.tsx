@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { safeArray } from "@/lib/safe-data";
 import { useAuth } from "@/contexts/auth";
 import { hasPermission } from "@/lib/permissions";
 import { authFetch } from "@/lib/auth-fetch";
@@ -217,11 +218,12 @@ function AdminPOSSetup({ onStart }: { onStart: (w: number, s: number) => void })
     queryFn: () => authFetch(api("/api/settings/warehouses")).then(async r => {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const j = await r.json();
-      return Array.isArray(j) ? j : [];
+      return safeArray(j);
     }),
   });
-  const warehouses = Array.isArray(warehousesRaw) ? warehousesRaw : [];
-  const { data: rawSafes = [] } = useGetSettingsSafes();
+  const warehouses = safeArray(warehousesRaw);
+  const { data: rawSafesData } = useGetSettingsSafes();
+  const rawSafes = safeArray(rawSafesData);
   const safes = rawSafes as { id: number; name: string }[];
 
   const [wId, setWId] = useState<string>(
@@ -408,18 +410,20 @@ function POSBody({
     queryFn: () => authFetch(api("/api/products")).then(r => r.json()),
     staleTime: 60_000,
   });
-  const { data: customers = [] } = useGetCustomers();
-  const { data: safes    = [] } = useGetSettingsSafes();
+  const { data: customersRaw } = useGetCustomers();
+  const customers = safeArray(customersRaw);
+  const { data: safesBodyRaw } = useGetSettingsSafes();
+  const safes = safeArray(safesBodyRaw);
   const { data: warehousesRaw } = useQuery<{ id: number; name: string }[]>({
     queryKey: ["/api/settings/warehouses"],
     queryFn: () => authFetch(api("/api/settings/warehouses")).then(async r => {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const j = await r.json();
-      return Array.isArray(j) ? j : [];
+      return safeArray(j);
     }),
     staleTime: 5 * 60_000,
   });
-  const warehouses = Array.isArray(warehousesRaw) ? warehousesRaw : [];
+  const warehouses = safeArray(warehousesRaw);
 
   /* ── Display names ── */
   const warehouseName = warehouses.find(w => w.id === warehouseId)?.name ?? `فرع ${warehouseId}`;
@@ -603,7 +607,7 @@ function POSBody({
       const res = await authFetch(api(`/api/sales?invoice_no=${encodeURIComponent(inv)}`));
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "خطأ في البحث");
-      const list: ReturnSale[] = Array.isArray(data) ? data : (data.data ?? []);
+      const list: ReturnSale[] = safeArray<ReturnSale>(data);
       const sale = list.find((s: ReturnSale) => s.invoice_no === inv) ?? list[0];
       if (!sale) { toast({ title: "❌ لم يتم العثور على الفاتورة", variant: "destructive" }); return; }
       /* fetch sale with items */

@@ -1,3 +1,4 @@
+import { safeArray } from "@/lib/safe-data";
 import { useState, useMemo } from "react";
 import { authFetch } from "@/lib/auth-fetch";
 import { useQuery } from "@tanstack/react-query";
@@ -126,7 +127,9 @@ export default function Profits() {
     product_id: "" as number | "",
   });
 
-  const { data: products = [] } = useGetProducts();
+  const { data: productsRaw } = useGetProducts();
+
+  const products = safeArray(productsRaw);
 
   const { data, isLoading, isError, error, refetch } = useQuery<ProfitsData>({
     queryKey: ["/api/profits", activeQuery.from, activeQuery.to, activeQuery.product_id],

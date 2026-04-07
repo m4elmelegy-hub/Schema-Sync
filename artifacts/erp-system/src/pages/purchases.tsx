@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { safeArray } from "@/lib/safe-data";
 import { useCreatePurchase, useGetProducts, useGetCustomers, useCreateProduct, useDeleteProduct, useGetSettingsSafes, useGetSettingsWarehouses } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
 import { Search, Plus, Minus, Trash2, ShoppingBag, Package, User, Vault, AlertTriangle, CheckCircle, XCircle, ClipboardList } from "lucide-react";
@@ -23,12 +24,15 @@ interface CartItem {
 
 /* ─── فاتورة شراء جديدة ─── */
 function NewPurchasePanel({ onDone }: { onDone: () => void }) {
-  const { data: products = [] } = useGetProducts();
-  const { data: customers = [] } = useGetCustomers();
+  const { data: productsRaw } = useGetProducts();
+  const products = safeArray(productsRaw);
+  const { data: customersRaw } = useGetCustomers();
+  const customers = safeArray(customersRaw);
   const suppliers = customers.filter(c => c.is_supplier);
-  const { data: safes = [] } = useGetSettingsSafes();
+  const { data: safesRaw } = useGetSettingsSafes();
+  const safes = safeArray(safesRaw);
   const { data: warehousesRaw } = useGetSettingsWarehouses();
-  const warehouses = Array.isArray(warehousesRaw) ? warehousesRaw : [];
+  const warehouses = safeArray(warehousesRaw);
   const createMutation = useCreatePurchase();
   const queryClient = useQueryClient();
   const { toast } = useToast();

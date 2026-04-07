@@ -1,3 +1,4 @@
+import { safeArray } from "@/lib/safe-data";
 import { useState, useMemo } from "react";
 import { authFetch } from "@/lib/auth-fetch";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -24,7 +25,8 @@ interface Customer { id: number; name: string; balance: number; customer_code?: 
 export default function ReceiptVouchers() {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { data: safes = [] } = useGetSettingsSafes();
+  const { data: safesRaw } = useGetSettingsSafes();
+  const safes = safeArray(safesRaw);
   const { data: vouchers = [], isLoading } = useQuery<ReceiptVoucher[]>({
     queryKey: ["/api/receipt-vouchers"],
     queryFn: () => authFetch(api("/api/receipt-vouchers")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
