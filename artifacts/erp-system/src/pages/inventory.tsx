@@ -9,7 +9,7 @@ import {
   Package, AlertTriangle, TrendingDown, Search, X, RefreshCw,
   ChevronUp, ChevronDown, Edit3, ShieldX, ClipboardList, Truck,
   Plus, Trash2, CheckCircle, Warehouse, Loader2, Filter,
-  BarChart3, ArrowLeft, Bell, ArrowRightLeft,
+  BarChart3, ArrowLeft, Bell, ArrowRightLeft, LayoutDashboard, ArrowRight,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TableSkeleton } from "@/components/skeletons";
@@ -87,7 +87,7 @@ const movementTypeLabel: Record<string, { label: string; color: string }> = {
   transfer_in:     { label: "تحويل دخول",     color: "bg-cyan-500/20 text-cyan-300" },
 };
 
-type Tab = "review" | "count" | "transfer" | "alerts" | "reports";
+type Tab = "overview" | "movements" | "count" | "transfer" | "alerts" | "reports";
 
 function today() { return new Date().toISOString().slice(0, 10); }
 function nowTime() { return new Date().toTimeString().slice(0, 5); }
@@ -104,8 +104,14 @@ export default function Inventory() {
   const canAdjustInventory = hasPermission(user, "can_adjust_inventory") === true;
   const isAdmin = user?.role === "admin";
 
-  const [activeTab, setActiveTab]           = useState<Tab>("review");
+  const [activeTab, setActiveTab]           = useState<Tab>("overview");
   const [transferPrefill, setTransferPrefill] = useState<TransferPrefill | null>(null);
+  const [movementsFilter, setMovementsFilter] = useState<"all" | "zero" | "low">("all");
+
+  function handleQuickFilter(filter: "zero" | "low") {
+    setMovementsFilter(filter);
+    setActiveTab("movements");
+  }
 
   /* ── warehouse CRUD ── */
   const { data: warehousesRaw, isLoading: loadingWH } = useGetSettingsWarehouses();
@@ -164,7 +170,9 @@ export default function Inventory() {
   return (
     <div className="p-6 space-y-6 text-right" dir="rtl">
 
-      {/* ══ إحصائيات الرأس ══════════════════════════════════════════════════ */}
+      {/* ══ Overview tab: stats + warehouses + quick filters ══════════════════ */}
+      {activeTab === "overview" && (
+      <>
       {gs && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
@@ -195,6 +203,25 @@ export default function Inventory() {
             color={gs.zero_stock_count > 0 ? "text-red-400" : "text-white/40"}
             bg={gs.zero_stock_count > 0 ? "bg-red-500/10 border-red-500/20" : "bg-white/5 border-white/5"}
           />
+        </div>
+      )}
+      {gs && (gs.low_stock_count > 0 || gs.zero_stock_count > 0) && (
+        <div className="flex gap-2 flex-wrap">
+          <span className="text-white/40 text-xs flex items-center gap-1.5 me-1"><Filter className="w-3.5 h-3.5"/> فلاتر سريعة:</span>
+          {gs.zero_stock_count > 0 && (
+            <button onClick={() => handleQuickFilter("zero")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/20 transition-all">
+              <TrendingDown className="w-3.5 h-3.5"/> عرض نافد المخزون ({gs.zero_stock_count})
+              <ArrowRight className="w-3 h-3 opacity-50"/>
+            </button>
+          )}
+          {gs.low_stock_count > 0 && (
+            <button onClick={() => handleQuickFilter("low")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 transition-all">
+              <AlertTriangle className="w-3.5 h-3.5"/> عرض تحت حد الطلب ({gs.low_stock_count})
+              <ArrowRight className="w-3 h-3 opacity-50"/>
+            </button>
+          )}
         </div>
       )}
 
@@ -285,16 +312,19 @@ export default function Inventory() {
           </div>
         )}
       </section>
+      </>
+      )}
 
       {/* ══ تبويبات المخزون ══════════════════════════════════════════════════ */}
       <div>
         <div className="flex gap-2 border-b border-white/10 mb-6 flex-wrap">
-          <TabBtn id="review"   label="مراجعة المخزون"   icon={<Package className="w-4 h-4" />}      active={activeTab} onClick={setActiveTab} />
+          <TabBtn id="overview"  label="نظرة عامة"     icon={<LayoutDashboard className="w-4 h-4" />} active={activeTab} onClick={setActiveTab} />
+          <TabBtn id="movements" label="الحركات"       icon={<Package className="w-4 h-4" />}         active={activeTab} onClick={setActiveTab} />
           {canAdjustInventory && (
-            <TabBtn id="count"    label="جرد المخزون"      icon={<ClipboardList className="w-4 h-4" />} active={activeTab} onClick={setActiveTab} />
+            <TabBtn id="count"    label="الجرد"         icon={<ClipboardList className="w-4 h-4" />}   active={activeTab} onClick={setActiveTab} />
           )}
           {canAdjustInventory && (
-            <TabBtn id="transfer" label="تحويل مخزون"      icon={<Truck className="w-4 h-4" />}         active={activeTab} onClick={setActiveTab} />
+            <TabBtn id="transfer" label="التحويلات"     icon={<Truck className="w-4 h-4" />}           active={activeTab} onClick={setActiveTab} />
           )}
           <TabBtnBadge
             id="alerts" label="تنبيهات المخزون"
@@ -305,7 +335,18 @@ export default function Inventory() {
           <TabBtn id="reports" label="تقارير المخزون" icon={<BarChart3 className="w-4 h-4" />} active={activeTab} onClick={setActiveTab} />
         </div>
 
-        {activeTab === "review"   && <ReviewTab currentWarehouseId={currentWarehouseId} canAdjustInventory={canAdjustInventory} qc={qc} toast={toast} />}
+        {activeTab === "overview"  && !gs && (
+          <div className="text-center py-20 text-white/30 text-sm">جاري تحميل بيانات المخزون...</div>
+        )}
+        {activeTab === "movements" && (
+          <ReviewTab
+            currentWarehouseId={currentWarehouseId}
+            canAdjustInventory={canAdjustInventory}
+            qc={qc} toast={toast}
+            quickFilter={movementsFilter}
+            onFilterApplied={() => setMovementsFilter("all")}
+          />
+        )}
         {activeTab === "count"    && <CountTab  warehouses={warehouses} currentWarehouseId={currentWarehouseId} qc={qc} toast={toast} />}
         {activeTab === "transfer" && (
           <TransferTab
@@ -472,9 +513,10 @@ function SummaryCard({ label, value, color }: { label: string; value: string; co
 /* ═══════════════════════════════════════════════════════════════════════════
  * TAB 1 — مراجعة المخزون
  * ═══════════════════════════════════════════════════════════════════════════ */
-function ReviewTab({ currentWarehouseId, canAdjustInventory, qc, toast }: {
+function ReviewTab({ currentWarehouseId, canAdjustInventory, qc, toast, quickFilter, onFilterApplied }: {
   currentWarehouseId: number | null; canAdjustInventory: boolean;
   qc: ReturnType<typeof useQueryClient>; toast: ReturnType<typeof useToast>["toast"];
+  quickFilter?: "all" | "zero" | "low"; onFilterApplied?: () => void;
 }) {
   const [search, setSearch]               = useState("");
   const [selectedProduct, setSelectedProduct] = useState<number | null>(null);
@@ -485,6 +527,13 @@ function ReviewTab({ currentWarehouseId, canAdjustInventory, qc, toast }: {
   const [adjustNotes, setAdjustNotes]     = useState("");
   const [showZeroOnly, setShowZeroOnly]   = useState(false);
   const [showLowOnly,  setShowLowOnly]    = useState(false);
+
+  useEffect(() => {
+    if (!quickFilter || quickFilter === "all") return;
+    setShowZeroOnly(quickFilter === "zero");
+    setShowLowOnly(quickFilter === "low");
+    onFilterApplied?.();
+  }, [quickFilter]);
 
   const warehouseParam = currentWarehouseId ? `?warehouse_id=${currentWarehouseId}` : "";
 
@@ -561,16 +610,6 @@ function ReviewTab({ currentWarehouseId, canAdjustInventory, qc, toast }: {
           <RefreshCw className="w-3.5 h-3.5" /> تحديث
         </button>
       </div>
-
-      {/* بطاقات الملخص */}
-      {summary && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <SummaryCard label="إجمالي المنتجات"  value={String(summary.total_products)}            color="text-white" />
-          <SummaryCard label="قيمة المخزون"      value={formatCurrency(summary.total_inventory_value)} color="text-emerald-400" />
-          <SummaryCard label="تحت حد الطلب"     value={String(summary.low_stock_count)}           color={summary.low_stock_count > 0  ? "text-amber-400"  : "text-white/40"} />
-          <SummaryCard label="نفد المخزون"       value={String(summary.zero_stock_count)}          color={summary.zero_stock_count > 0 ? "text-red-400"    : "text-white/40"} />
-        </div>
-      )}
 
       {/* بحث + فلاتر سريعة */}
       <div className="flex gap-2 flex-wrap items-center">
