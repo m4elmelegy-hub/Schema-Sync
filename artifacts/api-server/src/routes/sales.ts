@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gt, ne, not, inArray, gte, lte, count } from "drizzle-orm";
+import { eq, and, gt, ne, not, inArray, gte, lte, count, ilike, or, desc, sql } from "drizzle-orm";
 import { db, salesTable, saleItemsTable, productsTable, customersTable, transactionsTable, safesTable, warehousesTable, erpUsersTable, stockMovementsTable, accountsTable, salesReturnsTable, receiptVouchersTable, journalEntriesTable, journalEntryLinesTable, customerLedgerTable } from "@workspace/db";
 import {
   GetSalesResponse,
@@ -75,16 +75,38 @@ router.get("/sales", wrap(async (req, res) => {
 
   const dateFrom = req.query.date_from as string | undefined;
   const dateTo   = req.query.date_to   as string | undefined;
+
+  /* ── Search param: ?q=   searches invoice_no, customer_name, customer_code ── */
+  const q        = req.query.q ? String(req.query.q).trim() : null;
+  const sortDesc = req.query.sort === "desc";
+
+  let searchWhere: ReturnType<typeof or> | undefined;
+  if (q) {
+    const pat = `%${q}%`;
+    // Find customer_ids whose code matches the query (cast int → text)
+    const matchingCusts = await db
+      .select({ id: customersTable.id })
+      .from(customersTable)
+      .where(sql`CAST(${customersTable.customer_code} AS TEXT) ILIKE ${pat}`);
+    const custIds = matchingCusts.map(c => c.id);
+    searchWhere = or(
+      ilike(salesTable.invoice_no, pat),
+      ilike(sql`COALESCE(${salesTable.customer_name}, '')`, pat),
+      custIds.length > 0 ? inArray(salesTable.customer_id, custIds) : sql`false`,
+    );
+  }
+
   const fullWhere = and(
     salesWhere,
     dateFrom ? gte(salesTable.date, dateFrom) : undefined,
     dateTo   ? lte(salesTable.date, dateTo)   : undefined,
+    searchWhere,
   );
 
   const [{ total }] = await db.select({ total: count() }).from(salesTable).where(fullWhere);
   const sales = await db.select().from(salesTable)
     .where(fullWhere)
-    .orderBy(salesTable.created_at)
+    .orderBy(sortDesc ? desc(salesTable.created_at) : salesTable.created_at)
     .limit(pageLimit)
     .offset(offset);
 

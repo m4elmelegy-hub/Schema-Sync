@@ -73,9 +73,24 @@ function SalesReturnsPanel() {
     queryKey: ["/api/sales-returns"],
     queryFn: () => authFetch(api("/api/sales-returns")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
   });
-  const { data: salesList = [] } = useQuery<InvoiceSummary[]>({
-    queryKey: ["/api/sales"],
-    queryFn: () => authFetch(api("/api/sales")).then(r => { if (!r.ok) throw new Error("خطأ"); return r.json(); }),
+  // ── Debounced search for invoice selector ──
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    if (phase !== "select-invoice") return;
+    const t = setTimeout(() => setDebouncedSearch(invoiceSearch.trim()), 350);
+    return () => clearTimeout(t);
+  }, [invoiceSearch, phase]);
+  const invoiceSearchUrl = debouncedSearch
+    ? `/api/sales?sort=desc&limit=100&q=${encodeURIComponent(debouncedSearch)}`
+    : `/api/sales?sort=desc&limit=40`;
+  const { data: salesList = [], isFetching: salesFetching } = useQuery<InvoiceSummary[]>({
+    queryKey: ["/api/sales/search", debouncedSearch, phase],
+    queryFn: () => authFetch(api(invoiceSearchUrl)).then(r => {
+      if (!r.ok) throw new Error("خطأ");
+      return r.json().then((d: InvoiceSummary[] | { data: InvoiceSummary[] }) =>
+        Array.isArray(d) ? d : (d as { data: InvoiceSummary[] }).data ?? []
+      );
+    }),
     enabled: phase === "select-invoice",
   });
   const { data: saleDetail } = useQuery<InvoiceDetail>({
@@ -108,16 +123,11 @@ function SalesReturnsPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saleDetailItemIds]);
 
-  // ── Filtered invoice list ──
-  const nonCancelledSales = salesList.filter(s => s.status !== "cancelled");
-  const filteredSales = useMemo(() => {
-    if (!invoiceSearch.trim()) return nonCancelledSales.slice().reverse().slice(0, 40);
-    const q = invoiceSearch.trim().toLowerCase();
-    return nonCancelledSales.filter(s =>
-      s.invoice_no?.toLowerCase().includes(q) ||
-      (s.customer_name?.toLowerCase().includes(q))
-    ).slice(0, 40);
-  }, [nonCancelledSales, invoiceSearch]);
+  // ── Invoice search results (server-side, no local filtering) ──
+  const filteredSales = useMemo(
+    () => safeArray(salesList).filter(s => s.status !== "cancelled"),
+    [salesList]
+  );
 
   // ── Totals ──
   const activeReturnItems = returnItems.filter(i => i.returnQty > 0);
@@ -276,17 +286,26 @@ function SalesReturnsPanel() {
             </div>
             <div className="p-4 border-b border-white/10 shrink-0">
               <div className="relative">
-                <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-white/30" />
+                <Search className={`w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 transition-colors ${salesFetching ? "text-amber-400 animate-pulse" : "text-white/30"}`} />
                 <input autoFocus type="text" className="glass-input pr-9 w-full"
-                  placeholder="رقم الفاتورة أو اسم العميل..."
+                  placeholder="رقم الفاتورة / اسم العميل / رمز العميل..."
                   value={invoiceSearch} onChange={e => setInvoiceSearch(e.target.value)} />
+                {invoiceSearch && (
+                  <button onClick={() => setInvoiceSearch("")}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
+              {!invoiceSearch && (
+                <p className="text-white/30 text-xs mt-2 text-center">آخر 40 فاتورة — ابحث للعثور على المزيد</p>
+              )}
             </div>
             <div className="overflow-y-auto flex-1">
-              {filteredSales.length === 0 ? (
-                <div className="p-10 text-center text-white/40">
-                  {invoiceSearch ? "لا توجد فواتير مطابقة" : "لا توجد فواتير"}
-                </div>
+              {salesFetching && filteredSales.length === 0 ? (
+                <div className="p-10 text-center text-white/40">جاري البحث…</div>
+              ) : filteredSales.length === 0 ? (
+                <div className="p-10 text-center text-white/40">لا توجد نتائج</div>
               ) : (
                 <table className="w-full text-right text-sm">
                   <thead className="bg-white/5 sticky top-0">
@@ -294,7 +313,6 @@ function SalesReturnsPanel() {
                       <th className="p-3 text-white/50 font-medium">رقم الفاتورة</th>
                       <th className="p-3 text-white/50 font-medium">العميل</th>
                       <th className="p-3 text-white/50 font-medium">نوع الدفع</th>
-                      <th className="p-3 text-white/50 font-medium">الإجمالي</th>
                       <th className="p-3 text-white/50 font-medium">التاريخ</th>
                       <th className="p-3 w-10"></th>
                     </tr>
@@ -316,7 +334,6 @@ function SalesReturnsPanel() {
                           <td className="p-3 font-mono font-bold text-amber-400">{sale.invoice_no}</td>
                           <td className="p-3 text-white">{sale.customer_name || <span className="text-white/30">نقدي</span>}</td>
                           <td className="p-3"><span className={`px-2 py-0.5 rounded-lg text-xs font-bold border ${pt.cls}`}>{pt.label}</span></td>
-                          <td className="p-3 font-bold text-white">{formatCurrency(sale.total_amount)}</td>
                           <td className="p-3 text-white/40 text-xs">{sale.date || "—"}</td>
                           <td className="p-3">
                             <button className="p-1.5 rounded-lg bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition-colors">
