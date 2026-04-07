@@ -11,6 +11,7 @@ import { wrap, httpError } from "../lib/async-handler";
 import { hasPermission } from "../lib/permissions";
 import { assertPeriodOpen } from "../lib/period-lock";
 import { writeAuditLog } from "../lib/audit-log";
+import { getOrCreateSafeAccount, getOrCreateGeneralExpenseAccount, createAutoJournalEntry } from "../lib/auto-account";
 
 const router: IRouter = Router();
 
@@ -39,7 +40,7 @@ router.post("/expenses", wrap(async (req, res) => {
   const safe_id: number | undefined = req.body.safe_id ? parseInt(req.body.safe_id) : undefined;
   const amt = parsed.data.amount;
 
-  const expense = await db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     let safe: typeof safesTable.$inferSelect | null = null;
     if (safe_id) {
       const [s] = await tx.select().from(safesTable).where(eq(safesTable.id, safe_id));
@@ -62,8 +63,32 @@ router.post("/expenses", wrap(async (req, res) => {
       description: parsed.data.description ?? parsed.data.category,
       date: new Date().toISOString().split("T")[0],
     });
-    return exp;
+    return { exp, safe };
   });
+  /* ── قيد يومية تلقائي للمصروف النقدي ────────────────────────────────────
+   * مدين: مصروفات عمومية (EXP-GENERAL)
+   * دائن: الخزينة (SAFE-{safeId})
+   * ملاحظة: إذا لم تكن هناك خزينة فلا يوجد أثر نقدي فوري → لا قيد
+   * ─────────────────────────────────────────────────────────────────────── */
+  const { exp: expense, safe } = result;
+  if (safe) {
+    try {
+      const expAcct  = await getOrCreateGeneralExpenseAccount();
+      const safeAcct = await getOrCreateSafeAccount(safe.id, safe.name);
+      const todayStr = new Date().toISOString().split("T")[0];
+      await createAutoJournalEntry({
+        date:        todayStr,
+        description: `مصروف: ${parsed.data.category}${parsed.data.description ? ` — ${parsed.data.description}` : ""}`,
+        reference:   `EXP-${expense.id}`,
+        debit:  expAcct,
+        credit: safeAcct,
+        amount: amt,
+      });
+    } catch (jeErr) {
+      /* غير فادح — المصروف سُجِّل بنجاح حتى لو فشل القيد */
+      console.error("Failed to create journal entry for expense:", jeErr);
+    }
+  }
   res.status(201).json(formatExpense(expense));
 }));
 
@@ -72,14 +97,51 @@ router.delete("/expenses/:id", wrap(async (req, res) => {
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const [preCheck] = await db.select().from(expensesTable).where(eq(expensesTable.id, params.data.id));
   if (preCheck) await assertPeriodOpen(preCheck.created_at?.toISOString().split("T")[0] ?? null, req);
+
+  /* نحفظ بيانات المصروف قبل الحذف لإنشاء قيد عكسي */
+  let deletedSafeId:   number | null = null;
+  let deletedSafeName: string | null = null;
+  let deletedAmount:   number        = 0;
+  let deletedCategory: string        = "";
+
   await db.transaction(async (tx) => {
     const [exp] = await tx.select().from(expensesTable).where(eq(expensesTable.id, params.data.id));
     if (exp?.safe_id) {
       const [safe] = await tx.select().from(safesTable).where(eq(safesTable.id, exp.safe_id));
-      if (safe) await tx.update(safesTable).set({ balance: String(Number(safe.balance) + Number(exp.amount)) }).where(eq(safesTable.id, safe.id));
+      if (safe) {
+        deletedSafeId   = safe.id;
+        deletedSafeName = safe.name;
+        await tx.update(safesTable).set({ balance: String(Number(safe.balance) + Number(exp.amount)) }).where(eq(safesTable.id, safe.id));
+      }
+    }
+    if (exp) {
+      deletedAmount   = Number(exp.amount);
+      deletedCategory = exp.category ?? "مصروف محذوف";
     }
     await tx.delete(expensesTable).where(eq(expensesTable.id, params.data.id));
   });
+
+  /* ── قيد عكسي لإلغاء أثر المصروف المحذوف على الدفتر ──────────────────
+   * مدين: الخزينة / دائن: مصروفات عمومية   (عكس القيد الأصلي)
+   * ─────────────────────────────────────────────────────────────────────*/
+  if (deletedSafeId !== null && deletedAmount > 0) {
+    try {
+      const safeAcct = await getOrCreateSafeAccount(deletedSafeId, deletedSafeName ?? `خزينة ${deletedSafeId}`);
+      const expAcct  = await getOrCreateGeneralExpenseAccount();
+      const todayStr = new Date().toISOString().split("T")[0];
+      await createAutoJournalEntry({
+        date:        todayStr,
+        description: `إلغاء مصروف: ${deletedCategory}`,
+        reference:   `EXP-DEL-${params.data.id}`,
+        debit:  safeAcct,
+        credit: expAcct,
+        amount: deletedAmount,
+      });
+    } catch (jeErr) {
+      console.error("Failed to create reversal JE for deleted expense:", jeErr);
+    }
+  }
+
   res.json(DeleteExpenseResponse.parse({ success: true, message: "Expense deleted" }));
 }));
 

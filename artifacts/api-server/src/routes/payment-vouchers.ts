@@ -4,7 +4,7 @@ import { db, paymentVouchersTable, safesTable, customersTable, transactionsTable
 
 import { wrap, httpError } from "../lib/async-handler";
 import { assertPeriodOpen } from "../lib/period-lock";
-import { getOrCreateSafeAccount, createAutoJournalEntry, type AccountRef } from "../lib/auto-account";
+import { getOrCreateSafeAccount, getOrCreateGeneralExpenseAccount, createAutoJournalEntry, type AccountRef } from "../lib/auto-account";
 import { hasPermission } from "../lib/permissions";
 
 const router: IRouter = Router();
@@ -134,14 +134,25 @@ router.post("/payment-vouchers/:id/post", wrap(async (req, res) => {
   await assertPeriodOpen(v.date, req);
 
   const custAcct = await getVoucherCustomerAcct(v.customer_id);
+  const safeAcct = await getOrCreateSafeAccount(v.safe_id, v.safe_name);
   if (custAcct) {
-    const safeAcct = await getOrCreateSafeAccount(v.safe_id, v.safe_name);
-    // سند توريد: مدين عميل (ذمم مدينة نقلصت) × دائن خزينة (خرج النقد)
+    // سند دفع لعميل/مورد محدد: مدين ذمة × دائن خزينة
     await createAutoJournalEntry({
       date: v.date,
       description: `سند توريد ${v.voucher_no} — ${v.customer_name}`,
       reference: v.voucher_no,
       debit: custAcct,
+      credit: safeAcct,
+      amount: Number(v.amount),
+    });
+  } else {
+    // سند دفع بدون عميل محدد → مصروف عمومي (DR EXP-GENERAL / CR SAFE)
+    const expAcct = await getOrCreateGeneralExpenseAccount();
+    await createAutoJournalEntry({
+      date: v.date,
+      description: `سند دفع ${v.voucher_no} — مصروف عمومي`,
+      reference: v.voucher_no,
+      debit: expAcct,
       credit: safeAcct,
       amount: Number(v.amount),
     });

@@ -4,7 +4,7 @@ import { db, depositVouchersTable, safesTable, customersTable, transactionsTable
 
 import { wrap, httpError } from "../lib/async-handler";
 import { assertPeriodOpen } from "../lib/period-lock";
-import { getOrCreateSafeAccount, createAutoJournalEntry, type AccountRef } from "../lib/auto-account";
+import { getOrCreateSafeAccount, getOrCreateMiscRevenueAccount, createAutoJournalEntry, type AccountRef } from "../lib/auto-account";
 
 const router: IRouter = Router();
 
@@ -134,15 +134,26 @@ router.post("/deposit-vouchers/:id/post", wrap(async (req, res) => {
   await assertPeriodOpen(v.date, req);
 
   const custAcct = await getVoucherCustomerAcct(v.customer_id);
+  const safeAcct = await getOrCreateSafeAccount(v.safe_id, v.safe_name);
   if (custAcct) {
-    const safeAcct = await getOrCreateSafeAccount(v.safe_id, v.safe_name);
-    // سند توريد: مدين خزينة × دائن عميل (العميل سدّد)
+    // سند توريد بعميل: مدين خزينة × دائن عميل
     await createAutoJournalEntry({
       date: v.date,
       description: `سند توريد ${v.voucher_no} — ${v.customer_name ?? ""}`,
       reference: v.voucher_no,
       debit: safeAcct,
       credit: custAcct,
+      amount: Number(v.amount),
+    });
+  } else {
+    // سند توريد بدون عميل → إيراد متنوع (DR SAFE / CR REV-MISC)
+    const miscAcct = await getOrCreateMiscRevenueAccount();
+    await createAutoJournalEntry({
+      date: v.date,
+      description: `سند توريد ${v.voucher_no} — إيراد متنوع`,
+      reference: v.voucher_no,
+      debit: safeAcct,
+      credit: miscAcct,
       amount: Number(v.amount),
     });
   }

@@ -154,6 +154,30 @@ export async function getOrCreateCOGSAccount(): Promise<AccountRef> {
 }
 
 /**
+ * حساب المصروفات العمومية — يُدان عند تسجيل مصروف نقدي
+ * DR EXP-GENERAL / CR SAFE-{safeId}
+ */
+export async function getOrCreateGeneralExpenseAccount(): Promise<AccountRef> {
+  return getOrCreateAccount({
+    code: "EXP-GENERAL",
+    name: "مصروفات عمومية وإدارية",
+    type: "expense",
+  });
+}
+
+/**
+ * حساب الإيرادات المتنوعة — يُقيَّد دائناً عند استلام مبالغ بلا عميل محدد
+ * DR SAFE-{safeId} / CR REV-MISC
+ */
+export async function getOrCreateMiscRevenueAccount(): Promise<AccountRef> {
+  return getOrCreateAccount({
+    code: "REV-MISC",
+    name: "إيرادات متنوعة",
+    type: "revenue",
+  });
+}
+
+/**
  * @deprecated استخدم getOrCreateInventoryAccount بدلاً منه للمشتريات الجديدة.
  * أُبقي للتوافق العكسي مع القيود المحاسبية القديمة فقط.
  */

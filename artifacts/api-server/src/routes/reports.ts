@@ -550,89 +550,108 @@ router.get("/reports/supplier-statement", wrap(async (req, res) => {
  * ───────────────────────────────────────────────────────────────────────── */
 router.get("/reports/cash-flow", wrap(async (req, res) => {
   const { date_from, date_to } = req.query as Record<string, string | undefined>;
-  const dfRV  = dateFilter("date", date_from, date_to);
-  const dfPV  = dateFilter("date", date_from, date_to);
-  const dfDV  = dateFilter("date", date_from, date_to);
-  const dfExp = date_from || date_to
-    ? `AND ${[date_from ? `created_at::date >= '${date_from}'` : null, date_to ? `created_at::date <= '${date_to}'` : null].filter(Boolean).join(" AND ")}`
-    : "";
 
-  // مقبوضات: سندات قبض مرحّلة
-  const rvRows = await db.execute(sql.raw(`
-    SELECT date, COALESCE(SUM(CAST(amount AS FLOAT8)), 0) AS total
-    FROM receipt_vouchers WHERE posting_status = 'posted' ${dfRV}
-    GROUP BY date ORDER BY date
+  /* ── تصفية التاريخ: نبني جزء WHERE آمناً ─────────────────────────────── */
+  const dateFromSafe = (date_from ?? "").replace(/[^0-9\-]/g, "");
+  const dateToSafe   = (date_to   ?? "").replace(/[^0-9\-]/g, "");
+  const dateClause = [
+    dateFromSafe ? `je.date >= '${dateFromSafe}'` : null,
+    dateToSafe   ? `je.date <= '${dateToSafe}'`   : null,
+  ].filter(Boolean).join(" AND ");
+  const dateWhere = dateClause ? `AND ${dateClause}` : "";
+
+  /* ─────────────────────────────────────────────────────────────────────
+   * استخراج التدفق النقدي من قيود اليومية المرحّلة
+   * ─────────────────────────────────────────────────────────────────────
+   * المنطق:
+   *   كل قيد يحتوي سطر SAFE-* = تحرك نقدي حقيقي
+   *   - SAFE مدين  (debit > 0)  = نقد دخل للخزينة
+   *   - SAFE دائن  (credit > 0) = نقد خرج من الخزينة
+   *
+   * التصنيف بناءً على الحسابات المقابلة في نفس القيد:
+   *   AR-* دائن   → مقبوضات من عملاء (receipts_in)
+   *   REV-MISC دائن → إيداعات متنوعة (deposits_in)
+   *   غير ذلك (مدين) → مبيعات نقدية (cash_sales)
+   *   AP-* مدين   → مدفوعات للموردين (payments_out)
+   *   EXP-* مدين  → مصروفات (expenses_out) [يستثنى EXP-COGS لا يمس النقد]
+   * ───────────────────────────────────────────────────────────────────── */
+  const cfRows = await db.execute(sql.raw(`
+    WITH safe_lines AS (
+      SELECT
+        je.id          AS entry_id,
+        je.date,
+        CAST(jel.debit  AS FLOAT8) AS cash_in,
+        CAST(jel.credit AS FLOAT8) AS cash_out
+      FROM journal_entry_lines jel
+      JOIN journal_entries je ON je.id = jel.entry_id
+        AND je.status = 'posted'
+      WHERE jel.account_code LIKE 'SAFE-%'
+        ${dateWhere}
+    ),
+    entry_context AS (
+      SELECT
+        sl.entry_id,
+        sl.date,
+        sl.cash_in,
+        sl.cash_out,
+        BOOL_OR(jel.account_code LIKE 'AR-%'       AND CAST(jel.credit AS FLOAT8) > 0) AS ar_credited,
+        BOOL_OR(jel.account_code = 'REV-MISC'      AND CAST(jel.credit AS FLOAT8) > 0) AS rev_misc_credited,
+        BOOL_OR(jel.account_code LIKE 'AP-%'       AND CAST(jel.debit  AS FLOAT8) > 0) AS ap_debited,
+        BOOL_OR(jel.account_code NOT LIKE 'EXP-COGS'
+                AND jel.account_code LIKE 'EXP-%'  AND CAST(jel.debit  AS FLOAT8) > 0) AS exp_debited
+      FROM safe_lines sl
+      JOIN journal_entry_lines jel
+        ON jel.entry_id = sl.entry_id
+        AND jel.account_code NOT LIKE 'SAFE-%'
+      GROUP BY sl.entry_id, sl.date, sl.cash_in, sl.cash_out
+    )
+    SELECT
+      date,
+      COALESCE(SUM(CASE WHEN cash_in  > 0 AND ar_credited
+                        THEN cash_in  ELSE 0 END), 0)     AS receipts_in,
+      COALESCE(SUM(CASE WHEN cash_in  > 0 AND rev_misc_credited
+                        THEN cash_in  ELSE 0 END), 0)     AS deposits_in,
+      COALESCE(SUM(CASE WHEN cash_in  > 0
+                             AND NOT ar_credited
+                             AND NOT rev_misc_credited
+                        THEN cash_in  ELSE 0 END), 0)     AS cash_sales,
+      COALESCE(SUM(CASE WHEN cash_out > 0 AND ap_debited
+                        THEN cash_out ELSE 0 END), 0)     AS payments_out,
+      COALESCE(SUM(CASE WHEN cash_out > 0 AND exp_debited
+                        THEN cash_out ELSE 0 END), 0)     AS expenses_out,
+      COALESCE(SUM(CASE WHEN cash_in  > 0 THEN cash_in  ELSE 0 END), 0) AS total_in,
+      COALESCE(SUM(CASE WHEN cash_out > 0 THEN cash_out ELSE 0 END), 0) AS total_out
+    FROM entry_context
+    GROUP BY date
+    ORDER BY date
   `));
 
-  // مدفوعات: سندات دفع مرحّلة (للموردين)
-  const pvRows = await db.execute(sql.raw(`
-    SELECT date, COALESCE(SUM(CAST(amount AS FLOAT8)), 0) AS total
-    FROM payment_vouchers WHERE posting_status = 'posted' ${dfPV}
-    GROUP BY date ORDER BY date
-  `));
+  /* ── تجميع البيانات اليومية ─────────────────────────────────────────── */
+  const days = (cfRows.rows as any[]).map(r => {
+    const receipts_in  = r2(Number(r.receipts_in));
+    const deposits_in  = r2(Number(r.deposits_in));
+    const cash_sales   = r2(Number(r.cash_sales));
+    const payments_out = r2(Number(r.payments_out));
+    const expenses_out = r2(Number(r.expenses_out));
+    const total_in     = r2(Number(r.total_in));
+    const total_out    = r2(Number(r.total_out));
+    return {
+      day: String(r.date),
+      receipts_in, cash_sales, deposits_in, total_in,
+      payments_out, expenses_out, total_out,
+      net_flow: r2(total_in - total_out),
+    };
+  });
 
-  // إيداعات: سندات إيداع مرحّلة
-  const dvRows = await db.execute(sql.raw(`
-    SELECT date, COALESCE(SUM(CAST(amount AS FLOAT8)), 0) AS total
-    FROM deposit_vouchers WHERE posting_status = 'posted' ${dfDV}
-    GROUP BY date ORDER BY date
-  `));
+  const totIn          = r2(days.reduce((s, d) => s + d.total_in,     0));
+  const totOut         = r2(days.reduce((s, d) => s + d.total_out,    0));
+  const totReceiptsIn  = r2(days.reduce((s, d) => s + d.receipts_in,  0));
+  const totCashSales   = r2(days.reduce((s, d) => s + d.cash_sales,   0));
+  const totDepositsIn  = r2(days.reduce((s, d) => s + d.deposits_in,  0));
+  const totPaymentsOut = r2(days.reduce((s, d) => s + d.payments_out, 0));
+  const totExpensesOut = r2(days.reduce((s, d) => s + d.expenses_out, 0));
 
-  // مصروفات (تستخدم created_at لأنها لا تحتوي حقل date)
-  const expRows = await db.execute(sql.raw(`
-    SELECT created_at::date AS date, COALESCE(SUM(CAST(amount AS FLOAT8)), 0) AS total
-    FROM expenses WHERE 1=1 ${dfExp}
-    GROUP BY created_at::date ORDER BY created_at::date
-  `));
-
-  // مبيعات نقدية مباشرة
-  const cashSalesRows = await db.execute(sql.raw(`
-    SELECT s.date, COALESCE(SUM(CAST(s.paid_amount AS FLOAT8)), 0) AS total
-    FROM sales s
-    WHERE s.posting_status = 'posted' AND s.payment_type = 'cash' ${dateFilter("s.date", date_from, date_to)}
-    GROUP BY s.date ORDER BY s.date
-  `));
-
-  const dayMap = new Map<string, { receipts_in: number; payments_out: number; deposits_in: number; expenses_out: number; cash_sales: number }>();
-  const ensure = (d: string) => {
-    if (!dayMap.has(d)) dayMap.set(d, { receipts_in: 0, payments_out: 0, deposits_in: 0, expenses_out: 0, cash_sales: 0 });
-    return dayMap.get(d)!;
-  };
-
-  for (const r of rvRows.rows      as any[]) { ensure(r.date).receipts_in  += Number(r.total); }
-  for (const r of pvRows.rows      as any[]) { ensure(r.date).payments_out += Number(r.total); }
-  for (const r of dvRows.rows      as any[]) { ensure(r.date).deposits_in  += Number(r.total); }
-  for (const r of expRows.rows     as any[]) { ensure(r.date).expenses_out += Number(r.total); }
-  for (const r of cashSalesRows.rows as any[]) { ensure(r.date).cash_sales += Number(r.total); }
-
-  const days = Array.from(dayMap.entries())
-    .map(([day, v]) => {
-      const total_in  = v.receipts_in + v.deposits_in + v.cash_sales;
-      const total_out = v.payments_out + v.expenses_out;
-      return {
-        day,
-        receipts_in:   Math.round(v.receipts_in  * 100) / 100,
-        cash_sales:    Math.round(v.cash_sales    * 100) / 100,
-        deposits_in:   Math.round(v.deposits_in   * 100) / 100,
-        total_in:      Math.round(total_in         * 100) / 100,
-        payments_out:  Math.round(v.payments_out  * 100) / 100,
-        expenses_out:  Math.round(v.expenses_out  * 100) / 100,
-        total_out:     Math.round(total_out        * 100) / 100,
-        net_flow:      Math.round((total_in - total_out) * 100) / 100,
-      };
-    })
-    .sort((a, b) => a.day.localeCompare(b.day));
-
-  const totIn  = days.reduce((s, d) => s + d.total_in,  0);
-  const totOut = days.reduce((s, d) => s + d.total_out, 0);
-
-  const totReceiptsIn  = days.reduce((s, d) => s + d.receipts_in,  0);
-  const totCashSales   = days.reduce((s, d) => s + d.cash_sales,   0);
-  const totDepositsIn  = days.reduce((s, d) => s + d.deposits_in,  0);
-  const totPaymentsOut = days.reduce((s, d) => s + d.payments_out, 0);
-  const totExpensesOut = days.reduce((s, d) => s + d.expenses_out, 0);
-
-  // ── تحقق: تحقق من الاتساق الداخلي للتدفق النقدي ─────────────────────────
+  /* ── فحص اتساق يومي ────────────────────────────────────────────────── */
   const cfDayWarnings: string[] = [];
   for (const d of days) {
     const expectedNet = r2(d.total_in) - r2(d.total_out);
@@ -671,6 +690,7 @@ router.get("/reports/cash-flow", wrap(async (req, res) => {
       expenses_out:      r2(totExpensesOut),
     },
     validation: cashFlowValidation,
+    _source: "ledger",
   });
 }));
 
@@ -1191,91 +1211,99 @@ router.get("/reports/manager-sales", wrap(async (req, res) => {
 }));
 
 /* ─────────────────────────────────────────────────────────────────────────
- * 10. الميزانية العمومية (Balance Sheet)
+ * 10. الميزانية العمومية (Balance Sheet) — LEDGER-BASED
  * GET /api/reports/balance-sheet
  * ─────────────────────────────────────────────────────────────────────────
- * يعرض المركز المالي للمنشأة في لحظة زمنية (snapshot):
- *   الأصول = النقدية + ذمم العملاء + المخزون
- *   الخصوم = ذمم الموردين
- *   حقوق الملكية = رأس المال المفتوح + الأرباح المحتجزة (صافي الربح الكلي)
- *   معادلة المحاسبة: الأصول = الخصوم + حقوق الملكية
+ * المصدر الوحيد للحقيقة: accounts.current_balance
+ * (يُحدَّث تلقائياً بواسطة createJournalEntry عند كل ترحيل)
+ *
+ *   SAFE-*         → نقدية (asset, debit-normal → موجب = رصيد خزينة)
+ *   AR-*           → ذمم مدينة (asset, موجب = يدين به العميل)
+ *   AP-* / AP-C-*  → ذمم دائنة (liability, سالب = نحن ندين للمورد)
+ *   revenue        → إيرادات (credit-normal → سالب)
+ *   expense        → مصروفات (debit-normal → موجب)
+ *
+ * الأرباح المحتجزة = -Σ(revenue.current_balance) - Σ(expense.current_balance)
+ *
+ * استثناء محاسبي معلوم:
+ *   - المخزون: يُقرأ من products (كمية × تكلفة WAC) لأنه الأدق
+ *   - رأس المال الافتتاحي: يُقرأ من transactions (لا يزال قيد التوحيد)
  * ─────────────────────────────────────────────────────────────────────────*/
 router.get("/reports/balance-sheet", wrap(async (_req, res) => {
 
-  const [cashRow, receivablesRow, inventoryRow, payablesRow, capitalRow, plRow] = await Promise.all([
+  const [accountRows, inventoryRow, capitalRow] = await Promise.all([
 
-    /* ── النقدية: مجموع أرصدة الخزن ── */
+    /* ── أرصدة الحسابات من دفتر الأستاذ ── */
     db.execute(sql.raw(`
-      SELECT COALESCE(SUM(CAST(balance AS FLOAT8)), 0) AS total_cash
-      FROM safes
+      SELECT code, type, CAST(current_balance AS FLOAT8) AS bal
+      FROM accounts
+      WHERE is_active = true AND (
+        code LIKE 'SAFE-%'
+        OR code LIKE 'AR-%'
+        OR code LIKE 'AP-%'
+        OR type IN ('revenue', 'expense')
+      )
     `)),
 
-    /* ── ذمم العملاء المدينة: عملاء برصيد موجب (غير موردين) ── */
-    db.execute(sql.raw(`
-      SELECT COALESCE(SUM(CAST(balance AS FLOAT8)), 0) AS total_receivables
-      FROM customers
-      WHERE is_supplier = false AND CAST(balance AS FLOAT8) > 0.001
-    `)),
-
-    /* ── قيمة المخزون: الكمية × سعر التكلفة ── */
+    /* ── قيمة المخزون: الكمية × سعر التكلفة (أساس WAC) ── */
     db.execute(sql.raw(`
       SELECT COALESCE(SUM(CAST(quantity AS FLOAT8) * CAST(cost_price AS FLOAT8)), 0) AS inventory_value
       FROM products
       WHERE CAST(quantity AS FLOAT8) > 0
     `)),
 
-    /* ── ذمم الموردين الدائنة: موردون برصيد موجب ── */
-    db.execute(sql.raw(`
-      SELECT COALESCE(SUM(CAST(balance AS FLOAT8)), 0) AS total_payables
-      FROM customers
-      WHERE is_supplier = true AND CAST(balance AS FLOAT8) > 0.001
-    `)),
-
-    /* ── رأس المال المفتوح: مجموع إدخالات الأرصدة الافتتاحية للخزينة ── */
+    /* ── رأس المال الافتتاحي (من transactions — الثغرة المتبقية) ── */
     db.execute(sql.raw(`
       SELECT COALESCE(SUM(CAST(amount AS FLOAT8)), 0) AS opening_capital
       FROM transactions
       WHERE reference_type IN ('treasury_opening', 'customer_opening', 'supplier_opening', 'inventory_opening')
     `)),
-
-    /* ── صافي الربح الكلي (الأرباح المحتجزة) ── */
-    db.execute(sql.raw(`
-      WITH
-        revenue AS (
-          SELECT
-            COALESCE((SELECT SUM(CAST(amount AS FLOAT8)) FROM receipt_vouchers WHERE posting_status = 'posted'), 0)
-          + COALESCE((SELECT SUM(CAST(paid_amount AS FLOAT8)) FROM sales WHERE posting_status = 'posted' AND payment_type = 'cash'), 0)
-          AS total_revenue
-        ),
-        cogs AS (
-          SELECT COALESCE(SUM(CAST(si.cost_total AS FLOAT8)), 0) AS total_cogs
-          FROM sale_items si
-          JOIN sales s ON s.id = si.sale_id
-          WHERE s.posting_status = 'posted'
-        ),
-        expenses AS (
-          SELECT COALESCE(SUM(CAST(amount AS FLOAT8)), 0) AS total_expenses FROM expenses
-        )
-      SELECT
-        r.total_revenue,
-        c.total_cogs,
-        e.total_expenses,
-        r.total_revenue - c.total_cogs - e.total_expenses AS net_profit
-      FROM revenue r, cogs c, expenses e
-    `)),
   ]);
 
-  const totalCash        = r2(Number((cashRow.rows[0] as any)?.total_cash        ?? 0));
-  const totalReceivables = r2(Number((receivablesRow.rows[0] as any)?.total_receivables ?? 0));
-  const inventoryValue   = r2(Number((inventoryRow.rows[0] as any)?.inventory_value   ?? 0));
-  const totalPayables    = r2(Number((payablesRow.rows[0] as any)?.total_payables    ?? 0));
-  const openingCapital   = r2(Number((capitalRow.rows[0] as any)?.opening_capital   ?? 0));
-  const totalRevenue     = r2(Number((plRow.rows[0] as any)?.total_revenue     ?? 0));
-  const totalCogs        = r2(Number((plRow.rows[0] as any)?.total_cogs        ?? 0));
-  const totalExpenses    = r2(Number((plRow.rows[0] as any)?.total_expenses    ?? 0));
-  const retainedEarnings = r2(Number((plRow.rows[0] as any)?.net_profit        ?? 0));
+  /* ── تحليل أرصدة الحسابات ──────────────────────────────────────────── */
+  let totalCash        = 0;
+  let totalReceivables = 0;
+  let totalPayables    = 0;
+  let revenueSum       = 0; // credit-normal → سالب عادةً
+  let expenseSum       = 0; // debit-normal  → موجب عادةً
+  let totalRevenue     = 0; // مبلغ الإيراد المنعكس = -revenueSum
+  let totalExpenses    = 0; // مبلغ المصروفات = expenseSum (EXP-COGS + EXP-GENERAL + ...)
+  let totalCogs        = 0;
 
-  const totalAssets     = r2(totalCash + totalReceivables + inventoryValue);
+  for (const row of accountRows.rows as any[]) {
+    const code = String(row.code);
+    const bal  = Number(row.bal);
+    const typ  = String(row.type);
+
+    if (code.startsWith("SAFE-")) {
+      totalCash += bal;
+    } else if (code.startsWith("AR-") && bal > 0.001) {
+      totalReceivables += bal;
+    } else if (code.startsWith("AP-") && bal < -0.001) {
+      totalPayables += -bal; // نقلب الإشارة: الرصيد سالب = مديونية علينا
+    } else if (typ === "revenue") {
+      revenueSum += bal;
+    } else if (typ === "expense") {
+      expenseSum += bal;
+      if (code === "EXP-COGS") totalCogs += bal;
+      else totalExpenses += bal;
+    }
+  }
+
+  /* الأرباح المحتجزة = -Σ(revenue) - Σ(expense)
+   * مثال: revenueSum=-1000, expenseSum=800 → -(-1000)-800 = 200 ✓ */
+  totalRevenue         = r2(-revenueSum);
+  const totalExpTotal  = r2(expenseSum); // شامل COGS + مصروفات عمومية
+  const retainedEarnings = r2(totalRevenue - totalExpTotal);
+
+  const inventoryValue = r2(Number((inventoryRow.rows[0] as any)?.inventory_value ?? 0));
+  const openingCapital = r2(Number((capitalRow.rows[0] as any)?.opening_capital ?? 0));
+
+  totalCash        = r2(totalCash);
+  totalReceivables = r2(totalReceivables);
+  totalPayables    = r2(totalPayables);
+
+  const totalAssets      = r2(totalCash + totalReceivables + inventoryValue);
   const totalLiabilities = r2(totalPayables);
   const totalEquity      = r2(openingCapital + retainedEarnings);
   const totalLiabEquity  = r2(totalLiabilities + totalEquity);
@@ -1287,8 +1315,8 @@ router.get("/reports/balance-sheet", wrap(async (_req, res) => {
       actual:   totalLiabEquity,
     },
     {
-      name:     "الأرباح المحتجزة = الإيراد - التكلفة - المصروفات",
-      expected: r2(totalRevenue - totalCogs - totalExpenses),
+      name:     "الأرباح المحتجزة = الإيرادات - إجمالي المصروفات",
+      expected: r2(totalRevenue - totalExpTotal),
       actual:   retainedEarnings,
     },
   ]);
@@ -1311,13 +1339,14 @@ router.get("/reports/balance-sheet", wrap(async (_req, res) => {
     },
     total_liabilities_equity: totalLiabEquity,
     pl_detail: {
-      total_revenue: totalRevenue,
-      total_cogs:    totalCogs,
-      total_expenses: totalExpenses,
+      total_revenue:  totalRevenue,
+      total_cogs:     r2(totalCogs),
+      total_expenses: r2(totalExpenses),
     },
     balanced:   Math.abs(totalAssets - totalLiabEquity) <= TOLERANCE,
     validation: bsValidation,
     as_of:      new Date().toISOString().split("T")[0],
+    _source:    "ledger", // للتوثيق: المصدر هو دفتر الأستاذ
   });
 }));
 
