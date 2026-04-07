@@ -1,0 +1,120 @@
+أريد منك الآن أن تتصرف كـ **Senior ERP Audit & Compliance Engineer**.
+
+النظام يحتوي بالفعل على:
+
+* جدول `audit_logs`
+* helper باسم `writeAuditLog(...)`
+
+مهمتك الآن **ليست إعادة بناء نظام audit من الصفر**، بل:
+
+## **عمل Audit سريع للنظام الحالي ثم Upgrade صغير فقط ليصبح مناسبًا للأحداث الحرجة في ERP**
+
+---
+
+## المطلوب
+
+### 1) Audit سريع
+
+افحص النظام الحالي وحدد:
+
+* هل `audit_logs` يُستخدم الآن فقط كـ CRUD log
+* هل يتم تسجيل الأحداث الحرجة التالية أم لا:
+
+  * Integrity repair
+  * Inventory adjustment
+  * Admin override / period override
+
+---
+
+### 2) Upgrade minimal فقط
+
+إذا لم تكن هذه الأحداث تُسجَّل بشكل صريح:
+
+* وسّع `AuditAction` ليشمل:
+
+  * `INTEGRITY_REPAIR`
+  * `INVENTORY_ADJUSTMENT`
+  * `PERIOD_OVERRIDE`
+
+**لا تنشئ جدولًا جديدًا**
+**لا تنشئ audit system جديدًا**
+استخدم البنية الحالية نفسها.
+
+---
+
+### 3) اربط logging في هذه الأماكن فقط
+
+#### A) Integrity Repair
+
+* `/api/integrity/repair-accounts`
+* `/api/integrity/repair-customers`
+
+سجّل:
+
+* action = `INTEGRITY_REPAIR`
+* record_type مناسب
+* old_value / new_value أو payload يوضح ما تم إصلاحه
+* user
+
+---
+
+#### B) Inventory Adjustment
+
+* `POST /inventory/adjustment`
+
+سجّل:
+
+* action = `INVENTORY_ADJUSTMENT`
+* record_type = `product`
+* record_id = product_id
+* old_value = الكمية قبل
+* new_value = الكمية بعد
+* user
+
+---
+
+#### C) Period/Admin Override
+
+أي مكان فيه تجاوز للقفل المالي:
+
+* action = `PERIOD_OVERRIDE`
+* record_type = `financial_lock`
+* record_id = period_id أو lock id
+* old_value / new_value بما يوضح التجاوز
+* user
+
+---
+
+## قواعد مهمة
+
+* لا تعمل refactor واسع
+* لا تضف logging عام لكل العمليات
+* لا تغيّر الـ UI
+* لا تبدأ features جديدة
+* ركّز فقط على **Audit + Minimal Upgrade**
+
+---
+
+## المطلوب في النهاية
+
+### A) WHAT WAS FOUND
+
+ما الذي كان مسجلاً بالفعل وما الذي لم يكن مسجلاً
+
+### B) WHAT WAS UPGRADED
+
+ما التعديلات الصغيرة التي تمت
+
+### C) FILES UPDATED
+
+الملفات المعدلة
+
+### D) EVENTS NOW LOGGED
+
+الأحداث التي أصبحت تُسجَّل صراحة
+
+### E) SAMPLE AUDIT RECORDS
+
+مثال أو مثالان بعد التنفيذ
+
+ابدأ التنفيذ مباشرة.
