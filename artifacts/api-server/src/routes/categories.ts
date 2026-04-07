@@ -58,15 +58,20 @@ router.put("/categories/:id", wrap(async (req, res) => {
 
   const companyId = req.user?.company_id ?? 1;
 
-  const [linked] = await db
+  const [duplicate] = await db
+    .select()
+    .from(categoriesTable)
+    .where(and(eq(categoriesTable.name, name), eq(categoriesTable.company_id, companyId)));
+
+  if (duplicate && duplicate.id !== id) {
+    res.status(409).json({ error: "يوجد تصنيف بهذا الاسم مسبقاً" });
+    return;
+  }
+
+  const [productCount] = await db
     .select({ c: sql<number>`cast(count(*) as int)` })
     .from(productsTable)
     .where(and(eq(productsTable.category_id, id), eq(productsTable.company_id, companyId)));
-
-  if ((linked?.c ?? 0) > 0) {
-    res.status(409).json({ error: "لا يمكن تعديل تصنيف مرتبط بمنتجات" });
-    return;
-  }
 
   const [cat] = await db
     .update(categoriesTable)
@@ -75,7 +80,7 @@ router.put("/categories/:id", wrap(async (req, res) => {
     .returning();
 
   if (!cat) { res.status(404).json({ error: "التصنيف غير موجود" }); return; }
-  res.json({ ...cat, product_count: 0 });
+  res.json({ ...cat, product_count: productCount?.c ?? 0 });
 }));
 
 router.delete("/categories/:id", wrap(async (req, res) => {
