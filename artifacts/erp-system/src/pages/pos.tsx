@@ -14,7 +14,7 @@ import {
   ShoppingCart, Search, Plus, Minus, Trash2, Receipt,
   AlertTriangle, Zap, X, CreditCard, Banknote, Clock,
   Store, Vault, CheckCircle2, Printer, RotateCcw,
-  Scan, RefreshCw, Settings,
+  RefreshCw, Settings,
 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -60,6 +60,8 @@ interface ReturnSale {
   customer_name: string | null;
   total_amount: number;
   payment_type: string;
+  date: string | null;
+  status: string;
   items: ReturnSaleItem[];
 }
 
@@ -449,13 +451,16 @@ function POSBody({
   const [cashierMode, setCashierMode]     = useState(false);
 
   /* ── Return mode ── */
-  const [returnMode, setReturnMode]       = useState(false);
-  const [returnInvoiceNo, setReturnInvoiceNo] = useState("");
-  const [returnSale, setReturnSale]       = useState<ReturnSale | null>(null);
-  const [returnItems, setReturnItems]     = useState<ReturnItem[]>([]);
+  const [returnMode, setReturnMode]             = useState(false);
+  const [returnInvoiceNo, setReturnInvoiceNo]   = useState("");
+  const [debouncedReturnSearch, setDebouncedReturnSearch] = useState("");
+  const [returnSearchResults, setReturnSearchResults] = useState<ReturnSale[]>([]);
+  const [returnSearchFetching, setReturnSearchFetching] = useState(false);
+  const [returnFetching, setReturnFetching]     = useState(false);
+  const [returnSale, setReturnSale]             = useState<ReturnSale | null>(null);
+  const [returnItems, setReturnItems]           = useState<ReturnItem[]>([]);
   const [returnRefundType, setReturnRefundType] = useState<"cash" | "credit">("cash");
-  const [returnReason, setReturnReason]   = useState("");
-  const [returnFetching, setReturnFetching] = useState(false);
+  const [returnReason, setReturnReason]         = useState("");
   const [showExitConfirm, setShowExitConfirm] = useState(false);
 
   /* ── Refs ── */
@@ -600,25 +605,43 @@ function POSBody({
     },
   });
 
-  /* ── Return: fetch sale by invoice no ── */
-  const fetchReturnSale = useCallback(async () => {
-    const inv = returnInvoiceNo.trim();
-    if (!inv) return;
+  /* ── Return: debounce search input (350ms) ── */
+  useEffect(() => {
+    if (!returnMode) return;
+    const t = setTimeout(() => setDebouncedReturnSearch(returnInvoiceNo.trim()), 350);
+    return () => clearTimeout(t);
+  }, [returnInvoiceNo, returnMode]);
+
+  /* ── Return: fetch search results when debounced term changes ── */
+  useEffect(() => {
+    if (!returnMode) return;
+    if (!debouncedReturnSearch) { setReturnSearchResults([]); return; }
+    setReturnSearchFetching(true);
+    const url = debouncedReturnSearch
+      ? `/api/sales?sort=desc&limit=100&q=${encodeURIComponent(debouncedReturnSearch)}`
+      : `/api/sales?sort=desc&limit=40`;
+    authFetch(api(url))
+      .then(r => r.json())
+      .then(data => {
+        const list: ReturnSale[] = safeArray(Array.isArray(data) ? data : ((data as { data?: ReturnSale[] }).data ?? []));
+        setReturnSearchResults(list.filter(s => s.status !== "cancelled"));
+      })
+      .catch(() => setReturnSearchResults([]))
+      .finally(() => setReturnSearchFetching(false));
+  }, [debouncedReturnSearch, returnMode]);
+
+  /* ── Return: load full invoice when user selects a result ── */
+  const selectReturnInvoice = useCallback(async (saleId: number) => {
     setReturnFetching(true);
     setReturnSale(null);
     setReturnItems([]);
+    setReturnSearchResults([]);
     try {
-      const res = await authFetch(api(`/api/sales?invoice_no=${encodeURIComponent(inv)}`));
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "خطأ في البحث");
-      const list: ReturnSale[] = safeArray<ReturnSale>(data);
-      const sale = list.find((s: ReturnSale) => s.invoice_no === inv) ?? list[0];
-      if (!sale) { toast({ title: "❌ لم يتم العثور على الفاتورة", variant: "destructive" }); return; }
-      /* fetch sale with items */
-      const r2 = await authFetch(api(`/api/sales/${sale.id}`));
-      const full: ReturnSale = await r2.json();
-      if (!r2.ok) throw new Error("خطأ في تحميل الفاتورة");
+      const r = await authFetch(api(`/api/sales/${saleId}`));
+      const full: ReturnSale = await r.json();
+      if (!r.ok) throw new Error("خطأ في تحميل الفاتورة");
       setReturnSale(full);
+      setReturnInvoiceNo(full.invoice_no);
       setReturnItems(full.items.map((it: ReturnSaleItem, idx: number) => ({
         id: idx,
         product_id: it.product_id,
@@ -632,7 +655,7 @@ function POSBody({
     } finally {
       setReturnFetching(false);
     }
-  }, [returnInvoiceNo, toast]);
+  }, [toast]);
 
   /* ── Return mutation ── */
   const returnMutation = useMutation({
@@ -1004,31 +1027,58 @@ function POSBody({
               <span className="erp-subtitle text-red-400">وضع المرتجع</span>
             </div>
 
-            {/* Invoice lookup */}
+            {/* Invoice search */}
             <div className="px-4 py-3 shrink-0" style={{ borderBottom: "1px solid var(--erp-border)" }}>
-              <p className="erp-label text-xs mb-1.5">رقم الفاتورة الأصلية</p>
-              <div className="flex gap-2">
-                <input
-                  value={returnInvoiceNo}
-                  onChange={e => setReturnInvoiceNo(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter") fetchReturnSale(); }}
-                  placeholder="INV-0001"
-                  className="erp-input flex-1 text-sm"
-                  dir="ltr"
-                />
-                <button
-                  onClick={fetchReturnSale}
-                  disabled={returnFetching}
-                  className="erp-btn-primary px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5"
-                >
-                  <Scan className="w-3.5 h-3.5" />
-                  {returnFetching ? "..." : "بحث"}
-                </button>
+              <p className="erp-label text-xs mb-1.5">رقم الفاتورة / اسم العميل / رمز العميل</p>
+              <div className="relative">
+                <div className="flex items-center gap-2 erp-input pr-3 pl-2 py-2">
+                  <Search className={`w-4 h-4 shrink-0 transition-colors ${returnSearchFetching || returnFetching ? "text-amber-500 animate-pulse" : "text-white/30"}`} style={{ color: returnSearchFetching || returnFetching ? undefined : "var(--erp-text-3)" }} />
+                  <input
+                    value={returnInvoiceNo}
+                    onChange={e => { setReturnInvoiceNo(e.target.value); if (returnSale) { setReturnSale(null); setReturnItems([]); } }}
+                    placeholder="رقم الفاتورة / اسم العميل / رمز العميل..."
+                    className="flex-1 bg-transparent outline-none text-sm"
+                    style={{ color: "var(--erp-text)" }}
+                    dir="rtl"
+                  />
+                  {returnInvoiceNo && (
+                    <button onClick={() => { setReturnInvoiceNo(""); setReturnSale(null); setReturnItems([]); setReturnSearchResults([]); }}
+                      className="text-white/30 hover:text-white/60 shrink-0" style={{ color: "var(--erp-text-3)" }}>
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                {/* Results dropdown */}
+                {!returnSale && returnInvoiceNo && (
+                  <div className="mt-1 rounded-xl overflow-hidden max-h-52 overflow-y-auto" style={{ background: "var(--erp-bg-elevated)", border: "1px solid var(--erp-border)" }}>
+                    {returnSearchFetching ? (
+                      <div className="px-4 py-3 text-xs" style={{ color: "var(--erp-text-3)" }}>جاري البحث…</div>
+                    ) : returnSearchResults.length === 0 ? (
+                      <div className="px-4 py-3 text-xs" style={{ color: "var(--erp-text-3)" }}>لا توجد نتائج</div>
+                    ) : returnSearchResults.map(s => (
+                      <button key={s.id} onClick={() => selectReturnInvoice(s.id)}
+                        className="w-full text-right px-4 py-2.5 text-sm transition-colors hover:opacity-80 flex justify-between items-center gap-2 border-b last:border-0"
+                        style={{ borderColor: "var(--erp-border)", background: "transparent", color: "var(--erp-text)" }}>
+                        <div className="flex flex-col items-start gap-0.5 min-w-0 flex-1">
+                          <span className="font-bold text-amber-500 text-xs" dir="ltr">{s.invoice_no}</span>
+                          <span className="text-xs truncate" style={{ color: "var(--erp-text-2)" }}>{s.customer_name || "نقدي"}</span>
+                        </div>
+                        <div className="flex flex-col items-end gap-0.5 shrink-0">
+                          <span className="text-xs font-bold" style={{ color: "var(--erp-text)" }}>{s.payment_type === "cash" ? "نقدي" : s.payment_type === "credit" ? "آجل" : "جزئي"}</span>
+                          <span className="text-xs" style={{ color: "var(--erp-text-3)" }}>{s.date || "—"}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
+              {!returnInvoiceNo && (
+                <p className="text-xs mt-1.5" style={{ color: "var(--erp-text-3)" }}>ابحث بالرقم أو الاسم أو الرمز</p>
+              )}
             </div>
 
             {/* Sale info + items */}
-            {returnSale && (
+            {(returnFetching || returnSale) && (
               <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
                 <div className="rounded-xl p-3 space-y-1" style={{ background: "var(--erp-bg-elevated)", border: "1px solid var(--erp-border)" }}>
                   <div className="flex justify-between">
@@ -1116,10 +1166,16 @@ function POSBody({
               </div>
             )}
 
-            {!returnSale && (
+            {!returnSale && !returnFetching && !returnInvoiceNo && (
               <div className="erp-empty flex-1">
                 <RefreshCw className="w-10 h-10 mx-auto mb-3 opacity-20" style={{ color: "var(--erp-text-3)" }} />
-                <p className="erp-text-muted text-sm">أدخل رقم الفاتورة للبحث</p>
+                <p className="erp-text-muted text-sm">ابحث بالرقم أو الاسم أو رمز العميل</p>
+              </div>
+            )}
+            {returnFetching && !returnSale && (
+              <div className="erp-empty flex-1">
+                <RefreshCw className="w-8 h-8 mx-auto mb-3 animate-spin opacity-40" style={{ color: "var(--erp-text-3)" }} />
+                <p className="erp-text-muted text-sm">جاري تحميل الفاتورة…</p>
               </div>
             )}
           </div>
