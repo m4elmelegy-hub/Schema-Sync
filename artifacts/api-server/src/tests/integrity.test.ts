@@ -462,6 +462,72 @@ describe("7 — Detect manually-inserted imbalanced journal entries", () => {
 });
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * 8. قيد عكس COGS عند مرتجع المبيعات
+ *    يتحقق من أن DR ASSET-INVENTORY / CR EXP-COGS يُصفِّر قيد البيع الأصلي
+ *    DR EXP-COGS / CR ASSET-INVENTORY
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+describe("8 — COGS reversal JE on sale_return nets to zero", () => {
+  let invAcctId  = 0;
+  let cogsAcctId = 0;
+  const saleRef  = `${P}-COGS-SALE`;
+  const retRef   = `${P}-COGS-RET`;
+  const COGS_AMT = 300;
+
+  it("قيد بيع COGS + قيد عكسي مرتجع يُصفّيان الحسابين إلى صفر", async () => {
+    /* إنشاء حسابَي ASSET-INVENTORY و EXP-COGS اختباريَّين */
+    invAcctId  = await mkAccount(`${P}-INV`,  `${P} ASSET-INVENTORY test`, "asset");
+    cogsAcctId = await mkAccount(`${P}-COGS`, `${P} EXP-COGS test`,        "expense");
+
+    const invAcct  = { id: invAcctId,  code: `${P}-INV`,  name: `${P} ASSET-INVENTORY test` };
+    const cogsAcct = { id: cogsAcctId, code: `${P}-COGS`, name: `${P} EXP-COGS test` };
+
+    /* ── محاكاة قيد البيع: DR EXP-COGS / CR ASSET-INVENTORY ─────────────── */
+    await createJournalEntry({
+      date: "2025-01-10",
+      description: `قيد COGS للبيع — ${saleRef}`,
+      reference: saleRef,
+      lines: [
+        { account: cogsAcct, debit: COGS_AMT, credit: 0        },   // DR EXP-COGS
+        { account: invAcct,  debit: 0,        credit: COGS_AMT },   // CR ASSET-INVENTORY
+      ],
+    });
+    const [saleJE] = await db.select({ id: journalEntriesTable.id }).from(journalEntriesTable).where(eq(journalEntriesTable.reference, saleRef));
+    if (saleJE) createdJournalEntryIds.push(saleJE.id);
+
+    /* التحقق المرحلي: بعد البيع، COGS مدين والمخزون دائن */
+    const [invMid]  = await db.select({ bal: accountsTable.current_balance }).from(accountsTable).where(eq(accountsTable.id, invAcctId));
+    const [cogsMid] = await db.select({ bal: accountsTable.current_balance }).from(accountsTable).where(eq(accountsTable.id, cogsAcctId));
+    assert.strictEqual(Number(invMid.bal),  -COGS_AMT, "ASSET-INVENTORY يجب أن يكون سالباً بعد قيد البيع");
+    assert.strictEqual(Number(cogsMid.bal),  COGS_AMT, "EXP-COGS يجب أن يكون موجباً بعد قيد البيع");
+
+    /* ── محاكاة قيد عكس COGS عند المرتجع: DR ASSET-INVENTORY / CR EXP-COGS ─ */
+    await createJournalEntry({
+      date: "2025-01-11",
+      description: `عكس تكلفة مرتجع مبيعات — ${retRef}`,
+      reference: retRef,
+      lines: [
+        { account: invAcct,  debit: COGS_AMT, credit: 0        },   // DR ASSET-INVENTORY
+        { account: cogsAcct, debit: 0,        credit: COGS_AMT },   // CR EXP-COGS
+      ],
+    });
+    const [retJE] = await db.select({ id: journalEntriesTable.id }).from(journalEntriesTable).where(eq(journalEntriesTable.reference, retRef));
+    if (retJE) createdJournalEntryIds.push(retJE.id);
+
+    /* التحقق النهائي: كلا الحسابين = 0 بعد البيع + المرتجع */
+    const [invFinal]  = await db.select({ bal: accountsTable.current_balance }).from(accountsTable).where(eq(accountsTable.id, invAcctId));
+    const [cogsFinal] = await db.select({ bal: accountsTable.current_balance }).from(accountsTable).where(eq(accountsTable.id, cogsAcctId));
+    assert.strictEqual(Number(invFinal.bal),  0, "ASSET-INVENTORY يجب أن يُصفَّر بعد المرتجع");
+    assert.strictEqual(Number(cogsFinal.bal), 0, "EXP-COGS يجب أن يُصفَّر بعد المرتجع");
+
+    /* لا انحراف في أي من الحسابين */
+    const drift = await checkAccountBalanceDrift();
+    assert.ok(!drift.items.find(i => i.id === invAcctId),  "لا انحراف في ASSET-INVENTORY");
+    assert.ok(!drift.items.find(i => i.id === cogsAcctId), "لا انحراف في EXP-COGS");
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * التنظيف: حذف جميع البيانات الاختبارية
  * ═══════════════════════════════════════════════════════════════════════════ */
 

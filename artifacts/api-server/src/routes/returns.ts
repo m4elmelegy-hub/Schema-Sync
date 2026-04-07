@@ -11,6 +11,11 @@ import { wrap, httpError } from "../lib/async-handler";
 import { assertPeriodOpen } from "../lib/period-lock";
 import { writeAuditLog } from "../lib/audit-log";
 import { hasPermission } from "../lib/permissions";
+import {
+  getOrCreateCOGSAccount,
+  getOrCreateInventoryAccount,
+  createJournalEntry,
+} from "../lib/auto-account";
 
 const router: IRouter = Router();
 
@@ -117,6 +122,7 @@ router.post("/sales-returns", wrap(async (req, res) => {
     }).returning();
 
     let actualTotal = 0;
+    let totalCOGSReversed = 0;
 
     for (const item of items) {
       const retQty = Number(item.quantity);
@@ -193,6 +199,7 @@ router.post("/sales-returns", wrap(async (req, res) => {
       }
 
       const totalCostAtReturn = unitCostAtSale * retQty;
+      totalCOGSReversed += totalCostAtReturn;
 
       const lockedTotalPrice = lockedSalePrice * retQty;
       actualTotal += lockedTotalPrice;
@@ -243,6 +250,23 @@ router.post("/sales-returns", wrap(async (req, res) => {
           warehouse_id: effectiveWarehouseId ?? 1,
         });
       }
+    }
+
+    // ── قيد عكس COGS: DR ASSET-INVENTORY / CR EXP-COGS ─────────────────────
+    // يعكس تكلفة البضاعة التي كانت خُصمت عند ترحيل البيع الأصلي،
+    // ليبقى رصيد EXP-COGS و ASSET-INVENTORY متوافقاً مع الحركة المخزنية.
+    if (totalCOGSReversed > 0) {
+      const inventoryAcct = await getOrCreateInventoryAccount();
+      const cogsAcct      = await getOrCreateCOGSAccount();
+      await createJournalEntry({
+        date:        txDate,
+        description: `عكس تكلفة مرتجع مبيعات ${return_no}${customer_name ? ` — ${customer_name}` : ""}`,
+        reference:   return_no,
+        lines: [
+          { account: inventoryAcct, debit: totalCOGSReversed, credit: 0 },
+          { account: cogsAcct,      debit: 0, credit: totalCOGSReversed },
+        ],
+      }, tx);
     }
 
     // تحديث المبلغ بالقيمة المقفولة إن اختلفت
@@ -333,6 +357,7 @@ router.delete("/sales-returns/:id", wrap(async (req, res) => {
 
     const retItems = await tx.select().from(saleReturnItemsTable).where(eq(saleReturnItemsTable.return_id, id));
     const total = Number(ret.total_amount);
+    let totalCOGSRebook = 0;
 
     for (const item of retItems) {
       const retQty = Number(item.quantity);
@@ -351,6 +376,7 @@ router.delete("/sales-returns/:id", wrap(async (req, res) => {
 
       // ── عكس المخزون (البضاعة تخرج مرة أخرى) ─────────────────────────────
       const unitCost = Number(item.unit_cost_at_return) || Number(item.unit_price);
+      totalCOGSRebook += retQty * unitCost;
       const [prod] = await tx.select().from(productsTable).where(eq(productsTable.id, item.product_id));
       if (prod) {
         const oldQty = Number(prod.quantity);
@@ -385,6 +411,22 @@ router.delete("/sales-returns/:id", wrap(async (req, res) => {
           warehouse_id:    effectiveWarehouseId ?? 1,
         });
       }
+    }
+
+    // ── إعادة تطبيق COGS عند إلغاء المرتجع: DR EXP-COGS / CR ASSET-INVENTORY ─
+    // البضاعة تخرج من المخزون مرة أخرى، لذا يعود COGS كما كان قبل المرتجع.
+    if (totalCOGSRebook > 0) {
+      const inventoryAcct = await getOrCreateInventoryAccount();
+      const cogsAcct      = await getOrCreateCOGSAccount();
+      await createJournalEntry({
+        date:        new Date().toISOString().split("T")[0],
+        description: `إلغاء مرتجع مبيعات — إعادة COGS ${ret.return_no}`,
+        reference:   `REV-${ret.return_no}`,
+        lines: [
+          { account: cogsAcct,      debit: totalCOGSRebook, credit: 0 },
+          { account: inventoryAcct, debit: 0, credit: totalCOGSRebook },
+        ],
+      }, tx);
     }
 
     // ── عكس الأرصدة ─────────────────────────────────────────────────────────
