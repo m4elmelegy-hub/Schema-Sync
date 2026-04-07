@@ -4,7 +4,7 @@ import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
   useGetSettingsUsers, useCreateSettingsUser, useUpdateSettingsUser, useDeleteSettingsUser,
-  useGetSettingsSafes, useCreateSettingsSafe, useDeleteSettingsSafe,
+  useGetSettingsSafes, useDeleteSettingsSafe,
   useGetSettingsWarehouses, useCreateSettingsWarehouse, useDeleteSettingsWarehouse,
   useResetDatabase,
   useGetProducts, useGetCustomers,
@@ -886,7 +886,6 @@ function UsersTab() {
 function SafesTab() {
   const { data: safesRaw, isLoading } = useGetSettingsSafes();
   const safes = safeArray(safesRaw);
-  const createSafe = useCreateSettingsSafe();
   const deleteSafe = useDeleteSettingsSafe();
   const queryClient = useQueryClient();
   const createTransfer = useMutation({
@@ -898,10 +897,8 @@ function SafesTab() {
   });
   const { toast } = useToast();
 
-  const [showAdd, setShowAdd]         = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
-  const [form, setForm]   = useState({ name: "", balance: "" });
   const [tf, setTf]       = useState({ from_safe_id: "", to_safe_id: "", amount: "", notes: "" });
 
   const totalBalance = safes.reduce((s, x) => s + Number(x.balance), 0);
@@ -917,14 +914,9 @@ function SafesTab() {
         title="إدارة الخزائن"
         sub="عرض وإدارة أرصدة الخزائن"
         action={
-          <div className="flex gap-2">
-            <GhostBtn onClick={() => setShowTransfer(true)}>
-              <ArrowLeftRight className="w-4 h-4" /> تحويل
-            </GhostBtn>
-            <PrimaryBtn onClick={() => setShowAdd(true)} style={{ display: "none" }}>
-              <Plus className="w-4 h-4" /> إضافة خزنة
-            </PrimaryBtn>
-          </div>
+          <GhostBtn onClick={() => setShowTransfer(true)}>
+            <ArrowLeftRight className="w-4 h-4" /> تحويل
+          </GhostBtn>
         }
       />
 
@@ -992,38 +984,6 @@ function SafesTab() {
             );
           })}
         </div>
-      )}
-
-      {/* ── Add Safe Modal ── */}
-      {showAdd && (
-        <Modal title="إضافة خزنة جديدة" icon={Landmark} onClose={() => setShowAdd(false)}>
-          <div className="p-6 space-y-4">
-            <div>
-              <FieldLabel>اسم الخزنة</FieldLabel>
-              <SInput placeholder="الخزنة الرئيسية" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-            </div>
-            <div>
-              <FieldLabel>الرصيد الابتدائي</FieldLabel>
-              <SInput type="number" placeholder="0" value={form.balance} onChange={e => setForm(f => ({ ...f, balance: e.target.value }))} />
-            </div>
-          </div>
-          <div className="flex gap-3 px-6 py-4 border-t border-white/8">
-            <PrimaryBtn
-              className="flex-1"
-              disabled={createSafe.isPending}
-              onClick={() => {
-                if (!form.name.trim()) { toast({ title: "الاسم مطلوب", variant: "destructive" }); return; }
-                createSafe.mutate({ name: form.name, balance: Number(form.balance) || 0 }, {
-                  onSuccess: () => { invalidate(); toast({ title: "تم إضافة الخزنة" }); setForm({ name: "", balance: "" }); setShowAdd(false); },
-                });
-              }}
-            >
-              {createSafe.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              إضافة
-            </PrimaryBtn>
-            <GhostBtn className="flex-1" onClick={() => setShowAdd(false)}>إلغاء</GhostBtn>
-          </div>
-        </Modal>
       )}
 
       {/* ── Transfer Modal ── */}
