@@ -1,4 +1,6 @@
+// ✔ POS UX CLEANED — SINGLE ENTRY POINT
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useLocation } from "wouter";
 import { safeArray } from "@/lib/safe-data";
 import { useAuth } from "@/contexts/auth";
 import { hasPermission } from "@/lib/permissions";
@@ -404,6 +406,7 @@ function POSBody({
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [, navigate] = useLocation();
   /* ── Data ── */
   const { data: products = [] } = useQuery<{ id: number; name: string; sku: string | null; quantity: number; sale_price: number; cost_price: number; barcode?: string | null }[]>({
     queryKey: ["/api/products"],
@@ -721,12 +724,23 @@ function POSBody({
       if (e.key === "F9") { e.preventDefault(); checkoutRef.current(); return; }
       /* F2 → focus search */
       if (e.key === "F2") { e.preventDefault(); searchRef.current?.focus(); return; }
-      /* ESC → clear search */
+      /* Ctrl+Backspace → clear cart */
+      if ((e.ctrlKey || e.metaKey) && e.key === "Backspace") {
+        e.preventDefault();
+        setCart([]);
+        return;
+      }
+      /* ESC — priority: modal → return mode → navigate away */
       if (e.key === "Escape") {
-        setSearch(prev => {
-          if (prev) { setTimeout(() => searchRef.current?.focus(), 0); return ""; }
-          return prev;
-        });
+        if (successInvoice) { setSuccessInvoice(null); return; }
+        if (returnMode) {
+          setReturnMode(false);
+          setReturnSale(null);
+          setReturnItems([]);
+          setReturnInvoiceNo("");
+          return;
+        }
+        navigate("/sales");
         return;
       }
       /* Enter → barcode exact match first, then first result */
@@ -746,7 +760,7 @@ function POSBody({
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [filtered, addToCart, products, search]);
+  }, [filtered, addToCart, products, search, successInvoice, returnMode, navigate]);
 
   /* ── Payment options ── */
   const payOptions = [
@@ -800,7 +814,7 @@ function POSBody({
         {/* Keyboard hints + cashier toggle */}
         <div className="flex items-center gap-4">
           <div className="hidden lg:flex items-center gap-2">
-            {[["F2","بحث"],["Enter","إضافة"],["F9","دفع"],["ESC","مسح"]].map(([k,l]) => (
+            {[["F2","بحث"],["Enter","إضافة"],["F9","دفع"],["ESC","خروج"],["⌃⌫","مسح"]].map(([k,l]) => (
               <div key={k} className="flex items-center gap-1">
                 <kbd className="px-1.5 py-0.5 rounded text-[10px] font-bold erp-label"
                   style={{ background: "var(--erp-bg-elevated)", border: "1px solid var(--erp-border-strong)" }}>{k}</kbd>
@@ -1103,8 +1117,8 @@ function POSBody({
             </div>
             {cart.length > 0 && (
               <button onClick={() => setCart([])}
-                className="erp-btn-ghost text-xs px-2 py-1 text-red-500 hover:text-red-500">
-                <Trash2 className="w-3 h-3" /> مسح الكل
+                className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg font-bold transition-all bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 hover:border-red-500/40">
+                <Trash2 className="w-3 h-3" /> مسح السلة
               </button>
             )}
           </div>
