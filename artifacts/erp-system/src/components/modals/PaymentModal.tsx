@@ -2,7 +2,7 @@
  * PaymentModal — سند صرف
  * Minimal: customer + safe + amount + date + notes
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { safeArray } from "@/lib/safe-data";
 import { authFetch } from "@/lib/auth-fetch";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -11,6 +11,7 @@ import { formatCurrency } from "@/lib/format";
 import { useToast } from "@/hooks/use-toast";
 import { SearchableSelect } from "@/components/searchable-select";
 import { ArrowUpFromLine, X } from "lucide-react";
+import { useAuth } from "@/contexts/auth";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api  = (p: string) => `${BASE}${p}`;
@@ -22,8 +23,13 @@ interface Props { onClose: () => void; }
 export default function PaymentModal({ onClose }: Props) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
   const { data: safesRaw } = useGetSettingsSafes();
-  const safes = safeArray(safesRaw);
+  const allSafes = safeArray(safesRaw);
+  const isScopedRole = user?.role === "cashier" || user?.role === "salesperson";
+  const safes = isScopedRole && user?.safe_id
+    ? allSafes.filter((s: any) => s.id === user.safe_id)
+    : allSafes;
   const { data: customersRaw } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],
     queryFn: () => authFetch(api("/api/customers")).then(async r => { if (!r.ok) throw new Error(`API Error: ${r.status}`); return r.json(); }),
@@ -33,6 +39,13 @@ export default function PaymentModal({ onClose }: Props) {
   const [form, setForm] = useState({
     customer_id: "", safe_id: "", amount: "", notes: "", date: today(),
   });
+
+  // Auto-select sole safe for cashier/salesperson
+  useEffect(() => {
+    if (safes.length === 1 && !form.safe_id) {
+      setForm(f => ({ ...f, safe_id: String(safes[0].id) }));
+    }
+  }, [safes.length]);
 
   const customerItems = useMemo(() => customers.map(c => ({
     value: String(c.id),

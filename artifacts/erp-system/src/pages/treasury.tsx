@@ -1,6 +1,8 @@
 import { safeArray } from "@/lib/safe-data";
 import { useState } from "react";
 import { authFetch } from "@/lib/auth-fetch";
+import { useAuth } from "@/contexts/auth";
+import { hasPermission } from "@/lib/permissions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useGetSettingsSafes, useCreateSettingsSafe, useDeleteSettingsSafe } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
@@ -30,6 +32,12 @@ export default function Treasury() {
   const createSafe   = useCreateSettingsSafe();
   const deleteSafe   = useDeleteSettingsSafe();
   const { toast }    = useToast();
+  const { user }     = useAuth();
+
+  const canAddReceipt = hasPermission(user, "can_add_receipt_voucher");
+  const canAddPayment = hasPermission(user, "can_add_payment_voucher");
+  const canTransfer   = user?.role === "admin" || user?.role === "manager";
+  const canCloseSafe  = hasPermission(user, "can_close_shift");
 
   const { data: safesRaw } = useGetSettingsSafes();
   const safes = safeArray(safesRaw);
@@ -71,7 +79,7 @@ export default function Treasury() {
   ];
 
   /* ── Action buttons ── */
-  const actions: {
+  const allActions: {
     id: ModalType;
     label: string;
     sub: string;
@@ -80,48 +88,54 @@ export default function Treasury() {
     bg: string;
     text: string;
     glow: string;
+    permitted: boolean;
   }[] = [
     {
-      id:     "receipt",
-      label:  "سند قبض",
-      sub:    "استلام مبلغ وإضافته للخزينة",
-      icon:   HandCoins,
-      border: "border-emerald-500/30",
-      bg:     "bg-emerald-500/8 hover:bg-emerald-500/15",
-      text:   "text-emerald-400",
-      glow:   "shadow-emerald-500/10",
+      id:        "receipt",
+      label:     "سند قبض",
+      sub:       "استلام مبلغ وإضافته للخزينة",
+      icon:      HandCoins,
+      border:    "border-emerald-500/30",
+      bg:        "bg-emerald-500/8 hover:bg-emerald-500/15",
+      text:      "text-emerald-400",
+      glow:      "shadow-emerald-500/10",
+      permitted: canAddReceipt,
     },
     {
-      id:     "payment",
-      label:  "سند صرف",
-      sub:    "صرف مبلغ من الخزينة",
-      icon:   ArrowUpFromLine,
-      border: "border-orange-500/30",
-      bg:     "bg-orange-500/8 hover:bg-orange-500/15",
-      text:   "text-orange-400",
-      glow:   "shadow-orange-500/10",
+      id:        "payment",
+      label:     "سند صرف",
+      sub:       "صرف مبلغ من الخزينة",
+      icon:      ArrowUpFromLine,
+      border:    "border-orange-500/30",
+      bg:        "bg-orange-500/8 hover:bg-orange-500/15",
+      text:      "text-orange-400",
+      glow:      "shadow-orange-500/10",
+      permitted: canAddPayment,
     },
     {
-      id:     "transfer",
-      label:  "تحويل خزائن",
-      sub:    "نقل رصيد من خزينة إلى أخرى",
-      icon:   ArrowLeftRight,
-      border: "border-violet-500/30",
-      bg:     "bg-violet-500/8 hover:bg-violet-500/15",
-      text:   "text-violet-400",
-      glow:   "shadow-violet-500/10",
+      id:        "transfer",
+      label:     "تحويل خزائن",
+      sub:       "نقل رصيد من خزينة إلى أخرى",
+      icon:      ArrowLeftRight,
+      border:    "border-violet-500/30",
+      bg:        "bg-violet-500/8 hover:bg-violet-500/15",
+      text:      "text-violet-400",
+      glow:      "shadow-violet-500/10",
+      permitted: canTransfer,
     },
     {
-      id:     "safe-closing",
-      label:  "إقفال الخزينة",
-      sub:    "جرد ومطابقة الرصيد اليومي",
-      icon:   Lock,
-      border: "border-amber-500/30",
-      bg:     "bg-amber-500/8 hover:bg-amber-500/15",
-      text:   "text-amber-400",
-      glow:   "shadow-amber-500/10",
+      id:        "safe-closing",
+      label:     "إقفال الخزينة",
+      sub:       "جرد ومطابقة الرصيد اليومي",
+      icon:      Lock,
+      border:    "border-amber-500/30",
+      bg:        "bg-amber-500/8 hover:bg-amber-500/15",
+      text:      "text-amber-400",
+      glow:      "shadow-amber-500/10",
+      permitted: canCloseSafe,
     },
   ];
+  const actions = allActions.filter(a => a.permitted);
 
   const colorMap: Record<string, { border: string; bg: string; text: string }> = {
     amber:   { border: "border-amber-500/25",   bg: "bg-amber-500/8",   text: "text-amber-400" },

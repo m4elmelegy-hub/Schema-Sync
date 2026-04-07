@@ -166,12 +166,7 @@ router.post("/sales", wrap(async (req, res) => {
   } = parsed.data;
   const remaining = total_amount - paid_amount;
 
-  if ((payment_type === "cash" || payment_type === "partial") && paid_amount > 0 && !safe_id) {
-    return res.status(400).json({ error: "يجب اختيار الخزينة للمبيعات النقدية" });
-  }
-
-  await assertPeriodOpen(date, req);
-
+  // ── Scope enforcement: warehouse + safe ──────────────────────────────
   const role = req.user?.role ?? "cashier";
   const bodyWarehouseId = warehouse_id ? Number(warehouse_id) : null;
   const effectiveWarehouseId = (role === "admin" || role === "manager") ? bodyWarehouseId : (req.user?.warehouse_id ?? null);
@@ -179,6 +174,25 @@ router.post("/sales", wrap(async (req, res) => {
   if (effectiveWarehouseId === null) {
     res.status(400).json({ error: "يجب تحديد المخزن" }); return;
   }
+
+  // Enforce safe_id scope for cashier / salesperson
+  let effectiveSafeId: number | null = safe_id ?? null;
+  if (role === "cashier" || role === "salesperson") {
+    const userSafeId = req.user?.safe_id ?? null;
+    if (!userSafeId) {
+      res.status(403).json({ error: "المستخدم غير مرتبط بخزينة — راجع الإعدادات" }); return;
+    }
+    if (safe_id && safe_id !== userSafeId) {
+      res.status(403).json({ error: "لا يمكنك استخدام خزنة غير المخصصة لك" }); return;
+    }
+    effectiveSafeId = userSafeId;
+  }
+
+  if ((payment_type === "cash" || payment_type === "partial") && paid_amount > 0 && !effectiveSafeId) {
+    return res.status(400).json({ error: "يجب اختيار الخزينة للمبيعات النقدية" });
+  }
+
+  await assertPeriodOpen(date, req);
 
   let status = "paid";
   if (payment_type === "credit") status = "unpaid";
@@ -189,8 +203,8 @@ router.post("/sales", wrap(async (req, res) => {
   const sale = await db.transaction(async (tx) => {
       // 1. جلب بيانات الخزينة
       let safe: typeof safesTable.$inferSelect | null = null;
-      if (safe_id && paid_amount > 0) {
-        const [s] = await tx.select().from(safesTable).where(eq(safesTable.id, safe_id));
+      if (effectiveSafeId && paid_amount > 0) {
+        const [s] = await tx.select().from(safesTable).where(eq(safesTable.id, effectiveSafeId));
         if (!s) throw httpError(400, "الخزينة غير موجودة");
         safe = s;
       }

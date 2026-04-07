@@ -1,0 +1,192 @@
+Implement a complete, safe, production-grade permissions and scope system based on the existing audit report.
+
+⚠️ CRITICAL:
+
+* Do NOT rewrite the system
+* Do NOT break existing logic
+* Build ON TOP of current implementation
+* Focus on fixing gaps + enforcing scope
+
+---
+
+# PHASE 1 — FIX CRITICAL SECURITY ISSUES
+
+## 1. Enforce safe_id in sales
+
+In POST /api/sales:
+
+* If user.role is "cashier" or "salesperson":
+
+  * IGNORE any safe_id from request body
+  * FORCE safe_id = req.user.safe_id
+
+* If safe_id ≠ req.user.safe_id:
+  → reject with 403
+  → message: "لا يمكنك استخدام خزنة غير المخصصة لك"
+
+---
+
+## 2. Protect safe transfers
+
+In POST /api/safe-transfers:
+
+* Add hasPermission("can_transfer_safe") OR restrict to:
+
+  * admin
+  * manager
+
+* Reject others with 403
+
+---
+
+## 3. Sync ROLE_DEFAULTS
+
+* Compare:
+  frontend/lib/permissions.ts
+  api-server/lib/permissions.ts
+
+* Ensure:
+
+  * same defaults
+  * no contradictions
+
+---
+
+# PHASE 2 — UI PERMISSION GUARDS
+
+## Purchases Page
+
+* Add:
+  hasPermission("can_create_purchase") → create button
+  hasPermission("can_cancel_purchase") → cancel button
+
+---
+
+## Treasury Page
+
+* Add:
+  hasPermission("can_add_receipt_voucher")
+  hasPermission("can_add_payment_voucher")
+
+* Hide buttons if not allowed
+
+---
+
+## POS Page
+
+* Wrap with route guard (same as Sales)
+
+---
+
+# PHASE 3 — SCOPE ENFORCEMENT (IMPORTANT)
+
+## 1. Safe Scope
+
+* In all dropdowns (POS, sales, treasury):
+
+  * If user.role = cashier:
+    → show ONLY user.safe_id
+
+---
+
+## 2. Warehouse Scope
+
+* For cashier and salesperson:
+
+  * Inventory:
+    filter by user.warehouse_id
+
+  * Dropdowns:
+    show only assigned warehouse
+
+---
+
+## 3. Backend Validation
+
+In ALL relevant endpoints:
+
+* Validate:
+
+  * safe_id belongs to user
+  * warehouse_id belongs to user
+
+Reject if not allowed
+
+---
+
+# PHASE 4 — DROPDOWN FILTERING
+
+Apply to:
+
+* POS
+* Sales
+* Purchases
+* Inventory
+* Treasury
+
+Rules:
+
+* cashier → 1 safe only
+* salesperson → no safe access
+* manager/admin → full list
+
+---
+
+# PHASE 5 — OPTIONAL (SAFE STRUCTURE)
+
+Without breaking DB:
+
+* Prepare support for future:
+
+  allowed_safes: number[]
+  allowed_warehouses: number[]
+
+BUT:
+
+* keep current safe_id working
+* no migration required now
+
+---
+
+# PHASE 6 — TESTING (MANDATORY)
+
+Test scenarios:
+
+## Cashier
+
+* Cannot use another safe
+* Cannot see other safes
+* Cannot transfer safes
+* Can sell and return correctly
+
+## Salesperson
+
+* Cannot access treasury
+* Cannot transfer safes
+
+## Manager
+
+* Full access except restricted settings
+
+## Admin
+
+* Full system access
+
+---
+
+# OUTPUT REQUIRED
+
+A) What was fixed
+B) What was enforced (scope + permissions)
+C) What UI was updated
+D) What security issues are now closed
+E) Test results (pass/fail)
+
+---
+
+# SUCCESS CRITERIA
+
+* No user can access data outside their scope
+* No safe misuse possible
+* No permission mismatch between frontend/backend
+* UI reflects actual permissions

@@ -19,6 +19,11 @@ router.get("/safe-transfers", wrap(async (_req, res) => {
 }));
 
 router.post("/safe-transfers", wrap(async (req, res) => {
+  const userRole = req.user?.role ?? "cashier";
+  if (userRole !== "admin" && userRole !== "manager") {
+    res.status(403).json({ error: "ليس لديك صلاحية لتحويل الخزائن — يُسمح للمدير فقط" }); return;
+  }
+
   const { from_safe_id, to_safe_id, amount, notes, date } = req.body;
 
   await assertPeriodOpen(date ?? new Date().toISOString().split("T")[0], req);

@@ -9,6 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 import { TableSkeleton } from "@/components/skeletons";
 import { SearchableSelect } from "@/components/searchable-select";
 import { ProductFormModal, ProductFormData } from "@/components/product-form-modal";
+import { useAuth } from "@/contexts/auth";
+import { hasPermission } from "@/lib/permissions";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
@@ -23,6 +25,9 @@ interface CartItem {
 
 /* ─── فاتورة شراء جديدة ─── */
 function NewPurchasePanel({ onDone }: { onDone: () => void }) {
+  const { user } = useAuth();
+  const canCreate = hasPermission(user, "can_create_purchase");
+
   const { data: productsRaw } = useGetProducts();
   const products = safeArray(productsRaw);
   const { data: customersRaw } = useGetCustomers();
@@ -39,6 +44,15 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
   const { data: categoriesRaw } = useGetCategories();
   const categories = safeArray(categoriesRaw);
 
+  // Scope: filter safes/warehouses for cashier/salesperson
+  const isScopedRole = user?.role === "cashier" || user?.role === "salesperson";
+  const filteredSafes = isScopedRole && user?.safe_id
+    ? safes.filter((s: any) => s.id === user.safe_id)
+    : safes;
+  const filteredWarehouses = isScopedRole && user?.warehouse_id
+    ? warehouses.filter((w: any) => w.id === user.warehouse_id)
+    : warehouses;
+
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [paymentType, setPaymentType] = useState<"cash" | "credit" | "partial">("cash");
@@ -50,9 +64,15 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
   const [categoryFilter, setCategoryFilter] = useState<string>("");
   const [showCreateProduct, setShowCreateProduct] = useState(false);
 
+  // Auto-set warehouse (scoped to user's warehouse for cashier/salesperson)
   useEffect(() => {
-    if (warehouses.length > 0 && !warehouseId) setWarehouseId(String(warehouses[0].id));
-  }, [warehouses, warehouseId]);
+    if (filteredWarehouses.length > 0 && !warehouseId) setWarehouseId(String(filteredWarehouses[0].id));
+  }, [filteredWarehouses, warehouseId]);
+
+  // Auto-set safe for cashier/salesperson
+  useEffect(() => {
+    if (isScopedRole && user?.safe_id && !safeId) setSafeId(String(user.safe_id));
+  }, [isScopedRole, user?.safe_id, safeId]);
 
   const filteredProducts = products.filter(p => {
     const matchS = p.name.toLowerCase().includes(search.toLowerCase()) || (p.sku && p.sku.toLowerCase().includes(search.toLowerCase()));
@@ -331,7 +351,7 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
                 selectRow("الخزينة", <Vault className="w-3.5 h-3.5 text-amber-400/70" />,
                   <select className="bg-transparent text-white outline-none w-full appearance-none text-xs" value={safeId} onChange={e => setSafeId(e.target.value)}>
                     <option value="" className="bg-slate-900">-- اختر الخزينة --</option>
-                    {safes.map(s => <option key={s.id} value={s.id} className="bg-slate-900">{s.name} ({formatCurrency(Number(s.balance))})</option>)}
+                    {filteredSafes.map((s: any) => <option key={s.id} value={s.id} className="bg-slate-900">{s.name} ({formatCurrency(Number(s.balance))})</option>)}
                   </select>
                 )
               )}
@@ -386,8 +406,9 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
               )}
             </div>
 
-            <button onClick={handleCheckout} disabled={createMutation.isPending || cart.length === 0}
-              className="w-full btn-primary py-3 text-sm disabled:opacity-50 font-bold">
+            <button onClick={handleCheckout} disabled={createMutation.isPending || cart.length === 0 || !canCreate}
+              className="w-full btn-primary py-3 text-sm disabled:opacity-50 font-bold"
+              title={!canCreate ? "ليس لديك صلاحية إنشاء فاتورة شراء" : undefined}>
               {createMutation.isPending ? "جاري التسجيل..." : "✦ تسجيل فاتورة الشراء"}
             </button>
           </div>
@@ -413,6 +434,8 @@ function PostingBadge({ status }: { status: string }) {
 
 function PurchaseHistoryPanel() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const canCancel = hasPermission(user, "can_cancel_purchase");
   const qc = useQueryClient();
 
   const { data: purchases = [], isLoading } = useQuery<PurchaseRecord[]>({
@@ -476,7 +499,7 @@ function PurchaseHistoryPanel() {
                           <CheckCircle className="w-4 h-4" />
                         </button>
                       )}
-                      {p.posting_status === "posted" && (
+                      {p.posting_status === "posted" && canCancel && (
                         <button onClick={() => cancelMutation.mutate(p.id)} disabled={cancelMutation.isPending} title="إلغاء"
                           className="btn-icon text-amber-400 hover:text-amber-300 hover:bg-amber-500/10">
                           <XCircle className="w-4 h-4" />
