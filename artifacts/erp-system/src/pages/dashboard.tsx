@@ -4,6 +4,7 @@ import { authFetch } from "@/lib/auth-fetch";
 import { useWarehouse } from "@/contexts/warehouse";
 import { useAppSettings } from "@/contexts/app-settings";
 import { formatCurrency } from "@/lib/format";
+import { OnboardingPanel } from "@/components/onboarding";
 import {
   TrendingUp, TrendingDown, Wallet, Users,
   AlertTriangle, PackageX, ShoppingCart, ReceiptText,
@@ -162,6 +163,8 @@ export default function Dashboard() {
 
   return (
     <div dir="rtl" className="page-enter">
+
+      <OnboardingPanel />
 
       {/* ══════════════════════════════════════════════════════
           HERO SUMMARY STRIP
