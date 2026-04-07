@@ -4,7 +4,7 @@ import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
   useGetSettingsUsers, useCreateSettingsUser, useUpdateSettingsUser, useDeleteSettingsUser,
-  useGetSettingsSafes, useDeleteSettingsSafe,
+  useGetSettingsSafes,
   useGetSettingsWarehouses, useCreateSettingsWarehouse, useDeleteSettingsWarehouse,
   useResetDatabase,
   useGetProducts, useGetCustomers,
@@ -16,7 +16,7 @@ import {
   type CurrencyCode, type FontFamily, type NumberFormat, type LightVariant,
 } from "@/contexts/app-settings";
 import {
-  Users, Landmark, Warehouse, AlertTriangle, Plus, Trash2, Edit2, X, Check,
+  Users, Warehouse, AlertTriangle, Plus, Trash2, Edit2, X, Check,
   ArrowLeftRight, Eye, EyeOff, Save, DollarSign, Database,
   Upload, Download, RefreshCcw, Building2, Loader2, CheckCircle2,
   HardDrive, History, BookOpen, Package, UserCircle, Truck, Banknote,
@@ -29,14 +29,13 @@ import * as XLSX from "xlsx";
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
 
-type Tab = "users" | "safes" | "warehouses" | "currency" | "backup" | "data" | "opening-balance" | "financial-lock";
+type Tab = "users" | "warehouses" | "currency" | "backup" | "data" | "opening-balance" | "financial-lock";
 
 const TAB_SECTIONS: { section: string; tabs: { id: Tab; label: string; icon: React.FC<{ className?: string }> }[] }[] = [
   {
     section: "الإدارة",
     tabs: [
       { id: "users",      label: "المستخدمون", icon: Users },
-      { id: "safes",      label: "الخزائن",    icon: Landmark },
       { id: "warehouses", label: "المخازن",    icon: Warehouse },
     ],
   },
@@ -488,7 +487,6 @@ export default function Settings() {
       {/* ── Content ── */}
       <main className="flex-1 min-w-0">
         {tab === "users"           && <UsersTab />}
-        {tab === "safes"           && <SafesTab />}
         {tab === "warehouses"      && <WarehousesTab />}
         {tab === "opening-balance" && <OpeningBalanceTab />}
         {tab === "financial-lock"  && <FinancialLockTab />}
@@ -873,218 +871,6 @@ function UsersTab() {
               تأكيد الحذف
             </DangerBtn>
             <GhostBtn onClick={() => setDeleteTarget(null)} className="flex-1">إلغاء</GhostBtn>
-          </div>
-        </Modal>
-      )}
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════════════════════════════
-   SAFES TAB
-   ══════════════════════════════════════════════════════════════════ */
-function SafesTab() {
-  const { data: safesRaw, isLoading } = useGetSettingsSafes();
-  const safes = safeArray(safesRaw);
-  const deleteSafe = useDeleteSettingsSafe();
-  const queryClient = useQueryClient();
-  const createTransfer = useMutation({
-    mutationFn: (body: { from_safe_id: number; to_safe_id: number; amount: number; notes?: string }) =>
-      authFetch(api("/api/safe-transfers"), { method: "POST", body: JSON.stringify(body) }).then(r => {
-        if (!r.ok) return r.json().then((j: { error?: string }) => { throw new Error(j.error || "فشل التحويل"); });
-        return r.json();
-      }),
-  });
-  const { toast } = useToast();
-
-  const [showTransfer, setShowTransfer] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
-  const [tf, setTf]       = useState({ from_safe_id: "", to_safe_id: "", amount: "", notes: "" });
-
-  const totalBalance = safes.reduce((s, x) => s + Number(x.balance), 0);
-
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["/api/settings/safes"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/safe-transfers"] });
-  };
-
-  return (
-    <div>
-      <PageHeader
-        title="إدارة الخزائن"
-        sub="عرض وإدارة أرصدة الخزائن"
-        action={
-          <GhostBtn onClick={() => setShowTransfer(true)}>
-            <ArrowLeftRight className="w-4 h-4" /> تحويل
-          </GhostBtn>
-        }
-      />
-
-      {/* Summary bar */}
-      <div className="bg-[#1A2235] border border-white/5 rounded-2xl p-5 mb-5 flex items-center justify-between">
-        <div>
-          <p className="text-white/40 text-xs mb-1">إجمالي الأرصدة</p>
-          <p className="text-amber-400 font-black text-2xl" style={{ textShadow: "0 0 20px rgba(245,158,11,0.35)" }}>
-            {formatCurrency(totalBalance)}
-          </p>
-        </div>
-        <div className="text-left">
-          <p className="text-white/30 text-xs">{safes.length} خزنة</p>
-          <Landmark className="w-8 h-8 text-amber-400/20 mt-1" />
-        </div>
-      </div>
-
-      {/* Safe cards */}
-      {isLoading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1,2].map(i => <CardSkeleton key={i} />)}
-        </div>
-      ) : safes.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <Landmark className="w-12 h-12 text-white/10 mb-3" />
-          <p className="text-white/30">لا توجد خزائن</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-          {safes.map(s => {
-            const pct = totalBalance > 0 ? (Number(s.balance) / totalBalance) * 100 : 0;
-            return (
-              <div
-                key={s.id}
-                className="group bg-[#111827] border border-white/5 hover:border-amber-500/20 rounded-2xl p-5 transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(0,0,0,0.4)]"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
-                    <Landmark className="w-5 h-5 text-amber-400" />
-                  </div>
-                  <button
-                    onClick={() => setDeleteTarget({ id: s.id as number, name: s.name })}
-                    className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-                <p className="text-white font-bold text-sm mb-1">{s.name}</p>
-                <p className="text-amber-400 font-black text-xl mb-3">{formatCurrency(Number(s.balance))}</p>
-
-                {/* Progress bar */}
-                <div className="space-y-1">
-                  <div className="flex justify-between text-[10px] text-white/30">
-                    <span>نسبة من الإجمالي</span>
-                    <span>{pct.toFixed(1)}%</span>
-                  </div>
-                  <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-amber-500 to-amber-400 rounded-full transition-all"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* ── Transfer Modal ── */}
-      {showTransfer && (
-        <Modal title="تحويل بين الخزائن" icon={ArrowLeftRight} onClose={() => setShowTransfer(false)}>
-          <div className="p-6 space-y-4">
-            {/* Animated arrow visual */}
-            <div className="flex items-center gap-3 p-4 bg-[#1A2235] rounded-xl border border-white/5">
-              <div className="flex-1 text-center">
-                <p className="text-white/40 text-xs mb-1">من</p>
-                <p className="text-white font-bold text-sm">
-                  {safes.find(s => String(s.id) === tf.from_safe_id)?.name || "— اختر خزنة —"}
-                </p>
-              </div>
-              <div className="flex flex-col items-center">
-                <ArrowLeftRight className="w-5 h-5 text-amber-400" />
-                {tf.amount && <span className="text-amber-400 font-black text-xs mt-1">{Number(tf.amount).toLocaleString("ar-EG")}</span>}
-              </div>
-              <div className="flex-1 text-center">
-                <p className="text-white/40 text-xs mb-1">إلى</p>
-                <p className="text-white font-bold text-sm">
-                  {safes.find(s => String(s.id) === tf.to_safe_id)?.name || "— اختر خزنة —"}
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <FieldLabel>من خزنة</FieldLabel>
-                <SSelect value={tf.from_safe_id} onChange={e => setTf(f => ({ ...f, from_safe_id: e.target.value }))}>
-                  <option value="">اختر...</option>
-                  {safes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </SSelect>
-                {tf.from_safe_id && (
-                  <p className="text-white/30 text-xs mt-1">
-                    الرصيد: {formatCurrency(Number(safes.find(s => String(s.id) === tf.from_safe_id)?.balance || 0))}
-                  </p>
-                )}
-              </div>
-              <div>
-                <FieldLabel>إلى خزنة</FieldLabel>
-                <SSelect value={tf.to_safe_id} onChange={e => setTf(f => ({ ...f, to_safe_id: e.target.value }))}>
-                  <option value="">اختر...</option>
-                  {safes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </SSelect>
-              </div>
-            </div>
-            <div>
-              <FieldLabel>المبلغ</FieldLabel>
-              <SInput type="number" placeholder="0.00" value={tf.amount} onChange={e => setTf(f => ({ ...f, amount: e.target.value }))} />
-            </div>
-            <div>
-              <FieldLabel>ملاحظات (اختياري)</FieldLabel>
-              <SInput placeholder="سبب التحويل..." value={tf.notes} onChange={e => setTf(f => ({ ...f, notes: e.target.value }))} />
-            </div>
-          </div>
-          <div className="flex gap-3 px-6 py-4 border-t border-white/8">
-            <PrimaryBtn
-              className="flex-1"
-              disabled={createTransfer.isPending}
-              onClick={() => {
-                if (!tf.from_safe_id || !tf.to_safe_id || !tf.amount) { toast({ title: "جميع الحقول مطلوبة", variant: "destructive" }); return; }
-                createTransfer.mutate(
-                  { from_safe_id: Number(tf.from_safe_id), to_safe_id: Number(tf.to_safe_id), amount: Number(tf.amount), notes: tf.notes || undefined },
-                  {
-                    onSuccess: () => { invalidate(); toast({ title: "تم التحويل" }); setTf({ from_safe_id: "", to_safe_id: "", amount: "", notes: "" }); setShowTransfer(false); },
-                    onError: (e: any) => toast({ title: e?.message || "فشل التحويل", variant: "destructive" }),
-                  }
-                );
-              }}
-            >
-              {createTransfer.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowLeftRight className="w-4 h-4" />}
-              تنفيذ التحويل
-            </PrimaryBtn>
-            <GhostBtn className="flex-1" onClick={() => setShowTransfer(false)}>إلغاء</GhostBtn>
-          </div>
-        </Modal>
-      )}
-
-      {/* ── Delete Safe Modal ── */}
-      {deleteTarget && (
-        <Modal title="تأكيد الحذف" icon={Trash2} onClose={() => setDeleteTarget(null)}>
-          <div className="p-6 text-center space-y-4">
-            <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto">
-              <Landmark className="w-6 h-6 text-red-400" />
-            </div>
-            <div>
-              <p className="text-white font-bold">حذف الخزنة</p>
-              <p className="text-white/40 text-sm mt-1">سيتم حذف <span className="text-white font-semibold">"{deleteTarget.name}"</span> نهائياً</p>
-            </div>
-          </div>
-          <div className="flex gap-3 px-6 py-4 border-t border-white/8">
-            <DangerBtn className="flex-1" disabled={deleteSafe.isPending}
-              onClick={() => deleteSafe.mutate(deleteTarget.id, {
-                onSuccess: () => { invalidate(); toast({ title: "تم الحذف" }); setDeleteTarget(null); },
-              })}
-            >
-              {deleteSafe.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-              حذف
-            </DangerBtn>
-            <GhostBtn className="flex-1" onClick={() => setDeleteTarget(null)}>إلغاء</GhostBtn>
           </div>
         </Modal>
       )}

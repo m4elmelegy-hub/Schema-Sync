@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, or, count } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { authenticate, requireRole } from "../middleware/auth";
 import { hashPin } from "../lib/hash";
@@ -163,6 +163,36 @@ router.put("/settings/safes/:id", authenticate, requireRole("admin"), async (req
 router.delete("/settings/safes/:id", authenticate, requireRole("admin"), async (req, res) => {
   try {
     const id = Number(req.params.id);
+
+    const [safe] = await db.select().from(safesTable).where(eq(safesTable.id, id));
+    if (!safe) { res.status(404).json({ error: "الخزينة غير موجودة" }); return; }
+
+    if (Number(safe.balance) !== 0) {
+      res.status(409).json({ error: "لا يمكن حذف خزينة تحتوي على رصيد — يجب أن يكون الرصيد صفراً أولاً" });
+      return;
+    }
+
+    const [[expenses], [income], [receipts], [payments], [deposits], [transfers], [sales], [txn]] = await Promise.all([
+      db.select({ n: count() }).from(expensesTable).where(eq(expensesTable.safe_id, id)),
+      db.select({ n: count() }).from(incomeTable).where(eq(incomeTable.safe_id, id)),
+      db.select({ n: count() }).from(receiptVouchersTable).where(eq(receiptVouchersTable.safe_id, id)),
+      db.select({ n: count() }).from(paymentVouchersTable).where(eq(paymentVouchersTable.safe_id, id)),
+      db.select({ n: count() }).from(depositVouchersTable).where(eq(depositVouchersTable.safe_id, id)),
+      db.select({ n: count() }).from(safeTransfersTable).where(or(eq(safeTransfersTable.from_safe_id, id), eq(safeTransfersTable.to_safe_id, id))),
+      db.select({ n: count() }).from(salesTable).where(eq(salesTable.safe_id, id)),
+      db.select({ n: count() }).from(transactionsTable).where(eq(transactionsTable.safe_id, id)),
+    ]);
+
+    const hasMovements =
+      Number(expenses.n) > 0 || Number(income.n) > 0 ||
+      Number(receipts.n) > 0 || Number(payments.n) > 0 || Number(deposits.n) > 0 ||
+      Number(transfers.n) > 0 || Number(sales.n) > 0 || Number(txn.n) > 0;
+
+    if (hasMovements) {
+      res.status(409).json({ error: "لا يمكن حذف خزينة لها حركات مالية مسجّلة" });
+      return;
+    }
+
     await db.delete(safesTable).where(eq(safesTable.id, id));
     res.json({ success: true });
   } catch (e) {
