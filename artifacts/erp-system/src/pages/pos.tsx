@@ -384,6 +384,7 @@ export default function POSPage() {
     canCash={canCash}
     canCredit={canCredit}
     canPartial={canPartial}
+    canReturnSale={canReturnSale}
     isAdmin={isAdmin}
     onResetSetup={() => setAdminSetup({ warehouseId: null, safeId: null })}
   />;
@@ -394,7 +395,7 @@ export default function POSPage() {
 ───────────────────────────────────────────────────────────── */
 function POSBody({
   warehouseId, safeId,
-  canEditPrice, canCash, canCredit, canPartial,
+  canEditPrice, canCash, canCredit, canPartial, canReturnSale,
   isAdmin, onResetSetup,
 }: {
   warehouseId: number;
@@ -403,6 +404,7 @@ function POSBody({
   canCash: boolean;
   canCredit: boolean;
   canPartial: boolean;
+  canReturnSale: boolean;
   isAdmin: boolean;
   onResetSetup: () => void;
 }) {

@@ -1,0 +1,207 @@
+نفّذ عملية **تنظيف شامل + تثبيت + تحسين أداء** للنظام بالكامل بدون إضافة أي features جديدة.
+
+الهدف: تحويل المشروع من وضع "development بعد تعديلات كثيرة" إلى "production-ready stable system".
+
+---
+
+## 🔴 أولًا: إصلاح الكراشات (CRITICAL)
+
+### 1. Fix undefined variables
+
+* أصلح أي crash زي:
+
+  * `canReturnSale is not defined`
+* تأكد أن كل permission مستخدم في UI:
+
+  * معرف ومربوط بـ permissions object
+  * أو محمي بـ optional chaining
+
+مثال:
+
+```ts
+const canReturnSale = permissions?.can_return_sale;
+```
+
+---
+
+### 2. Null safety (frontend)
+
+* أي استخدام لـ object زي:
+
+  * `returnSale.invoice_no`
+* لازم يكون محمي:
+
+```tsx
+returnSale?.invoice_no
+```
+
+---
+
+### 3. Guard rendering بالكامل
+
+* أي block يعتمد على data:
+
+```tsx
+returnSale && (...)
+```
+
+---
+
+## 🟠 ثانيًا: تنظيف الكود (Code Cleanup)
+
+### 1. إزالة Dead Code
+
+* حذف:
+
+  * imports غير مستخدمة
+  * components غير مستخدمة
+  * functions مش متنداة
+
+---
+
+### 2. إزالة duplication
+
+* أي logic مكرر:
+
+  * (permissions / fetch / filters)
+    → يتحول لـ helper أو hook واحد
+
+---
+
+### 3. توحيد naming
+
+* مثال:
+
+  * `canReturnSale` vs `can_return_sale`
+    → خليه consistent في كل المشروع
+
+---
+
+## 🟡 ثالثًا: تنظيف قاعدة البيانات (Database Cleanup)
+
+### ⚠️ بدون كسر النظام
+
+#### 1. حذف البيانات التجريبية
+
+* امسح:
+
+  * فواتير test
+  * منتجات test
+  * عملاء test
+
+---
+
+#### 2. Reset نظيف
+
+* خلي:
+
+  * Admin user فقط
+  * بدون أي sales / purchases / movements
+
+---
+
+#### 3. فحص العلاقات
+
+* تأكد:
+
+  * لا يوجد orphan records
+  * كل foreign keys سليمة
+
+---
+
+## 🟢 رابعًا: تحسين الأداء (Performance)
+
+### 1. React Optimization
+
+* استخدام:
+
+  * useMemo
+  * useCallback
+* منع re-render غير ضروري
+
+---
+
+### 2. API تحسين
+
+* منع:
+
+  * refetch بدون داعي
+* استخدام caching (react-query أو ما يعادله)
+
+---
+
+### 3. Debounce
+
+* تأكد:
+
+  * كل search فيه debounce (300–400ms)
+
+---
+
+## 🔵 خامسًا: UX Stabilization
+
+### 1. Loading states
+
+* كل API:
+
+  * عنده loading indicator
+
+---
+
+### 2. Empty states
+
+* كل table:
+
+  * عنده رسالة واضحة + CTA
+
+---
+
+### 3. Disable invalid actions
+
+* أي زر:
+
+  * لازم يتقفل لو البيانات invalid
+
+---
+
+## ⚫ سادسًا: Logs & Errors
+
+* إزالة:
+
+  * console.log غير مهم
+* الإبقاء فقط على:
+
+  * console.error
+
+---
+
+## ⚪ سابعًا: اختبار نهائي
+
+### لازم يتأكد:
+
+✔ لا يوجد runtime errors
+✔ لا يوجد crashes
+✔ كل الصفحات تفتح بدون مشاكل
+✔ permissions شغالة 100%
+✔ الأداء سريع
+
+---
+
+## 📦 المطلوب في التقرير
+
+A) الكراشات التي تم إصلاحها
+B) الملفات التي تم تنظيفها
+C) ما تم حذفه (dead code / data)
+D) تحسينات الأداء
+E) تأكيد أن النظام stable 100%
+
+---
+
+## ❗ مهم جدًا
+
+* لا تضف أي feature جديدة
+* لا تغيّر business logic
+* فقط cleanup + stabilization + performance
+
+النظام يجب أن يصبح:
+"نظيف — سريع — ثابت — جاهز للإطلاق"

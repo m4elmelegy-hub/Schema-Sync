@@ -1023,21 +1023,7 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
       toast({ title: `⚠ السعر (${formatCurrency(newPrice)}) أقل من تكلفة الشراء (${formatCurrency(costPrice)})`, variant: "destructive" });
       return;
     }
-    setCart(prev => {
-      const oldItem = prev.find(i => i.product_id === pid);
-      if (oldItem && Math.abs(newPrice - oldItem.unit_price) > 0.001) {
-        console.log("[audit:price_override]", JSON.stringify({
-          user_id: currentUser?.id,
-          username: currentUser?.name,
-          product_id: pid,
-          product_name: oldItem.product_name,
-          old_price: oldItem.unit_price,
-          new_price: newPrice,
-          timestamp: new Date().toISOString(),
-        }));
-      }
-      return prev.map(i => i.product_id !== pid ? i : { ...i, unit_price: newPrice, total_price: newPrice * i.quantity });
-    });
+    setCart(prev => prev.map(i => i.product_id !== pid ? i : { ...i, unit_price: newPrice, total_price: newPrice * i.quantity }));
   }, [products, currentUser, toast]);
 
   const addToCart = (product: typeof products[0]) => {
