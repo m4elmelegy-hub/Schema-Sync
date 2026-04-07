@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { safeArray } from "@/lib/safe-data";
-import { useCreatePurchase, useGetProducts, useGetCustomers, useCreateProduct, useGetSettingsSafes, useGetSettingsWarehouses } from "@workspace/api-client-react";
+import { useCreatePurchase, useGetProducts, useGetCustomers, useCreateProduct, useGetSettingsSafes, useGetSettingsWarehouses, useGetCategories } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
 import { Search, Plus, Minus, Trash2, ShoppingBag, Package, User, Vault, CheckCircle, XCircle, ClipboardList } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -36,6 +36,8 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
   const createProductMutation = useCreateProduct();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { data: categoriesRaw } = useGetCategories();
+  const categories = safeArray(categoriesRaw);
 
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -52,10 +54,9 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
     if (warehouses.length > 0 && !warehouseId) setWarehouseId(String(warehouses[0].id));
   }, [warehouses, warehouseId]);
 
-  const categories = Array.from(new Set(products.map(p => p.category).filter(Boolean) as string[]));
   const filteredProducts = products.filter(p => {
     const matchS = p.name.toLowerCase().includes(search.toLowerCase()) || (p.sku && p.sku.toLowerCase().includes(search.toLowerCase()));
-    const matchC = !categoryFilter || p.category === categoryFilter;
+    const matchC = !categoryFilter || p.category_name === categoryFilter || p.category === categoryFilter;
     return matchS && matchC;
   });
 
@@ -183,7 +184,6 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
       {showCreateProduct && (
         <ProductFormModal
           title="إضافة منتج جديد"
-          existingCategories={categories}
           onSave={handleCreateProduct}
           onClose={() => setShowCreateProduct(false)}
           isPending={createProductMutation.isPending}
@@ -210,7 +210,7 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
               onChange={e => setCategoryFilter(e.target.value)}
             >
               <option value="">كل الأصناف</option>
-              {categories.map(cat => <option key={cat} value={cat!} className="bg-gray-900">{cat}</option>)}
+              {categories.map(cat => <option key={cat.id} value={cat.name} className="bg-gray-900">{cat.name}</option>)}
             </select>
           </div>
           <div className="flex-1 overflow-y-auto glass-panel rounded-2xl p-3">
@@ -222,7 +222,7 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
                     <Package className="w-6 h-6 text-white/30" />
                   </div>
                   <p className="font-bold text-white text-sm truncate">{product.name}</p>
-                  {product.category && <p className="text-xs text-amber-400/70 mt-0.5">{product.category}</p>}
+                  {(product.category_name || product.category) && <p className="text-xs text-amber-400/70 mt-0.5">{product.category_name || product.category}</p>}
                   <div className="flex justify-between items-center mt-2">
                     <span className="text-blue-400 font-bold text-sm">{formatCurrency(product.cost_price)}</span>
                     <span className="text-xs text-white/40">{product.quantity}</span>

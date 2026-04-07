@@ -2,11 +2,11 @@ import { useState } from "react";
 import { authFetch } from "@/lib/auth-fetch";
 import { useAuth } from "@/contexts/auth";
 import { hasPermission } from "@/lib/permissions";
-import { useGetProducts, useCreateProduct, useDeleteProduct } from "@workspace/api-client-react";
+import { useGetProducts, useCreateProduct, useDeleteProduct, useGetCategories } from "@workspace/api-client-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/format";
 import {
-  Plus, Search, Trash2, AlertTriangle, Pencil, X, FileDown, Package, ShieldX,
+  Plus, Search, Trash2, AlertTriangle, Pencil, FileDown, Package, ShieldX,
 } from "lucide-react";
 import { exportProductsExcel } from "@/lib/export-excel";
 import { useToast } from "@/hooks/use-toast";
@@ -31,6 +31,8 @@ function AccessDenied({ msg }: { msg: string }) {
 function ProductsTab() {
   const { data: productsRaw = [], isLoading } = useGetProducts();
   const products = safeArray(productsRaw);
+  const { data: categoriesRaw } = useGetCategories();
+  const categories = safeArray(categoriesRaw);
   const { user } = useAuth();
   const canViewProducts   = hasPermission(user, "can_view_products")   === true;
   const canManageProducts = hasPermission(user, "can_manage_products") === true;
@@ -59,21 +61,19 @@ function ProductsTab() {
     onSuccess: () => {
       toast({ title: "✅ تم تعديل المنتج بنجاح" });
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/categories"] });
       setEditProduct(null);
     },
     onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
   });
 
-  const categories = Array.from(
-    new Set(products.map(p => p.category).filter(Boolean) as string[])
-  ).sort((a, b) => a.localeCompare(b, "ar"));
-
   const filtered = products.filter(p => {
     const matchSearch =
       p.name.includes(search) ||
       (p.sku && p.sku.includes(search)) ||
+      (p.category_name && p.category_name.includes(search)) ||
       (p.category && p.category.includes(search));
-    const matchCat = !catFilter || p.category === catFilter;
+    const matchCat = !catFilter || p.category_name === catFilter || p.category === catFilter;
     return matchSearch && matchCat;
   });
 
@@ -82,6 +82,7 @@ function ProductsTab() {
       onSuccess: () => {
         toast({ title: "✅ تم إضافة المنتج بنجاح" });
         queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/categories"] });
         setShowAdd(false);
       },
       onError: () => toast({ title: "حدث خطأ", variant: "destructive" }),
@@ -93,6 +94,7 @@ function ProductsTab() {
       onSuccess: () => {
         toast({ title: "تم حذف المنتج بنجاح" });
         queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/categories"] });
         setConfirmDeleteId(null);
       },
       onError: (e: Error) => {
@@ -107,7 +109,8 @@ function ProductsTab() {
       id: product.id,
       name: product.name,
       sku: product.sku || "",
-      category: product.category || "",
+      category_id: product.category_id ?? null,
+      category_name: product.category_name || product.category || "",
       quantity: Number(product.quantity),
       cost_price: Number(product.cost_price),
       sale_price: Number(product.sale_price),
@@ -133,13 +136,15 @@ function ProductsTab() {
           </div>
           {categories.length > 0 && (
             <select
-              className="glass-input appearance-none w-40 cursor-pointer"
+              className="glass-input appearance-none w-44 cursor-pointer"
               value={catFilter}
               onChange={e => setCatFilter(e.target.value)}
             >
               <option value="">كل الأصناف</option>
               {categories.map(cat => (
-                <option key={cat} value={cat} className="bg-gray-900">{cat}</option>
+                <option key={cat.id} value={cat.name} className="bg-gray-900">
+                  {cat.name} ({cat.product_count})
+                </option>
               ))}
             </select>
           )}
@@ -163,7 +168,6 @@ function ProductsTab() {
         <ProductFormModal
           title="منتج جديد"
           initial={emptyProductForm}
-          existingCategories={categories}
           onSave={handleAdd}
           onClose={() => setShowAdd(false)}
           isPending={createMutation.isPending}
@@ -182,7 +186,6 @@ function ProductsTab() {
         <ProductFormModal
           title={`تعديل: ${editProduct.name}`}
           initial={editProduct}
-          existingCategories={categories}
           onSave={(data) => updateMutation.mutate({ id: editProduct.id, data })}
           onClose={() => setEditProduct(null)}
           isPending={updateMutation.isPending}
@@ -227,6 +230,7 @@ function ProductsTab() {
                 </tr>
               ) : (
                 filtered.map(product => {
+                  const displayCat = product.category_name || product.category;
                   const isLow = product.low_stock_threshold !== null && product.quantity <= (product.low_stock_threshold ?? 5);
                   const margin = Number(product.sale_price) > 0
                     ? ((Number(product.sale_price) - Number(product.cost_price)) / Number(product.sale_price)) * 100
@@ -236,9 +240,9 @@ function ProductsTab() {
                       <td className="p-4 font-bold text-white">{product.name}</td>
                       <td className="p-4 text-amber-300/70 font-mono text-xs">{product.sku || '—'}</td>
                       <td className="p-4">
-                        {product.category ? (
+                        {displayCat ? (
                           <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/20">
-                            {product.category}
+                            {displayCat}
                           </span>
                         ) : '—'}
                       </td>

@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./category";
 export * from "./createCustomerInput";
 export * from "./createExpenseInput";
 export * from "./createIncomeInput";

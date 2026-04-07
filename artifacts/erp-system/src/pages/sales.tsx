@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { safeArray } from "@/lib/safe-data";
 import { authFetch } from "@/lib/auth-fetch";
-import { useGetSales, useGetSaleById, useGetProducts, useGetCustomers, useGetSettingsSafes, useCreateProduct } from "@workspace/api-client-react";
+import { useGetSales, useGetSaleById, useGetProducts, useGetCustomers, useGetSettingsSafes, useCreateProduct, useGetCategories } from "@workspace/api-client-react";
 import { ProductFormModal, ProductFormData } from "@/components/product-form-modal";
 import { useWarehouse } from "@/contexts/warehouse";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -546,6 +546,8 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
   const { toast } = useToast();
   const createProductMutation = useCreateProduct();
   const [showCreateProduct, setShowCreateProduct] = useState(false);
+  const { data: categoriesRaw } = useGetCategories();
+  const categories = safeArray(categoriesRaw);
 
   const { data: warehousesRaw } = useQuery<{ id: number; name: string }[]>({
     queryKey: ["/api/settings/warehouses"],
@@ -620,11 +622,9 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
     },
   });
 
-  const categories = Array.from(new Set(products.map(p => p.category).filter(Boolean)));
-
   const filteredProducts = products.filter(p => {
     const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) || (p.sku && p.sku.toLowerCase().includes(search.toLowerCase()));
-    const matchCat = !categoryFilter || p.category === categoryFilter;
+    const matchCat = !categoryFilter || p.category_name === categoryFilter || p.category === categoryFilter;
     return matchSearch && matchCat;
   });
 
@@ -795,7 +795,6 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
       {showCreateProduct && (
         <ProductFormModal
           title="إضافة منتج جديد"
-          existingCategories={Array.from(new Set(products.map(p => p.category).filter(Boolean) as string[]))}
           onSave={handleCreateProduct}
           onClose={() => setShowCreateProduct(false)}
           isPending={createProductMutation.isPending}
@@ -824,7 +823,7 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
             </div>
             <select className="bg-black/30 text-white/70 border border-white/10 rounded-xl px-3 py-1.5 text-sm outline-none appearance-none" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
               <option value="">كل الأصناف</option>
-              {categories.map(cat => <option key={cat} value={cat!} className="bg-gray-900">{cat}</option>)}
+              {categories.map(cat => <option key={cat.id} value={cat.name} className="bg-gray-900">{cat.name}</option>)}
             </select>
           </div>
           <div className="flex-1 overflow-y-auto glass-panel rounded-2xl p-3">

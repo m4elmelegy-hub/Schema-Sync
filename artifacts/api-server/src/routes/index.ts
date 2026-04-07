@@ -31,6 +31,7 @@ import backupsRouter from "./backups";
 import companiesRouter from "./companies";
 import integrityRouter from "./integrity";
 import inventoryControlRouter from "./inventory-control";
+import categoriesRouter from "./categories";
 
 const router: IRouter = Router();
 
@@ -71,5 +72,6 @@ router.use(backupsRouter);
 router.use(companiesRouter);
 router.use(integrityRouter);
 router.use(inventoryControlRouter);
+router.use(categoriesRouter);
 
 export default router;

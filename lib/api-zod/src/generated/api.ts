@@ -22,6 +22,8 @@ export const GetProductsResponseItem = zod.object({
   name: zod.string(),
   sku: zod.string().nullish(),
   category: zod.string().nullish(),
+  category_id: zod.number().nullish(),
+  category_name: zod.string().nullish(),
   quantity: zod.number(),
   cost_price: zod.number(),
   sale_price: zod.number(),
@@ -37,6 +39,7 @@ export const CreateProductBody = zod.object({
   name: zod.string(),
   sku: zod.string().nullish(),
   category: zod.string().nullish(),
+  category_id: zod.number().nullish(),
   quantity: zod.number(),
   cost_price: zod.number(),
   sale_price: zod.number(),
@@ -54,6 +57,7 @@ export const UpdateProductBody = zod.object({
   name: zod.string(),
   sku: zod.string().nullish(),
   category: zod.string().nullish(),
+  category_id: zod.number().nullish(),
   quantity: zod.number(),
   cost_price: zod.number(),
   sale_price: zod.number(),
@@ -65,11 +69,48 @@ export const UpdateProductResponse = zod.object({
   name: zod.string(),
   sku: zod.string().nullish(),
   category: zod.string().nullish(),
+  category_id: zod.number().nullish(),
+  category_name: zod.string().nullish(),
   quantity: zod.number(),
   cost_price: zod.number(),
   sale_price: zod.number(),
   low_stock_threshold: zod.number().nullish(),
   created_at: zod.string(),
+});
+
+/**
+ * @summary List all categories
+ */
+export const GetCategoriesResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  company_id: zod.number(),
+  product_count: zod.number(),
+});
+export const GetCategoriesResponse = zod.array(GetCategoriesResponseItem);
+
+/**
+ * @summary Create a category
+ */
+export const CreateCategoryBody = zod.object({
+  name: zod.string().min(1),
+});
+export const CreateCategoryResponse = GetCategoriesResponseItem;
+
+/**
+ * @summary Update a category
+ */
+export const UpdateCategoryParams = zod.object({ id: zod.coerce.number() });
+export const UpdateCategoryBody = zod.object({ name: zod.string().min(1) });
+export const UpdateCategoryResponse = GetCategoriesResponseItem;
+
+/**
+ * @summary Delete a category
+ */
+export const DeleteCategoryParams = zod.object({ id: zod.coerce.number() });
+export const DeleteCategoryResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string().optional(),
 });
 
 /**

@@ -10,6 +10,7 @@ export interface CreateProductInput {
   name: string;
   sku?: string | null;
   category?: string | null;
+  category_id?: number | null;
   quantity: number;
   cost_price: number;
   sale_price: number;

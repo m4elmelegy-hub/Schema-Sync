@@ -14,11 +14,24 @@ export interface SuccessResponse {
   message?: string;
 }
 
+export interface Category {
+  id: number;
+  name: string;
+  company_id: number;
+  product_count: number;
+}
+
+export interface CreateCategoryInput {
+  name: string;
+}
+
 export interface Product {
   id: number;
   name: string;
   sku?: string | null;
   category?: string | null;
+  category_id?: number | null;
+  category_name?: string | null;
   quantity: number;
   cost_price: number;
   sale_price: number;
@@ -30,6 +43,7 @@ export interface CreateProductInput {
   name: string;
   sku?: string | null;
   category?: string | null;
+  category_id?: number | null;
   quantity: number;
   cost_price: number;
   sale_price: number;

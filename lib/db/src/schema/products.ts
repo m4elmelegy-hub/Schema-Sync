@@ -7,6 +7,7 @@ export const productsTable = pgTable("products", {
   name: text("name").notNull(),
   sku: text("sku"),
   category: text("category"),
+  category_id: integer("category_id"),
   quantity: numeric("quantity", { precision: 12, scale: 3 }).notNull().default("0"),
   cost_price: numeric("cost_price", { precision: 12, scale: 2 }).notNull().default("0"),
   sale_price: numeric("sale_price", { precision: 12, scale: 2 }).notNull().default("0"),
