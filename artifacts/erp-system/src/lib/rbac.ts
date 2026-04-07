@@ -7,7 +7,7 @@ import {
   Package, Users, TrendingUp,
   FileText, Settings, Zap,
   BookOpen, HandCoins, ArrowUpFromLine,
-  ArrowLeftRight, ReceiptText, Wallet,
+  ArrowLeftRight, ReceiptText, Wallet, ClipboardList,
   type LucideIcon,
 } from "lucide-react";
 
@@ -22,6 +22,7 @@ export const ROUTE_ROLES: Record<string, AppRole[]> = {
   "/sales":                  ["admin", "manager", "cashier", "salesperson"],
   "/purchases":              ["admin", "manager"],
   "/products":               ["admin", "manager", "cashier", "salesperson"],
+  "/inventory":              ["admin", "manager"],
   "/customers":              ["admin", "manager", "cashier", "salesperson"],
   "/accounts":               ["admin"],
   "/journal-entries":        ["admin"],
@@ -39,7 +40,8 @@ export const NAV_ITEMS: { name: string; href: string; icon: LucideIcon; roles: A
   { name: "نقطة البيع",        href: "/pos",                    icon: Zap,             roles: ["admin","manager","cashier","salesperson"] },
   { name: "المبيعات",          href: "/sales",                  icon: Receipt,         roles: ["admin","manager","cashier","salesperson"] },
   { name: "المشتريات",         href: "/purchases",              icon: CreditCard,      roles: ["admin","manager"] },
-  { name: "المنتجات والمخزون", href: "/products",               icon: Package,         roles: ["admin","manager","cashier","salesperson"] },
+  { name: "المنتجات",           href: "/products",               icon: Package,         roles: ["admin","manager","cashier","salesperson"] },
+  { name: "المخزون",            href: "/inventory",              icon: ClipboardList,   roles: ["admin","manager"] },
   { name: "العملاء",           href: "/customers",              icon: Users,           roles: ["admin","manager","cashier","salesperson"] },
   { name: "الإيرادات",         href: "/income",                 icon: TrendingUp,      roles: ["admin","manager"] },
   { name: "المصروفات",         href: "/expenses",               icon: ReceiptText,     roles: ["admin","manager"] },

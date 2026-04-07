@@ -175,7 +175,8 @@ export function AppLayout({ children }: LayoutProps) {
   const logoSrc = settings.customLogo || `${import.meta.env.BASE_URL}logo.png`;
 
   const pageTitle = NAV_ITEMS.find(i => i.href === location)?.name
-    || (location === "/expenses"          ? "المصروفات"
+    || (location === "/inventory"         ? "المخزون"
+      : location === "/expenses"          ? "المصروفات"
       : location === "/income"            ? "الإيرادات"
       : location === "/receipt-vouchers"  ? "سندات القبض"
       : location === "/deposit-vouchers"  ? "سندات التوريد"

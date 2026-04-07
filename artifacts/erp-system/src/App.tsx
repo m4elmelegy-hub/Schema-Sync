@@ -31,6 +31,7 @@ const PaymentVouchers      = lazy(() => import("@/pages/payment-vouchers"));
 const SafeTransfers        = lazy(() => import("@/pages/safe-transfers"));
 const Treasury             = lazy(() => import("@/pages/treasury"));
 const Products             = lazy(() => import("@/pages/products"));
+const Inventory            = lazy(() => import("@/pages/inventory"));
 const Vouchers             = lazy(() => import("@/pages/vouchers"));
 const POS                  = lazy(() => import("@/pages/pos"));
 
@@ -98,7 +99,7 @@ function Router() {
         <Route path="/purchases">{() => <Guard path="/purchases" component={Purchases} />}</Route>
         <Route path="/suppliers">{() => <Redirect to="/customers" />}</Route>
         <Route path="/products">{() => <Guard path="/products" component={Products} />}</Route>
-        <Route path="/inventory">{() => <Redirect to="/products" />}</Route>
+        <Route path="/inventory">{() => <Guard path="/inventory" component={Inventory} />}</Route>
         <Route path="/customers">{() => <Guard path="/customers" component={Customers} />}</Route>
         <Route path="/expenses">{() => <Guard path="/expenses" component={Expenses} />}</Route>
         <Route path="/income">{() => <Guard path="/income" component={Income} />}</Route>
