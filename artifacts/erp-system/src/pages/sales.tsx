@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { safeArray } from "@/lib/safe-data";
 import { authFetch } from "@/lib/auth-fetch";
-import { useGetSales, useGetSaleById, useGetProducts, useGetCustomers, useGetSettingsSafes, useCreateProduct, useGetCategories } from "@workspace/api-client-react";
+import { useGetSaleById, useGetProducts, useGetCustomers, useGetSettingsSafes, useCreateProduct, useGetCategories } from "@workspace/api-client-react";
 import { ProductFormModal, ProductFormData } from "@/components/product-form-modal";
 import { useWarehouse } from "@/contexts/warehouse";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -24,19 +24,64 @@ interface SalesReturn {
   refund_type: string | null; safe_name: string | null; date: string | null;
 }
 
+interface InvoiceSummary {
+  id: number; invoice_no: string; date: string | null;
+  customer_name: string | null; customer_id: number | null;
+  payment_type: string; total_amount: number; paid_amount: number;
+  remaining_amount: number; safe_id: number | null; safe_name: string | null;
+  status: string; posting_status: string;
+}
+interface InvoiceDetail extends InvoiceSummary {
+  items: {
+    id: number; product_id: number; product_name: string;
+    quantity: number; unit_price: number; total_price: number;
+    quantity_returned: number | null;
+  }[];
+}
+interface ReturnLineItem {
+  original_sale_item_id: number;
+  product_id: number; product_name: string;
+  returnQty: number; maxQty: number; unit_price: number;
+}
+
 function SalesReturnsPanel() {
   const { user: currentUser } = useAuth();
   const canCancelSale = hasPermission(currentUser, "can_cancel_sale") === true;
+  const isAdmin = currentUser?.role === "admin";
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
-  const resetForm = () => setForm({ customer_id: "", reason: "", item_id: "", quantity: "1", unit_price: "", refund_type: "credit", safe_id: "", date: new Date().toISOString().split("T")[0] });
-  const [form, setForm] = useState({ customer_id: "", reason: "", item_id: "", quantity: "1", unit_price: "", refund_type: "credit", safe_id: "", date: new Date().toISOString().split("T")[0] });
 
+  type Phase = "list" | "select-invoice" | "return-form" | "standalone";
+  const [phase, setPhase] = useState<Phase>("list");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [selectedSaleId, setSelectedSaleId] = useState<number | null>(null);
+  const [invoiceSearch, setInvoiceSearch] = useState("");
+
+  // ── Return form state ──
+  const [returnItems, setReturnItems] = useState<ReturnLineItem[]>([]);
+  const [refundType, setRefundType] = useState<"cash" | "credit">("credit");
+  const [safeId, setSafeId] = useState<string>("");
+  const [reason, setReason] = useState("");
+  const [returnDate, setReturnDate] = useState(new Date().toISOString().split("T")[0]);
+
+  // ── Standalone (admin) form state ──
+  const resetStandalone = () => setStandalone({ customer_id: "", reason: "", item_id: "", quantity: "1", refund_type: "credit", safe_id: "", date: new Date().toISOString().split("T")[0] });
+  const [standalone, setStandalone] = useState({ customer_id: "", reason: "", item_id: "", quantity: "1", refund_type: "credit", safe_id: "", date: new Date().toISOString().split("T")[0] });
+
+  // ── Data ──
   const { data: returns_ = [], isLoading } = useQuery<SalesReturn[]>({
     queryKey: ["/api/sales-returns"],
     queryFn: () => authFetch(api("/api/sales-returns")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
+  });
+  const { data: salesList = [] } = useQuery<InvoiceSummary[]>({
+    queryKey: ["/api/sales"],
+    queryFn: () => authFetch(api("/api/sales")).then(r => { if (!r.ok) throw new Error("خطأ"); return r.json(); }),
+    enabled: phase === "select-invoice",
+  });
+  const { data: saleDetail } = useQuery<InvoiceDetail>({
+    queryKey: ["/api/sales", selectedSaleId],
+    queryFn: () => authFetch(api(`/api/sales/${selectedSaleId}`)).then(r => { if (!r.ok) throw new Error("خطأ"); return r.json(); }),
+    enabled: !!selectedSaleId && phase === "return-form",
   });
   const { data: productsRaw } = useGetProducts();
   const products = safeArray(productsRaw);
@@ -45,6 +90,54 @@ function SalesReturnsPanel() {
   const { data: safesRaw } = useGetSettingsSafes();
   const safes = safeArray(safesRaw);
 
+  // ── When sale detail loads → init return items ──
+  const saleDetailItemIds = saleDetail?.items?.map(i => i.id).join(",") ?? "";
+  useEffect(() => {
+    if (!saleDetail?.items?.length) return;
+    const returnable = saleDetail.items
+      .map(i => ({
+        original_sale_item_id: i.id,
+        product_id: i.product_id,
+        product_name: i.product_name,
+        maxQty: i.quantity - (i.quantity_returned ?? 0),
+        returnQty: i.quantity - (i.quantity_returned ?? 0),
+        unit_price: i.unit_price,
+      }))
+      .filter(i => i.maxQty > 0);
+    setReturnItems(returnable);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saleDetailItemIds]);
+
+  // ── Filtered invoice list ──
+  const nonCancelledSales = salesList.filter(s => s.status !== "cancelled");
+  const filteredSales = useMemo(() => {
+    if (!invoiceSearch.trim()) return nonCancelledSales.slice().reverse().slice(0, 40);
+    const q = invoiceSearch.trim().toLowerCase();
+    return nonCancelledSales.filter(s =>
+      s.invoice_no?.toLowerCase().includes(q) ||
+      (s.customer_name?.toLowerCase().includes(q))
+    ).slice(0, 40);
+  }, [nonCancelledSales, invoiceSearch]);
+
+  // ── Totals ──
+  const activeReturnItems = returnItems.filter(i => i.returnQty > 0);
+  const returnTotal = activeReturnItems.reduce((s, i) => s + i.returnQty * i.unit_price, 0);
+  const totalReturns = returns_.reduce((s, r) => s + r.total_amount, 0);
+
+  // ── Standalone form helpers ──
+  const standaloneProduct = products.find(p => String(p.id) === standalone.item_id);
+  const standaloneCustomer = customers.find(c => String(c.id) === standalone.customer_id);
+  const standaloneCustomerItems = useMemo(() =>
+    customers.map(c => ({
+      value: String(c.id),
+      label: `${c.customer_code ? `[${c.customer_code}] ` : ""}${c.name}`,
+      searchKeys: [String(c.customer_code ?? ""), c.name],
+    })), [customers]
+  );
+  const standalonePrice = standaloneProduct ? Number(standaloneProduct.sale_price) : 0;
+  const standaloneTotal = (parseInt(standalone.quantity) || 1) * standalonePrice;
+
+  // ── Mutations ──
   const createMutation = useMutation({
     mutationFn: (data: object) => authFetch(api("/api/sales-returns"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error); return j; }),
     onSuccess: () => {
@@ -53,8 +146,11 @@ function SalesReturnsPanel() {
       qc.invalidateQueries({ queryKey: ["/api/products"] });
       qc.invalidateQueries({ queryKey: ["/api/settings/safes"] });
       qc.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
-      setShowForm(false);
-      resetForm();
+      if (selectedSaleId) qc.invalidateQueries({ queryKey: ["/api/sales", selectedSaleId] });
+      setPhase("list");
+      setSelectedSaleId(null);
+      setReturnItems([]);
+      resetStandalone();
       toast({ title: "✅ تم تسجيل المرتجع — البضاعة عادت للمخزون" });
     },
     onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
@@ -71,42 +167,55 @@ function SalesReturnsPanel() {
     },
   });
 
-  const totalReturns = returns_.reduce((s, r) => s + r.total_amount, 0);
-  const selectedProduct = products.find(p => String(p.id) === form.item_id);
-  const selectedCustomer = customers.find(c => String(c.id) === form.customer_id);
-  const returnUnitPrice = selectedProduct ? Number(selectedProduct.sale_price) : (parseFloat(form.unit_price) || 0);
-  const itemTotal = (parseInt(form.quantity) || 1) * returnUnitPrice;
-
-  const customerReturnItems = useMemo(() =>
-    customers.map(c => ({
-      value: String(c.id),
-      label: `${c.customer_code ? `[${c.customer_code}] ` : ""}${c.name}${Number(c.balance) > 0 ? ` — دين: ${Number(c.balance).toFixed(0)} ج.م` : Number(c.balance) < 0 ? ` — له: ${Math.abs(Number(c.balance)).toFixed(0)} ج.م` : ""}`,
-      searchKeys: [String(c.customer_code ?? ""), c.name],
-    })),
-    [customers]
-  );
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const qty = parseInt(form.quantity) || 1;
-    const price = selectedProduct ? Number(selectedProduct.sale_price) : (parseFloat(form.unit_price) || 0);
-    if (!form.item_id) { toast({ title: "اختر الصنف المرتجع", variant: "destructive" }); return; }
-    if (form.refund_type === "cash" && !form.safe_id) { toast({ title: "اختر الخزينة للاسترداد النقدي", variant: "destructive" }); return; }
+  // ── Submit invoice-based return ──
+  const handleSubmitReturn = () => {
+    if (!activeReturnItems.length) { toast({ title: "حدد كمية إرجاع على الأقل لصنف واحد", variant: "destructive" }); return; }
+    if (refundType === "cash" && !safeId) { toast({ title: "اختر الخزينة للاسترداد النقدي", variant: "destructive" }); return; }
     createMutation.mutate({
-      customer_id: form.customer_id ? parseInt(form.customer_id) : null,
-      customer_name: selectedCustomer?.name ?? null,
-      reason: form.reason || null,
-      refund_type: form.refund_type,
-      safe_id: form.refund_type === "cash" ? parseInt(form.safe_id) : null,
-      date: form.date,
-      items: [{
-        product_id: parseInt(form.item_id),
-        product_name: selectedProduct?.name ?? "",
-        quantity: qty,
-        unit_price: price,
-        total_price: qty * price,
-      }],
+      sale_id: selectedSaleId,
+      customer_id: saleDetail?.customer_id ?? null,
+      customer_name: saleDetail?.customer_name ?? null,
+      reason: reason || null,
+      refund_type: refundType,
+      safe_id: refundType === "cash" ? parseInt(safeId) : null,
+      date: returnDate,
+      items: activeReturnItems.map(i => ({
+        original_sale_item_id: i.original_sale_item_id,
+        product_id: i.product_id,
+        product_name: i.product_name,
+        quantity: i.returnQty,
+        unit_price: i.unit_price,
+        total_price: i.returnQty * i.unit_price,
+      })),
     });
+  };
+
+  // ── Submit standalone return (admin) ──
+  const handleStandaloneSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!standalone.item_id) { toast({ title: "اختر الصنف المرتجع", variant: "destructive" }); return; }
+    if (standalone.refund_type === "cash" && !standalone.safe_id) { toast({ title: "اختر الخزينة", variant: "destructive" }); return; }
+    const qty = parseInt(standalone.quantity) || 1;
+    createMutation.mutate({
+      customer_id: standalone.customer_id ? parseInt(standalone.customer_id) : null,
+      customer_name: standaloneCustomer?.name ?? null,
+      reason: standalone.reason || null,
+      refund_type: standalone.refund_type,
+      safe_id: standalone.refund_type === "cash" ? parseInt(standalone.safe_id) : null,
+      date: standalone.date,
+      items: [{ product_id: parseInt(standalone.item_id), product_name: standaloneProduct?.name ?? "", quantity: qty, unit_price: standalonePrice, total_price: qty * standalonePrice }],
+    });
+  };
+
+  // ── Payment type helpers ──
+  const ptLabel = (pt: string) => pt === "cash" ? { label: "نقدي", cls: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" } : pt === "credit" ? { label: "آجل", cls: "bg-amber-500/20 text-amber-400 border-amber-500/30" } : { label: "جزئي", cls: "bg-blue-500/20 text-blue-400 border-blue-500/30" };
+
+  const updateReturnQty = (idx: number, val: number) => {
+    setReturnItems(prev => prev.map((item, i) => {
+      if (i !== idx) return item;
+      const q = Math.max(0, Math.min(item.maxQty, isNaN(val) ? 0 : val));
+      return { ...item, returnQty: q };
+    }));
   };
 
   return (
@@ -120,129 +229,344 @@ function SalesReturnsPanel() {
           onCancel={() => setConfirmDeleteId(null)}
         />
       )}
-      <div className="flex gap-3 items-center justify-between">
+
+      {/* ── Header ── */}
+      <div className="flex gap-3 items-center justify-between flex-wrap">
         {totalReturns > 0 && (
           <div className="glass-panel rounded-2xl px-5 py-2 border border-orange-500/20 bg-orange-500/5 text-sm">
             إجمالي المرتجعات: <span className="text-orange-400 font-black">{formatCurrency(totalReturns)}</span>
           </div>
         )}
-        <button onClick={() => { resetForm(); setShowForm(true); }} className="btn-primary px-5 py-2 text-sm flex items-center gap-2 mr-auto">
-          <Plus className="w-4 h-4" /> مرتجع جديد
-        </button>
+        <div className="flex gap-2 mr-auto items-center">
+          {isAdmin && (
+            <button onClick={() => { resetStandalone(); setPhase("standalone"); }}
+              className="px-4 py-2 rounded-xl text-xs font-bold border border-white/15 text-white/40 hover:text-white/60 hover:border-white/25 transition-all">
+              مرتجع مستقل
+            </button>
+          )}
+          <button onClick={() => { setInvoiceSearch(""); setPhase("select-invoice"); }}
+            className="btn-primary px-5 py-2 text-sm flex items-center gap-2">
+            <RotateCcw className="w-4 h-4" /> مرتجع جديد
+          </button>
+        </div>
       </div>
 
-      {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm modal-overlay">
-          <form onSubmit={handleSubmit} className="glass-panel rounded-3xl p-8 w-full max-w-md border border-white/10 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center">
-              <h3 className="text-xl font-bold text-white">مرتجع مبيعات جديد</h3>
-              <button type="button" onClick={() => setShowForm(false)} className="p-2 rounded-xl bg-white/10 hover:bg-white/20"><X className="w-4 h-4 text-white/70" /></button>
-            </div>
-
-            {/* نوع الاسترداد */}
-            <div>
-              <label className="text-white/60 text-xs mb-2 block">نوع الاسترداد *</label>
-              <div className="grid grid-cols-2 gap-2">
-                <button type="button"
-                  onClick={() => setForm(f => ({ ...f, refund_type: "credit", safe_id: "" }))}
-                  className={`py-2.5 px-3 rounded-xl text-sm font-bold border transition-all ${form.refund_type === "credit" ? "bg-blue-500/30 border-blue-500/60 text-blue-300" : "bg-white/5 border-white/10 text-white/50"}`}>
-                  خصم من رصيد العميل
-                </button>
-                <button type="button"
-                  onClick={() => setForm(f => ({ ...f, refund_type: "cash" }))}
-                  className={`py-2.5 px-3 rounded-xl text-sm font-bold border transition-all ${form.refund_type === "cash" ? "bg-emerald-500/30 border-emerald-500/60 text-emerald-300" : "bg-white/5 border-white/10 text-white/50"}`}>
-                  استرداد نقدي
-                </button>
+      {/* ══ PHASE: select-invoice ══ */}
+      {phase === "select-invoice" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm modal-overlay">
+          <div className="glass-panel rounded-3xl w-full max-w-2xl border border-white/10 shadow-2xl flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between p-6 border-b border-white/10 shrink-0">
+              <div>
+                <h3 className="text-xl font-bold text-white">اختر الفاتورة المراد إرجاعها</h3>
+                <p className="text-white/40 text-xs mt-0.5">ابحث بالرقم أو اسم العميل</p>
               </div>
-              <p className="text-xs text-white/40 mt-1.5">
-                {form.refund_type === "credit"
-                  ? "يُخصم من رصيد العميل — مناسب لفواتير الآجل"
-                  : "تُصرف فلوس من الخزينة للعميل — مناسب لفواتير النقدي"}
-              </p>
+              <button onClick={() => setPhase("list")} className="p-2 rounded-xl bg-white/10 hover:bg-white/20">
+                <X className="w-4 h-4 text-white/70" />
+              </button>
             </div>
+            <div className="p-4 border-b border-white/10 shrink-0">
+              <div className="relative">
+                <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-white/30" />
+                <input autoFocus type="text" className="glass-input pr-9 w-full"
+                  placeholder="رقم الفاتورة أو اسم العميل..."
+                  value={invoiceSearch} onChange={e => setInvoiceSearch(e.target.value)} />
+              </div>
+            </div>
+            <div className="overflow-y-auto flex-1">
+              {filteredSales.length === 0 ? (
+                <div className="p-10 text-center text-white/40">
+                  {invoiceSearch ? "لا توجد فواتير مطابقة" : "لا توجد فواتير"}
+                </div>
+              ) : (
+                <table className="w-full text-right text-sm">
+                  <thead className="bg-white/5 sticky top-0">
+                    <tr>
+                      <th className="p-3 text-white/50 font-medium">رقم الفاتورة</th>
+                      <th className="p-3 text-white/50 font-medium">العميل</th>
+                      <th className="p-3 text-white/50 font-medium">نوع الدفع</th>
+                      <th className="p-3 text-white/50 font-medium">الإجمالي</th>
+                      <th className="p-3 text-white/50 font-medium">التاريخ</th>
+                      <th className="p-3 w-10"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredSales.map(sale => {
+                      const pt = ptLabel(sale.payment_type);
+                      return (
+                        <tr key={sale.id} className="border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer"
+                          onClick={() => {
+                            setSelectedSaleId(sale.id);
+                            setRefundType(sale.payment_type === "cash" ? "cash" : "credit");
+                            setSafeId(sale.safe_id ? String(sale.safe_id) : "");
+                            setReason("");
+                            setReturnDate(new Date().toISOString().split("T")[0]);
+                            setReturnItems([]);
+                            setPhase("return-form");
+                          }}>
+                          <td className="p-3 font-mono font-bold text-amber-400">{sale.invoice_no}</td>
+                          <td className="p-3 text-white">{sale.customer_name || <span className="text-white/30">نقدي</span>}</td>
+                          <td className="p-3"><span className={`px-2 py-0.5 rounded-lg text-xs font-bold border ${pt.cls}`}>{pt.label}</span></td>
+                          <td className="p-3 font-bold text-white">{formatCurrency(sale.total_amount)}</td>
+                          <td className="p-3 text-white/40 text-xs">{sale.date || "—"}</td>
+                          <td className="p-3">
+                            <button className="p-1.5 rounded-lg bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition-colors">
+                              <Receipt className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
-            {/* عميل */}
-            <div>
-              <label className="text-white/60 text-xs mb-1 block">العميل</label>
-              <SearchableSelect
-                items={customerReturnItems}
-                value={form.customer_id}
-                onChange={v => setForm(f => ({ ...f, customer_id: v }))}
-                placeholder="ابحث باسم أو كود..."
-                emptyLabel="-- عميل غير مسجل / نقدي --"
-              />
-              {selectedCustomer && (
-                <p className={`text-xs mt-1 ${Number(selectedCustomer.balance) > 0 ? 'text-amber-400' : Number(selectedCustomer.balance) < 0 ? 'text-orange-400' : 'text-white/40'}`}>
-                  رصيده الحالي: {Number(selectedCustomer.balance) < 0 ? `علينا له ${formatCurrency(Math.abs(Number(selectedCustomer.balance)))}` : formatCurrency(Number(selectedCustomer.balance))}
-                  {form.refund_type === "credit" && ` ← بعد المرتجع: ${formatCurrency(Number(selectedCustomer.balance) - itemTotal)}`}
-                </p>
+      {/* ══ PHASE: return-form ══ */}
+      {phase === "return-form" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm modal-overlay">
+          <div className="glass-panel rounded-3xl w-full max-w-xl border border-white/10 shadow-2xl flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="flex items-center justify-between p-5 border-b border-white/10 shrink-0">
+              <div className="flex items-center gap-3">
+                <button onClick={() => { setPhase("select-invoice"); setSelectedSaleId(null); setReturnItems([]); }}
+                  className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/60">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+                <div>
+                  <p className="text-white/50 text-xs">مرتجع من فاتورة</p>
+                  <h3 className="text-lg font-bold text-white leading-tight">
+                    {saleDetail ? saleDetail.invoice_no : "جاري التحميل..."}
+                  </h3>
+                </div>
+              </div>
+              {saleDetail && (
+                <div className="text-left">
+                  <p className="text-white/40 text-xs">{saleDetail.customer_name || "نقدي"}</p>
+                  <p className="text-amber-400 font-bold text-sm">{formatCurrency(saleDetail.total_amount)}</p>
+                </div>
               )}
             </div>
 
-            {/* خزينة الاسترداد النقدي */}
-            {form.refund_type === "cash" && (
+            <div className="overflow-y-auto flex-1 p-5 space-y-4">
+              {/* Loading state */}
+              {!saleDetail && (
+                <div className="py-8 text-center text-white/40 text-sm">جاري تحميل بنود الفاتورة…</div>
+              )}
+
+              {/* All items already returned */}
+              {saleDetail && returnItems.length === 0 && (
+                <div className="py-8 text-center space-y-2">
+                  <CheckCircle className="w-10 h-10 text-emerald-500/40 mx-auto" />
+                  <p className="text-white/40 text-sm">جميع أصناف هذه الفاتورة تم إرجاعها بالكامل</p>
+                </div>
+              )}
+
+              {/* Items list */}
+              {returnItems.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-white/50 text-xs font-semibold">أصناف الفاتورة</span>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => setReturnItems(prev => prev.map(i => ({ ...i, returnQty: i.maxQty })))}
+                        className="text-xs text-amber-400/70 hover:text-amber-400 transition-colors font-bold">إرجاع الكل</button>
+                      <span className="text-white/20">|</span>
+                      <button type="button" onClick={() => setReturnItems(prev => prev.map(i => ({ ...i, returnQty: 0 })))}
+                        className="text-xs text-white/30 hover:text-white/50 transition-colors">إلغاء الكل</button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {returnItems.map((item, idx) => (
+                      <div key={item.original_sale_item_id}
+                        className={`flex items-center gap-3 rounded-2xl px-4 py-3 border transition-all ${item.returnQty > 0 ? "bg-orange-500/8 border-orange-500/20" : "bg-white/3 border-white/8"}`}>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white font-bold text-sm truncate">{item.product_name}</p>
+                          <p className="text-white/40 text-xs">{formatCurrency(item.unit_price)} × {item.maxQty} ← {item.maxQty !== (saleDetail?.items?.find(i => i.id === item.original_sale_item_id)?.quantity ?? item.maxQty) ? `متبقي` : `الكمية المباعة`}</p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button type="button" onClick={() => updateReturnQty(idx, item.returnQty - 1)}
+                            className="w-7 h-7 rounded-lg bg-white/10 text-white/60 hover:bg-white/20 flex items-center justify-center">
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          <input type="number" min={0} max={item.maxQty} step={1}
+                            value={item.returnQty}
+                            onChange={e => updateReturnQty(idx, parseFloat(e.target.value))}
+                            className="w-14 text-center bg-white/10 border border-white/20 rounded-lg text-white text-sm py-1 font-bold" />
+                          <button type="button" onClick={() => updateReturnQty(idx, item.returnQty + 1)}
+                            className="w-7 h-7 rounded-lg bg-white/10 text-white/60 hover:bg-white/20 flex items-center justify-center">
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <span className={`text-sm font-bold w-20 text-left shrink-0 tabular-nums ${item.returnQty > 0 ? "text-orange-400" : "text-white/20"}`}>
+                          {formatCurrency(item.returnQty * item.unit_price)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Refund type — shown when items exist */}
+              {returnItems.length > 0 && saleDetail && (
+                <>
+                  <div>
+                    <label className="text-white/50 text-xs font-semibold block mb-2">نوع الاسترداد</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button type="button"
+                        onClick={() => setRefundType("credit")}
+                        className={`py-2.5 px-3 rounded-xl text-sm font-bold border transition-all ${refundType === "credit" ? "bg-blue-500/25 border-blue-500/50 text-blue-300" : "bg-white/5 border-white/10 text-white/40 hover:text-white/60"}`}>
+                        📒 خصم رصيد العميل
+                      </button>
+                      <button type="button"
+                        onClick={() => setRefundType("cash")}
+                        className={`py-2.5 px-3 rounded-xl text-sm font-bold border transition-all ${refundType === "cash" ? "bg-emerald-500/25 border-emerald-500/50 text-emerald-300" : "bg-white/5 border-white/10 text-white/40 hover:text-white/60"}`}>
+                        💵 استرداد نقدي
+                      </button>
+                    </div>
+                    {saleDetail.payment_type === "cash" && refundType === "credit" && (
+                      <p className="text-amber-400/70 text-xs mt-1.5">⚠ الفاتورة الأصلية نقدية — يُنصح بالاسترداد نقدياً</p>
+                    )}
+                    {saleDetail.payment_type === "credit" && refundType === "cash" && (
+                      <p className="text-blue-400/70 text-xs mt-1.5">⚠ الفاتورة الأصلية آجل — يُنصح بخصم الرصيد</p>
+                    )}
+                  </div>
+
+                  {refundType === "cash" && (
+                    <div>
+                      <label className="text-white/50 text-xs font-semibold block mb-1">الخزينة الصارفة *</label>
+                      <select className="glass-input w-full appearance-none" value={safeId} onChange={e => setSafeId(e.target.value)}>
+                        <option value="" className="bg-gray-900">— اختر خزينة —</option>
+                        {safes.map(s => <option key={s.id} value={String(s.id)} className="bg-gray-900">{s.name} ({formatCurrency(Number(s.balance))})</option>)}
+                      </select>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-white/50 text-xs font-semibold block mb-1">التاريخ</label>
+                      <input type="date" className="glass-input" value={returnDate} onChange={e => setReturnDate(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="text-white/50 text-xs font-semibold block mb-1">سبب الإرجاع</label>
+                      <input type="text" className="glass-input" value={reason} onChange={e => setReason(e.target.value)} placeholder="عيب مصنعي..." />
+                    </div>
+                  </div>
+
+                  {activeReturnItems.length > 0 && (
+                    <div className="bg-orange-500/10 border border-orange-500/25 rounded-2xl px-4 py-3 flex justify-between items-center">
+                      <span className="text-white/60 text-sm font-bold">إجمالي المرتجع ({activeReturnItems.length} صنف)</span>
+                      <span className="text-orange-400 font-black text-lg tabular-nums">{formatCurrency(returnTotal)}</span>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Footer buttons */}
+            {returnItems.length > 0 && saleDetail && (
+              <div className="p-5 border-t border-white/10 shrink-0 flex gap-3">
+                <button onClick={handleSubmitReturn}
+                  disabled={createMutation.isPending || activeReturnItems.length === 0}
+                  className="flex-1 btn-primary py-3 font-bold disabled:opacity-40">
+                  {createMutation.isPending ? "جاري التسجيل…" : `✦ تسجيل المرتجع${returnTotal > 0 ? ` — ${formatCurrency(returnTotal)}` : ""}`}
+                </button>
+                <button onClick={() => { setPhase("list"); setSelectedSaleId(null); setReturnItems([]); }}
+                  className="px-5 btn-secondary py-3">إلغاء</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ══ PHASE: standalone (admin only) ══ */}
+      {phase === "standalone" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm modal-overlay">
+          <form onSubmit={handleStandaloneSubmit} className="glass-panel rounded-3xl p-7 w-full max-w-md border border-white/10 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center">
               <div>
-                <label className="text-white/60 text-xs mb-1 block">الخزينة الصارفة *</label>
-                <select required className="glass-input w-full appearance-none" value={form.safe_id}
-                  onChange={e => setForm(f => ({ ...f, safe_id: e.target.value }))}>
+                <h3 className="text-xl font-bold text-white">مرتجع مستقل</h3>
+                <p className="text-white/40 text-xs mt-0.5">مقتصر على المسؤول — بدون ربط بفاتورة</p>
+              </div>
+              <button type="button" onClick={() => setPhase("list")} className="p-2 rounded-xl bg-white/10 hover:bg-white/20">
+                <X className="w-4 h-4 text-white/70" />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {(["credit", "cash"] as const).map(t => (
+                <button key={t} type="button" onClick={() => setStandalone(f => ({ ...f, refund_type: t, safe_id: "" }))}
+                  className={`py-2.5 px-3 rounded-xl text-sm font-bold border transition-all ${standalone.refund_type === t ? (t === "cash" ? "bg-emerald-500/30 border-emerald-500/60 text-emerald-300" : "bg-blue-500/30 border-blue-500/60 text-blue-300") : "bg-white/5 border-white/10 text-white/50"}`}>
+                  {t === "cash" ? "استرداد نقدي" : "خصم رصيد"}
+                </button>
+              ))}
+            </div>
+            <div>
+              <label className="text-white/60 text-xs mb-1 block">العميل</label>
+              <SearchableSelect items={standaloneCustomerItems} value={standalone.customer_id}
+                onChange={v => setStandalone(f => ({ ...f, customer_id: v }))}
+                placeholder="ابحث باسم أو كود..." emptyLabel="-- نقدي --" />
+            </div>
+            {standalone.refund_type === "cash" && (
+              <div>
+                <label className="text-white/60 text-xs mb-1 block">الخزينة *</label>
+                <select required className="glass-input w-full appearance-none" value={standalone.safe_id}
+                  onChange={e => setStandalone(f => ({ ...f, safe_id: e.target.value }))}>
                   <option value="" className="bg-gray-900">-- اختر خزينة --</option>
-                  {safes.map(s => <option key={s.id} value={s.id} className="bg-gray-900">{s.name} ({formatCurrency(Number(s.balance))})</option>)}
+                  {safes.map(s => <option key={s.id} value={String(s.id)} className="bg-gray-900">{s.name} ({formatCurrency(Number(s.balance))})</option>)}
                 </select>
               </div>
             )}
-
-            {/* الصنف */}
             <div>
-              <label className="text-white/60 text-xs mb-1 block">الصنف المرتجع *</label>
-              <select required className="glass-input w-full appearance-none" value={form.item_id} onChange={e => {
-                const prod = products.find(p => String(p.id) === e.target.value);
-                setForm(f => ({ ...f, item_id: e.target.value, unit_price: prod ? String(prod.sale_price) : "" }));
-              }}>
+              <label className="text-white/60 text-xs mb-1 block">الصنف *</label>
+              <select required className="glass-input w-full appearance-none" value={standalone.item_id}
+                onChange={e => setStandalone(f => ({ ...f, item_id: e.target.value }))}>
                 <option value="" className="bg-gray-900">-- اختر صنف --</option>
-                {products.map(p => <option key={p.id} value={p.id} className="bg-gray-900">{p.name} (مخزون: {Number(p.quantity)})</option>)}
+                {products.map(p => <option key={p.id} value={p.id} className="bg-gray-900">{p.name}</option>)}
               </select>
             </div>
-
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-white/60 text-xs mb-1 block">الكمية</label>
-                <input type="number" min="1" className="glass-input" value={form.quantity} onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))} />
+                <input type="number" min="1" className="glass-input" value={standalone.quantity}
+                  onChange={e => setStandalone(f => ({ ...f, quantity: e.target.value }))} />
               </div>
               <div>
                 <label className="text-white/60 text-xs mb-1 block">سعر الوحدة</label>
-                <div className="glass-input flex items-center gap-2 opacity-80 cursor-not-allowed select-none">
-                  <span className="text-emerald-400 font-bold tabular-nums">{selectedProduct ? formatCurrency(Number(selectedProduct.sale_price)) : "—"}</span>
-                  <span className="text-white/30 text-xs mr-auto">سعر البيع الأصلي 🔒</span>
+                <div className="glass-input opacity-70 cursor-not-allowed">
+                  <span className="text-emerald-400 font-bold">{standaloneProduct ? formatCurrency(standalonePrice) : "—"}</span>
                 </div>
               </div>
             </div>
-
-            {form.item_id && returnUnitPrice > 0 && (
+            {standaloneTotal > 0 && (
               <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl px-4 py-2 flex justify-between">
-                <span className="text-white/60 text-sm">إجمالي المرتجع</span>
-                <span className="text-orange-400 font-bold">{formatCurrency(itemTotal)}</span>
+                <span className="text-white/60 text-sm">الإجمالي</span>
+                <span className="text-orange-400 font-bold">{formatCurrency(standaloneTotal)}</span>
               </div>
             )}
-
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-white/60 text-xs mb-1 block">التاريخ</label>
-                <input type="date" className="glass-input" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+                <input type="date" className="glass-input" value={standalone.date}
+                  onChange={e => setStandalone(f => ({ ...f, date: e.target.value }))} />
               </div>
               <div>
-                <label className="text-white/60 text-xs mb-1 block">سبب الإرجاع</label>
-                <input type="text" className="glass-input" value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} placeholder="عيب مصنعي..." />
+                <label className="text-white/60 text-xs mb-1 block">السبب</label>
+                <input type="text" className="glass-input" value={standalone.reason}
+                  onChange={e => setStandalone(f => ({ ...f, reason: e.target.value }))} placeholder="اختياري..." />
               </div>
             </div>
-
             <div className="flex gap-3">
-              <button type="submit" disabled={createMutation.isPending} className="flex-1 btn-primary py-3">{createMutation.isPending ? "جاري الحفظ..." : "تسجيل المرتجع"}</button>
-              <button type="button" onClick={() => setShowForm(false)} className="flex-1 btn-secondary py-3">إلغاء</button>
+              <button type="submit" disabled={createMutation.isPending} className="flex-1 btn-primary py-3">
+                {createMutation.isPending ? "جاري الحفظ..." : "تسجيل المرتجع"}
+              </button>
+              <button type="button" onClick={() => setPhase("list")} className="flex-1 btn-secondary py-3">إلغاء</button>
             </div>
           </form>
         </div>
       )}
 
+      {/* ── History table ── */}
       <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
         <div className="overflow-x-auto">
           <table className="w-full text-right text-sm whitespace-nowrap">
