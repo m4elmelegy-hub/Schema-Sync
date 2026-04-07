@@ -11,7 +11,7 @@
  */
 
 import { Router, type IRouter } from "express";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import {
   db,
   productsTable,
@@ -62,6 +62,16 @@ router.post("/inventory/count-sessions", wrap(async (req, res) => {
     res.status(400).json({ error: `منتجات غير موجودة: ${missing.join(", ")}` }); return;
   }
 
+  // احسب المخزون الفعلي لكل منتج في المخزن المحدد من حركات المخزون
+  const whStockRows = await db.execute(sql`
+    SELECT product_id::int, COALESCE(SUM(CAST(quantity AS FLOAT8)), 0) AS wh_qty
+    FROM stock_movements
+    WHERE warehouse_id = ${Number(warehouse_id)}
+      AND product_id = ANY(${productIds}::int[])
+    GROUP BY product_id
+  `);
+  const whStockMap = new Map((whStockRows.rows as any[]).map((r: any) => [Number(r.product_id), Number(r.wh_qty ?? 0)]));
+
   const session = await db.transaction(async (tx) => {
     const [sess] = await tx.insert(stockCountSessionsTable).values({
       warehouse_id,
@@ -71,16 +81,13 @@ router.post("/inventory/count-sessions", wrap(async (req, res) => {
       created_by: req.user?.id ?? null,
     }).returning();
 
-    const countItems = items.map(item => {
-      const product = productMap.get(item.product_id)!;
-      return {
-        session_id:   sess.id,
-        product_id:   item.product_id,
-        system_qty:   product.quantity,
-        physical_qty: String(item.physical_qty),
-        notes:        item.notes ?? null,
-      };
-    });
+    const countItems = items.map(item => ({
+      session_id:   sess.id,
+      product_id:   item.product_id,
+      system_qty:   String(whStockMap.get(item.product_id) ?? 0),
+      physical_qty: String(item.physical_qty),
+      notes:        item.notes ?? null,
+    }));
 
     const inserted = await tx.insert(stockCountItemsTable).values(countItems).returning();
     return { session: sess, items: inserted };

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { authFetch } from "@/lib/auth-fetch";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useWarehouse } from "@/contexts/warehouse";
@@ -8,7 +8,8 @@ import { formatCurrency } from "@/lib/format";
 import {
   Package, AlertTriangle, TrendingDown, Search, X, RefreshCw,
   ChevronUp, ChevronDown, Edit3, ShieldX, ClipboardList, Truck,
-  Plus, Trash2, CheckCircle, Warehouse, Loader2,
+  Plus, Trash2, CheckCircle, Warehouse, Loader2, Filter,
+  BarChart3, ArrowLeft,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TableSkeleton } from "@/components/skeletons";
@@ -53,6 +54,10 @@ interface StockTransfer {
   id: number; from_warehouse_id: number; to_warehouse_id: number;
   status: string; notes: string | null; created_at: string;
 }
+interface WarehouseSummaryItem {
+  warehouse_id: number; warehouse_name: string;
+  item_count: number; total_value: number; pct_of_total: number;
+}
 
 const movementTypeLabel: Record<string, { label: string; color: string }> = {
   opening_balance: { label: "رصيد افتتاحي",  color: "bg-blue-500/20 text-blue-300" },
@@ -67,7 +72,6 @@ const movementTypeLabel: Record<string, { label: string; color: string }> = {
 
 type Tab = "review" | "count" | "transfer";
 
-/* ─── helpers ──────────────────────────────────────────────────────────────── */
 function today() { return new Date().toISOString().slice(0, 10); }
 function nowTime() { return new Date().toTimeString().slice(0, 5); }
 
@@ -91,11 +95,29 @@ export default function Inventory() {
   const createWH = useCreateSettingsWarehouse();
   const deleteWH = useDeleteSettingsWarehouse();
 
-  const [showAddWH, setShowAddWH]               = useState(false);
-  const [deleteWHTarget, setDeleteWHTarget]     = useState<{ id: number; name: string } | null>(null);
-  const [whForm, setWhForm]                     = useState({ name: "", address: "" });
-
+  const [showAddWH, setShowAddWH]           = useState(false);
+  const [deleteWHTarget, setDeleteWHTarget] = useState<{ id: number; name: string } | null>(null);
+  const [whForm, setWhForm]                 = useState({ name: "", address: "" });
   const invalidateWH = () => qc.invalidateQueries({ queryKey: ["/api/settings/warehouses"] });
+
+  /* ── per-warehouse summary ── */
+  const { data: whSummaryData } = useQuery<{ warehouses: WarehouseSummaryItem[]; grand_total: number }>({
+    queryKey: ["inventory-warehouse-summary"],
+    queryFn: () => authFetch(api("/api/inventory/warehouse-summary")).then(r => r.json()),
+    staleTime: 30_000,
+    enabled: canViewInventory,
+  });
+  const whSummaryMap = new Map((whSummaryData?.warehouses ?? []).map(s => [s.warehouse_id, s]));
+  const grandTotal = whSummaryData?.grand_total ?? 0;
+
+  /* ── global stats for header ── */
+  const { data: globalAudit } = useQuery<{ summary: AuditSummary }>({
+    queryKey: ["inventory-audit-global"],
+    queryFn: () => authFetch(api("/api/inventory/audit")).then(r => r.json()),
+    staleTime: 30_000,
+    enabled: canViewInventory,
+  });
+  const gs = globalAudit?.summary;
 
   if (!canViewInventory) {
     return (
@@ -108,16 +130,48 @@ export default function Inventory() {
   }
 
   return (
-    <div className="p-6 space-y-8 text-right" dir="rtl">
+    <div className="p-6 space-y-6 text-right" dir="rtl">
 
-      {/* ══════════════════════════════════════════════════════
-          قسم إدارة المخازن
-          ══════════════════════════════════════════════════════ */}
+      {/* ══ إحصائيات الرأس ══════════════════════════════════════════════════ */}
+      {gs && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard
+            label="إجمالي المنتجات"
+            value={String(gs.total_products)}
+            icon={<Package className="w-5 h-5 text-violet-400" />}
+            color="text-white"
+            bg="bg-violet-500/10 border-violet-500/20"
+          />
+          <StatCard
+            label="قيمة المخزون الكلية"
+            value={formatCurrency(grandTotal || gs.total_inventory_value)}
+            icon={<BarChart3 className="w-5 h-5 text-emerald-400" />}
+            color="text-emerald-400"
+            bg="bg-emerald-500/10 border-emerald-500/20"
+          />
+          <StatCard
+            label="تحت حد الطلب"
+            value={String(gs.low_stock_count)}
+            icon={<AlertTriangle className="w-5 h-5 text-amber-400" />}
+            color={gs.low_stock_count > 0 ? "text-amber-400" : "text-white/40"}
+            bg={gs.low_stock_count > 0 ? "bg-amber-500/10 border-amber-500/20" : "bg-white/5 border-white/5"}
+          />
+          <StatCard
+            label="نفد المخزون"
+            value={String(gs.zero_stock_count)}
+            icon={<TrendingDown className="w-5 h-5 text-red-400" />}
+            color={gs.zero_stock_count > 0 ? "text-red-400" : "text-white/40"}
+            bg={gs.zero_stock_count > 0 ? "bg-red-500/10 border-red-500/20" : "bg-white/5 border-white/5"}
+          />
+        </div>
+      )}
+
+      {/* ══ قسم إدارة المخازن ════════════════════════════════════════════════ */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-xl font-bold text-white">المخازن</h2>
-            <p className="text-white/40 text-sm mt-0.5">أضف وأدر مواقع التخزين</p>
+            <p className="text-white/40 text-sm mt-0.5">إدارة مواقع التخزين ومتابعة قيمة كل مخزن</p>
           </div>
           {isAdmin && (
             <button
@@ -131,9 +185,7 @@ export default function Inventory() {
 
         {loadingWH ? (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {[1, 2].map(i => (
-              <div key={i} className="h-28 bg-white/5 border border-white/5 rounded-2xl animate-pulse" />
-            ))}
+            {[1, 2].map(i => <div key={i} className="h-32 bg-white/5 border border-white/5 rounded-2xl animate-pulse" />)}
           </div>
         ) : warehouses.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-14 text-center bg-white/3 border border-white/5 rounded-2xl">
@@ -148,46 +200,69 @@ export default function Inventory() {
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {warehouses.map(w => (
-              <div key={w.id}
-                className="group relative bg-[#111827] border border-white/5 hover:border-violet-500/20 rounded-2xl p-5 transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(0,0,0,0.4)]">
-                {/* Delete button */}
-                {isAdmin && (
-                  <button
-                    onClick={() => setDeleteWHTarget({ id: w.id, name: w.name })}
-                    className="absolute top-3 left-3 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all"
-                    title="حذف المخزن"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
-                <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center mb-3">
-                  <Warehouse className="w-5 h-5 text-violet-400" />
+            {warehouses.map(w => {
+              const ws = whSummaryMap.get(w.id);
+              return (
+                <div key={w.id}
+                  className="group relative bg-[#111827] border border-white/5 hover:border-violet-500/20 rounded-2xl p-5 transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(0,0,0,0.4)]">
+                  {isAdmin && (
+                    <button
+                      onClick={() => setDeleteWHTarget({ id: w.id, name: w.name })}
+                      className="absolute top-3 left-3 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all"
+                      title="حذف المخزن"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center mb-3">
+                    <Warehouse className="w-5 h-5 text-violet-400" />
+                  </div>
+                  <p className="text-white font-bold text-sm mb-1">{w.name}</p>
+                  {w.address && <p className="text-white/40 text-xs truncate mb-2">{w.address}</p>}
+                  {ws && (
+                    <div className="space-y-1 pt-2 border-t border-white/5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-white/40 text-xs">قيمة المخزون</span>
+                        <span className="text-emerald-400 text-xs font-bold">{formatCurrency(ws.total_value)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-white/40 text-xs">عدد المنتجات</span>
+                        <span className="text-white/70 text-xs font-bold">{ws.item_count}</span>
+                      </div>
+                      {grandTotal > 0 && (
+                        <div className="mt-1.5">
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className="text-white/30 text-xs">من الإجمالي</span>
+                            <span className="text-violet-300 text-xs font-bold">{ws.pct_of_total}%</span>
+                          </div>
+                          <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+                            <div className="h-full bg-violet-400 rounded-full transition-all" style={{ width: `${ws.pct_of_total}%` }} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {currentWarehouseId === w.id && (
+                    <span className="inline-block mt-2 px-2 py-0.5 rounded-lg text-xs bg-violet-500/20 text-violet-300 font-medium">
+                      المخزن الحالي
+                    </span>
+                  )}
                 </div>
-                <p className="text-white font-bold text-sm">{w.name}</p>
-                {w.address && <p className="text-white/40 text-xs mt-1 truncate">{w.address}</p>}
-                {currentWarehouseId === w.id && (
-                  <span className="inline-block mt-2 px-2 py-0.5 rounded-lg text-xs bg-violet-500/20 text-violet-300 font-medium">
-                    المخزن الحالي
-                  </span>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
 
-      {/* ══════════════════════════════════════════════════════
-          تبويبات المخزون
-          ══════════════════════════════════════════════════════ */}
+      {/* ══ تبويبات المخزون ══════════════════════════════════════════════════ */}
       <div>
         <div className="flex gap-2 border-b border-white/10 mb-6">
           <TabBtn id="review"   label="مراجعة المخزون" icon={<Package className="w-4 h-4" />}      active={activeTab} onClick={setActiveTab} />
           {canAdjustInventory && (
-            <TabBtn id="count"  label="جرد المخزون"    icon={<ClipboardList className="w-4 h-4" />} active={activeTab} onClick={setActiveTab} />
+            <TabBtn id="count"    label="جرد المخزون"    icon={<ClipboardList className="w-4 h-4" />} active={activeTab} onClick={setActiveTab} />
           )}
           {canAdjustInventory && (
-            <TabBtn id="transfer" label="تحويل مخزون"  icon={<Truck className="w-4 h-4" />}         active={activeTab} onClick={setActiveTab} />
+            <TabBtn id="transfer" label="تحويل مخزون"    icon={<Truck className="w-4 h-4" />}         active={activeTab} onClick={setActiveTab} />
           )}
         </div>
 
@@ -196,7 +271,7 @@ export default function Inventory() {
         {activeTab === "transfer" && <TransferTab warehouses={warehouses} qc={qc} toast={toast} />}
       </div>
 
-      {/* ── Add Warehouse Modal ── */}
+      {/* ── Modal: إضافة مخزن ── */}
       {showAddWH && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowAddWH(false)}>
           <div className="bg-[#111827] border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
@@ -208,7 +283,7 @@ export default function Inventory() {
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-white/60 text-xs mb-1.5">اسم المخزن *</label>
+                <label className="block text-white/60 text-xs mb-1.5">اسم المخزن <span className="text-red-400">*</span></label>
                 <input type="text" className="glass-input" placeholder="المخزن الرئيسي"
                   value={whForm.name} onChange={e => setWhForm(f => ({ ...f, name: e.target.value }))} />
               </div>
@@ -224,7 +299,12 @@ export default function Inventory() {
                 onClick={() => {
                   if (!whForm.name.trim()) { toast({ title: "الاسم مطلوب", variant: "destructive" }); return; }
                   createWH.mutate({ name: whForm.name, address: whForm.address || undefined }, {
-                    onSuccess: () => { invalidateWH(); toast({ title: "✅ تم إضافة المخزن" }); setShowAddWH(false); },
+                    onSuccess: () => {
+                      invalidateWH();
+                      qc.invalidateQueries({ queryKey: ["inventory-warehouse-summary"] });
+                      toast({ title: "✅ تم إضافة المخزن" });
+                      setShowAddWH(false);
+                    },
                     onError: (e: any) => toast({ title: e?.message ?? "فشل الإضافة", variant: "destructive" }),
                   });
                 }}
@@ -240,7 +320,7 @@ export default function Inventory() {
         </div>
       )}
 
-      {/* ── Delete Warehouse Modal ── */}
+      {/* ── Modal: حذف مخزن ── */}
       {deleteWHTarget && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setDeleteWHTarget(null)}>
           <div className="bg-[#111827] border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl text-center" onClick={e => e.stopPropagation()}>
@@ -256,7 +336,12 @@ export default function Inventory() {
               <button
                 disabled={deleteWH.isPending}
                 onClick={() => deleteWH.mutate(deleteWHTarget.id, {
-                  onSuccess: () => { invalidateWH(); toast({ title: "تم حذف المخزن" }); setDeleteWHTarget(null); },
+                  onSuccess: () => {
+                    invalidateWH();
+                    qc.invalidateQueries({ queryKey: ["inventory-warehouse-summary"] });
+                    toast({ title: "تم حذف المخزن" });
+                    setDeleteWHTarget(null);
+                  },
                   onError: (e: any) => { toast({ title: e?.message ?? "فشل الحذف", variant: "destructive" }); setDeleteWHTarget(null); },
                 })}
                 className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-400 disabled:opacity-50 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2">
@@ -274,20 +359,41 @@ export default function Inventory() {
   );
 }
 
-/* ─── TabBtn ─────────────────────────────────────────────────────────────── */
+/* ─── Helper Components ───────────────────────────────────────────────────── */
 function TabBtn({ id, label, icon, active, onClick }: {
   id: Tab; label: string; icon: React.ReactNode; active: Tab; onClick: (t: Tab) => void;
 }) {
   const isActive = id === active;
   return (
-    <button
-      onClick={() => onClick(id)}
+    <button onClick={() => onClick(id)}
       className={`flex items-center gap-2 px-5 py-2.5 text-sm font-bold border-b-2 transition-colors -mb-px ${
         isActive ? "border-violet-400 text-violet-300" : "border-transparent text-white/50 hover:text-white/80"
-      }`}
-    >
+      }`}>
       {icon}{label}
     </button>
+  );
+}
+
+function StatCard({ label, value, icon, color, bg }: {
+  label: string; value: string; icon: React.ReactNode; color: string; bg: string;
+}) {
+  return (
+    <div className={`rounded-2xl p-4 border ${bg} flex items-center gap-3`}>
+      <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center shrink-0">{icon}</div>
+      <div className="min-w-0">
+        <p className="text-white/40 text-xs">{label}</p>
+        <p className={`text-lg font-bold truncate ${color}`}>{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function SummaryCard({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div className="bg-white/5 border border-white/8 rounded-xl p-3 text-center">
+      <p className="text-xs text-white/40 mb-1">{label}</p>
+      <p className={`text-lg font-bold ${color}`}>{value}</p>
+    </div>
   );
 }
 
@@ -328,6 +434,7 @@ function ReviewTab({ currentWarehouseId, canAdjustInventory, qc, toast }: {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["inventory-audit"] });
       qc.invalidateQueries({ queryKey: ["inventory-product"] });
+      qc.invalidateQueries({ queryKey: ["inventory-warehouse-summary"] });
       setShowAdjust(null); setAdjustQty(""); setAdjustNotes("");
       toast({ title: "تم تعديل المخزون بنجاح" });
     },
@@ -360,17 +467,18 @@ function ReviewTab({ currentWarehouseId, canAdjustInventory, qc, toast }: {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex flex-wrap gap-2 text-xs">
+      {/* أسطورة الألوان + زر تحديث */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5 text-xs">
           {[
-            { c: "bg-blue-500/20 text-blue-300",    t: "↑ افتتاحي" },
+            { c: "bg-blue-500/20 text-blue-300",      t: "↑ افتتاحي" },
             { c: "bg-emerald-500/20 text-emerald-300", t: "↑ مشتريات" },
-            { c: "bg-teal-500/20 text-teal-300",    t: "↑ مرتجع مبيعات" },
-            { c: "bg-red-500/20 text-red-300",      t: "↓ مبيعات" },
-            { c: "bg-orange-500/20 text-orange-300",t: "↓ مرتجع مشتريات" },
-            { c: "bg-violet-500/20 text-violet-300",t: "± تسوية" },
-            { c: "bg-amber-500/20 text-amber-300",  t: "↓ خروج" },
-            { c: "bg-cyan-500/20 text-cyan-300",    t: "↑ دخول" },
+            { c: "bg-teal-500/20 text-teal-300",       t: "↑ مرتجع مبيعات" },
+            { c: "bg-red-500/20 text-red-300",         t: "↓ مبيعات" },
+            { c: "bg-orange-500/20 text-orange-300",   t: "↓ مرتجع مشتريات" },
+            { c: "bg-violet-500/20 text-violet-300",   t: "± تسوية" },
+            { c: "bg-amber-500/20 text-amber-300",     t: "↓ خروج" },
+            { c: "bg-cyan-500/20 text-cyan-300",       t: "↑ دخول" },
           ].map(b => <span key={b.t} className={`px-2 py-1 rounded-lg ${b.c}`}>{b.t}</span>)}
         </div>
         <button onClick={() => refetch()} className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-xl transition-colors">
@@ -378,15 +486,17 @@ function ReviewTab({ currentWarehouseId, canAdjustInventory, qc, toast }: {
         </button>
       </div>
 
+      {/* بطاقات الملخص */}
       {summary && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <SummaryCard label="إجمالي المنتجات"  value={String(summary.total_products)}   color="text-white" />
+          <SummaryCard label="إجمالي المنتجات"  value={String(summary.total_products)}            color="text-white" />
           <SummaryCard label="قيمة المخزون"      value={formatCurrency(summary.total_inventory_value)} color="text-emerald-400" />
-          <SummaryCard label="تحت حد الطلب"     value={String(summary.low_stock_count)}  color={summary.low_stock_count > 0  ? "text-amber-400" : "text-white/40"} />
-          <SummaryCard label="نفد المخزون"       value={String(summary.zero_stock_count)} color={summary.zero_stock_count > 0 ? "text-red-400"   : "text-white/40"} />
+          <SummaryCard label="تحت حد الطلب"     value={String(summary.low_stock_count)}           color={summary.low_stock_count > 0  ? "text-amber-400"  : "text-white/40"} />
+          <SummaryCard label="نفد المخزون"       value={String(summary.zero_stock_count)}          color={summary.zero_stock_count > 0 ? "text-red-400"    : "text-white/40"} />
         </div>
       )}
 
+      {/* بحث */}
       <div className="relative">
         <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="ابحث عن منتج..."
@@ -394,6 +504,7 @@ function ReviewTab({ currentWarehouseId, canAdjustInventory, qc, toast }: {
         {search && <button onClick={() => setSearch("")} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"><X className="w-4 h-4" /></button>}
       </div>
 
+      {/* الجدول */}
       {isLoading ? (
         <div className="overflow-x-auto rounded-2xl border border-white/10"><table className="w-full text-sm min-w-[1100px]"><tbody><TableSkeleton cols={12} rows={7} /></tbody></table></div>
       ) : (
@@ -402,17 +513,17 @@ function ReviewTab({ currentWarehouseId, canAdjustInventory, qc, toast }: {
             <thead>
               <tr className="border-b border-white/10 bg-white/5">
                 {([
-                  { key: "name"              as const, label: "المنتج" },
-                  { key: "opening_qty"       as const, label: "افتتاحي" },
-                  { key: "purchased_qty"     as const, label: "وارد" },
-                  { key: "sale_return_qty"   as const, label: "مرتجع مبيعات" },
-                  { key: "sold_qty"          as const, label: "صادر" },
+                  { key: "name"                as const, label: "المنتج" },
+                  { key: "opening_qty"         as const, label: "افتتاحي" },
+                  { key: "purchased_qty"       as const, label: "وارد" },
+                  { key: "sale_return_qty"     as const, label: "مرتجع مبيعات" },
+                  { key: "sold_qty"            as const, label: "صادر" },
                   { key: "purchase_return_qty" as const, label: "مرتجع مشتريات" },
-                  { key: "calculated_qty"    as const, label: "محسوب" },
-                  { key: "actual_qty"        as const, label: "فعلي" },
-                  { key: "discrepancy"       as const, label: "فرق" },
-                  { key: "cost_price"        as const, label: "تكلفة" },
-                  { key: "total_value"       as const, label: "قيمة المخزون" },
+                  { key: "calculated_qty"      as const, label: "محسوب" },
+                  { key: "actual_qty"          as const, label: "فعلي (إجمالي)" },
+                  { key: "discrepancy"         as const, label: "فرق" },
+                  { key: "cost_price"          as const, label: "تكلفة" },
+                  { key: "total_value"         as const, label: "قيمة المخزون" },
                 ] as { key: keyof AuditProduct; label: string }[]).map(col => (
                   <th key={col.key} onClick={() => toggleSort(col.key)}
                     className="p-3 text-right text-white/60 font-medium cursor-pointer hover:text-white/90 select-none whitespace-nowrap">
@@ -493,7 +604,7 @@ function ReviewTab({ currentWarehouseId, canAdjustInventory, qc, toast }: {
         </div>
       )}
 
-      {/* مودال تفاصيل حركات منتج */}
+      {/* Modal: تفاصيل حركات منتج */}
       {selectedProduct && productDetail && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-start justify-center pt-12 px-4"
           onClick={() => setSelectedProduct(null)}>
@@ -553,7 +664,7 @@ function ReviewTab({ currentWarehouseId, canAdjustInventory, qc, toast }: {
         </div>
       )}
 
-      {/* مودال التسوية اليدوية */}
+      {/* Modal: التسوية اليدوية */}
       {showAdjust !== null && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center px-4"
           onClick={() => setShowAdjust(null)}>
@@ -601,7 +712,7 @@ function ReviewTab({ currentWarehouseId, canAdjustInventory, qc, toast }: {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * TAB 2 — جرد المخزون (Enhanced)
+ * TAB 2 — جرد المخزون
  * ═══════════════════════════════════════════════════════════════════════════ */
 function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
   warehouses: { id: number; name: string }[];
@@ -609,19 +720,36 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
   qc: ReturnType<typeof useQueryClient>;
   toast: ReturnType<typeof useToast>["toast"];
 }) {
-  const defaultWH = warehouses.length > 0 ? (warehouses.find(w => w.id === currentWarehouseId)?.id ?? warehouses[0].id) : 0;
+  const defaultWH = warehouses.length > 0
+    ? (warehouses.find(w => w.id === currentWarehouseId)?.id ?? warehouses[0].id)
+    : 0;
+
   const [selectedWarehouse, setSelectedWarehouse] = useState<number>(defaultWH);
-  const [countDate, setCountDate]   = useState(today());
-  const [countTime, setCountTime]   = useState(nowTime());
+  const [countDate, setCountDate]     = useState(today());
+  const [countTime, setCountTime]     = useState(nowTime());
   const [sessionNotes, setSessionNotes] = useState("");
-  const [countMode, setCountMode]   = useState<"full" | "partial">("full");
+  const [countMode, setCountMode]     = useState<"full" | "partial">("full");
+
+  /* partial mode: product selector state */
+  const [partialSearch, setPartialSearch]   = useState("");
+  const [partialCategory, setPartialCategory] = useState("all");
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<number>>(new Set());
+
   const [physicalQtys, setPhysicalQtys] = useState<Record<number, string>>({});
-  const [itemNotes, setItemNotes]   = useState<Record<number, string>>({});
-  const [sessionView, setSessionView] = useState<"new" | "history">("new");
-  const [applyingId, setApplyingId] = useState<number | null>(null);
+  const [itemNotes, setItemNotes]       = useState<Record<number, string>>({});
+  const [sessionView, setSessionView]   = useState<"new" | "history">("new");
+  const [applyingId, setApplyingId]     = useState<number | null>(null);
+
+  /* reset quantities when warehouse changes */
+  useEffect(() => {
+    setPhysicalQtys({});
+    setItemNotes({});
+    setSelectedProductIds(new Set());
+  }, [selectedWarehouse]);
 
   const warehouseParam = selectedWarehouse ? `?warehouse_id=${selectedWarehouse}` : "";
 
+  /* fetch per-warehouse audit to get calculated_qty (system stock for THIS warehouse) */
   const { data: auditData, isLoading: loadingProducts } = useQuery<{ products: AuditProduct[]; summary: AuditSummary }>({
     queryKey: ["inventory-audit", selectedWarehouse],
     queryFn: () => authFetch(api(`/api/inventory/audit${warehouseParam}`)).then(r => { if (!r.ok) throw new Error("خطأ"); return r.json(); }),
@@ -635,16 +763,39 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
 
   const allProducts = auditData?.products ?? [];
 
-  const displayProducts = countMode === "full"
-    ? allProducts
-    : allProducts.filter(p => physicalQtys[p.id] !== undefined && physicalQtys[p.id] !== "");
+  /* categories for filter */
+  const categories = Array.from(new Set(allProducts.map(p => p.category).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b, "ar"));
 
-  const diffEntries = allProducts.filter(p => physicalQtys[p.id] !== undefined && physicalQtys[p.id] !== "");
-  const itemsWithDiff = diffEntries.filter(p => {
-    const phys = parseFloat(physicalQtys[p.id] || "0");
-    return Math.abs(phys - p.actual_qty) > 0.001;
+  /* products to show in the partial selector */
+  const filteredForSelector = allProducts.filter(p => {
+    const matchSearch = !partialSearch || p.name.toLowerCase().includes(partialSearch.toLowerCase()) || (p.sku ?? "").toLowerCase().includes(partialSearch.toLowerCase());
+    const matchCat = partialCategory === "all" || p.category === partialCategory;
+    return matchSearch && matchCat;
   });
-  const totalDiff = diffEntries.reduce((acc, p) => acc + Math.abs(parseFloat(physicalQtys[p.id] || "0") - p.actual_qty), 0);
+
+  /* products shown in the count table */
+  const countTableProducts = countMode === "full"
+    ? allProducts
+    : allProducts.filter(p => selectedProductIds.has(p.id));
+
+  /* diff analytics */
+  const enteredProducts = allProducts.filter(p => physicalQtys[p.id] !== undefined && physicalQtys[p.id] !== "");
+  const itemsWithPosDiff = enteredProducts.filter(p => {
+    const diff = parseFloat(physicalQtys[p.id] || "0") - p.calculated_qty;
+    return diff > 0.001;
+  });
+  const itemsWithNegDiff = enteredProducts.filter(p => {
+    const diff = parseFloat(physicalQtys[p.id] || "0") - p.calculated_qty;
+    return diff < -0.001;
+  });
+  const itemsWithDiff = enteredProducts.filter(p => {
+    const diff = parseFloat(physicalQtys[p.id] || "0") - p.calculated_qty;
+    return Math.abs(diff) > 0.001;
+  });
+  const totalPosDiff = itemsWithPosDiff.reduce((acc, p) => acc + (parseFloat(physicalQtys[p.id] || "0") - p.calculated_qty), 0);
+  const totalNegDiff = itemsWithNegDiff.reduce((acc, p) => acc + (parseFloat(physicalQtys[p.id] || "0") - p.calculated_qty), 0);
+
+  const canApply = enteredProducts.length > 0 && selectedWarehouse > 0 && !!countDate && !!countTime;
 
   const createAndApplyMutation = useMutation({
     mutationFn: async () => {
@@ -655,9 +806,9 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
       const items = allProducts
         .filter(p => physicalQtys[p.id] !== undefined && physicalQtys[p.id] !== "")
         .map(p => ({
-          product_id: p.id,
+          product_id:   p.id,
           physical_qty: parseFloat(physicalQtys[p.id] || "0"),
-          notes: itemNotes[p.id] ?? undefined,
+          notes:        itemNotes[p.id] ?? undefined,
         }));
 
       if (items.length === 0) throw new Error("أدخل كمية فعلية لمنتج واحد على الأقل");
@@ -686,8 +837,10 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
       toast({ title: `✅ تم تطبيق الجرد — ${data.adjustments_applied} تسوية` });
       setPhysicalQtys({}); setItemNotes({}); setSessionNotes("");
       setCountDate(today()); setCountTime(nowTime());
+      setSelectedProductIds(new Set());
       qc.invalidateQueries({ queryKey: ["inventory-audit"] });
       qc.invalidateQueries({ queryKey: ["count-sessions"] });
+      qc.invalidateQueries({ queryKey: ["inventory-warehouse-summary"] });
     },
     onError: (e) => toast({ title: (e as Error).message, variant: "destructive" }),
   });
@@ -700,16 +853,15 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
       toast({ title: "تم تطبيق جلسة الجرد بنجاح" });
       refetchSessions();
       qc.invalidateQueries({ queryKey: ["inventory-audit"] });
+      qc.invalidateQueries({ queryKey: ["inventory-warehouse-summary"] });
       setApplyingId(null);
     },
     onError: (e) => { toast({ title: String(e), variant: "destructive" }); setApplyingId(null); },
   });
 
-  const canApply = diffEntries.length > 0 && selectedWarehouse > 0 && !!countDate && !!countTime;
-
   return (
     <div className="space-y-6">
-      {/* ── شريط التبديل ── */}
+      {/* شريط التبديل بين جرد جديد وسجل الجلسات */}
       <div className="flex gap-2">
         <button onClick={() => setSessionView("new")}
           className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${sessionView === "new" ? "bg-violet-500 text-white" : "bg-white/10 text-white/60 hover:text-white"}`}>
@@ -723,13 +875,12 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
 
       {sessionView === "new" && (
         <div className="space-y-5">
-          {/* ── إعدادات الجلسة ── */}
+          {/* إعدادات جلسة الجرد */}
           <div className="bg-[#111827] border border-white/8 rounded-2xl p-5 space-y-4">
             <h3 className="text-sm font-bold text-white/70 flex items-center gap-2">
               <ClipboardList className="w-4 h-4 text-violet-400" /> إعدادات جلسة الجرد
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* مخزن */}
               <div>
                 <label className="block text-white/50 text-xs mb-1.5">المخزن <span className="text-red-400">*</span></label>
                 <select value={selectedWarehouse} onChange={e => setSelectedWarehouse(Number(e.target.value))}
@@ -738,21 +889,18 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
                   {warehouses.map(w => <option key={w.id} value={w.id} className="bg-[#1a1a2e]">{w.name}</option>)}
                 </select>
               </div>
-              {/* تاريخ */}
               <div>
                 <label className="block text-white/50 text-xs mb-1.5">تاريخ الجرد <span className="text-red-400">*</span></label>
                 <input type="date" value={countDate} onChange={e => setCountDate(e.target.value)}
                   className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-400/50" />
               </div>
-              {/* وقت */}
               <div>
                 <label className="block text-white/50 text-xs mb-1.5">وقت الجرد <span className="text-red-400">*</span></label>
                 <input type="time" value={countTime} onChange={e => setCountTime(e.target.value)}
                   className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-400/50" />
               </div>
-              {/* ملاحظات */}
               <div>
-                <label className="block text-white/50 text-xs mb-1.5">ملاحظات (اختياري)</label>
+                <label className="block text-white/50 text-xs mb-1.5">ملاحظات الجلسة (اختياري)</label>
                 <input type="text" value={sessionNotes} onChange={e => setSessionNotes(e.target.value)}
                   placeholder="مثال: جرد نهاية الشهر"
                   className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white text-sm placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-violet-400/50" />
@@ -764,7 +912,7 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
               <div className="flex gap-2">
                 {([
                   { v: "full"    as const, label: "شامل — كل المنتجات" },
-                  { v: "partial" as const, label: "جزئي — منتجات مُدخلة فقط" },
+                  { v: "partial" as const, label: "جزئي — منتجات محددة" },
                 ]).map(opt => (
                   <button key={opt.v} onClick={() => setCountMode(opt.v)}
                     className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
@@ -777,33 +925,137 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
             </div>
           </div>
 
-          {/* ── ملخص الفروق ── */}
-          {diffEntries.length > 0 && (
-            <div className={`rounded-2xl p-4 flex items-center justify-between ${itemsWithDiff.length > 0 ? "bg-amber-500/10 border border-amber-500/20" : "bg-emerald-500/10 border border-emerald-500/20"}`}>
-              <div>
-                <p className={`font-bold text-sm ${itemsWithDiff.length > 0 ? "text-amber-300" : "text-emerald-300"}`}>
-                  {itemsWithDiff.length > 0
-                    ? `${diffEntries.length} منتج مُسجَّل — ${itemsWithDiff.length} بفرق — فارق إجمالي: ${totalDiff.toFixed(2)} وحدة`
-                    : `${diffEntries.length} منتج مُسجَّل — لا توجد فروق ✓`}
-                </p>
-                <p className="text-white/40 text-xs mt-0.5">
-                  {!selectedWarehouse && "⚠ اختر مخزناً "}{!countDate && "⚠ التاريخ مطلوب "}{!countTime && "⚠ الوقت مطلوب"}
-                </p>
+          {/* محدد المنتجات — للجرد الجزئي فقط */}
+          {countMode === "partial" && selectedWarehouse > 0 && (
+            <div className="bg-[#111827] border border-violet-500/20 rounded-2xl p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-violet-300 flex items-center gap-2">
+                  <Filter className="w-4 h-4" /> اختر المنتجات للجرد
+                  {selectedProductIds.size > 0 && (
+                    <span className="px-2 py-0.5 rounded-lg bg-violet-500/30 text-violet-200 text-xs font-bold">
+                      {selectedProductIds.size} محدد
+                    </span>
+                  )}
+                </h3>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setSelectedProductIds(new Set(allProducts.map(p => p.id)))}
+                    className="text-xs text-violet-400 hover:text-violet-200 transition-colors">
+                    تحديد الكل
+                  </button>
+                  <span className="text-white/20">|</span>
+                  <button
+                    onClick={() => setSelectedProductIds(new Set())}
+                    className="text-xs text-white/40 hover:text-white/70 transition-colors">
+                    مسح الكل
+                  </button>
+                </div>
               </div>
-              <button
-                onClick={() => createAndApplyMutation.mutate()}
-                disabled={createAndApplyMutation.isPending || !canApply}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition-colors whitespace-nowrap">
-                {createAndApplyMutation.isPending
-                  ? <><Loader2 className="w-4 h-4 animate-spin" /> جاري التطبيق...</>
-                  : <><CheckCircle className="w-4 h-4" /> تطبيق الجرد</>}
-              </button>
+
+              {/* بحث + تصفية */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="relative">
+                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
+                  <input value={partialSearch} onChange={e => setPartialSearch(e.target.value)}
+                    placeholder="ابحث عن منتج..."
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 pe-9 text-white text-sm placeholder:text-white/30 focus:outline-none focus:ring-1 focus:ring-violet-400/40" />
+                  {partialSearch && <button onClick={() => setPartialSearch("")} className="absolute left-2 top-1/2 -translate-y-1/2 text-white/30 hover:text-white"><X className="w-3.5 h-3.5" /></button>}
+                </div>
+                {categories.length > 0 && (
+                  <select value={partialCategory} onChange={e => setPartialCategory(e.target.value)}
+                    className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-violet-400/40">
+                    <option value="all" className="bg-[#1a1a2e]">جميع الفئات</option>
+                    {categories.map(c => <option key={c} value={c} className="bg-[#1a1a2e]">{c}</option>)}
+                  </select>
+                )}
+              </div>
+
+              {/* قائمة المنتجات بصناديق الاختيار */}
+              <div className="max-h-52 overflow-y-auto rounded-xl border border-white/8 divide-y divide-white/5">
+                {loadingProducts ? (
+                  <div className="p-4 text-center text-white/40 text-sm">جاري التحميل...</div>
+                ) : filteredForSelector.length === 0 ? (
+                  <div className="p-4 text-center text-white/30 text-sm">لا توجد منتجات</div>
+                ) : filteredForSelector.map(p => {
+                  const isChecked = selectedProductIds.has(p.id);
+                  return (
+                    <label key={p.id}
+                      className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors ${isChecked ? "bg-violet-500/10" : "hover:bg-white/5"}`}>
+                      <input type="checkbox" checked={isChecked}
+                        onChange={e => {
+                          const next = new Set(selectedProductIds);
+                          if (e.target.checked) next.add(p.id); else next.delete(p.id);
+                          setSelectedProductIds(next);
+                        }}
+                        className="w-4 h-4 rounded border-white/20 accent-violet-500 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <span className={`text-sm font-medium ${isChecked ? "text-white" : "text-white/70"}`}>{p.name}</span>
+                        {p.sku && <span className="text-white/30 text-xs ms-2">{p.sku}</span>}
+                        {p.category && <span className="text-white/20 text-xs ms-2">({p.category})</span>}
+                      </div>
+                      <span className="text-white/40 text-xs font-mono shrink-0">
+                        {p.calculated_qty.toFixed(2)} في المخزن
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
           )}
 
-          {/* ── جدول المنتجات ── */}
+          {/* ملخص الفروق */}
+          {enteredProducts.length > 0 && (
+            <div className={`rounded-2xl p-4 border ${itemsWithDiff.length > 0 ? "bg-amber-500/10 border-amber-500/20" : "bg-emerald-500/10 border-emerald-500/20"}`}>
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-1.5">
+                  <p className={`font-bold text-sm ${itemsWithDiff.length > 0 ? "text-amber-300" : "text-emerald-300"}`}>
+                    {enteredProducts.length} منتج مُسجَّل
+                    {itemsWithDiff.length > 0
+                      ? ` — ${itemsWithDiff.length} بفرق`
+                      : " — لا توجد فروق ✓"}
+                  </p>
+                  {itemsWithDiff.length > 0 && (
+                    <div className="flex gap-4 text-xs">
+                      {itemsWithPosDiff.length > 0 && (
+                        <span className="text-emerald-400">
+                          ↑ زيادة: +{totalPosDiff.toFixed(2)} وحدة ({itemsWithPosDiff.length} صنف)
+                        </span>
+                      )}
+                      {itemsWithNegDiff.length > 0 && (
+                        <span className="text-red-400">
+                          ↓ نقص: {totalNegDiff.toFixed(2)} وحدة ({itemsWithNegDiff.length} صنف)
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {(!selectedWarehouse || !countDate || !countTime) && (
+                    <p className="text-amber-400/70 text-xs">
+                      {!selectedWarehouse && "⚠ اختر مخزناً  "}
+                      {!countDate && "⚠ التاريخ مطلوب  "}
+                      {!countTime && "⚠ الوقت مطلوب"}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => createAndApplyMutation.mutate()}
+                  disabled={createAndApplyMutation.isPending || !canApply}
+                  className="shrink-0 flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition-colors whitespace-nowrap">
+                  {createAndApplyMutation.isPending
+                    ? <><Loader2 className="w-4 h-4 animate-spin" /> جاري التطبيق...</>
+                    : <><CheckCircle className="w-4 h-4" /> تطبيق الجرد ({enteredProducts.length})</>}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* جدول الجرد */}
           {selectedWarehouse === 0 ? (
             <div className="text-center py-16 text-white/30">اختر مخزناً لعرض المنتجات</div>
+          ) : countMode === "partial" && selectedProductIds.size === 0 ? (
+            <div className="text-center py-16 text-white/30">
+              <Filter className="w-8 h-8 text-white/10 mx-auto mb-3" />
+              <p>حدد المنتجات من القائمة أعلاه</p>
+            </div>
           ) : loadingProducts ? (
             <div className="overflow-x-auto rounded-2xl border border-white/10">
               <table className="w-full text-sm"><tbody><TableSkeleton cols={5} rows={6} /></tbody></table>
@@ -814,17 +1066,21 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
                 <thead>
                   <tr className="border-b border-white/10 bg-white/5">
                     <th className="p-3 text-right text-white/60 font-medium">المنتج</th>
-                    <th className="p-3 text-right text-white/60 font-medium">كمية النظام</th>
-                    <th className="p-3 text-right text-white/60 font-medium">الكمية الفعلية</th>
-                    <th className="p-3 text-right text-white/60 font-medium w-28">الفرق</th>
+                    <th className="p-3 text-right text-white/60 font-medium">
+                      <span title="الكمية في هذا المخزن من حركات المخزون">كمية المخزن (نظام)</span>
+                    </th>
+                    <th className="p-3 text-right text-white/60 font-medium">الكمية الفعلية (يُدخلها المستخدم)</th>
+                    <th className="p-3 text-center text-white/60 font-medium w-28">الفرق</th>
                     <th className="p-3 text-right text-white/60 font-medium">سبب الفرق</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(countMode === "full" ? allProducts : displayProducts).map(p => {
+                  {countTableProducts.map(p => {
                     const rawPhys = physicalQtys[p.id];
                     const physQty = rawPhys !== undefined && rawPhys !== "" ? parseFloat(rawPhys) : null;
-                    const diff    = physQty !== null ? physQty - p.actual_qty : null;
+                    /* use calculated_qty (per-warehouse stock) as baseline */
+                    const sysQty  = p.calculated_qty;
+                    const diff    = physQty !== null ? physQty - sysQty : null;
                     const hasDiff = diff !== null && Math.abs(diff) > 0.001;
                     return (
                       <tr key={p.id} className={`border-b border-white/5 erp-table-row ${hasDiff ? "bg-amber-500/5" : ""}`}>
@@ -833,36 +1089,49 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
                           {p.sku && <div className="text-white/40 text-xs">{p.sku}</div>}
                           {p.category && <div className="text-white/30 text-xs">{p.category}</div>}
                         </td>
-                        <td className="p-3 font-mono text-white/70 font-bold">{p.actual_qty.toFixed(2)}</td>
+                        {/* كمية النظام في هذا المخزن */}
+                        <td className="p-3">
+                          <span className="font-mono text-white/80 font-bold text-sm">{sysQty.toFixed(2)}</span>
+                          <span className="text-white/30 text-xs ms-1">وحدة</span>
+                        </td>
+                        {/* إدخال الكمية الفعلية */}
                         <td className="p-3">
                           <input type="number" min="0" step="0.001"
                             value={physicalQtys[p.id] ?? ""}
                             onChange={e => setPhysicalQtys(prev => ({ ...prev, [p.id]: e.target.value }))}
                             placeholder="أدخل الكمية"
-                            className="w-28 bg-white/10 border border-white/20 rounded-lg px-2 py-1.5 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-violet-400/50 text-sm font-mono" />
+                            className="w-32 bg-white/10 border border-white/20 rounded-lg px-2 py-1.5 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-violet-400/50 text-sm font-mono" />
                         </td>
-                        <td className="p-3 font-mono w-28">
-                          {diff === null ? <span className="text-white/20">—</span> :
-                            diff === 0 ? <span className="text-emerald-400 font-bold">✓ صفر</span> :
-                            <span className={`font-bold ${diff > 0 ? "text-teal-400" : "text-red-400"}`}>
-                              {diff > 0 ? `+${diff.toFixed(3)}` : diff.toFixed(3)}
-                            </span>}
+                        {/* الفرق مع ألوان واضحة */}
+                        <td className="p-3 text-center font-mono w-28">
+                          {diff === null
+                            ? <span className="text-white/20">—</span>
+                            : diff === 0
+                              ? <span className="text-emerald-400 font-bold text-sm">✓ صفر</span>
+                              : diff > 0
+                                ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-bold text-sm">
+                                    +{diff.toFixed(3)}
+                                  </span>
+                                : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-red-500/20 text-red-400 font-bold text-sm">
+                                    {diff.toFixed(3)}
+                                  </span>}
                         </td>
+                        {/* سبب الفرق — مطلوب فقط عند وجود فرق */}
                         <td className="p-3">
                           {hasDiff && (
                             <input type="text" value={itemNotes[p.id] ?? ""}
                               onChange={e => setItemNotes(prev => ({ ...prev, [p.id]: e.target.value }))}
-                              placeholder="سبب الفرق"
-                              className="w-40 bg-white/10 border border-amber-500/30 rounded-lg px-2 py-1 text-white placeholder:text-white/30 focus:outline-none text-xs" />
+                              placeholder="سبب الفرق (مطلوب)"
+                              className="w-44 bg-white/10 border border-amber-500/30 rounded-lg px-2 py-1 text-white placeholder:text-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-400/40 text-xs" />
                           )}
                         </td>
                       </tr>
                     );
                   })}
-                  {(countMode === "full" ? allProducts : displayProducts).length === 0 && (
+                  {countTableProducts.length === 0 && (
                     <tr>
                       <td colSpan={5} className="text-center text-white/40 py-12">
-                        {countMode === "partial" ? "لم تُدخل كميات بعد" : "لا توجد منتجات في هذا المخزن"}
+                        {countMode === "partial" ? "لم تُحدَّد منتجات للجرد الجزئي" : "لا توجد منتجات في هذا المخزن"}
                       </td>
                     </tr>
                   )}
@@ -873,7 +1142,7 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
         </div>
       )}
 
-      {/* ── سجل الجلسات ── */}
+      {/* سجل الجلسات */}
       {sessionView === "history" && (
         <div className="space-y-3">
           {safeArray(sessions).length === 0 && (
@@ -921,7 +1190,7 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * TAB 3 — تحويل المخزون (Improved UI)
+ * TAB 3 — تحويل المخزون
  * ═══════════════════════════════════════════════════════════════════════════ */
 interface TransferLine { product_id: number; product_name: string; quantity: string }
 
@@ -932,15 +1201,24 @@ function TransferTab({ warehouses, qc, toast }: {
 }) {
   const defaultFirst  = warehouses[0]?.id ?? 1;
   const defaultSecond = warehouses[1]?.id ?? 2;
-  const [fromWH, setFromWH]           = useState<number>(defaultFirst);
-  const [toWH, setToWH]               = useState<number>(defaultSecond);
+  const [fromWH, setFromWH]         = useState<number>(defaultFirst);
+  const [toWH, setToWH]             = useState<number>(defaultSecond);
   const [transferNotes, setTransferNotes] = useState("");
-  const [lines, setLines]             = useState<TransferLine[]>([{ product_id: 0, product_name: "", quantity: "" }]);
-  const [view, setView]               = useState<"new" | "history">("new");
+  const [lines, setLines]           = useState<TransferLine[]>([{ product_id: 0, product_name: "", quantity: "" }]);
+  const [view, setView]             = useState<"new" | "history">("new");
 
-  const { data: auditData } = useQuery<{ products: AuditProduct[]; summary: AuditSummary }>({
+  /* fetch global product list for names */
+  const { data: auditData } = useQuery<{ products: AuditProduct[] }>({
     queryKey: ["inventory-audit", null],
-    queryFn: () => authFetch(api("/api/inventory/audit")).then(r => { if (!r.ok) throw new Error("خطأ"); return r.json(); }),
+    queryFn: () => authFetch(api("/api/inventory/audit")).then(r => r.json()),
+  });
+
+  /* fetch from-warehouse per-product stock */
+  const { data: fromWhAudit, isLoading: loadingFromWh } = useQuery<{ products: AuditProduct[] }>({
+    queryKey: ["inventory-audit", fromWH],
+    queryFn: () => authFetch(api(`/api/inventory/audit?warehouse_id=${fromWH}`)).then(r => r.json()),
+    enabled: fromWH > 0,
+    staleTime: 15_000,
   });
 
   const { data: transfers, refetch: refetchTransfers } = useQuery<StockTransfer[]>({
@@ -948,13 +1226,33 @@ function TransferTab({ warehouses, qc, toast }: {
     queryFn: () => authFetch(api("/api/inventory/transfers")).then(r => r.json()),
   });
 
-  const allProducts = auditData?.products ?? [];
+  const allProducts  = auditData?.products ?? [];
+  const fromWhStock  = new Map((fromWhAudit?.products ?? []).map(p => [p.id, p.calculated_qty]));
+
+  /* reset lines when from-warehouse changes */
+  useEffect(() => {
+    setLines([{ product_id: 0, product_name: "", quantity: "" }]);
+  }, [fromWH]);
+
+  function getAvailableQty(productId: number): number {
+    if (!productId) return 0;
+    return fromWhStock.get(productId) ?? 0;
+  }
+
+  function lineHasInsufficientQty(line: TransferLine): boolean {
+    if (!line.product_id || !line.quantity) return false;
+    const qty = parseFloat(line.quantity);
+    return qty > 0 && qty > getAvailableQty(line.product_id);
+  }
+
+  const hasAnyInsufficientQty = lines.some(lineHasInsufficientQty);
 
   const transferMutation = useMutation({
     mutationFn: () => {
       if (fromWH === toWH) throw new Error("لا يمكن التحويل من مخزن إلى نفسه");
       const validLines = lines.filter(l => l.product_id > 0 && parseFloat(l.quantity) > 0);
       if (validLines.length === 0) throw new Error("أضف منتجاً واحداً على الأقل مع كمية صحيحة");
+      if (hasAnyInsufficientQty) throw new Error("كمية غير كافية في مخزن المصدر لبعض المنتجات");
       return authFetch(api("/api/inventory/transfers"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -970,6 +1268,7 @@ function TransferTab({ warehouses, qc, toast }: {
       setLines([{ product_id: 0, product_name: "", quantity: "" }]);
       setTransferNotes("");
       qc.invalidateQueries({ queryKey: ["inventory-audit"] });
+      qc.invalidateQueries({ queryKey: ["inventory-warehouse-summary"] });
       refetchTransfers();
     },
     onError: (e) => toast({ title: (e as Error).message, variant: "destructive" }),
@@ -992,7 +1291,6 @@ function TransferTab({ warehouses, qc, toast }: {
 
   return (
     <div className="space-y-6">
-      {/* ── شريط التبديل ── */}
       <div className="flex gap-2">
         <button onClick={() => setView("new")}
           className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${view === "new" ? "bg-violet-500 text-white" : "bg-white/10 text-white/60 hover:text-white"}`}>
@@ -1006,7 +1304,7 @@ function TransferTab({ warehouses, qc, toast }: {
 
       {view === "new" && (
         <div className="space-y-5">
-          {/* ── اتجاه التحويل ── */}
+          {/* بيانات التحويل */}
           <div className="bg-[#111827] border border-white/8 rounded-2xl p-5 space-y-4">
             <h3 className="text-sm font-bold text-white/70 flex items-center gap-2">
               <Truck className="w-4 h-4 text-violet-400" /> بيانات التحويل
@@ -1021,73 +1319,86 @@ function TransferTab({ warehouses, qc, toast }: {
               </div>
               <div className="flex items-center justify-center pb-1">
                 <div className="w-10 h-10 rounded-full bg-violet-500/20 border border-violet-500/30 flex items-center justify-center">
-                  <Truck className="w-4 h-4 text-violet-400" />
+                  <ArrowLeft className="w-4 h-4 text-violet-400" />
                 </div>
               </div>
               <div>
                 <label className="block text-white/50 text-xs mb-1.5">إلى مخزن <span className="text-red-400">*</span></label>
                 <select value={toWH} onChange={e => setToWH(Number(e.target.value))}
-                  className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-400/50">
+                  className={`w-full bg-white/10 border rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-400/50 ${
+                    fromWH === toWH ? "border-red-500/40" : "border-white/20"
+                  }`}>
                   {warehouses.map(w => <option key={w.id} value={w.id} className="bg-[#1a1a2e]">{w.name}</option>)}
                 </select>
+                {fromWH === toWH && <p className="text-red-400 text-xs mt-1">يجب اختيار مخزن مختلف</p>}
               </div>
             </div>
-            {fromWH === toWH && (
-              <p className="text-amber-400 text-xs bg-amber-500/10 px-3 py-2 rounded-xl border border-amber-500/20">
-                ⚠ لا يمكن التحويل من مخزن إلى نفسه
-              </p>
-            )}
             <div>
               <label className="block text-white/50 text-xs mb-1.5">ملاحظات (اختياري)</label>
               <input type="text" value={transferNotes} onChange={e => setTransferNotes(e.target.value)}
-                placeholder="مثال: تحويل لتغطية طلبات فرع ثاني"
+                placeholder="سبب التحويل..."
                 className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white text-sm placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-violet-400/50" />
             </div>
           </div>
 
-          {/* ── المنتجات المُحوَّلة ── */}
+          {/* جدول المنتجات */}
           <div className="bg-[#111827] border border-white/8 rounded-2xl p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white/70">المنتجات المُحوَّلة</h3>
-              <button
-                onClick={() => setLines(prev => [...prev, { product_id: 0, product_name: "", quantity: "" }])}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-500/20 hover:bg-violet-500/30 text-violet-300 rounded-xl text-xs font-bold transition-colors">
-                <Plus className="w-3.5 h-3.5" /> إضافة منتج
-              </button>
-            </div>
-
-            <div className="space-y-2">
+            <h3 className="text-sm font-bold text-white/70">المنتجات المحوَّلة</h3>
+            <div className="space-y-3">
               {lines.map((line, idx) => {
-                const product      = allProducts.find(p => p.id === line.product_id);
-                const available    = product ? product.actual_qty : 0;
-                const reqQty       = parseFloat(line.quantity) || 0;
-                const isInsufficient = line.product_id > 0 && reqQty > 0 && reqQty > available;
+                const availableQty = getAvailableQty(line.product_id);
+                const insufficient = lineHasInsufficientQty(line);
+                const requestedQty = parseFloat(line.quantity) || 0;
                 return (
-                  <div key={idx} className="flex gap-2 items-start">
-                    <select value={line.product_id}
-                      onChange={e => updateLine(idx, "product_id", e.target.value)}
-                      className="flex-1 bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-400/50">
-                      <option value={0} className="bg-[#1a1a2e]">— اختر منتجاً —</option>
-                      {allProducts.map(p => (
-                        <option key={p.id} value={p.id} className="bg-[#1a1a2e]">
-                          {p.name} (متاح: {p.actual_qty.toFixed(1)})
-                        </option>
-                      ))}
-                    </select>
-                    <div className="flex flex-col gap-1">
-                      <input type="number" min="0.001" step="0.001" value={line.quantity}
-                        onChange={e => updateLine(idx, "quantity", e.target.value)}
-                        placeholder="الكمية"
-                        className={`w-28 bg-white/10 border rounded-xl px-3 py-2 text-white placeholder:text-white/30 focus:outline-none text-sm font-mono ${
-                          isInsufficient ? "border-red-400/50 focus:ring-2 focus:ring-red-400/30" : "border-white/20 focus:ring-2 focus:ring-violet-400/50"
-                        }`} />
-                      {isInsufficient && <span className="text-red-400 text-xs">غير كافٍ ({available.toFixed(1)})</span>}
+                  <div key={idx} className={`border rounded-xl p-4 space-y-3 transition-colors ${insufficient ? "border-red-500/30 bg-red-500/5" : "border-white/8 bg-white/3"}`}>
+                    <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-3 items-start">
+                      {/* اختيار المنتج */}
+                      <div>
+                        <label className="block text-white/50 text-xs mb-1.5">المنتج</label>
+                        <select value={line.product_id} onChange={e => updateLine(idx, "product_id", e.target.value)}
+                          className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-400/50">
+                          <option value={0} className="bg-[#1a1a2e]">— اختر منتجاً —</option>
+                          {allProducts.map(p => (
+                            <option key={p.id} value={p.id} className="bg-[#1a1a2e]">{p.name}</option>
+                          ))}
+                        </select>
+                        {/* عرض الكمية المتاحة في مخزن المصدر */}
+                        {line.product_id > 0 && (
+                          <div className={`mt-1 text-xs flex items-center gap-1 ${availableQty > 0 ? "text-white/40" : "text-red-400/70"}`}>
+                            <span>متاح في {warehouses.find(w => w.id === fromWH)?.name ?? "المصدر"}:</span>
+                            <span className={`font-bold font-mono ${availableQty <= 0 ? "text-red-400" : availableQty < 5 ? "text-amber-400" : "text-emerald-400"}`}>
+                              {loadingFromWh ? "..." : availableQty.toFixed(2)}
+                            </span>
+                            <span>وحدة</span>
+                          </div>
+                        )}
+                      </div>
+                      {/* الكمية */}
+                      <div className="md:w-36">
+                        <label className="block text-white/50 text-xs mb-1.5">الكمية</label>
+                        <input type="number" min="0.001" step="0.001"
+                          value={line.quantity}
+                          onChange={e => updateLine(idx, "quantity", e.target.value)}
+                          placeholder="0"
+                          className={`w-full bg-white/10 border rounded-xl px-3 py-2 text-white text-sm placeholder:text-white/30 focus:outline-none focus:ring-2 font-mono ${
+                            insufficient ? "border-red-500/40 focus:ring-red-400/40" : "border-white/20 focus:ring-violet-400/50"
+                          }`} />
+                      </div>
+                      {/* حذف السطر */}
+                      <div className="flex items-end">
+                        <button onClick={() => setLines(prev => prev.filter((_, i) => i !== idx))}
+                          disabled={lines.length === 1}
+                          className="p-2 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 disabled:opacity-20 disabled:cursor-not-allowed transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                    {lines.length > 1 && (
-                      <button onClick={() => setLines(prev => prev.filter((_, i) => i !== idx))}
-                        className="p-2 text-white/30 hover:text-red-400 transition-colors mt-0.5">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                    {/* تحذير الكمية غير الكافية */}
+                    {insufficient && (
+                      <div className="flex items-center gap-2 text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                        الكمية المطلوبة ({requestedQty.toFixed(2)}) تتجاوز المتاح ({availableQty.toFixed(2)} وحدة)
+                      </div>
                     )}
                   </div>
                 );
@@ -1095,60 +1406,58 @@ function TransferTab({ warehouses, qc, toast }: {
             </div>
 
             <button
-              onClick={() => transferMutation.mutate()}
-              disabled={transferMutation.isPending || fromWH === toWH || validLinesCount === 0}
-              className="w-full py-3 bg-violet-500 hover:bg-violet-400 disabled:opacity-50 text-white rounded-xl font-bold text-sm transition-colors flex items-center justify-center gap-2">
-              {transferMutation.isPending
-                ? <><Loader2 className="w-4 h-4 animate-spin" /> جاري التحويل...</>
-                : <><Truck className="w-4 h-4" /> تنفيذ التحويل ({validLinesCount > 0 ? `${validLinesCount} منتج` : ""})</>}
+              onClick={() => setLines(prev => [...prev, { product_id: 0, product_name: "", quantity: "" }])}
+              className="flex items-center gap-2 text-sm text-violet-400 hover:text-violet-200 transition-colors">
+              <Plus className="w-4 h-4" /> إضافة منتج
             </button>
           </div>
+
+          {/* زر التنفيذ */}
+          <button
+            onClick={() => transferMutation.mutate()}
+            disabled={transferMutation.isPending || validLinesCount === 0 || fromWH === toWH || hasAnyInsufficientQty}
+            className="w-full py-3 rounded-xl bg-violet-500 hover:bg-violet-400 disabled:opacity-50 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2">
+            {transferMutation.isPending
+              ? <><Loader2 className="w-4 h-4 animate-spin" /> جاري التحويل...</>
+              : <><Truck className="w-4 h-4" /> تنفيذ التحويل ({validLinesCount} منتج)</>}
+          </button>
+          {hasAnyInsufficientQty && (
+            <p className="text-red-400 text-xs text-center">بعض الكميات تتجاوز المتاح في مخزن المصدر</p>
+          )}
         </div>
       )}
 
-      {/* ── سجل التحويلات ── */}
+      {/* سجل التحويلات */}
       {view === "history" && (
         <div className="space-y-3">
           {safeArray(transfers).length === 0 && (
-            <p className="text-white/40 text-center py-12">لا توجد عمليات تحويل سابقة</p>
+            <p className="text-white/40 text-center py-12">لا توجد تحويلات سابقة</p>
           )}
           {safeArray(transfers).map(t => {
-            const fromName = warehouses.find(w => w.id === t.from_warehouse_id)?.name ?? `مخزن #${t.from_warehouse_id}`;
-            const toName   = warehouses.find(w => w.id === t.to_warehouse_id)?.name   ?? `مخزن #${t.to_warehouse_id}`;
+            const fromName = warehouses.find(w => w.id === t.from_warehouse_id)?.name ?? `#${t.from_warehouse_id}`;
+            const toName   = warehouses.find(w => w.id === t.to_warehouse_id)?.name   ?? `#${t.to_warehouse_id}`;
             return (
               <div key={t.id} className="bg-[#111827] border border-white/8 rounded-2xl p-4">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-white font-bold">تحويل #{t.id}</span>
-                      <span className="px-2 py-0.5 rounded-lg text-xs font-bold bg-emerald-500/20 text-emerald-300">مكتمل</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-amber-300 font-medium">{fromName}</span>
-                      <span className="text-white/30">←</span>
-                      <span className="text-cyan-300 font-medium">{toName}</span>
-                    </div>
-                    {t.notes && <div className="text-white/40 text-xs mt-1">{t.notes}</div>}
+                  <div className="flex items-center gap-3">
+                    <span className="text-white font-bold">تحويل #{t.id}</span>
+                    <span className="px-2 py-0.5 rounded-lg text-xs font-bold bg-emerald-500/20 text-emerald-300">
+                      {t.status === "completed" ? "مكتمل" : t.status}
+                    </span>
                   </div>
-                  <div className="text-white/40 text-xs text-left">
-                    {new Date(t.created_at).toLocaleDateString("ar-EG")}
-                  </div>
+                  <span className="text-white/30 text-xs">{new Date(t.created_at).toLocaleDateString("ar-EG")}</span>
                 </div>
+                <div className="flex items-center gap-2 mt-2 text-sm">
+                  <span className="text-amber-300 font-medium">{fromName}</span>
+                  <ArrowLeft className="w-4 h-4 text-white/30" />
+                  <span className="text-emerald-300 font-medium">{toName}</span>
+                </div>
+                {t.notes && <p className="text-white/30 text-xs mt-1">{t.notes}</p>}
               </div>
             );
           })}
         </div>
       )}
-    </div>
-  );
-}
-
-/* ─── بطاقة ملخص ─────────────────────────────────────────────────────────── */
-function SummaryCard({ label, value, color }: { label: string; value: string; color: string }) {
-  return (
-    <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-      <div className="text-white/50 text-xs mb-1">{label}</div>
-      <div className={`text-2xl font-bold ${color}`}>{value}</div>
     </div>
   );
 }

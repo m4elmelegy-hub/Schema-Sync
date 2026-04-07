@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, sql, and } from "drizzle-orm";
-import { db, stockMovementsTable, productsTable } from "@workspace/db";
+import { db, stockMovementsTable, productsTable, warehousesTable } from "@workspace/db";
 import { wrap } from "../lib/async-handler";
 import { hasPermission } from "../lib/permissions";
 import { writeAuditLog } from "../lib/audit-log";
@@ -279,6 +279,59 @@ router.post("/inventory/adjustment", wrap(async (req, res) => {
     old_qty: oldQty,
     new_qty: newQty,
     diff,
+  });
+}));
+
+/**
+ * GET /api/inventory/warehouse-summary
+ * إجمالي المخزون لكل مخزن: عدد المنتجات، القيمة الكلية، نسبة من الإجمالي
+ */
+router.get("/inventory/warehouse-summary", wrap(async (req, res) => {
+  if (!hasPermission(req.user, "can_view_inventory")) {
+    res.status(403).json({ error: "ليس لديك صلاحية عرض المخزون" }); return;
+  }
+
+  const rows = await db.execute(sql`
+    SELECT
+      w.id   AS warehouse_id,
+      w.name AS warehouse_name,
+      COALESCE(
+        (SELECT COUNT(DISTINCT pp.product_id)::int
+         FROM (
+           SELECT product_id, SUM(CAST(quantity AS FLOAT8)) AS wh_qty
+           FROM stock_movements sm2 WHERE sm2.warehouse_id = w.id
+           GROUP BY product_id
+         ) pp WHERE pp.wh_qty > 0
+        ), 0)::int AS item_count,
+      COALESCE(
+        (SELECT SUM(pp.wh_qty * CAST(p.cost_price AS FLOAT8))
+         FROM (
+           SELECT product_id, SUM(CAST(quantity AS FLOAT8)) AS wh_qty
+           FROM stock_movements sm3 WHERE sm3.warehouse_id = w.id
+           GROUP BY product_id
+         ) pp
+         JOIN products p ON p.id = pp.product_id
+         WHERE pp.wh_qty > 0
+        ), 0) AS total_value
+    FROM warehouses w
+    ORDER BY w.id
+  `);
+
+  const data = (rows.rows as any[]).map(r => ({
+    warehouse_id:   Number(r.warehouse_id),
+    warehouse_name: String(r.warehouse_name),
+    item_count:     Number(r.item_count ?? 0),
+    total_value:    Math.round(Number(r.total_value ?? 0) * 100) / 100,
+  }));
+
+  const grand_total = Math.round(data.reduce((s, r) => s + r.total_value, 0) * 100) / 100;
+
+  res.json({
+    warehouses: data.map(r => ({
+      ...r,
+      pct_of_total: grand_total > 0 ? Math.round((r.total_value / grand_total) * 1000) / 10 : 0,
+    })),
+    grand_total,
   });
 }));
 
