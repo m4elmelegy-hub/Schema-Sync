@@ -244,9 +244,35 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<"statement" | "ledger">("ledger");
+  const [activeTab, setActiveTab] = useState<"statement" | "ledger" | "report">("ledger");
   const [showDirectPayment, setShowDirectPayment] = useState(false);
   const [directPayForm, setDirectPayForm] = useState({ amount: "", safe_id: "", notes: "" });
+
+  const thisMonthStart = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-01`; })();
+  const todayStr = new Date().toISOString().split("T")[0];
+  const [reportFrom, setReportFrom] = useState(thisMonthStart);
+  const [reportTo,   setReportTo]   = useState(todayStr);
+
+  interface ReportStmtRow { date:string; type:string; description:string; debit:number; credit:number; balance:number; reference_no?:string|null }
+  interface ReportData {
+    customer: { id:number; name:string; balance:number };
+    opening_balance: number; statement: ReportStmtRow[]; closing_balance: number;
+  }
+  const REPORT_TYPE_MAP: Record<string,{label:string;cls:string}> = {
+    opening_balance: {label:"رصيد أول المدة", cls:"text-amber-400"},
+    sale:            {label:"فاتورة مبيعات",   cls:"text-blue-400"},
+    receipt:         {label:"سند قبض",         cls:"text-emerald-400"},
+    sale_return:     {label:"مرتجع مبيعات",    cls:"text-orange-400"},
+  };
+
+  const { data: reportData, isLoading: reportLoading } = useQuery<ReportData>({
+    queryKey: [`/api/reports/customer-statement`, customerId, reportFrom, reportTo],
+    queryFn: () => authFetch(api(`/api/reports/customer-statement?customer_id=${customerId}&date_from=${reportFrom}&date_to=${reportTo}`))
+      .then(r => { if (!r.ok) throw new Error("خطأ في جلب التقرير"); return r.json(); }),
+    enabled: activeTab === "report",
+    staleTime: 30_000,
+  });
+  const reportStmt = reportData?.statement ?? [];
 
   // دفتر الأستاذ من الجدول المخصص
   const { data: ledgerData, isLoading: ledgerLoading } = useQuery<CustomerLedger>({
@@ -491,7 +517,10 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
               📒 دفتر الأستاذ
             </button>
             <button onClick={() => setActiveTab("statement")} className={`flex-1 py-1.5 rounded-lg text-sm font-bold transition-all ${activeTab === "statement" ? "bg-violet-600 text-white" : "text-white/50 hover:text-white"}`}>
-              📋 كشف الحساب التفصيلي
+              📋 كشف تفصيلي
+            </button>
+            <button onClick={() => setActiveTab("report")} className={`flex-1 py-1.5 rounded-lg text-sm font-bold transition-all ${activeTab === "report" ? "bg-amber-500 text-black" : "text-white/50 hover:text-white"}`}>
+              📊 تقرير بالفترة
             </button>
           </div>
 
@@ -680,6 +709,76 @@ function CustomerStatementModal({ customerId, customerName, customerPhone, custo
             </div>
           )}
           </>}
+
+          {/* ─── تقرير بالفترة (date-filtered from API) ─── */}
+          {activeTab === "report" && (
+            <div className="space-y-4">
+              {/* فلتر التاريخ */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-white/40 text-xs font-bold">من</span>
+                <input type="date" value={reportFrom} onChange={e => setReportFrom(e.target.value)}
+                  className="glass-input rounded-xl px-3 py-1.5 text-sm text-white" />
+                <span className="text-white/40 text-xs font-bold">إلى</span>
+                <input type="date" value={reportTo} onChange={e => setReportTo(e.target.value)}
+                  className="glass-input rounded-xl px-3 py-1.5 text-sm text-white" />
+              </div>
+
+              {/* بطاقات الملخص */}
+              {reportData && (
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="glass-panel rounded-2xl p-4 border border-white/5">
+                    <p className="text-white/40 text-xs mb-1">رصيد أول المدة</p>
+                    <p className={`text-lg font-black ${reportData.opening_balance >= 0 ? "text-amber-400" : "text-red-400"}`}>{formatCurrency(reportData.opening_balance)}</p>
+                  </div>
+                  <div className="glass-panel rounded-2xl p-4 border border-white/5">
+                    <p className="text-white/40 text-xs mb-1">رصيد الختام</p>
+                    <p className={`text-lg font-black ${reportData.closing_balance >= 0 ? "text-emerald-400" : "text-red-400"}`}>{formatCurrency(reportData.closing_balance)}</p>
+                  </div>
+                  <div className="glass-panel rounded-2xl p-4 border border-white/5">
+                    <p className="text-white/40 text-xs mb-1">الرصيد الفعلي (الدفتر)</p>
+                    <p className={`text-lg font-black ${reportData.customer.balance >= 0 ? "text-blue-400" : "text-red-400"}`}>{formatCurrency(reportData.customer.balance)}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* جدول الحركات */}
+              <div className="glass-panel rounded-2xl overflow-hidden border border-white/5">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right text-sm whitespace-nowrap">
+                    <thead className="bg-white/5 border-b border-white/10">
+                      <tr>
+                        <th className="p-3 text-white/50">التاريخ</th>
+                        <th className="p-3 text-white/50">النوع</th>
+                        <th className="p-3 text-white/50">البيان</th>
+                        <th className="p-3 text-white/50">مدين (له)</th>
+                        <th className="p-3 text-white/50">دائن (عليه)</th>
+                        <th className="p-3 text-white/50">الرصيد</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reportLoading ? (
+                        <tr><td colSpan={6} className="p-8 text-center text-white/40 text-xs">جاري التحميل...</td></tr>
+                      ) : reportStmt.length === 0 ? (
+                        <tr><td colSpan={6} className="p-12 text-center text-white/40">لا توجد حركات في هذه الفترة</td></tr>
+                      ) : reportStmt.map((row, i) => {
+                        const meta = REPORT_TYPE_MAP[row.type] ?? { label: row.type, cls: "text-white/50" };
+                        return (
+                          <tr key={i} className="border-b border-white/5 erp-table-row">
+                            <td className="p-3 font-mono text-white/60 text-xs">{row.date}</td>
+                            <td className="p-3"><span className={`text-xs font-bold ${meta.cls}`}>{meta.label}</span></td>
+                            <td className="p-3 text-white/70">{row.description}{row.reference_no && <span className="text-white/30 text-xs mr-2">{row.reference_no}</span>}</td>
+                            <td className="p-3 text-blue-400 font-bold">{row.debit > 0 ? formatCurrency(row.debit) : "—"}</td>
+                            <td className="p-3 text-emerald-400 font-bold">{row.credit > 0 ? formatCurrency(row.credit) : "—"}</td>
+                            <td className={`p-3 font-black ${row.balance >= 0 ? "text-white" : "text-red-400"}`}>{formatCurrency(row.balance)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
