@@ -1,0 +1,204 @@
+أريد منك الآن أن تتصرف كـ **Senior ERP Inventory Auditor + Inventory Systems Architect**.
+
+تم الانتهاء من:
+
+* Phase 1: Security + Pagination
+* Phase 2: Single Source of Truth
+* Phase 3: Integrity + Tests
+
+**مهمتك الآن ليست بناء Inventory من الصفر**، بل:
+
+## **فحص الـ Inventory الموجود حاليًا بالكامل، ثم تحديد:**
+
+1. ما الذي تم بالفعل ويعمل بشكل صحيح
+2. ما الذي تم لكن يحتاج alignment مع الـ core engine الجديد
+3. ما الذي ينقص فعلًا فقط
+4. ما الذي يجب تأجيله لما بعد Dashboard
+5. ما الذي يجب عدم لمسه الآن
+
+---
+
+## الهدف
+
+التأكد أن نظام المخزون الحالي:
+
+* متوافق مع `stock_movements`
+* متوافق مع `products.quantity` أو أي cached quantity
+* متوافق مع costing logic
+* متوافق مع COGS والقيود المحاسبية
+* متوافق مع integrity checks
+* وليس مجرد features متفرقة أو UI موجود فقط
+
+---
+
+## المطلوب منك
+
+### 1) Inventory Audit
+
+افحص النظام الحالي وحدد بوضوح هل الموجود حاليًا يشمل فعلاً:
+
+* stock alerts
+* minimum stock / reorder logic
+* costing model
+* sales deduction
+* purchase receipt
+* sales return
+* purchase return
+* stock adjustment
+* stock count
+* warehouse transfer
+* inventory review / stock review pages
+* inventory reports
+
+**لا تفترض وجود شيء إلا إذا وجدت له دليلًا واضحًا في الكود أو الـ schema أو الـ routes أو الـ services.**
+
+---
+
+### 2) Costing Validation
+
+* حدّد ما هي طريقة حساب التكلفة الحالية فعليًا
+* هل هي:
+
+  * Weighted Average Cost
+  * FIFO
+  * Manual cost
+  * أو logic غير موحد
+* تأكد أن:
+
+  * تكلفة البيع
+  * COGS
+  * stock valuation
+    كلها تعتمد على نفس المنطق
+* إذا كانت الطريقة الحالية صحيحة ومكتملة:
+
+  * لا تعيد بناءها
+* إذا كانت موجودة لكن غير موحدة:
+
+  * اقترح أقل تعديل لازم لتوحيدها
+
+---
+
+### 3) Alerts Validation
+
+* افحص هل تنبيهات المخزون المنخفض موجودة بالفعل
+* هل تعتمد على source of truth صحيح
+* هل مبنية على:
+
+  * `products.quantity`
+  * أم `stock_movements`
+  * أم logic آخر
+* حدّد هل هي production-grade أم مجرد UI behavior
+
+---
+
+### 4) Movement Integrity Validation
+
+راجع هل كل flow مخزني موجود وينعكس بشكل صحيح في:
+
+* `stock_movements`
+* `products.quantity` أو الكاش
+* الحسابات المحاسبية إذا كان لازم
+* integrity checks
+
+خصوصًا:
+
+* purchase receipt
+* sale deduction
+* sale return
+* purchase return
+* stock adjustment
+* stock count
+* warehouse transfer
+
+---
+
+### 5) Duplication & Structure Review
+
+بما أن المشروع يحتوي على صفحات وتقارير متكررة، افحص فقط في نطاق المخزون:
+
+* هل توجد صفحات مكررة تؤدي نفس الوظيفة
+* هل توجد صفحات Review أو Reports أو Logs زائدة
+* لكن:
+
+  * **لا تحذف أي شيء الآن**
+  * فقط علّم ما هو:
+
+    * ضروري
+    * مكرر
+    * قابل للدمج لاحقًا بعد انتهاء الـ Inventory alignment
+
+---
+
+### 6) Minimal Necessary Fixes Only
+
+إذا وجدت نواقص حرجة تمنع اعتبار الـ inventory engine متماسكًا:
+
+* نفّذ فقط التعديلات الحرجة الصغيرة اللازمة
+* لا تبدأ refactor واسع
+* لا تبدأ UI cleanup
+* لا تبدأ dashboard
+* لا تبني features جديدة إذا كانت موجودة أصلًا
+
+---
+
+## قواعد مهمة جدًا
+
+* لا تبدأ من الصفر
+* لا تعيد تنفيذ شيء موجود بالفعل
+* لا تعمل polish UI واسع
+* لا تحذف صفحات الآن
+* لا تغيّر navigation الآن
+* ركّز فقط على:
+
+  * validation
+  * alignment
+  * consistency
+  * movement integrity
+  * costing consistency
+
+---
+
+## المطلوب في النهاية
+
+### A) WHAT ALREADY EXISTS
+
+اذكر ما هو موجود فعلاً في نظام المخزون ومثبت في الكود
+
+### B) WHAT IS CORRECT
+
+ما الذي يعمل بشكل صحيح بالفعل ولا يحتاج إعادة بناء
+
+### C) WHAT NEEDS ALIGNMENT
+
+ما الذي موجود لكن يحتاج ربط أو تصحيح ليتماشى مع:
+
+* stock movements
+* costing
+* accounting
+* integrity checks
+
+### D) WHAT IS ACTUALLY MISSING
+
+ما الذي ينقص فعلًا فقط، بدون مبالغة
+
+### E) DUPLICATED OR MERGEABLE PAGES
+
+اذكر الصفحات أو الشاشات المكررة داخل نطاق المخزون فقط
+**لكن بدون حذفها الآن**
+
+### F) INVENTORY READINESS STATUS
+
+هل المخزون الآن:
+
+* fragmented
+* operational but inconsistent
+* operational and aligned
+* ERP-grade
+
+### G) NEXT BEST ACTION
+
+اذكر أهم خطوة واحدة فقط بعد هذا الفحص:
+
+* هل نحتاج fix صغير
+* أم ننتقل بعدها مباشرة إلى UI cleanup
+* أم نبدأ Dashboard

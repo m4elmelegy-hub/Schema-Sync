@@ -55,7 +55,7 @@ export default function InventoryReport() {
     let list = products;
     if (catFilter) list=list.filter(p=>p.category===catFilter);
     if (search) list=list.filter(p=>p.name.toLowerCase().includes(search.toLowerCase())||(p.category&&p.category.toLowerCase().includes(search.toLowerCase())));
-    if (lowStockOnly) list=list.filter(p=>p.quantity<=(p.low_stock_threshold??5));
+    if (lowStockOnly) list=list.filter(p=>p.low_stock_threshold!==null&&p.quantity<=p.low_stock_threshold);
     return [...list].sort((a,b)=>{
       if (sortMode==="value") return b.quantity*b.cost_price-a.quantity*a.cost_price;
       if (sortMode==="profit") { const mA=a.sale_price>0?(a.sale_price-a.cost_price)/a.sale_price:0; const mB=b.sale_price>0?(b.sale_price-b.cost_price)/b.sale_price:0; return mB-mA; }
