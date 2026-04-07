@@ -52,6 +52,8 @@ router.get("/customers", wrap(async (req, res) => {
   // موجب = العميل مدين لنا (عليه) — سالب = نحن مدينون له (له علينا)
   const companyId = req.user?.company_id ?? null;
   const companyFilter = companyId !== null ? sql` WHERE c.company_id = ${companyId}` : sql``;
+  const rawLimitC = parseInt(String(req.query.limit ?? "500"), 10);
+  const limitC = Math.min(Math.max(isNaN(rawLimitC) ? 500 : rawLimitC, 1), 2000);
   const rows = await db.execute(sql`
     SELECT
       c.id, c.name, c.customer_code, c.phone,
@@ -63,6 +65,7 @@ router.get("/customers", wrap(async (req, res) => {
     GROUP BY c.id, c.name, c.customer_code, c.phone,
              c.is_supplier, c.account_id, c.normalized_name, c.created_at
     ORDER BY c.customer_code
+    LIMIT ${limitC}
   `);
   const customers = (rows.rows as any[]).map(r => ({
     id: r.id,

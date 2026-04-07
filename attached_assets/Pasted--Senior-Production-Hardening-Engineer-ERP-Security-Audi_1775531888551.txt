@@ -1,0 +1,82 @@
+أريد منك الآن أن تتصرف كـ Senior Production Hardening Engineer + ERP Security Auditor.
+
+ممنوع البدء في أي feature جديدة أو أي تحسينات شكلية.
+مهمتك الآن هي إغلاق الثغرات الحرجة فقط وتحويل المشروع إلى أرض صلبة وآمنة وقابلة للاعتماد قبل أي تطوير لاحق.
+
+الهدف
+
+نفّذ فقط الأعمال الحرجة التالية، بالترتيب، ولا تخرج عنها:
+
+1) Security Hardening
+افحص نظام تسجيل الدخول الحالي بالكامل
+إذا كانت الـ PINs أو كلمات المرور مخزنة كنص عادي، حوّلها فورًا إلى hashed passwords باستخدام حل production-grade
+امنع أي مقارنة مباشرة للنصوص الحساسة
+فعّل JWT expiry
+أضف refresh token flow أو بديل آمن مناسب
+راجع session/auth middleware بالكامل
+تأكد أن الصلاحيات لا تعتمد على الـ UI فقط بل على backend enforcement
+راجع أي endpoint حساس وتأكد أنه محمي فعليًا
+2) Pagination & Load Safety
+أضف pagination + limit + offset/page params لكل endpoints الكبيرة خاصة:
+sales
+products
+customers
+transactions
+reports lists
+امنع تحميل آلاف السجلات دفعة واحدة
+أضف server-side validation لقيم pagination
+ضع limits آمنة افتراضيًا
+3) Accounting Source of Truth Fix
+افحص التقارير المالية الحالية
+إذا كانت Balance Sheet أو Cash Flow أو أي تقرير مالي يعتمد على operational tables مباشرة بدل ledger/journal entries:
+عدّل ذلك فورًا
+اجعل journal entries / journal entry lines هي المصدر المحاسبي الأساسي
+امنع وجود تضارب بين التقارير التشغيلية والتقارير المحاسبية
+لو وجدت تقريرًا لا يمكن تصحيحه الآن بالكامل، اذكره بوضوح ولا تتركه بصمت
+4) Test the Critical Flows
+
+أضف حدًا أدنى من الاختبارات على المسارات الحرجة:
+
+login/auth
+sale posting
+POS checkout
+journal entry creation
+permission enforcement
+period lock enforcement
+pagination behavior
+قواعد التنفيذ
+لا تضف أي features جديدة
+لا تبدأ dashboard
+لا تبدأ inventory enhancements
+لا تعمل refactor واسع بلا داعٍ
+ركّز فقط على: security + correctness + stability
+أي تغيير يجب أن يكون minimal, safe, production-oriented
+لا تفترض أن شيء آمن إلا إذا تحققت منه في الكود
+لو وجدت ثغرات إضافية حرجة مرتبطة بهذه المحاور، أصلحها
+المطلوب في المخرجات
+
+بعد التنفيذ أريد منك تقريرًا نهائيًا مختصرًا بهذا الشكل:
+
+A) WHAT WAS FIXED
+
+اذكر بالضبط ما الذي تم إصلاحه
+
+B) FILES CHANGED
+
+اذكر الملفات التي تم تعديلها ولماذا
+
+C) RISKS CLOSED
+
+اذكر الثغرات التي تم إغلاقها
+
+D) REMAINING CRITICAL RISKS
+
+اذكر فقط ما تبقى من مخاطر حرجة فعلية إن وجدت
+
+E) PRODUCTION READINESS STATUS
+
+هل النظام الآن:
+
+unsafe
+safer but incomplete
+solid enough for next phase

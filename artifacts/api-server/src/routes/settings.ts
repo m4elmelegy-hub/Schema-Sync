@@ -2,6 +2,7 @@ import { Router } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { authenticate, requireRole } from "../middleware/auth";
+import { hashPin } from "../lib/hash";
 import {
   erpUsersTable,
   safesTable,
@@ -55,17 +56,19 @@ router.get("/settings/users", authenticate, requireRole("admin"), async (req, re
 router.post("/settings/users", authenticate, requireRole("admin"), async (req, res) => {
   try {
     const { name, username, pin, role, permissions, warehouse_id, safe_id, active } = req.body;
+    const rawPin = pin || "0000";
+    const hashedPin = await hashPin(String(rawPin));
     const [user] = await db.insert(erpUsersTable).values({
       name,
       username,
-      pin: pin || "0000",
+      pin: hashedPin,
       role: role || "cashier",
       permissions: permissions || "{}",
       warehouse_id: warehouse_id ? Number(warehouse_id) : null,
       safe_id: safe_id ? Number(safe_id) : null,
       active: active !== undefined ? Boolean(active) : true,
     }).returning();
-    res.json(user);
+    res.json({ ...user, pin: "****" });
   } catch (e) {
     res.status(500).json({ error: "فشل إضافة المستخدم" });
   }
@@ -83,15 +86,23 @@ router.put("/settings/users/:id", authenticate, requireRole("admin"), async (req
       return;
     }
 
+    /* Hash PIN only when a new one is provided */
+    let hashedPin: string | undefined = undefined;
+    if (pin !== undefined && pin !== null && pin !== "" && pin !== "****") {
+      hashedPin = await hashPin(String(pin));
+    }
+
     const [user] = await db.update(erpUsersTable)
       .set({
-        name, username, pin, role, permissions, active,
+        name, username,
+        ...(hashedPin !== undefined ? { pin: hashedPin } : {}),
+        role, permissions, active,
         warehouse_id: warehouse_id !== undefined ? (warehouse_id ? Number(warehouse_id) : null) : undefined,
         safe_id: safe_id !== undefined ? (safe_id ? Number(safe_id) : null) : undefined,
       })
       .where(eq(erpUsersTable.id, id))
       .returning();
-    res.json(user);
+    res.json({ ...user, pin: "****" });
   } catch (e) {
     res.status(500).json({ error: "فشل تعديل المستخدم" });
   }

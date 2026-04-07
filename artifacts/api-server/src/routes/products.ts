@@ -68,9 +68,12 @@ router.get("/products", wrap(async (req, res) => {
     res.json(GetProductsResponse.parse(enriched)); return;
   }
 
+  const rawLimitP = parseInt(String(req.query.limit ?? "1000"), 10);
+  const limitP = Math.min(Math.max(isNaN(rawLimitP) ? 1000 : rawLimitP, 1), 2000);
   const products = await db.select().from(productsTable)
     .where(companyId !== null ? eq(productsTable.company_id, companyId) : undefined)
-    .orderBy(productsTable.created_at);
+    .orderBy(productsTable.created_at)
+    .limit(limitP);
   res.json(GetProductsResponse.parse(products.map(formatProduct)));
 }));
 

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gt, ne, not, inArray } from "drizzle-orm";
+import { eq, and, gt, ne, not, inArray, gte, lte, count } from "drizzle-orm";
 import { db, salesTable, saleItemsTable, productsTable, customersTable, transactionsTable, safesTable, warehousesTable, erpUsersTable, stockMovementsTable, accountsTable, salesReturnsTable, receiptVouchersTable, journalEntriesTable, journalEntryLinesTable, customerLedgerTable } from "@workspace/db";
 import {
   GetSalesResponse,
@@ -62,8 +62,43 @@ router.get("/sales", wrap(async (req, res) => {
     effectiveWarehouseId ? eq(salesTable.warehouse_id, effectiveWarehouseId) : undefined,
     companyId !== null ? eq(salesTable.company_id, companyId) : undefined,
   );
-  const sales = await db.select().from(salesTable).where(salesWhere).orderBy(salesTable.created_at);
-  res.json(GetSalesResponse.parse(sales.map(formatSale)));
+  /* ── Pagination params ────────────────────────────────────────────────────
+     page  = 1-based page number (default: 1)
+     limit = records per page (default: 200, max: 1000)
+     date_from / date_to = YYYY-MM-DD optional date filter
+  ─────────────────────────────────────────────────────────────────────────── */
+  const rawLimit = parseInt(String(req.query.limit ?? "200"), 10);
+  const pageLimit = Math.min(Math.max(isNaN(rawLimit) ? 200 : rawLimit, 1), 1000);
+  const rawPage  = parseInt(String(req.query.page  ?? "1"),  10);
+  const pageNum  = Math.max(isNaN(rawPage) ? 1 : rawPage, 1);
+  const offset   = (pageNum - 1) * pageLimit;
+
+  const dateFrom = req.query.date_from as string | undefined;
+  const dateTo   = req.query.date_to   as string | undefined;
+  const fullWhere = and(
+    salesWhere,
+    dateFrom ? gte(salesTable.date, dateFrom) : undefined,
+    dateTo   ? lte(salesTable.date, dateTo)   : undefined,
+  );
+
+  const [{ total }] = await db.select({ total: count() }).from(salesTable).where(fullWhere);
+  const sales = await db.select().from(salesTable)
+    .where(fullWhere)
+    .orderBy(salesTable.created_at)
+    .limit(pageLimit)
+    .offset(offset);
+
+  const totalCount = Number(total ?? 0);
+  const pages = Math.ceil(totalCount / pageLimit);
+
+  /* Keep backward-compat: if no page/limit params, behave like a plain array.
+     When page or limit are explicit, return paginated envelope. */
+  const hasPaginationParams = req.query.page !== undefined || req.query.limit !== undefined;
+  if (hasPaginationParams) {
+    res.json({ data: GetSalesResponse.parse(sales.map(formatSale)), total: totalCount, page: pageNum, pages, limit: pageLimit });
+  } else {
+    res.json(GetSalesResponse.parse(sales.map(formatSale)));
+  }
 }));
 
 router.post("/sales", wrap(async (req, res) => {

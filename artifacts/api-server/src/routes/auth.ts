@@ -7,6 +7,7 @@ import { Router } from "express";
 import { eq } from "drizzle-orm";
 import { db, erpUsersTable, companiesTable } from "@workspace/db";
 import { authenticate, signToken } from "../middleware/auth";
+import { verifyPin, hashPin } from "../lib/hash";
 
 function daysRemaining(endDate: string): number {
   const now = new Date(); now.setHours(0, 0, 0, 0);
@@ -111,7 +112,8 @@ router.post("/auth/login", async (req, res) => {
       return;
     }
 
-    if (user.pin !== pin) {
+    const pinValid = await verifyPin(pin, user.pin ?? "");
+    if (!pinValid) {
       const updated = recordFailure(uid);
       const remaining = MAX_ATTEMPTS - updated.attempts;
       if (remaining <= 0) {
@@ -124,6 +126,14 @@ router.post("/auth/login", async (req, res) => {
         });
       }
       return;
+    }
+
+    /* ── Lazy re-hash: if PIN was plain-text, upgrade it now ── */
+    if (user.pin && !user.pin.startsWith("$2")) {
+      try {
+        const hashed = await hashPin(pin);
+        await db.update(erpUsersTable).set({ pin: hashed }).where(eq(erpUsersTable.id, uid));
+      } catch { /* non-fatal */ }
     }
 
     /* ── Subscription check ───────────────────────────────── */
