@@ -4,7 +4,7 @@ import { logger } from "./lib/logger";
 import { startBackupScheduler, stopBackupScheduler } from "./lib/backup-scheduler";
 import { seedDefaults } from "./lib/seed-defaults";
 
-const PORT = 8080;
+const PORT = process.env.PORT ? Number(process.env.PORT) : 8080;
 
 function isPortInUse(port: number): Promise<boolean> {
   return new Promise((resolve) => {
