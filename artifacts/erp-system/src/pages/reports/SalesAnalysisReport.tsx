@@ -48,14 +48,12 @@ export default function SalesAnalysisReport() {
             <span className="px-3 py-1.5 rounded-xl text-xs font-bold border border-amber-500/40 bg-amber-500/15 text-amber-400 select-none">
               🏆 الأعلى مبيعًا
             </span>
-            <div className="flex rounded-xl overflow-hidden border border-white/10 bg-white/5">
-              {(["all","5","10"] as const).map((v) => (
-                <button key={v} onClick={() => setTopLimit(v)}
-                  className={`px-3 py-1.5 text-xs font-bold transition-all ${topLimit===v ? "bg-amber-500 text-black" : "text-white/50 hover:text-white"}`}>
-                  {v === "all" ? "الكل" : v}
-                </button>
-              ))}
-            </div>
+            <select value={topLimit} onChange={e => setTopLimit(e.target.value as "all"|"5"|"10")}
+              className="bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs font-bold text-white/70 cursor-pointer focus:outline-none focus:ring-1 focus:ring-amber-400/40">
+              <option value="all" className="bg-[#1a1a2e]">الكل</option>
+              <option value="5"   className="bg-[#1a1a2e]">Top 5</option>
+              <option value="10"  className="bg-[#1a1a2e]">Top 10</option>
+            </select>
           </div>
 
           <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">

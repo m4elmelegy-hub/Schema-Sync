@@ -719,8 +719,14 @@ function ReviewTab({ currentWarehouseId, canAdjustInventory, qc, toast, quickFil
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={12} className="text-center text-white/40 py-12">
-                  {showZeroOnly ? "لا توجد منتجات نافدة" : showLowOnly ? "لا توجد منتجات تحت حد الطلب" : "لا توجد منتجات"}
+                <tr><td colSpan={12} className="py-16 text-center">
+                  <Package className="w-10 h-10 text-white/10 mx-auto mb-3" />
+                  <p className="text-white/40 font-bold mb-1">
+                    {showZeroOnly ? "لا توجد منتجات نافدة" : showLowOnly ? "لا توجد منتجات تحت حد الطلب" : "لا توجد منتجات في هذا المخزن"}
+                  </p>
+                  {!showZeroOnly && !showLowOnly && (
+                    <p className="text-white/25 text-xs">أضف منتجات من قسم <span className="text-violet-300">المنتجات</span> لتظهر هنا</p>
+                  )}
                 </td></tr>
               )}
             </tbody>
@@ -921,7 +927,8 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
   const totalPosDiff = itemsWithPosDiff.reduce((acc, p) => acc + (parseFloat(physicalQtys[p.id] || "0") - p.calculated_qty), 0);
   const totalNegDiff = itemsWithNegDiff.reduce((acc, p) => acc + (parseFloat(physicalQtys[p.id] || "0") - p.calculated_qty), 0);
 
-  const canApply = enteredProducts.length > 0 && selectedWarehouse > 0 && !!countDate && !!countTime;
+  const missingNotes = itemsWithDiff.some(p => !(itemNotes[p.id]?.trim()));
+  const canApply = enteredProducts.length > 0 && selectedWarehouse > 0 && !!countDate && !!countTime && !missingNotes;
 
   const createAndApplyMutation = useMutation({
     mutationFn: async () => {
@@ -1161,6 +1168,9 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
                       {!countTime && "⚠ الوقت مطلوب"}
                     </p>
                   )}
+                  {missingNotes && itemsWithDiff.length > 0 && (
+                    <p className="text-red-400 text-xs font-bold">⚠ يجب إدخال سبب الفرق لجميع المنتجات التي بها فرق</p>
+                  )}
                 </div>
                 <button
                   onClick={() => createAndApplyMutation.mutate()}
@@ -1239,12 +1249,19 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
                                   </span>}
                         </td>
                         <td className="p-3">
-                          {hasDiff && (
-                            <input type="text" value={itemNotes[p.id] ?? ""}
-                              onChange={e => setItemNotes(prev => ({ ...prev, [p.id]: e.target.value }))}
-                              placeholder="سبب الفرق (مطلوب)"
-                              className="w-44 bg-white/10 border border-amber-500/30 rounded-lg px-2 py-1 text-white placeholder:text-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-400/40 text-xs" />
-                          )}
+                          {hasDiff && (() => {
+                            const noteMissing = !(itemNotes[p.id]?.trim());
+                            return (
+                              <input type="text" value={itemNotes[p.id] ?? ""}
+                                onChange={e => setItemNotes(prev => ({ ...prev, [p.id]: e.target.value }))}
+                                placeholder="سبب الفرق (مطلوب) *"
+                                className={`w-44 bg-white/10 rounded-lg px-2 py-1 text-white focus:outline-none text-xs border ${
+                                  noteMissing
+                                    ? "border-red-500/50 placeholder:text-red-400/60 focus:ring-1 focus:ring-red-400/40"
+                                    : "border-emerald-500/30 placeholder:text-amber-500/50 focus:ring-1 focus:ring-amber-400/40"
+                                }`} />
+                            );
+                          })()}
                         </td>
                       </tr>
                     );
@@ -1267,7 +1284,15 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
       {sessionView === "history" && (
         <div className="space-y-3">
           {sessions.length === 0 && (
-            <p className="text-white/40 text-center py-12">لا توجد جلسات جرد سابقة</p>
+            <div className="flex flex-col items-center justify-center py-16 text-center bg-white/3 border border-white/5 rounded-2xl">
+              <ClipboardList className="w-10 h-10 text-white/10 mb-3" />
+              <p className="text-white/40 font-bold mb-1">لا توجد جلسات جرد سابقة</p>
+              <p className="text-white/25 text-xs mb-4">ابدأ جلسة جديدة لتسجيل الكميات الفعلية</p>
+              <button onClick={() => setSessionView("new")}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-violet-500/20 border border-violet-500/30 text-violet-300 hover:bg-violet-500/30 transition-all">
+                <Plus className="w-4 h-4" /> بدء جرد جديد
+              </button>
+            </div>
           )}
           {sessions.map(s => {
             const whName = warehouses.find(w => w.id === s.warehouse_id)?.name ?? `مخزن #${s.warehouse_id}`;
@@ -1581,7 +1606,15 @@ function TransferTab({ warehouses, qc, toast, prefill, onClearPrefill }: {
       {view === "history" && (
         <div className="space-y-3">
           {transfers.length === 0 && (
-            <p className="text-white/40 text-center py-12">لا توجد تحويلات سابقة</p>
+            <div className="flex flex-col items-center justify-center py-16 text-center bg-white/3 border border-white/5 rounded-2xl">
+              <Truck className="w-10 h-10 text-white/10 mb-3" />
+              <p className="text-white/40 font-bold mb-1">لا توجد تحويلات سابقة</p>
+              <p className="text-white/25 text-xs mb-4">قم بنقل المخزون بين المخازن لتظهر هنا</p>
+              <button onClick={() => setView("new")}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-violet-500/20 border border-violet-500/30 text-violet-300 hover:bg-violet-500/30 transition-all">
+                <ArrowRightLeft className="w-4 h-4" /> إنشاء تحويل جديد
+              </button>
+            </div>
           )}
           {transfers.map(t => {
             const fromName = warehouses.find(w => w.id === t.from_warehouse_id)?.name ?? `#${t.from_warehouse_id}`;
