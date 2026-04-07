@@ -333,6 +333,7 @@ export default function POSPage() {
   const canCash        = hasPermission(user, "can_cash_sale") === true;
   const canCredit      = hasPermission(user, "can_credit_sale") === true;
   const canPartial     = hasPermission(user, "can_partial_sale") === true;
+  const canReturnSale  = hasPermission(user, "can_return_sale") === true;
 
   /* ── Role detection ── */
   const isAdmin = user?.role === "admin";
@@ -877,16 +878,18 @@ function POSBody({
               </div>
             ))}
           </div>
-          {/* Return mode toggle */}
-          <button
-            onClick={() => { setReturnMode(v => !v); setReturnSale(null); setReturnItems([]); setReturnInvoiceNo(""); }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              returnMode ? "bg-red-500 text-white" : "erp-btn-secondary"
-            }`}
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            {returnMode ? "إلغاء المرتجع" : "مرتجع"}
-          </button>
+          {/* Return mode toggle — only shown if user has can_return_sale */}
+          {canReturnSale && (
+            <button
+              onClick={() => { setReturnMode(v => !v); setReturnSale(null); setReturnItems([]); setReturnInvoiceNo(""); }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                returnMode ? "bg-red-500 text-white" : "erp-btn-secondary"
+              }`}
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              {returnMode ? "إلغاء المرتجع" : "مرتجع"}
+            </button>
+          )}
 
           {/* Cashier mode toggle */}
           <button

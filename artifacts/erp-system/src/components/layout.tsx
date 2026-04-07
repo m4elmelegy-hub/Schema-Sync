@@ -161,6 +161,7 @@ export function AppLayout({ children }: LayoutProps) {
 
   const visibleNav = NAV_ITEMS.filter(item => {
     if (!canAccess(role, item.href)) return false;
+    if (item.href === "/sales"            && !hasPermission(user, "can_view_sales"))          return false;
     if (item.href === "/inventory"        && !hasPermission(user, "can_view_inventory"))      return false;
     if (item.href === "/products"         && !hasPermission(user, "can_view_products"))       return false;
     if (item.href === "/customers"        && !hasPermission(user, "can_view_customers"))      return false;
@@ -168,7 +169,8 @@ export function AppLayout({ children }: LayoutProps) {
     if (item.href === "/reports"          && !hasPermission(user, "can_view_reports"))        return false;
     if (item.href === "/receipt-vouchers" && !hasPermission(user, "can_add_receipt_voucher")) return false;
     if (item.href === "/payment-vouchers" && !hasPermission(user, "can_add_payment_voucher")) return false;
-    if (item.href === "/purchases"        && !hasPermission(user, "can_create_purchase"))     return false;
+    if (item.href === "/treasury"         && !hasPermission(user, "can_view_treasury"))       return false;
+    if (item.href === "/purchases"        && !hasPermission(user, "can_view_purchases"))      return false;
     return true;
   });
 

@@ -1,0 +1,133 @@
+Audit and fix the full permission-to-feature binding across the system.
+
+# GOAL
+
+Ensure every permission toggle in settings is fully connected to actual system behavior.
+
+---
+
+# 1) BUILD PERMISSION REGISTRY
+
+Create a complete list of ALL system actions, including:
+
+* view / create / edit / delete for:
+
+  * products
+  * sales
+  * returns
+  * purchases
+  * inventory
+  * expenses
+  * treasury
+  * customers
+  * reports
+  * settings
+
+Example:
+
+* can_view_expenses
+* can_create_expense
+* can_delete_expense
+
+---
+
+# 2) MATCH UI SETTINGS WITH REAL FEATURES
+
+For each permission in the Settings page:
+
+* Verify:
+
+  * Does it control a real feature?
+  * Is it connected to:
+
+    * button visibility
+    * page access
+    * API validation
+
+---
+
+# 3) FIX MISSING LINKS (CRITICAL)
+
+If a permission exists but:
+
+* button does nothing
+* feature not accessible
+* page not visible
+
+→ FIX binding
+
+Example:
+can_add_expense must:
+
+* show "إضافة مصروف" button
+* open modal
+* call API
+* allow POST /expenses
+
+---
+
+# 4) DYNAMIC SIDEBAR
+
+Update sidebar:
+
+* Only show pages if user has:
+  can_view_<module>
+
+Example:
+
+* expenses page visible only if can_view_expenses = true
+
+---
+
+# 5) UI + API SYNC
+
+For every action:
+
+* UI hides button if no permission
+* API rejects request if no permission
+
+---
+
+# 6) REMOVE DEAD PERMISSIONS
+
+If any permission:
+
+* exists in UI
+* but not connected to any feature
+
+→ either connect it or remove it
+
+---
+
+# 7) TEST
+
+For each role:
+
+* cashier
+* salesperson
+* manager
+* admin
+
+Verify:
+
+* every permission toggle works instantly
+* no button without effect
+* no hidden functionality accessible
+
+---
+
+# OUTPUT
+
+A) List of all permissions implemented
+B) What was connected/fixed
+C) Any removed or unused permissions
+D) Confirmation that every toggle controls real behavior
+
+---
+
+# SUCCESS CRITERIA
+
+* No permission is decorative (UI only)
+* Every permission controls real system behavior
+* Full sync between:
+  settings → UI → API

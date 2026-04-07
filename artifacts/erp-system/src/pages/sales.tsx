@@ -1609,29 +1609,41 @@ function SalesHistoryPanel() {
 }
 
 export default function Sales() {
-  const [tab, setTab] = useState<"new" | "history" | "returns">("new");
+  const { user: currentUser } = useAuth();
+  const canCreateSale = hasPermission(currentUser, "can_create_sale") === true;
+  const canReturnSale = hasPermission(currentUser, "can_return_sale") === true;
+
+  const [tab, setTab] = useState<"new" | "history" | "returns">(canCreateSale ? "new" : "history");
   const [selectedSaleId, setSelectedSaleId] = useState<number | null>(null);
+
+  const effectiveTab = (tab === "new" && !canCreateSale) ? "history"
+    : (tab === "returns" && !canReturnSale) ? "history"
+    : tab;
 
   return (
     <div className="space-y-4">
       <div className="flex gap-2 items-center">
         <div className="flex bg-white/5 rounded-2xl p-1 border border-white/10">
-          <button onClick={() => setTab("new")} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${tab === "new" ? "bg-amber-500 text-black shadow" : "text-white/50 hover:text-white"}`}>
-            ➕ فاتورة بيع جديدة
-          </button>
-          <button onClick={() => setTab("history")} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-1.5 ${tab === "history" ? "bg-amber-500 text-black shadow" : "text-white/50 hover:text-white"}`}>
+          {canCreateSale && (
+            <button onClick={() => setTab("new")} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${effectiveTab === "new" ? "bg-amber-500 text-black shadow" : "text-white/50 hover:text-white"}`}>
+              ➕ فاتورة بيع جديدة
+            </button>
+          )}
+          <button onClick={() => setTab("history")} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-1.5 ${effectiveTab === "history" ? "bg-amber-500 text-black shadow" : "text-white/50 hover:text-white"}`}>
             <ClipboardList className="w-3.5 h-3.5" /> سجل الفواتير
           </button>
-          <button onClick={() => setTab("returns")} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${tab === "returns" ? "bg-orange-500 text-white shadow" : "text-white/50 hover:text-white"}`}>
-            ↩ المرتجعات
-          </button>
+          {canReturnSale && (
+            <button onClick={() => setTab("returns")} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${effectiveTab === "returns" ? "bg-orange-500 text-white shadow" : "text-white/50 hover:text-white"}`}>
+              ↩ المرتجعات
+            </button>
+          )}
         </div>
       </div>
 
       {selectedSaleId && <SaleDetailModal saleId={selectedSaleId} onClose={() => setSelectedSaleId(null)} />}
 
-      {tab === "history" ? <SalesHistoryPanel />
-        : tab === "returns" ? <SalesReturnsPanel />
+      {effectiveTab === "history" ? <SalesHistoryPanel />
+        : effectiveTab === "returns" ? <SalesReturnsPanel />
         : <NewSalePanel onDone={() => {}} />}
     </div>
   );

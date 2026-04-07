@@ -43,6 +43,9 @@ function formatPurchaseItem(item: typeof purchaseItemsTable.$inferSelect) {
 }
 
 router.get("/purchases", wrap(async (req, res) => {
+  if (!hasPermission(req.user, "can_view_purchases")) {
+    res.status(403).json({ error: "غير مصرح بعرض المشتريات" }); return;
+  }
   const companyId = req.user?.company_id ?? null;
   const purchases = await db.select().from(purchasesTable)
     .where(companyId !== null ? eq(purchasesTable.company_id, companyId) : undefined)

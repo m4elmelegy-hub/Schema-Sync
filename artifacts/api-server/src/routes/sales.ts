@@ -49,6 +49,9 @@ function formatSaleItem(item: typeof saleItemsTable.$inferSelect) {
 }
 
 router.get("/sales", wrap(async (req, res) => {
+  if (!hasPermission(req.user, "can_view_sales")) {
+    res.status(403).json({ error: "غير مصرح بعرض المبيعات" }); return;
+  }
   const role = req.user?.role ?? "cashier";
   const queryWarehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
   const effectiveWarehouseId = (role === "admin" || role === "manager")
