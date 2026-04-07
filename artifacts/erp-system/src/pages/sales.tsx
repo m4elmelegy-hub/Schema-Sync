@@ -41,7 +41,7 @@ function SalesReturnsPanel() {
   const { data: productsRaw } = useGetProducts();
   const products = safeArray(productsRaw);
   const { data: customersRaw } = useGetCustomers();
-  const customers = safeArray(customersRaw);
+  const customers = safeArray(customersRaw).filter(c => c.is_customer !== false);
   const { data: safesRaw } = useGetSettingsSafes();
   const safes = safeArray(safesRaw);
 
@@ -539,7 +539,7 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
   const { data: productsRaw } = useGetProducts();
   const products = safeArray(productsRaw);
   const { data: customersRaw } = useGetCustomers();
-  const customers = safeArray(customersRaw);
+  const customers = safeArray(customersRaw).filter(c => c.is_customer !== false);
   const { data: safesRaw } = useGetSettingsSafes();
   const safes = safeArray(safesRaw);
   const queryClient = useQueryClient();

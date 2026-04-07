@@ -32,6 +32,7 @@ function formatCustomer(c: typeof customersTable.$inferSelect, ledgerBalance?: n
   return {
     ...c,
     balance: ledgerBalance !== undefined ? ledgerBalance : Number(c.balance),
+    is_customer: c.is_customer ?? true,
     is_supplier: c.is_supplier ?? false,
     created_at: c.created_at.toISOString(),
   };
@@ -57,13 +58,13 @@ router.get("/customers", wrap(async (req, res) => {
   const rows = await db.execute(sql`
     SELECT
       c.id, c.name, c.customer_code, c.phone,
-      c.is_supplier, c.account_id, c.normalized_name, c.created_at,
+      c.is_customer, c.is_supplier, c.account_id, c.normalized_name, c.created_at,
       COALESCE(SUM(CAST(cl.amount AS FLOAT8)), 0) AS ledger_balance
     FROM customers c
     LEFT JOIN customer_ledger cl ON cl.customer_id = c.id
     ${companyFilter}
     GROUP BY c.id, c.name, c.customer_code, c.phone,
-             c.is_supplier, c.account_id, c.normalized_name, c.created_at
+             c.is_customer, c.is_supplier, c.account_id, c.normalized_name, c.created_at
     ORDER BY c.customer_code
     LIMIT ${limitC}
   `);
@@ -73,6 +74,7 @@ router.get("/customers", wrap(async (req, res) => {
     customer_code: r.customer_code,
     phone: r.phone,
     balance: Math.round(Number(r.ledger_balance) * 100) / 100,
+    is_customer: r.is_customer ?? true,
     is_supplier: r.is_supplier ?? false,
     account_id: r.account_id,
     normalized_name: r.normalized_name,
@@ -110,6 +112,7 @@ router.post("/customers", wrap(async (req, res) => {
     normalized_name: normalized,
     phone: parsed.data.phone ?? null,
     balance: String(parsed.data.balance ?? 0),
+    is_customer: parsed.data.is_customer ?? true,
     is_supplier: parsed.data.is_supplier ?? false,
     company_id: req.user?.company_id ?? undefined,
   }).returning();
@@ -179,6 +182,7 @@ router.put("/customers/:id", wrap(async (req, res) => {
     normalized_name: normalized,
     phone: parsed.data.phone ?? null,
     balance: parsed.data.balance !== undefined ? String(parsed.data.balance) : undefined,
+    is_customer: parsed.data.is_customer !== undefined ? parsed.data.is_customer : undefined,
     is_supplier: parsed.data.is_supplier !== undefined ? parsed.data.is_supplier : undefined,
   }).where(eq(customersTable.id, params.data.id)).returning();
   if (!customer) {

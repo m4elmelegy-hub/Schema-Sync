@@ -811,14 +811,14 @@ export default function Customers() {
   const [showAdd, setShowAdd] = useState(false);
   const [showReceipt, setShowReceipt] = useState<{ id: number; name: string; balance: number } | null>(null);
   const [showStatement, setShowStatement] = useState<{ id: number; name: string; phone: string; balance: number; isSupplier: boolean } | null>(null);
-  const [formData, setFormData] = useState({ name: "", phone: "", balance: 0, is_supplier: false });
+  const [formData, setFormData] = useState({ name: "", phone: "", balance: 0, is_customer: true, is_supplier: false });
   const [receiptData, setReceiptData] = useState({ amount: "", notes: "", safe_id: "" });
 
   const [showSupplierPayment, setShowSupplierPayment] = useState<{ id: number; name: string; balance: number } | null>(null);
   const [supplierPaymentData, setSupplierPaymentData] = useState({ amount: "", notes: "", safe_id: "" });
 
-  const [showEdit, setShowEdit] = useState<{ id: number; name: string; phone: string; is_supplier: boolean } | null>(null);
-  const [editFormData, setEditFormData] = useState({ name: "", phone: "", is_supplier: false });
+  const [showEdit, setShowEdit] = useState<{ id: number; name: string; phone: string; is_customer: boolean; is_supplier: boolean } | null>(null);
+  const [editFormData, setEditFormData] = useState({ name: "", phone: "", is_customer: true, is_supplier: false });
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
@@ -835,7 +835,7 @@ export default function Customers() {
         toast({ title: "✅ تم إضافة العميل بنجاح" });
         queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
         setShowAdd(false);
-        setFormData({ name: "", phone: "", balance: 0, is_supplier: false });
+        setFormData({ name: "", phone: "", balance: 0, is_customer: true, is_supplier: false });
       }
     });
   };
@@ -919,10 +919,10 @@ export default function Customers() {
 
   // ─── تعديل عميل ───
   const updateMutation = useMutation({
-    mutationFn: async (data: { id: number; name: string; phone: string; is_supplier: boolean }) => {
+    mutationFn: async (data: { id: number; name: string; phone: string; is_customer: boolean; is_supplier: boolean }) => {
       const r = await authFetch(api(`/api/customers/${data.id}`), {
         method: "PUT",
-        body: JSON.stringify({ name: data.name, phone: data.phone || null, is_supplier: data.is_supplier }),
+        body: JSON.stringify({ name: data.name, phone: data.phone || null, is_customer: data.is_customer, is_supplier: data.is_supplier }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "خطأ في التعديل");
@@ -940,7 +940,7 @@ export default function Customers() {
     e.preventDefault();
     if (!showEdit) return;
     if (!editFormData.name.trim()) { toast({ title: "أدخل اسم العميل", variant: "destructive" }); return; }
-    updateMutation.mutate({ id: showEdit.id, name: editFormData.name, phone: editFormData.phone, is_supplier: editFormData.is_supplier });
+    updateMutation.mutate({ id: showEdit.id, name: editFormData.name, phone: editFormData.phone, is_customer: editFormData.is_customer, is_supplier: editFormData.is_supplier });
   };
 
   // ─── حذف عميل ───
@@ -1026,23 +1026,28 @@ export default function Customers() {
                 <input type="number" step="0.01" className="glass-input" value={formData.balance || ''} onChange={e => setFormData({...formData, balance: parseFloat(e.target.value) || 0})} />
               </div>
 
-              {/* خيار عميل-مورد */}
-              <div className="border border-white/10 rounded-2xl p-4 bg-white/3">
+              {/* أدوار الطرف الآخر */}
+              <div className="border border-white/10 rounded-2xl p-4 bg-white/3 space-y-3">
+                <p className="text-white/50 text-xs font-semibold mb-1">الدور في العمليات</p>
+                <button type="button" onClick={() => setFormData(f => ({ ...f, is_customer: !f.is_customer }))}
+                  className={`flex items-center gap-2 w-full text-sm font-bold transition-colors ${formData.is_customer ? "text-green-400" : "text-white/50 hover:text-white/70"}`}>
+                  <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all shrink-0 ${formData.is_customer ? "bg-green-500 border-green-500" : "border-white/30"}`}>
+                    {formData.is_customer && <span className="text-white text-xs font-black">✓</span>}
+                  </div>
+                  🛒 عميل — يمكن البيع له
+                </button>
                 <button type="button" onClick={() => setFormData(f => ({ ...f, is_supplier: !f.is_supplier }))}
                   className={`flex items-center gap-2 w-full text-sm font-bold transition-colors ${formData.is_supplier ? "text-blue-400" : "text-white/50 hover:text-white/70"}`}>
                   <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all shrink-0 ${formData.is_supplier ? "bg-blue-500 border-blue-500" : "border-white/30"}`}>
                     {formData.is_supplier && <span className="text-white text-xs font-black">✓</span>}
                   </div>
-                  🔄 يمكن الشراء منه أيضاً
+                  🔄 مورد — يمكن الشراء منه
                 </button>
-                {formData.is_supplier && (
-                  <p className="text-white/40 text-xs mt-2 pr-7">سيظهر في قائمة المشتريات عند إضافة فاتورة</p>
-                )}
               </div>
             </div>
             <div className="flex gap-4 mt-8">
               <button type="submit" disabled={createMutation.isPending} className="flex-1 btn-primary py-3">حفظ</button>
-              <button type="button" onClick={() => { setShowAdd(false); setFormData({ name: "", phone: "", balance: 0, is_supplier: false }); }} className="flex-1 btn-secondary py-3">إلغاء</button>
+              <button type="button" onClick={() => { setShowAdd(false); setFormData({ name: "", phone: "", balance: 0, is_customer: true, is_supplier: false }); }} className="flex-1 btn-secondary py-3">إلغاء</button>
             </div>
           </form>
         </div>
@@ -1213,13 +1218,21 @@ export default function Customers() {
                 <input type="text" className="glass-input" value={editFormData.phone}
                   onChange={e => setEditFormData(f => ({ ...f, phone: e.target.value }))} placeholder="01xxxxxxxxx" />
               </div>
-              <div className="border border-white/10 rounded-2xl p-4 bg-white/3">
+              <div className="border border-white/10 rounded-2xl p-4 bg-white/3 space-y-3">
+                <p className="text-white/50 text-xs font-semibold mb-1">الدور في العمليات</p>
+                <button type="button" onClick={() => setEditFormData(f => ({ ...f, is_customer: !f.is_customer }))}
+                  className={`flex items-center gap-2 w-full text-sm font-bold transition-colors ${editFormData.is_customer ? "text-green-400" : "text-white/50 hover:text-white/70"}`}>
+                  <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all shrink-0 ${editFormData.is_customer ? "bg-green-500 border-green-500" : "border-white/30"}`}>
+                    {editFormData.is_customer && <span className="text-white text-xs font-black">✓</span>}
+                  </div>
+                  🛒 عميل — يمكن البيع له
+                </button>
                 <button type="button" onClick={() => setEditFormData(f => ({ ...f, is_supplier: !f.is_supplier }))}
                   className={`flex items-center gap-2 w-full text-sm font-bold transition-colors ${editFormData.is_supplier ? "text-blue-400" : "text-white/50 hover:text-white/70"}`}>
                   <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all shrink-0 ${editFormData.is_supplier ? "bg-blue-500 border-blue-500" : "border-white/30"}`}>
                     {editFormData.is_supplier && <span className="text-white text-xs font-black">✓</span>}
                   </div>
-                  🔄 يمكن الشراء منه أيضاً
+                  🔄 مورد — يمكن الشراء منه
                 </button>
               </div>
             </div>
@@ -1342,8 +1355,8 @@ export default function Customers() {
                         {canManageCustomers && (
                           <button
                             onClick={() => {
-                              setShowEdit({ id: customer.id, name: customer.name, phone: customer.phone || "", is_supplier: customer.is_supplier ?? false });
-                              setEditFormData({ name: customer.name, phone: customer.phone || "", is_supplier: customer.is_supplier ?? false });
+                              setShowEdit({ id: customer.id, name: customer.name, phone: customer.phone || "", is_customer: customer.is_customer ?? true, is_supplier: customer.is_supplier ?? false });
+                              setEditFormData({ name: customer.name, phone: customer.phone || "", is_customer: customer.is_customer ?? true, is_supplier: customer.is_supplier ?? false });
                             }}
                             className="p-1.5 rounded-lg bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/80 transition-colors border border-white/10"
                             title="تعديل"

@@ -9,6 +9,7 @@ export const customersTable = pgTable("customers", {
   normalized_name: text("normalized_name"),
   phone: text("phone"),
   balance: numeric("balance", { precision: 12, scale: 2 }).notNull().default("0"),
+  is_customer: boolean("is_customer").notNull().default(true),
   is_supplier: boolean("is_supplier").notNull().default(false),
   account_id: integer("account_id"),
   company_id: integer("company_id").notNull().default(1),
