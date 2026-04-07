@@ -1078,7 +1078,7 @@ function POSBody({
             </div>
 
             {/* Sale info + items */}
-            {(returnFetching || returnSale) && (
+            {returnSale && (
               <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
                 <div className="rounded-xl p-3 space-y-1" style={{ background: "var(--erp-bg-elevated)", border: "1px solid var(--erp-border)" }}>
                   <div className="flex justify-between">
