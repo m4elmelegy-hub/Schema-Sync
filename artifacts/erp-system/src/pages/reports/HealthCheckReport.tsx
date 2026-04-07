@@ -95,7 +95,10 @@ export default function HealthCheckReport() {
   });
   const { data, isLoading, refetch, isFetching } = useQuery<HealthCheckData>({
     queryKey:["health-check"],
-    queryFn:()=>authFetch(api("/api/reports/health-check")).then(r=>r.json()),
+    queryFn:()=>authFetch(api("/api/reports/health-check")).then(async r=>{
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    }),
     staleTime:30_000,
   });
   const toggleGroup=(g:string)=>setExpandedGroups(prev=>({...prev,[g]:!prev[g]}));
@@ -106,7 +109,7 @@ export default function HealthCheckReport() {
       <p className="text-white/50 text-sm">جارٍ فحص صحة النظام…</p>
     </div>
   );
-  if (!data) return null;
+  if (!data || !data.status || !SEV_CFG[data.status]) return null;
 
   const { status, summary, groups, checked_at } = data;
   const cfg=SEV_CFG[status];
