@@ -1,0 +1,78 @@
+أريد منك الآن أن تتصرف كـ Senior ERP Integrity Engineer.
+
+Phase 1 و Phase 2 تم تنفيذهما.
+مهمتك الآن هي إغلاق المخاطر المتبقية في سلامة البيانات المحاسبية والتشغيلية، بدون إضافة أي features جديدة.
+
+## الهدف
+ضمان أن النظام لا يحتوي على drift أو inconsistency بين:
+- journal_entries / journal_entry_lines
+- accounts.current_balance
+- customer_ledger / customers.balance
+- stock_movements / products.quantity
+
+## المطلوب
+
+### 1) Journal Integrity Enforcement
+- راجع كل أماكن إنشاء journal entries
+- تأكد أن كل قيد متوازن دائمًا:
+  - total debit = total credit
+- إذا لم توجد validations مركزية:
+  - أضفها في طبقة واحدة موحدة
+- امنع حفظ أي قيد غير متوازن
+
+### 2) Account Balance Consistency
+- افحص كيف يتم تحديث accounts.current_balance
+- تأكد أنه يتوافق دائمًا مع SUM(journal_entry_lines)
+- إذا كان current_balance قيمة cached:
+  - أضف reconciliation utility أو validation check
+- إذا وجدت drift محتمل:
+  - أصلحه
+
+### 3) Customer Balance Consistency
+- افحص customers.balance
+- تحقق أنه يساوي دائمًا SUM(customer_ledger.amount)
+- إذا كان هناك drift محتمل:
+  - أضف reconciliation logic
+  - أو وضّح أن customer_ledger هو المصدر الحقيقي
+
+### 4) Inventory Consistency
+- افحص products.quantity مقابل stock_movements
+- تأكد أن أي بيع / شراء / مرتجع / تسوية يحدّث ledger المخزني بشكل صحيح
+- أضف integrity check واضح
+
+### 5) Critical Automated Tests
+أضف اختبارات تغطي على الأقل:
+- unbalanced journal rejection
+- expense posting creates correct journal entry
+- reversal creates opposite accounting effect
+- balance sheet reflects posted ledger
+- cash flow reflects journal entries
+- customer balance reconciliation
+- stock movement reconciliation
+
+## قواعد مهمة
+- لا تبدأ UI
+- لا تبدأ dashboard
+- لا تضف features جديدة
+- ركّز فقط على correctness + integrity + tests
+- أي تعديل يجب أن يكون minimal وproduction-safe
+
+## المطلوب في النهاية
+
+### A) WHAT WAS ENFORCED
+ما الذي أصبح مضمونًا الآن
+
+### B) FILES UPDATED
+الملفات التي تم تعديلها
+
+### C) TESTS ADDED
+ما الاختبارات التي تمت إضافتها
+
+### D) REMAINING INTEGRITY RISKS
+أي مخاطر حقيقية متبقية فقط
+
+### E) ENGINE STATUS
+هل الـ core engine الآن:
+- partially hardened
+- strongly hardened
+- ready for next phase
