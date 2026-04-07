@@ -1,0 +1,201 @@
+أريد منك أن تتعامل كـ Senior ERP Architect + Lead Engineer.
+
+مهمتك الآن ليست كتابة features جديدة مباشرة، بل عمل Audit شامل ودقيق جدًا للمشروع الحالي، ثم إخراج تقرير تنفيذي واضح يحدد:
+
+1. ما الذي تم إنجازه بالكامل
+2. ما الذي تم جزئيًا ويحتاج تثبيت أو polishing
+3. ما الذي لم يتم بعد
+4. ما هي المشاكل أو الثغرات المعمارية
+5. ما هي الأولويات القادمة لتحويل المشروع إلى ERP production-ready وقابل للبيع
+
+### المطلوب منك أولًا: فهم المشروع بالكامل
+
+افحص المشروع بالكامل من حيث:
+
+* structure
+* pages
+* components
+* modules
+* database schema
+* services
+* business flows
+* reports
+* POS
+* accounting
+* inventory
+* dashboard
+* auth / roles
+* locks / audit
+* theme system
+* validations
+* crash fixes / defensive utilities
+
+### افحص بالتحديد هذه النقاط:
+
+#### 1. Financial Module
+
+* هل توجد P&L
+* هل توجد Cash Flow
+* هل توجد Balance Sheet
+* هل هي مرتبطة ببيانات حقيقية أم mock / partial
+* هل يوجد دعم فترات / فروع / مقارنة
+* هل يوجد export / print / PDF
+* هل يوجد posting logic حقيقي أم فقط تجميع عرض
+
+#### 2. Financial Lock / Audit
+
+* هل يوجد نظام lock للفترات
+* هل يمنع التعديل فعلًا على البيانات المقفلة
+* هل يوجد audit log حقيقي
+* هل التصحيح يتم عبر reversal entries أم تعديل مباشر
+
+#### 3. POS
+
+* هل /pos مستقلة فعلًا
+* هل يوجد sale / return / barcode / thermal print
+* هل يوجد keyboard shortcuts
+* هل يوجد تعارض مع sales page أم فصل واضح
+* ما الذي ما زال يحتاج polishing
+
+#### 4. Stability / Engineering Quality
+
+* هل توجد safeArray / safeObject / guards / query validation
+* هل ما زالت توجد crash points محتملة
+* هل توجد console errors
+* هل يوجد code duplication أو anti-patterns
+
+#### 5. Theme / Design System
+
+* هل يوجد ERP theme system موحد
+* هل الألوان موحدة
+* هل ما زال هناك inline styles أو hardcoded colors
+* هل light/dark mode مستقر في كل الشاشات
+
+#### 6. Database
+
+* استخرج وفهم كل الجداول والعلاقات الحالية
+* حدد ما إذا كانت العلاقات ERP-level أم لا
+* راجع خصوصًا:
+
+  * sales ↔ returns
+  * safes ↔ transactions
+  * warehouses ↔ stock
+  * accounting entries ↔ operational documents
+* حدد:
+
+  * missing foreign keys
+  * missing constraints
+  * missing indexes
+  * risky denormalization
+  * audit consistency issues
+
+#### 7. Inventory
+
+* هل يوجد inventory فعلي أم جزئي
+* هل يوجد stock movement ledger
+* هل يوجد cost calculation
+* هل يوجد stock alerts
+* هل يوجد transfer / adjustment / counts
+* هل النظام الحالي صالح للتوسع
+
+#### 8. Dashboard / Analytics
+
+* هل يوجد dashboard حقيقي
+* أم مجرد UI placeholders
+* ما هي المؤشرات الموجودة
+* ما الذي ينقص ليكون dashboard إداري احترافي
+
+#### 9. Roles / Permissions
+
+* هل توجد أدوار حقيقية
+* هل الصلاحيات مطبقة في backend/business logic أم فقط UI
+* هل يوجد فصل واضح بين Admin / Accountant / Cashier / Manager
+
+#### 10. Testing / Release Readiness
+
+* هل توجد tests
+* ما هي المناطق الحرجة غير المختبرة
+* هل المشروع ready for production
+* ما الذي يجب تجميده أو refactor قبل deployment
+
+### المطلوب في المخرجات
+
+أريد منك تقريرًا نهائيًا منظمًا جدًا بهذا الشكل:
+
+# A) EXECUTIVE SUMMARY
+
+ملخص واضح عن حالة المشروع الحالية:
+
+* هل هو MVP
+* هل هو نظام تشغيلي قوي
+* هل هو ERP جزئي
+* هل هو قريب من production
+* ما أكبر نقاط القوة
+* ما أكبر نقاط الضعف
+
+# B) WHAT IS FULLY DONE
+
+قائمة دقيقة جدًا بما تم بالكامل
+مع ذكر الملفات/الموديولات التي تثبت ذلك
+
+# C) WHAT IS PARTIALLY DONE
+
+قائمة بما تم جزئيًا
+وما الذي ينقص كل جزء ليعتبر complete
+
+# D) WHAT IS MISSING
+
+قائمة الأشياء غير الموجودة أصلًا
+مرتبطة بالأولوية والأثر التجاري
+
+# E) ARCHITECTURE RISKS
+
+اذكر المخاطر التقنية والمعمارية بوضوح:
+
+* database risks
+* accounting correctness risks
+* inventory risks
+* POS risks
+* permission risks
+* deployment risks
+
+# F) RECOMMENDED PRIORITY ROADMAP
+
+أخرج roadmap عملية جدًا بالترتيب:
+Phase 1
+Phase 2
+Phase 3
+مع سبب الترتيب
+
+# G) ERP READINESS SCORE
+
+قيّم المشروع من 10 في:
+
+* accounting readiness
+* database maturity
+* inventory maturity
+* POS readiness
+* dashboard readiness
+* production readiness
+
+# H) NEXT BEST ACTION
+
+أهم خطوة واحدة فقط يجب تنفيذها الآن
+مع تبرير واضح
+
+### قواعد مهمة جدًا
+
+* لا تفترض أن شيء “موجود” إلا إذا وجدت دليلًا واضحًا في المشروع
+* لا تكتب كلامًا عامًا
+* اربط كل استنتاج بملفات أو موديولات أو schema أو flows موجودة فعلًا
+* لو وجدت شيء ناقص أو placeholder قل ذلك بصراحة
+* لو وجدت implementation ناقص أو غير production-grade وضّح هذا
+* لا تبدأ في تنفيذ features جديدة الآن
+* هدفك الآن هو audit + diagnosis + roadmap فقط
+
+### بعد انتهاء التقرير
+
+أعطني في النهاية:
+
+1. قائمة بأهم 10 ملفات/مجلدات يجب مراجعتها أولًا إذا أردنا استكمال المشروع
+2. أفضل برومبت لاحق أرسله لك لتبدأ تنفيذ المرحلة القادمة مباشرة
