@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { safeArray } from "@/lib/safe-data";
 import { authFetch } from "@/lib/auth-fetch";
-import { useGetSales, useGetSaleById, useGetProducts, useGetCustomers, useGetSettingsSafes } from "@workspace/api-client-react";
+import { useGetSales, useGetSaleById, useGetProducts, useGetCustomers, useGetSettingsSafes, useCreateProduct } from "@workspace/api-client-react";
+import { ProductFormModal, ProductFormData } from "@/components/product-form-modal";
 import { useWarehouse } from "@/contexts/warehouse";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { Search, Plus, Minus, Trash2, X, Printer, ShoppingCart, User, Package, Receipt, RotateCcw, Percent, Vault, Lock, CheckCircle, XCircle, ClipboardList } from "lucide-react";
@@ -543,6 +544,8 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
   const safes = safeArray(safesRaw);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const createProductMutation = useCreateProduct();
+  const [showCreateProduct, setShowCreateProduct] = useState(false);
 
   const { data: warehousesRaw } = useQuery<{ id: number; name: string }[]>({
     queryKey: ["/api/settings/warehouses"],
@@ -669,6 +672,21 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
     setTimeout(() => setRecentlyAdded(null), 520);
   };
 
+  const handleCreateProduct = (data: ProductFormData) => {
+    createProductMutation.mutate({ data }, {
+      onSuccess: (newProduct: any) => {
+        toast({ title: "✅ تم إضافة المنتج وإضافته للفاتورة" });
+        queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+        setShowCreateProduct(false);
+        setSearch("");
+        if (newProduct?.id) {
+          addToCart({ ...newProduct, sale_price: Number(newProduct.sale_price), cost_price: Number(newProduct.cost_price), quantity: Number(newProduct.quantity) });
+        }
+      },
+      onError: () => toast({ title: "حدث خطأ أثناء إضافة المنتج", variant: "destructive" }),
+    });
+  };
+
   const updateQty = (pid: number, delta: number) => setCart(prev => prev.map(i => {
     if (i.product_id !== pid) return i;
     const newQ = Math.max(1, i.quantity + delta);
@@ -774,6 +792,15 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
       {successInvoice && (
         <WhatsAppSuccessModal invoice={successInvoice} onClose={() => { setSuccessInvoice(null); onDone(); }} />
       )}
+      {showCreateProduct && (
+        <ProductFormModal
+          title="إضافة منتج جديد"
+          existingCategories={Array.from(new Set(products.map(p => p.category).filter(Boolean) as string[]))}
+          onSave={handleCreateProduct}
+          onClose={() => setShowCreateProduct(false)}
+          isPending={createProductMutation.isPending}
+        />
+      )}
       <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-220px)]">
         {/* Products grid */}
         <div className="flex-1 flex flex-col min-h-0">
@@ -800,9 +827,6 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
               {categories.map(cat => <option key={cat} value={cat!} className="bg-gray-900">{cat}</option>)}
             </select>
           </div>
-          {search && filteredProducts.length === 0 && (
-            <p className="text-xs text-red-400/60 px-3 mb-2">لا توجد نتائج مطابقة</p>
-          )}
           <div className="flex-1 overflow-y-auto glass-panel rounded-2xl p-3">
             <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
               {filteredProducts.map(product => {
@@ -841,6 +865,22 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
                   </button>
                 );
               })}
+
+              {/* Inline create card — only when search finds nothing */}
+              {search && filteredProducts.length === 0 && (
+                <button
+                  onClick={() => setShowCreateProduct(true)}
+                  className="rounded-2xl p-3 text-right border border-dashed border-violet-500/40 bg-violet-500/5 hover:bg-violet-500/10 hover:border-violet-500/60 transition-all flex flex-col items-center justify-center gap-2 min-h-[130px]"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-violet-500/20 border border-violet-500/30 flex items-center justify-center">
+                    <Plus className="w-5 h-5 text-violet-400" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-violet-300 text-xs font-bold">➕ إضافة منتج جديد</p>
+                    <p className="text-white/30 text-xs mt-0.5 truncate max-w-[120px]">«{search}»</p>
+                  </div>
+                </button>
+              )}
             </div>
           </div>
         </div>

@@ -12,113 +12,12 @@ import { exportProductsExcel } from "@/lib/export-excel";
 import { useToast } from "@/hooks/use-toast";
 import { TableSkeleton } from "@/components/skeletons";
 import { ConfirmModal } from "@/components/confirm-modal";
+import { ProductFormModal, ProductFormData, emptyProductForm } from "@/components/product-form-modal";
+import { safeArray } from "@/lib/safe-data";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
 
-const CATEGORIES = [
-  "شاشات", "بطاريات", "هوسنجات", "فلاتر", "أجراس",
-  "سماعات", "بورد تقطيع", "ضهور", "مبرمجات",
-];
-
-type ProductForm = {
-  name: string; sku: string; category: string;
-  quantity: number; cost_price: number; sale_price: number; low_stock_threshold: number;
-};
-
-const emptyForm: ProductForm = {
-  name: "", sku: "", category: "", quantity: 0, cost_price: 0, sale_price: 0, low_stock_threshold: 5,
-};
-
-/* ─── نافذة الإضافة / التعديل ─── */
-function ProductModal({ title, initial, onSave, onClose, isPending }: {
-  title: string; initial: ProductForm; onSave: (data: ProductForm) => void;
-  onClose: () => void; isPending: boolean;
-}) {
-  const [form, setForm] = useState<ProductForm>(initial);
-  const set = (k: keyof ProductForm, v: string | number) => setForm(f => ({ ...f, [k]: v }));
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm modal-overlay">
-      <form onSubmit={e => { e.preventDefault(); onSave(form); }}
-        className="glass-panel rounded-3xl p-8 w-full max-w-md shadow-2xl border border-white/10">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Plus className="w-6 h-6 text-amber-400" /> {title}
-          </h3>
-          <button type="button" onClick={onClose} className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors">
-            <X className="w-4 h-4 text-white/60" />
-          </button>
-        </div>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-white/70 text-sm mb-1">اسم المنتج *</label>
-            <input required type="text" className="glass-input" placeholder="مثال: شاشة سامسونج 6.5"
-              value={form.name} onChange={e => set("name", e.target.value)} />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-white/70 text-sm mb-1">الرمز (SKU)</label>
-              <input type="text" className="glass-input" placeholder="اختياري"
-                value={form.sku} onChange={e => set("sku", e.target.value)} />
-            </div>
-            <div>
-              <label className="block text-white/70 text-sm mb-1">التصنيف *</label>
-              <select required className="glass-input appearance-none cursor-pointer"
-                value={form.category} onChange={e => set("category", e.target.value)}>
-                <option value="" disabled>اختر التصنيف</option>
-                {CATEGORIES.map(cat => (
-                  <option key={cat} value={cat} className="bg-gray-900 text-white">{cat}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-white/70 text-sm mb-1">سعر التكلفة *</label>
-              <input required type="number" step="0.01" min="0" className="glass-input"
-                placeholder="0.00" value={form.cost_price || ""}
-                onChange={e => set("cost_price", parseFloat(e.target.value) || 0)} />
-            </div>
-            <div>
-              <label className="block text-white/70 text-sm mb-1">سعر البيع *</label>
-              <input required type="number" step="0.01" min="0" className="glass-input"
-                placeholder="0.00" value={form.sale_price || ""}
-                onChange={e => set("sale_price", parseFloat(e.target.value) || 0)} />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-white/70 text-sm mb-1">الكمية</label>
-              <input type="number" min="0" className="glass-input"
-                value={form.quantity || ""}
-                onChange={e => set("quantity", parseInt(e.target.value) || 0)} />
-            </div>
-            <div>
-              <label className="block text-white/70 text-sm mb-1">حد التنبيه (نواقص)</label>
-              <input type="number" min="0" className="glass-input"
-                value={form.low_stock_threshold || ""}
-                onChange={e => set("low_stock_threshold", parseInt(e.target.value) || 0)} />
-            </div>
-          </div>
-          {form.cost_price > 0 && form.sale_price > 0 && (
-            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2 text-xs text-emerald-400">
-              هامش الربح المتوقع: {(((form.sale_price - form.cost_price) / form.sale_price) * 100).toFixed(1)}% |{" "}
-              ربح الوحدة: {formatCurrency(form.sale_price - form.cost_price)}
-            </div>
-          )}
-        </div>
-        <div className="flex gap-4 mt-8">
-          <button type="submit" disabled={isPending} className="flex-1 btn-primary py-3">
-            {isPending ? "جاري الحفظ..." : "حفظ"}
-          </button>
-          <button type="button" onClick={onClose} className="flex-1 btn-secondary py-3">إلغاء</button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
-/* ─── No Permission ─── */
 function AccessDenied({ msg }: { msg: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -129,9 +28,9 @@ function AccessDenied({ msg }: { msg: string }) {
   );
 }
 
-/* ─── تاب المنتجات ─── */
 function ProductsTab() {
-  const { data: products = [], isLoading } = useGetProducts();
+  const { data: productsRaw = [], isLoading } = useGetProducts();
+  const products = safeArray(productsRaw);
   const { user } = useAuth();
   const canViewProducts   = hasPermission(user, "can_view_products")   === true;
   const canManageProducts = hasPermission(user, "can_manage_products") === true;
@@ -141,12 +40,13 @@ function ProductsTab() {
   const { toast } = useToast();
 
   const [search, setSearch]               = useState("");
+  const [catFilter, setCatFilter]         = useState("");
   const [showAdd, setShowAdd]             = useState(false);
-  const [editProduct, setEditProduct]     = useState<(ProductForm & { id: number }) | null>(null);
+  const [editProduct, setEditProduct]     = useState<(ProductFormData & { id: number }) | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: ProductForm }) => {
+    mutationFn: async ({ id, data }: { id: number; data: ProductFormData }) => {
       const r = await authFetch(api(`/api/products/${id}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -164,13 +64,20 @@ function ProductsTab() {
     onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
   });
 
-  const filtered = products.filter(p =>
-    p.name.includes(search) ||
-    (p.sku && p.sku.includes(search)) ||
-    (p.category && p.category.includes(search))
-  );
+  const categories = Array.from(
+    new Set(products.map(p => p.category).filter(Boolean) as string[])
+  ).sort((a, b) => a.localeCompare(b, "ar"));
 
-  const handleAdd = (data: ProductForm) => {
+  const filtered = products.filter(p => {
+    const matchSearch =
+      p.name.includes(search) ||
+      (p.sku && p.sku.includes(search)) ||
+      (p.category && p.category.includes(search));
+    const matchCat = !catFilter || p.category === catFilter;
+    return matchSearch && matchCat;
+  });
+
+  const handleAdd = (data: ProductFormData) => {
     createMutation.mutate({ data }, {
       onSuccess: () => {
         toast({ title: "✅ تم إضافة المنتج بنجاح" });
@@ -213,14 +120,35 @@ function ProductsTab() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="relative w-full max-w-md">
-          <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
-          <input type="text" placeholder="بحث عن منتج..." className="glass-input pl-4 pr-12 w-full"
-            value={search} onChange={e => setSearch(e.target.value)} />
+        <div className="flex gap-2 items-center flex-wrap">
+          <div className="relative">
+            <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+            <input
+              type="text"
+              placeholder="بحث عن منتج..."
+              className="glass-input pl-4 pr-12 w-64"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          {categories.length > 0 && (
+            <select
+              className="glass-input appearance-none w-40 cursor-pointer"
+              value={catFilter}
+              onChange={e => setCatFilter(e.target.value)}
+            >
+              <option value="">كل الأصناف</option>
+              {categories.map(cat => (
+                <option key={cat} value={cat} className="bg-gray-900">{cat}</option>
+              ))}
+            </select>
+          )}
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => exportProductsExcel(products)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/30 transition-all whitespace-nowrap">
+          <button
+            onClick={() => exportProductsExcel(products)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/30 transition-all whitespace-nowrap"
+          >
             <FileDown className="w-4 h-4" /> Excel
           </button>
           {canManageProducts && (
@@ -232,18 +160,33 @@ function ProductsTab() {
       </div>
 
       {showAdd && (
-        <ProductModal title="منتج جديد" initial={emptyForm} onSave={handleAdd}
-          onClose={() => setShowAdd(false)} isPending={createMutation.isPending} />
+        <ProductFormModal
+          title="منتج جديد"
+          initial={emptyProductForm}
+          existingCategories={categories}
+          onSave={handleAdd}
+          onClose={() => setShowAdd(false)}
+          isPending={createMutation.isPending}
+        />
       )}
       {confirmDeleteId !== null && (
-        <ConfirmModal title="حذف المنتج" description="هل أنت متأكد؟ سيتم حذف المنتج نهائياً ولا يمكن التراجع."
-          isPending={deleteMutation.isPending} onConfirm={() => handleDelete(confirmDeleteId)}
-          onCancel={() => setConfirmDeleteId(null)} />
+        <ConfirmModal
+          title="حذف المنتج"
+          description="هل أنت متأكد؟ سيتم حذف المنتج نهائياً ولا يمكن التراجع."
+          isPending={deleteMutation.isPending}
+          onConfirm={() => handleDelete(confirmDeleteId)}
+          onCancel={() => setConfirmDeleteId(null)}
+        />
       )}
       {editProduct && (
-        <ProductModal title={`تعديل: ${editProduct.name}`} initial={editProduct}
+        <ProductFormModal
+          title={`تعديل: ${editProduct.name}`}
+          initial={editProduct}
+          existingCategories={categories}
           onSave={(data) => updateMutation.mutate({ id: editProduct.id, data })}
-          onClose={() => setEditProduct(null)} isPending={updateMutation.isPending} />
+          onClose={() => setEditProduct(null)}
+          isPending={updateMutation.isPending}
+        />
       )}
 
       <div className="glass-panel rounded-3xl overflow-hidden border border-white/5">
@@ -252,7 +195,7 @@ function ProductsTab() {
             <thead className="bg-white/5 border-b border-white/10">
               <tr>
                 <th className="p-4 font-semibold text-white/60">المنتج</th>
-                <th className="p-4 font-semibold text-white/60">الرمز</th>
+                <th className="p-4 font-semibold text-white/60">الباركود</th>
                 <th className="p-4 font-semibold text-white/60">التصنيف</th>
                 <th className="p-4 font-semibold text-white/60">التكلفة</th>
                 <th className="p-4 font-semibold text-white/60">سعر البيع</th>
@@ -268,8 +211,18 @@ function ProductsTab() {
                 <tr>
                   <td colSpan={8} className="p-14 text-center">
                     <Package className="w-10 h-10 text-white/20 mx-auto mb-3" />
-                    <p className="text-white/40 font-bold">لا توجد منتجات بعد</p>
-                    <p className="text-white/20 text-sm mt-1">{search ? "جرب كلمة بحث مختلفة" : "اضغط «إضافة منتج» لإضافة أول منتج"}</p>
+                    <p className="text-white/40 font-bold">لا توجد منتجات</p>
+                    <p className="text-white/20 text-sm mt-1">
+                      {search || catFilter ? "جرب كلمة بحث أو تصنيف مختلف" : "اضغط «إضافة منتج» لإضافة أول منتج"}
+                    </p>
+                    {canManageProducts && !search && !catFilter && (
+                      <button
+                        onClick={() => setShowAdd(true)}
+                        className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-amber-500/20 border border-amber-500/30 text-amber-400 hover:bg-amber-500/30 transition-all"
+                      >
+                        <Plus className="w-4 h-4" /> إضافة أول منتج
+                      </button>
+                    )}
                   </td>
                 </tr>
               ) : (
@@ -281,13 +234,13 @@ function ProductsTab() {
                   return (
                     <tr key={product.id} className="border-b border-white/5 erp-table-row">
                       <td className="p-4 font-bold text-white">{product.name}</td>
-                      <td className="p-4 text-white/50 font-mono text-xs">{product.sku || '-'}</td>
+                      <td className="p-4 text-amber-300/70 font-mono text-xs">{product.sku || '—'}</td>
                       <td className="p-4">
                         {product.category ? (
                           <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/20">
                             {product.category}
                           </span>
-                        ) : '-'}
+                        ) : '—'}
                       </td>
                       <td className="p-4 text-white/70">{formatCurrency(Number(product.cost_price))}</td>
                       <td className="p-4 font-bold text-emerald-400">{formatCurrency(Number(product.sale_price))}</td>
@@ -298,8 +251,9 @@ function ProductsTab() {
                       </td>
                       <td className="p-4">
                         <span className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 w-fit ${
-                          isLow ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                                : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                          isLow
+                            ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                            : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                         }`}>
                           {isLow && <AlertTriangle className="w-3 h-3" />}
                           {product.quantity}
@@ -308,14 +262,20 @@ function ProductsTab() {
                       <td className="p-4">
                         <div className="flex items-center justify-center gap-2">
                           {canManageProducts && (
-                            <button onClick={() => openEdit(product)} title="تعديل المنتج"
-                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-blue-400 text-xs font-bold cursor-pointer border border-blue-400/40 bg-blue-500/20 hover:bg-blue-500/30 transition-colors">
+                            <button
+                              onClick={() => openEdit(product)}
+                              title="تعديل المنتج"
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-blue-400 text-xs font-bold cursor-pointer border border-blue-400/40 bg-blue-500/20 hover:bg-blue-500/30 transition-colors"
+                            >
                               <Pencil style={{ width: "14px", height: "14px" }} /> تعديل
                             </button>
                           )}
                           {canManageProducts && (
-                            <button onClick={() => setConfirmDeleteId(product.id)} title="حذف المنتج"
-                              className="p-2 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-400/10 transition-colors">
+                            <button
+                              onClick={() => setConfirmDeleteId(product.id)}
+                              title="حذف المنتج"
+                              className="p-2 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-400/10 transition-colors"
+                            >
                               <Trash2 className="w-4 h-4" />
                             </button>
                           )}
@@ -333,7 +293,6 @@ function ProductsTab() {
   );
 }
 
-/* ─── الصفحة الرئيسية ─── */
 export default function Products() {
   return <ProductsTab />;
 }

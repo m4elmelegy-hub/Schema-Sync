@@ -1,0 +1,153 @@
+Refactor Products, Purchases, and Sales to unify product management and enable full inline creation with barcode and categories.
+
+# GOAL
+- Make Products the single source of truth
+- Remove duplication from Purchases
+- Enable fast inline product creation
+- Unify product creation UI (same experience everywhere)
+
+---
+
+# 1) REMOVE PRODUCTS FROM PURCHASES
+
+- Delete "Products" tab/section inside Purchases بالكامل
+- Remove any related UI, hooks, and imports
+- Ensure no broken references
+
+Purchases must contain ONLY:
+- Purchase Invoice
+- Purchase History
+- Purchase Returns
+
+---
+
+# 2) UNIFY PRODUCT CREATION UI
+
+Current issue:
+- Product creation in Purchases is better than Products page
+
+## REQUIRED:
+- Make product creation UI in /products IDENTICAL to Purchases modal
+
+This includes:
+- same layout
+- same fields
+- same UX
+- same validation
+
+Do NOT maintain two different versions
+
+---
+
+# 3) BARCODE GENERATION
+
+When creating a product:
+
+- Auto-generate barcode if not provided
+- Use unique numeric or alphanumeric code
+
+UI:
+- Show barcode field
+- Include:
+  [ توليد تلقائي ] button
+
+Behavior:
+- If user clicks → generate new barcode
+- If left empty → auto-generate on save
+
+Ensure:
+- barcode is unique
+
+---
+
+# 4) INLINE PRODUCT CREATION (CRITICAL)
+
+Inside:
+- Sales Invoice
+- Purchase Invoice
+
+When typing product name:
+
+IF product does NOT exist:
+→ show:
+"➕ إضافة منتج جديد"
+
+On click:
+- open modal (same unified product form)
+- DO NOT navigate away
+
+After save:
+- auto-select product in invoice line
+
+---
+
+# 5) REMOVE STATIC DROPDOWNS
+
+- Remove hardcoded lists (شاشات / بطاريات / etc)
+- Replace with dynamic searchable dropdown from products table
+
+---
+
+# 6) CATEGORY MANAGEMENT (IMPORTANT)
+
+Inside product form:
+
+## Category field:
+
+- Dropdown of existing categories
+
+IF category not found:
+→ show option:
+"➕ إضافة تصنيف جديد"
+
+On click:
+- small inline input OR mini modal
+
+Fields:
+- category name
+
+On save:
+- create category
+- auto-select it
+
+---
+
+## ALSO:
+
+Add small icon/button near category field:
+"إدارة التصنيفات"
+
+On click:
+- open simple modal:
+  - list categories
+  - rename
+  - delete (if unused)
+
+---
+
+# 7) ENSURE DATA SAFETY
+
+- Do NOT break existing products
+- Do NOT break invoices
+- Do NOT duplicate data
+- Do NOT change backend structure drastically
+
+---
+
+# 8) UX RULES
+
+- Fast input
+- minimal clicks
+- no page navigation during invoice
+- consistent form everywhere
+
+---
+
+# OUTPUT
+
+A) Products centralized  
+B) Purchases cleaned  
+C) Product creation unified  
+D) Barcode working  
+E) Categories dynamic  
+F) Inline creation working in invoices
