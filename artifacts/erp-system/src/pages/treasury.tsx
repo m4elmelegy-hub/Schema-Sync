@@ -1,17 +1,19 @@
 import { safeArray } from "@/lib/safe-data";
 import { useState } from "react";
 import { authFetch } from "@/lib/auth-fetch";
-import { useQuery } from "@tanstack/react-query";
-import { useGetSettingsSafes } from "@workspace/api-client-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useGetSettingsSafes, useCreateSettingsSafe } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/format";
 import {
   HandCoins, ArrowUpFromLine, ArrowLeftRight, Lock,
   TrendingUp, TrendingDown, Wallet, ChevronLeft, ReceiptText,
+  Landmark, Plus, Loader2, X,
 } from "lucide-react";
 import ReceiptModal  from "@/components/modals/ReceiptModal";
 import PaymentModal  from "@/components/modals/PaymentModal";
 import TransferModal from "@/components/modals/TransferModal";
 import CloseSafeModal from "@/components/modals/CloseSafeModal";
+import { useToast } from "@/hooks/use-toast";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api  = (p: string) => `${BASE}${p}`;
@@ -19,7 +21,13 @@ const api  = (p: string) => `${BASE}${p}`;
 type ModalType = "receipt" | "payment" | "transfer" | "safe-closing" | null;
 
 export default function Treasury() {
-  const [openModal, setOpenModal] = useState<ModalType>(null);
+  const [openModal,    setOpenModal]    = useState<ModalType>(null);
+  const [showAddSafe,  setShowAddSafe]  = useState(false);
+  const [addForm,      setAddForm]      = useState({ name: "", balance: "" });
+
+  const queryClient  = useQueryClient();
+  const createSafe   = useCreateSettingsSafe();
+  const { toast }    = useToast();
 
   const { data: safesRaw } = useGetSettingsSafes();
 
@@ -123,6 +131,80 @@ export default function Treasury() {
       {openModal === "transfer"     && <TransferModal  onClose={() => setOpenModal(null)} />}
       {openModal === "safe-closing" && <CloseSafeModal onClose={() => setOpenModal(null)} />}
 
+      {/* Add Safe Modal */}
+      {showAddSafe && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}>
+          <div className="bg-[#111827] border border-white/10 rounded-2xl w-full max-w-sm shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/8">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-sky-500/15 flex items-center justify-center">
+                  <Landmark className="w-4 h-4 text-sky-400" />
+                </div>
+                <p className="font-black text-white text-sm">إضافة خزينة جديدة</p>
+              </div>
+              <button onClick={() => { setShowAddSafe(false); setAddForm({ name: "", balance: "" }); }}
+                className="p-1.5 rounded-lg text-white/30 hover:text-white/70 hover:bg-white/5 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            {/* Body */}
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-white/50 text-xs font-bold mb-1.5">اسم الخزينة</label>
+                <input
+                  value={addForm.name}
+                  onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="مثال: الخزينة الرئيسية"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 outline-none focus:border-sky-500/50 transition-colors"
+                />
+              </div>
+              <div>
+                <label className="block text-white/50 text-xs font-bold mb-1.5">الرصيد الابتدائي</label>
+                <input
+                  type="number"
+                  value={addForm.balance}
+                  onChange={e => setAddForm(f => ({ ...f, balance: e.target.value }))}
+                  placeholder="0"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 outline-none focus:border-sky-500/50 transition-colors"
+                />
+              </div>
+            </div>
+            {/* Footer */}
+            <div className="flex gap-3 px-6 py-4 border-t border-white/8">
+              <button
+                disabled={createSafe.isPending}
+                onClick={() => {
+                  if (!addForm.name.trim()) { toast({ title: "اسم الخزينة مطلوب", variant: "destructive" }); return; }
+                  createSafe.mutate(
+                    { name: addForm.name.trim(), balance: Number(addForm.balance) || 0 },
+                    {
+                      onSuccess: () => {
+                        queryClient.invalidateQueries({ queryKey: ["/api/settings/safes"] });
+                        toast({ title: "تم إضافة الخزينة بنجاح" });
+                        setAddForm({ name: "", balance: "" });
+                        setShowAddSafe(false);
+                      },
+                      onError: () => toast({ title: "فشل إضافة الخزينة", variant: "destructive" }),
+                    }
+                  );
+                }}
+                className="flex-1 flex items-center justify-center gap-2 bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white font-bold text-sm rounded-xl py-2.5 transition-colors"
+              >
+                {createSafe.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                إضافة
+              </button>
+              <button
+                onClick={() => { setShowAddSafe(false); setAddForm({ name: "", balance: "" }); }}
+                className="flex-1 bg-white/5 hover:bg-white/10 text-white/60 font-bold text-sm rounded-xl py-2.5 transition-colors border border-white/8"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Page title */}
       <div>
         <h1 className="text-2xl font-black text-white flex items-center gap-3">
@@ -177,7 +259,7 @@ export default function Treasury() {
       {/* ── Action buttons ── */}
       <div>
         <p className="text-white/40 text-xs font-bold uppercase tracking-widest mb-3">العمليات</p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           {actions.map(a => {
             const Icon = a.icon;
             return (
@@ -199,6 +281,26 @@ export default function Treasury() {
               </button>
             );
           })}
+
+          {/* إضافة خزينة */}
+          <button
+            onClick={() => setShowAddSafe(true)}
+            className="rounded-2xl border border-sky-500/30 bg-sky-500/8 hover:bg-sky-500/15 p-5 text-right transition-all hover:-translate-y-1 active:scale-95 group shadow-lg shadow-sky-500/10">
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center border border-sky-500/30 bg-white/5">
+                <Landmark className="w-5 h-5 text-sky-400" />
+              </div>
+              <ChevronLeft className="w-4 h-4 text-sky-400 opacity-40 group-hover:opacity-80 transition-opacity" />
+            </div>
+            <p className="font-black text-base leading-tight text-sky-400">إضافة خزينة</p>
+            <p className="text-white/40 text-xs mt-1 leading-tight">إنشاء خزينة جديدة</p>
+            <div className="mt-4 pt-3 border-t border-sky-500/30">
+              <div className="inline-flex items-center gap-1.5 text-xs font-bold text-sky-400">
+                <Plus className="w-3.5 h-3.5" />
+                <span>فتح النموذج</span>
+              </div>
+            </div>
+          </button>
         </div>
       </div>
 

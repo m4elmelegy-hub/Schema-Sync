@@ -921,7 +921,7 @@ function SafesTab() {
             <GhostBtn onClick={() => setShowTransfer(true)}>
               <ArrowLeftRight className="w-4 h-4" /> تحويل
             </GhostBtn>
-            <PrimaryBtn onClick={() => setShowAdd(true)}>
+            <PrimaryBtn onClick={() => setShowAdd(true)} style={{ display: "none" }}>
               <Plus className="w-4 h-4" /> إضافة خزنة
             </PrimaryBtn>
           </div>
