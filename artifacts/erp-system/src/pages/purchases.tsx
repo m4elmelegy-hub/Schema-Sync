@@ -27,7 +27,8 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
   const { data: customers = [] } = useGetCustomers();
   const suppliers = customers.filter(c => c.is_supplier);
   const { data: safes = [] } = useGetSettingsSafes();
-  const { data: warehouses = [] } = useGetSettingsWarehouses();
+  const { data: warehousesRaw } = useGetSettingsWarehouses();
+  const warehouses = Array.isArray(warehousesRaw) ? warehousesRaw : [];
   const createMutation = useCreatePurchase();
   const queryClient = useQueryClient();
   const { toast } = useToast();

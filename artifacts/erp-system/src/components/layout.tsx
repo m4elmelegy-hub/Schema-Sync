@@ -137,11 +137,16 @@ export function AppLayout({ children }: LayoutProps) {
 
   const { currentWarehouseId, setWarehouseId } = useWarehouse();
 
-  const { data: warehouses = [] } = useQuery<{ id: number; name: string }[]>({
+  const { data: warehousesRaw } = useQuery<{ id: number; name: string }[]>({
     queryKey: ["/api/settings/warehouses"],
-    queryFn: () => authFetch(api("/api/settings/warehouses")).then(r => r.json()),
+    queryFn: () => authFetch(api("/api/settings/warehouses")).then(async r => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const j = await r.json();
+      return Array.isArray(j) ? j : [];
+    }),
     staleTime: 5 * 60_000,
   });
+  const warehouses = Array.isArray(warehousesRaw) ? warehousesRaw : [];
 
   const role = (user?.role ?? "cashier") as UserRole;
   const canSelectWarehouse = role === "admin" || role === "manager";

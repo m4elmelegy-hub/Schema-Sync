@@ -510,7 +510,8 @@ function getInitials(name: string) {
 
 function UsersTab() {
   const { data: users = [], isLoading } = useGetSettingsUsers();
-  const { data: warehouses = [] } = useGetSettingsWarehouses();
+  const { data: warehousesRaw } = useGetSettingsWarehouses();
+  const warehouses = Array.isArray(warehousesRaw) ? warehousesRaw : [];
   const { data: safes = [] } = useGetSettingsSafes();
   const createUser = useCreateSettingsUser();
   const updateUser = useUpdateSettingsUser();
@@ -1131,7 +1132,8 @@ function SafesTab() {
    WAREHOUSES TAB
    ══════════════════════════════════════════════════════════════════ */
 function WarehousesTab() {
-  const { data: warehouses = [], isLoading } = useGetSettingsWarehouses();
+  const { data: warehousesRaw, isLoading } = useGetSettingsWarehouses();
+  const warehouses = Array.isArray(warehousesRaw) ? warehousesRaw : [];
   const createWarehouse = useCreateSettingsWarehouse();
   const deleteWarehouse = useDeleteSettingsWarehouse();
   const queryClient = useQueryClient();

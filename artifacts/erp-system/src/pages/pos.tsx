@@ -212,10 +212,15 @@ function SuccessModal({ invoice, onClose }: { invoice: SuccessInvoice; onClose: 
    ADMIN POS SETUP — اختيار الفرع والخزينة للمدير
 ───────────────────────────────────────────────────────────── */
 function AdminPOSSetup({ onStart }: { onStart: (w: number, s: number) => void }) {
-  const { data: warehouses = [] } = useQuery<{ id: number; name: string }[]>({
+  const { data: warehousesRaw } = useQuery<{ id: number; name: string }[]>({
     queryKey: ["/api/settings/warehouses"],
-    queryFn: () => authFetch(api("/api/settings/warehouses")).then(r => r.json()),
+    queryFn: () => authFetch(api("/api/settings/warehouses")).then(async r => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const j = await r.json();
+      return Array.isArray(j) ? j : [];
+    }),
   });
+  const warehouses = Array.isArray(warehousesRaw) ? warehousesRaw : [];
   const { data: rawSafes = [] } = useGetSettingsSafes();
   const safes = rawSafes as { id: number; name: string }[];
 
@@ -405,11 +410,16 @@ function POSBody({
   });
   const { data: customers = [] } = useGetCustomers();
   const { data: safes    = [] } = useGetSettingsSafes();
-  const { data: warehouses = [] } = useQuery<{ id: number; name: string }[]>({
+  const { data: warehousesRaw } = useQuery<{ id: number; name: string }[]>({
     queryKey: ["/api/settings/warehouses"],
-    queryFn: () => authFetch(api("/api/settings/warehouses")).then(r => r.json()),
+    queryFn: () => authFetch(api("/api/settings/warehouses")).then(async r => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const j = await r.json();
+      return Array.isArray(j) ? j : [];
+    }),
     staleTime: 5 * 60_000,
   });
+  const warehouses = Array.isArray(warehousesRaw) ? warehousesRaw : [];
 
   /* ── Display names ── */
   const warehouseName = warehouses.find(w => w.id === warehouseId)?.name ?? `فرع ${warehouseId}`;

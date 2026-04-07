@@ -537,10 +537,15 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: warehouses = [] } = useQuery<{ id: number; name: string }[]>({
+  const { data: warehousesRaw } = useQuery<{ id: number; name: string }[]>({
     queryKey: ["/api/settings/warehouses"],
-    queryFn: () => authFetch(api("/api/settings/warehouses")).then(r => { if (!r.ok) throw new Error("خطأ في جلب البيانات"); return r.json(); }),
+    queryFn: () => authFetch(api("/api/settings/warehouses")).then(async r => {
+      if (!r.ok) throw new Error("خطأ في جلب البيانات");
+      const j = await r.json();
+      return Array.isArray(j) ? j : [];
+    }),
   });
+  const warehouses = Array.isArray(warehousesRaw) ? warehousesRaw : [];
 
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
