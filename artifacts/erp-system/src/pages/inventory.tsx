@@ -9,7 +9,7 @@ import {
   Package, AlertTriangle, TrendingDown, Search, X, RefreshCw,
   ChevronUp, ChevronDown, Edit3, ShieldX, ClipboardList, Truck,
   Plus, Trash2, CheckCircle, Warehouse, Loader2, Filter,
-  BarChart3, ArrowLeft,
+  BarChart3, ArrowLeft, Bell, ArrowRightLeft,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TableSkeleton } from "@/components/skeletons";
@@ -50,13 +50,29 @@ interface CountSession {
   id: number; warehouse_id: number; status: string; notes: string | null;
   created_at: string; applied_at: string | null;
 }
+interface CountSessionEnriched extends CountSession {
+  items_count: number; adjustments_count: number;
+}
 interface StockTransfer {
   id: number; from_warehouse_id: number; to_warehouse_id: number;
   status: string; notes: string | null; created_at: string;
 }
+interface TransferEnriched extends StockTransfer {
+  items_count: number; total_qty: number;
+}
 interface WarehouseSummaryItem {
   warehouse_id: number; warehouse_name: string;
   item_count: number; total_value: number; pct_of_total: number;
+}
+interface LowStockItem {
+  product_id: number; product_name: string; sku: string | null; category: string | null;
+  cost_price: number; min_stock: number; warehouse_id: number; warehouse_name: string;
+  current_qty: number; shortage: number; suggested_qty: number; is_zero: boolean;
+  available_elsewhere: { warehouse_id: number; warehouse_name: string; qty: number }[];
+}
+interface TransferPrefill {
+  fromWH: number; toWH: number;
+  productId: number; productName: string; qty: number;
 }
 
 const movementTypeLabel: Record<string, { label: string; color: string }> = {
@@ -70,7 +86,7 @@ const movementTypeLabel: Record<string, { label: string; color: string }> = {
   transfer_in:     { label: "تحويل دخول",     color: "bg-cyan-500/20 text-cyan-300" },
 };
 
-type Tab = "review" | "count" | "transfer";
+type Tab = "review" | "count" | "transfer" | "alerts";
 
 function today() { return new Date().toISOString().slice(0, 10); }
 function nowTime() { return new Date().toTimeString().slice(0, 5); }
@@ -87,7 +103,8 @@ export default function Inventory() {
   const canAdjustInventory = hasPermission(user, "can_adjust_inventory") === true;
   const isAdmin = user?.role === "admin";
 
-  const [activeTab, setActiveTab] = useState<Tab>("review");
+  const [activeTab, setActiveTab]           = useState<Tab>("review");
+  const [transferPrefill, setTransferPrefill] = useState<TransferPrefill | null>(null);
 
   /* ── warehouse CRUD ── */
   const { data: warehousesRaw, isLoading: loadingWH } = useGetSettingsWarehouses();
@@ -118,6 +135,20 @@ export default function Inventory() {
     enabled: canViewInventory,
   });
   const gs = globalAudit?.summary;
+
+  /* ── low-stock badge count ── */
+  const { data: lowStockMeta } = useQuery<{ items: LowStockItem[]; zero_count: number; low_count: number }>({
+    queryKey: ["inventory-low-stock"],
+    queryFn: () => authFetch(api("/api/inventory/low-stock")).then(r => r.json()),
+    staleTime: 30_000,
+    enabled: canViewInventory,
+  });
+  const alertsBadge = (lowStockMeta?.zero_count ?? 0) + (lowStockMeta?.low_count ?? 0);
+
+  function handleTransferPrefill(prefill: TransferPrefill) {
+    setTransferPrefill(prefill);
+    setActiveTab("transfer");
+  }
 
   if (!canViewInventory) {
     return (
@@ -256,19 +287,38 @@ export default function Inventory() {
 
       {/* ══ تبويبات المخزون ══════════════════════════════════════════════════ */}
       <div>
-        <div className="flex gap-2 border-b border-white/10 mb-6">
-          <TabBtn id="review"   label="مراجعة المخزون" icon={<Package className="w-4 h-4" />}      active={activeTab} onClick={setActiveTab} />
+        <div className="flex gap-2 border-b border-white/10 mb-6 flex-wrap">
+          <TabBtn id="review"   label="مراجعة المخزون"   icon={<Package className="w-4 h-4" />}      active={activeTab} onClick={setActiveTab} />
           {canAdjustInventory && (
-            <TabBtn id="count"    label="جرد المخزون"    icon={<ClipboardList className="w-4 h-4" />} active={activeTab} onClick={setActiveTab} />
+            <TabBtn id="count"    label="جرد المخزون"      icon={<ClipboardList className="w-4 h-4" />} active={activeTab} onClick={setActiveTab} />
           )}
           {canAdjustInventory && (
-            <TabBtn id="transfer" label="تحويل مخزون"    icon={<Truck className="w-4 h-4" />}         active={activeTab} onClick={setActiveTab} />
+            <TabBtn id="transfer" label="تحويل مخزون"      icon={<Truck className="w-4 h-4" />}         active={activeTab} onClick={setActiveTab} />
           )}
+          <TabBtnBadge
+            id="alerts" label="تنبيهات المخزون"
+            icon={<Bell className="w-4 h-4" />}
+            badge={alertsBadge}
+            active={activeTab} onClick={setActiveTab}
+          />
         </div>
 
         {activeTab === "review"   && <ReviewTab currentWarehouseId={currentWarehouseId} canAdjustInventory={canAdjustInventory} qc={qc} toast={toast} />}
         {activeTab === "count"    && <CountTab  warehouses={warehouses} currentWarehouseId={currentWarehouseId} qc={qc} toast={toast} />}
-        {activeTab === "transfer" && <TransferTab warehouses={warehouses} qc={qc} toast={toast} />}
+        {activeTab === "transfer" && (
+          <TransferTab
+            warehouses={warehouses} qc={qc} toast={toast}
+            prefill={transferPrefill}
+            onClearPrefill={() => setTransferPrefill(null)}
+          />
+        )}
+        {activeTab === "alerts"   && (
+          <AlertsTab
+            warehouses={warehouses}
+            currentWarehouseId={currentWarehouseId}
+            onTransferPrefill={handleTransferPrefill}
+          />
+        )}
       </div>
 
       {/* ── Modal: إضافة مخزن ── */}
@@ -374,6 +424,25 @@ function TabBtn({ id, label, icon, active, onClick }: {
   );
 }
 
+function TabBtnBadge({ id, label, icon, badge, active, onClick }: {
+  id: Tab; label: string; icon: React.ReactNode; badge: number; active: Tab; onClick: (t: Tab) => void;
+}) {
+  const isActive = id === active;
+  return (
+    <button onClick={() => onClick(id)}
+      className={`flex items-center gap-2 px-5 py-2.5 text-sm font-bold border-b-2 transition-colors -mb-px ${
+        isActive ? "border-amber-400 text-amber-300" : "border-transparent text-white/50 hover:text-white/80"
+      }`}>
+      {icon}{label}
+      {badge > 0 && (
+        <span className="px-1.5 py-0.5 rounded-full text-xs font-bold bg-red-500/30 text-red-300 min-w-[1.25rem] text-center">
+          {badge}
+        </span>
+      )}
+    </button>
+  );
+}
+
 function StatCard({ label, value, icon, color, bg }: {
   label: string; value: string; icon: React.ReactNode; color: string; bg: string;
 }) {
@@ -411,6 +480,8 @@ function ReviewTab({ currentWarehouseId, canAdjustInventory, qc, toast }: {
   const [showAdjust, setShowAdjust]       = useState<number | null>(null);
   const [adjustQty, setAdjustQty]         = useState("");
   const [adjustNotes, setAdjustNotes]     = useState("");
+  const [showZeroOnly, setShowZeroOnly]   = useState(false);
+  const [showLowOnly,  setShowLowOnly]    = useState(false);
 
   const warehouseParam = currentWarehouseId ? `?warehouse_id=${currentWarehouseId}` : "";
 
@@ -450,6 +521,8 @@ function ReviewTab({ currentWarehouseId, canAdjustInventory, qc, toast }: {
       (p.sku ?? "").toLowerCase().includes(search.toLowerCase()) ||
       (p.category ?? "").toLowerCase().includes(search.toLowerCase())
     )
+    .filter(p => !showZeroOnly || p.actual_qty <= 0)
+    .filter(p => !showLowOnly  || (p.low_stock_threshold !== null && p.actual_qty <= p.low_stock_threshold))
     .sort((a, b) => {
       const va = a[sortKey]; const vb = b[sortKey];
       if (typeof va === "string" && typeof vb === "string")
@@ -467,7 +540,7 @@ function ReviewTab({ currentWarehouseId, canAdjustInventory, qc, toast }: {
 
   return (
     <div className="space-y-4">
-      {/* أسطورة الألوان + زر تحديث */}
+      {/* أسطورة الألوان + أزرار تصفية + زر تحديث */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex flex-wrap gap-1.5 text-xs">
           {[
@@ -496,12 +569,28 @@ function ReviewTab({ currentWarehouseId, canAdjustInventory, qc, toast }: {
         </div>
       )}
 
-      {/* بحث */}
-      <div className="relative">
-        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="ابحث عن منتج..."
-          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 pe-10 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-white/20" />
-        {search && <button onClick={() => setSearch("")} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"><X className="w-4 h-4" /></button>}
+      {/* بحث + فلاتر سريعة */}
+      <div className="flex gap-2 flex-wrap items-center">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="ابحث عن منتج..."
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 pe-10 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-white/20" />
+          {search && <button onClick={() => setSearch("")} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"><X className="w-4 h-4" /></button>}
+        </div>
+        <button
+          onClick={() => { setShowZeroOnly(p => !p); setShowLowOnly(false); }}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-colors border ${
+            showZeroOnly ? "bg-red-500/20 border-red-500/30 text-red-300" : "bg-white/5 border-white/10 text-white/50 hover:text-white"
+          }`}>
+          <TrendingDown className="w-3.5 h-3.5" /> منتجات بدون مخزون
+        </button>
+        <button
+          onClick={() => { setShowLowOnly(p => !p); setShowZeroOnly(false); }}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-colors border ${
+            showLowOnly ? "bg-amber-500/20 border-amber-500/30 text-amber-300" : "bg-white/5 border-white/10 text-white/50 hover:text-white"
+          }`}>
+          <AlertTriangle className="w-3.5 h-3.5" /> تحت حد الطلب فقط
+        </button>
       </div>
 
       {/* الجدول */}
@@ -588,7 +677,9 @@ function ReviewTab({ currentWarehouseId, canAdjustInventory, qc, toast }: {
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={12} className="text-center text-white/40 py-12">لا توجد منتجات</td></tr>
+                <tr><td colSpan={12} className="text-center text-white/40 py-12">
+                  {showZeroOnly ? "لا توجد منتجات نافدة" : showLowOnly ? "لا توجد منتجات تحت حد الطلب" : "لا توجد منتجات"}
+                </td></tr>
               )}
             </tbody>
             {filtered.length > 0 && (
@@ -730,7 +821,6 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
   const [sessionNotes, setSessionNotes] = useState("");
   const [countMode, setCountMode]     = useState<"full" | "partial">("full");
 
-  /* partial mode: product selector state */
   const [partialSearch, setPartialSearch]   = useState("");
   const [partialCategory, setPartialCategory] = useState("all");
   const [selectedProductIds, setSelectedProductIds] = useState<Set<number>>(new Set());
@@ -740,7 +830,6 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
   const [sessionView, setSessionView]   = useState<"new" | "history">("new");
   const [applyingId, setApplyingId]     = useState<number | null>(null);
 
-  /* reset quantities when warehouse changes */
   useEffect(() => {
     setPhysicalQtys({});
     setItemNotes({});
@@ -749,36 +838,31 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
 
   const warehouseParam = selectedWarehouse ? `?warehouse_id=${selectedWarehouse}` : "";
 
-  /* fetch per-warehouse audit to get calculated_qty (system stock for THIS warehouse) */
   const { data: auditData, isLoading: loadingProducts } = useQuery<{ products: AuditProduct[]; summary: AuditSummary }>({
     queryKey: ["inventory-audit", selectedWarehouse],
     queryFn: () => authFetch(api(`/api/inventory/audit${warehouseParam}`)).then(r => { if (!r.ok) throw new Error("خطأ"); return r.json(); }),
     enabled: selectedWarehouse > 0,
   });
 
-  const { data: sessions, refetch: refetchSessions } = useQuery<CountSession[]>({
-    queryKey: ["count-sessions"],
-    queryFn: () => authFetch(api("/api/inventory/count-sessions")).then(r => r.json()),
+  const { data: enrichedSessions, refetch: refetchSessions } = useQuery<CountSessionEnriched[]>({
+    queryKey: ["count-sessions-enriched"],
+    queryFn: () => authFetch(api("/api/inventory/count-sessions-enriched")).then(r => r.json()),
   });
 
   const allProducts = auditData?.products ?? [];
 
-  /* categories for filter */
   const categories = Array.from(new Set(allProducts.map(p => p.category).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b, "ar"));
 
-  /* products to show in the partial selector */
   const filteredForSelector = allProducts.filter(p => {
     const matchSearch = !partialSearch || p.name.toLowerCase().includes(partialSearch.toLowerCase()) || (p.sku ?? "").toLowerCase().includes(partialSearch.toLowerCase());
     const matchCat = partialCategory === "all" || p.category === partialCategory;
     return matchSearch && matchCat;
   });
 
-  /* products shown in the count table */
   const countTableProducts = countMode === "full"
     ? allProducts
     : allProducts.filter(p => selectedProductIds.has(p.id));
 
-  /* diff analytics */
   const enteredProducts = allProducts.filter(p => physicalQtys[p.id] !== undefined && physicalQtys[p.id] !== "");
   const itemsWithPosDiff = enteredProducts.filter(p => {
     const diff = parseFloat(physicalQtys[p.id] || "0") - p.calculated_qty;
@@ -839,8 +923,9 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
       setCountDate(today()); setCountTime(nowTime());
       setSelectedProductIds(new Set());
       qc.invalidateQueries({ queryKey: ["inventory-audit"] });
-      qc.invalidateQueries({ queryKey: ["count-sessions"] });
+      qc.invalidateQueries({ queryKey: ["count-sessions-enriched"] });
       qc.invalidateQueries({ queryKey: ["inventory-warehouse-summary"] });
+      qc.invalidateQueries({ queryKey: ["inventory-low-stock"] });
     },
     onError: (e) => toast({ title: (e as Error).message, variant: "destructive" }),
   });
@@ -854,14 +939,16 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
       refetchSessions();
       qc.invalidateQueries({ queryKey: ["inventory-audit"] });
       qc.invalidateQueries({ queryKey: ["inventory-warehouse-summary"] });
+      qc.invalidateQueries({ queryKey: ["inventory-low-stock"] });
       setApplyingId(null);
     },
     onError: (e) => { toast({ title: String(e), variant: "destructive" }); setApplyingId(null); },
   });
 
+  const sessions = safeArray(enrichedSessions) as CountSessionEnriched[];
+
   return (
     <div className="space-y-6">
-      {/* شريط التبديل بين جرد جديد وسجل الجلسات */}
       <div className="flex gap-2">
         <button onClick={() => setSessionView("new")}
           className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${sessionView === "new" ? "bg-violet-500 text-white" : "bg-white/10 text-white/60 hover:text-white"}`}>
@@ -869,7 +956,7 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
         </button>
         <button onClick={() => setSessionView("history")}
           className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${sessionView === "history" ? "bg-violet-500 text-white" : "bg-white/10 text-white/60 hover:text-white"}`}>
-          سجل الجرد ({safeArray(sessions).length})
+          سجل الجرد ({sessions.length})
         </button>
       </div>
 
@@ -906,7 +993,6 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
                   className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white text-sm placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-violet-400/50" />
               </div>
             </div>
-            {/* نوع الجرد */}
             <div className="flex items-center gap-4 pt-1">
               <span className="text-white/50 text-xs">نوع الجرد:</span>
               <div className="flex gap-2">
@@ -952,7 +1038,6 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
                 </div>
               </div>
 
-              {/* بحث + تصفية */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="relative">
                   <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
@@ -970,7 +1055,6 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
                 )}
               </div>
 
-              {/* قائمة المنتجات بصناديق الاختيار */}
               <div className="max-h-52 overflow-y-auto rounded-xl border border-white/8 divide-y divide-white/5">
                 {loadingProducts ? (
                   <div className="p-4 text-center text-white/40 text-sm">جاري التحميل...</div>
@@ -1078,7 +1162,6 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
                   {countTableProducts.map(p => {
                     const rawPhys = physicalQtys[p.id];
                     const physQty = rawPhys !== undefined && rawPhys !== "" ? parseFloat(rawPhys) : null;
-                    /* use calculated_qty (per-warehouse stock) as baseline */
                     const sysQty  = p.calculated_qty;
                     const diff    = physQty !== null ? physQty - sysQty : null;
                     const hasDiff = diff !== null && Math.abs(diff) > 0.001;
@@ -1089,12 +1172,10 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
                           {p.sku && <div className="text-white/40 text-xs">{p.sku}</div>}
                           {p.category && <div className="text-white/30 text-xs">{p.category}</div>}
                         </td>
-                        {/* كمية النظام في هذا المخزن */}
                         <td className="p-3">
                           <span className="font-mono text-white/80 font-bold text-sm">{sysQty.toFixed(2)}</span>
                           <span className="text-white/30 text-xs ms-1">وحدة</span>
                         </td>
-                        {/* إدخال الكمية الفعلية */}
                         <td className="p-3">
                           <input type="number" min="0" step="0.001"
                             value={physicalQtys[p.id] ?? ""}
@@ -1102,7 +1183,6 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
                             placeholder="أدخل الكمية"
                             className="w-32 bg-white/10 border border-white/20 rounded-lg px-2 py-1.5 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-violet-400/50 text-sm font-mono" />
                         </td>
-                        {/* الفرق مع ألوان واضحة */}
                         <td className="p-3 text-center font-mono w-28">
                           {diff === null
                             ? <span className="text-white/20">—</span>
@@ -1116,7 +1196,6 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
                                     {diff.toFixed(3)}
                                   </span>}
                         </td>
-                        {/* سبب الفرق — مطلوب فقط عند وجود فرق */}
                         <td className="p-3">
                           {hasDiff && (
                             <input type="text" value={itemNotes[p.id] ?? ""}
@@ -1142,44 +1221,68 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
         </div>
       )}
 
-      {/* سجل الجلسات */}
+      {/* سجل الجلسات — مُثرى */}
       {sessionView === "history" && (
         <div className="space-y-3">
-          {safeArray(sessions).length === 0 && (
+          {sessions.length === 0 && (
             <p className="text-white/40 text-center py-12">لا توجد جلسات جرد سابقة</p>
           )}
-          {safeArray(sessions).map(s => {
+          {sessions.map(s => {
             const whName = warehouses.find(w => w.id === s.warehouse_id)?.name ?? `مخزن #${s.warehouse_id}`;
+            const dateStr = new Date(s.created_at).toLocaleDateString("ar-EG", { year: "numeric", month: "short", day: "numeric" });
+            const timeStr = new Date(s.created_at).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" });
             return (
-              <div key={s.id} className="bg-[#111827] border border-white/8 rounded-2xl p-4 flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-white font-bold">جلسة #{s.id}</span>
-                    <span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${s.status === "applied" ? "bg-emerald-500/20 text-emerald-300" : "bg-amber-500/20 text-amber-300"}`}>
-                      {s.status === "applied" ? "مطبّق" : "مسودة"}
-                    </span>
-                  </div>
-                  <div className="text-white/40 text-xs mt-1">
-                    {whName} — {new Date(s.created_at).toLocaleDateString("ar-EG")}
-                    {s.notes && ` — ${s.notes}`}
-                  </div>
-                  {s.applied_at && (
-                    <div className="text-emerald-400/60 text-xs mt-0.5">
-                      طُبِّق: {new Date(s.applied_at).toLocaleDateString("ar-EG")}
+              <div key={s.id} className="bg-[#111827] border border-white/8 rounded-2xl p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-white font-bold">جلسة #{s.id}</span>
+                      <span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${s.status === "applied" ? "bg-emerald-500/20 text-emerald-300" : "bg-amber-500/20 text-amber-300"}`}>
+                        {s.status === "applied" ? "✓ مطبّق" : "مسودة"}
+                      </span>
+                      {s.items_count > 0 && (
+                        <span className="px-2 py-0.5 rounded-lg text-xs bg-white/5 text-white/50">
+                          {s.items_count} منتج
+                        </span>
+                      )}
+                      {s.adjustments_count > 0 && (
+                        <span className="px-2 py-0.5 rounded-lg text-xs bg-amber-500/10 text-amber-400">
+                          {s.adjustments_count} تسوية
+                        </span>
+                      )}
+                      {s.items_count > 0 && s.adjustments_count === 0 && s.status === "applied" && (
+                        <span className="px-2 py-0.5 rounded-lg text-xs bg-emerald-500/10 text-emerald-400">
+                          لا فروق
+                        </span>
+                      )}
                     </div>
+                    <div className="text-white/50 text-xs flex items-center gap-2">
+                      <Warehouse className="w-3 h-3 shrink-0" />
+                      <span>{whName}</span>
+                      <span className="text-white/20">·</span>
+                      <span>{dateStr} الساعة {timeStr}</span>
+                    </div>
+                    {s.notes && (
+                      <div className="text-white/30 text-xs truncate max-w-xs">{s.notes}</div>
+                    )}
+                    {s.applied_at && (
+                      <div className="text-emerald-400/50 text-xs">
+                        طُبِّق: {new Date(s.applied_at).toLocaleDateString("ar-EG")}
+                      </div>
+                    )}
+                  </div>
+                  {s.status === "draft" && (
+                    <button
+                      onClick={() => { setApplyingId(s.id); applyExistingMutation.mutate(s.id); }}
+                      disabled={applyExistingMutation.isPending && applyingId === s.id}
+                      className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 rounded-xl text-xs font-bold transition-colors disabled:opacity-50">
+                      {applyExistingMutation.isPending && applyingId === s.id
+                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                        : <CheckCircle className="w-3 h-3" />}
+                      تطبيق
+                    </button>
                   )}
                 </div>
-                {s.status === "draft" && (
-                  <button
-                    onClick={() => { setApplyingId(s.id); applyExistingMutation.mutate(s.id); }}
-                    disabled={applyExistingMutation.isPending && applyingId === s.id}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 rounded-xl text-xs font-bold transition-colors disabled:opacity-50">
-                    {applyExistingMutation.isPending && applyingId === s.id
-                      ? <Loader2 className="w-3 h-3 animate-spin" />
-                      : <CheckCircle className="w-3 h-3" />}
-                    تطبيق
-                  </button>
-                )}
               </div>
             );
           })}
@@ -1194,26 +1297,36 @@ function CountTab({ warehouses, currentWarehouseId, qc, toast }: {
  * ═══════════════════════════════════════════════════════════════════════════ */
 interface TransferLine { product_id: number; product_name: string; quantity: string }
 
-function TransferTab({ warehouses, qc, toast }: {
+function TransferTab({ warehouses, qc, toast, prefill, onClearPrefill }: {
   warehouses: { id: number; name: string }[];
   qc: ReturnType<typeof useQueryClient>;
   toast: ReturnType<typeof useToast>["toast"];
+  prefill: TransferPrefill | null;
+  onClearPrefill: () => void;
 }) {
   const defaultFirst  = warehouses[0]?.id ?? 1;
   const defaultSecond = warehouses[1]?.id ?? 2;
-  const [fromWH, setFromWH]         = useState<number>(defaultFirst);
-  const [toWH, setToWH]             = useState<number>(defaultSecond);
+  const [fromWH, setFromWH]               = useState<number>(defaultFirst);
+  const [toWH, setToWH]                   = useState<number>(defaultSecond);
   const [transferNotes, setTransferNotes] = useState("");
-  const [lines, setLines]           = useState<TransferLine[]>([{ product_id: 0, product_name: "", quantity: "" }]);
-  const [view, setView]             = useState<"new" | "history">("new");
+  const [lines, setLines]                 = useState<TransferLine[]>([{ product_id: 0, product_name: "", quantity: "" }]);
+  const [view, setView]                   = useState<"new" | "history">("new");
 
-  /* fetch global product list for names */
+  /* Apply prefill when navigated from AlertsTab */
+  useEffect(() => {
+    if (!prefill) return;
+    setFromWH(prefill.fromWH);
+    setToWH(prefill.toWH);
+    setLines([{ product_id: prefill.productId, product_name: prefill.productName, quantity: String(prefill.qty) }]);
+    setView("new");
+    onClearPrefill();
+  }, [prefill]);
+
   const { data: auditData } = useQuery<{ products: AuditProduct[] }>({
     queryKey: ["inventory-audit", null],
     queryFn: () => authFetch(api("/api/inventory/audit")).then(r => r.json()),
   });
 
-  /* fetch from-warehouse per-product stock */
   const { data: fromWhAudit, isLoading: loadingFromWh } = useQuery<{ products: AuditProduct[] }>({
     queryKey: ["inventory-audit", fromWH],
     queryFn: () => authFetch(api(`/api/inventory/audit?warehouse_id=${fromWH}`)).then(r => r.json()),
@@ -1221,17 +1334,18 @@ function TransferTab({ warehouses, qc, toast }: {
     staleTime: 15_000,
   });
 
-  const { data: transfers, refetch: refetchTransfers } = useQuery<StockTransfer[]>({
-    queryKey: ["inventory-transfers"],
-    queryFn: () => authFetch(api("/api/inventory/transfers")).then(r => r.json()),
+  const { data: enrichedTransfers, refetch: refetchTransfers } = useQuery<TransferEnriched[]>({
+    queryKey: ["inventory-transfers-enriched"],
+    queryFn: () => authFetch(api("/api/inventory/transfers-enriched")).then(r => r.json()),
   });
 
   const allProducts  = auditData?.products ?? [];
   const fromWhStock  = new Map((fromWhAudit?.products ?? []).map(p => [p.id, p.calculated_qty]));
 
-  /* reset lines when from-warehouse changes */
   useEffect(() => {
-    setLines([{ product_id: 0, product_name: "", quantity: "" }]);
+    if (!prefill) {
+      setLines([{ product_id: 0, product_name: "", quantity: "" }]);
+    }
   }, [fromWH]);
 
   function getAvailableQty(productId: number): number {
@@ -1269,6 +1383,7 @@ function TransferTab({ warehouses, qc, toast }: {
       setTransferNotes("");
       qc.invalidateQueries({ queryKey: ["inventory-audit"] });
       qc.invalidateQueries({ queryKey: ["inventory-warehouse-summary"] });
+      qc.invalidateQueries({ queryKey: ["inventory-low-stock"] });
       refetchTransfers();
     },
     onError: (e) => toast({ title: (e as Error).message, variant: "destructive" }),
@@ -1288,6 +1403,7 @@ function TransferTab({ warehouses, qc, toast }: {
   }
 
   const validLinesCount = lines.filter(l => l.product_id > 0 && parseFloat(l.quantity) > 0).length;
+  const transfers = safeArray(enrichedTransfers) as TransferEnriched[];
 
   return (
     <div className="space-y-6">
@@ -1298,13 +1414,12 @@ function TransferTab({ warehouses, qc, toast }: {
         </button>
         <button onClick={() => setView("history")}
           className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${view === "history" ? "bg-violet-500 text-white" : "bg-white/10 text-white/60 hover:text-white"}`}>
-          سجل التحويلات ({safeArray(transfers).length})
+          سجل التحويلات ({transfers.length})
         </button>
       </div>
 
       {view === "new" && (
         <div className="space-y-5">
-          {/* بيانات التحويل */}
           <div className="bg-[#111827] border border-white/8 rounded-2xl p-5 space-y-4">
             <h3 className="text-sm font-bold text-white/70 flex items-center gap-2">
               <Truck className="w-4 h-4 text-violet-400" /> بيانات التحويل
@@ -1341,7 +1456,6 @@ function TransferTab({ warehouses, qc, toast }: {
             </div>
           </div>
 
-          {/* جدول المنتجات */}
           <div className="bg-[#111827] border border-white/8 rounded-2xl p-5 space-y-4">
             <h3 className="text-sm font-bold text-white/70">المنتجات المحوَّلة</h3>
             <div className="space-y-3">
@@ -1352,7 +1466,6 @@ function TransferTab({ warehouses, qc, toast }: {
                 return (
                   <div key={idx} className={`border rounded-xl p-4 space-y-3 transition-colors ${insufficient ? "border-red-500/30 bg-red-500/5" : "border-white/8 bg-white/3"}`}>
                     <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-3 items-start">
-                      {/* اختيار المنتج */}
                       <div>
                         <label className="block text-white/50 text-xs mb-1.5">المنتج</label>
                         <select value={line.product_id} onChange={e => updateLine(idx, "product_id", e.target.value)}
@@ -1362,7 +1475,6 @@ function TransferTab({ warehouses, qc, toast }: {
                             <option key={p.id} value={p.id} className="bg-[#1a1a2e]">{p.name}</option>
                           ))}
                         </select>
-                        {/* عرض الكمية المتاحة في مخزن المصدر */}
                         {line.product_id > 0 && (
                           <div className={`mt-1 text-xs flex items-center gap-1 ${availableQty > 0 ? "text-white/40" : "text-red-400/70"}`}>
                             <span>متاح في {warehouses.find(w => w.id === fromWH)?.name ?? "المصدر"}:</span>
@@ -1373,7 +1485,6 @@ function TransferTab({ warehouses, qc, toast }: {
                           </div>
                         )}
                       </div>
-                      {/* الكمية */}
                       <div className="md:w-36">
                         <label className="block text-white/50 text-xs mb-1.5">الكمية</label>
                         <input type="number" min="0.001" step="0.001"
@@ -1384,7 +1495,6 @@ function TransferTab({ warehouses, qc, toast }: {
                             insufficient ? "border-red-500/40 focus:ring-red-400/40" : "border-white/20 focus:ring-violet-400/50"
                           }`} />
                       </div>
-                      {/* حذف السطر */}
                       <div className="flex items-end">
                         <button onClick={() => setLines(prev => prev.filter((_, i) => i !== idx))}
                           disabled={lines.length === 1}
@@ -1393,7 +1503,6 @@ function TransferTab({ warehouses, qc, toast }: {
                         </button>
                       </div>
                     </div>
-                    {/* تحذير الكمية غير الكافية */}
                     {insufficient && (
                       <div className="flex items-center gap-2 text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
                         <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
@@ -1412,7 +1521,6 @@ function TransferTab({ warehouses, qc, toast }: {
             </button>
           </div>
 
-          {/* زر التنفيذ */}
           <button
             onClick={() => transferMutation.mutate()}
             disabled={transferMutation.isPending || validLinesCount === 0 || fromWH === toWH || hasAnyInsufficientQty}
@@ -1427,36 +1535,272 @@ function TransferTab({ warehouses, qc, toast }: {
         </div>
       )}
 
-      {/* سجل التحويلات */}
+      {/* سجل التحويلات — مُثرى */}
       {view === "history" && (
         <div className="space-y-3">
-          {safeArray(transfers).length === 0 && (
+          {transfers.length === 0 && (
             <p className="text-white/40 text-center py-12">لا توجد تحويلات سابقة</p>
           )}
-          {safeArray(transfers).map(t => {
+          {transfers.map(t => {
             const fromName = warehouses.find(w => w.id === t.from_warehouse_id)?.name ?? `#${t.from_warehouse_id}`;
             const toName   = warehouses.find(w => w.id === t.to_warehouse_id)?.name   ?? `#${t.to_warehouse_id}`;
+            const dateStr  = new Date(t.created_at).toLocaleDateString("ar-EG", { year: "numeric", month: "short", day: "numeric" });
+            const timeStr  = new Date(t.created_at).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" });
             return (
               <div key={t.id} className="bg-[#111827] border border-white/8 rounded-2xl p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-white font-bold">تحويل #{t.id}</span>
-                    <span className="px-2 py-0.5 rounded-lg text-xs font-bold bg-emerald-500/20 text-emerald-300">
-                      {t.status === "completed" ? "مكتمل" : t.status}
-                    </span>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-white font-bold">تحويل #{t.id}</span>
+                      <span className="px-2 py-0.5 rounded-lg text-xs font-bold bg-emerald-500/20 text-emerald-300">
+                        {t.status === "completed" ? "✓ مكتمل" : t.status}
+                      </span>
+                      {t.items_count > 0 && (
+                        <span className="px-2 py-0.5 rounded-lg text-xs bg-white/5 text-white/50">
+                          {t.items_count} صنف
+                        </span>
+                      )}
+                      {t.total_qty > 0 && (
+                        <span className="px-2 py-0.5 rounded-lg text-xs bg-violet-500/10 text-violet-300">
+                          {t.total_qty.toFixed(2)} وحدة إجمالاً
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-amber-300 font-medium">{fromName}</span>
+                      <ArrowLeft className="w-4 h-4 text-white/30" />
+                      <span className="text-emerald-300 font-medium">{toName}</span>
+                    </div>
+                    <div className="text-white/30 text-xs">{dateStr} · {timeStr}</div>
+                    {t.notes && <p className="text-white/30 text-xs">{t.notes}</p>}
                   </div>
-                  <span className="text-white/30 text-xs">{new Date(t.created_at).toLocaleDateString("ar-EG")}</span>
                 </div>
-                <div className="flex items-center gap-2 mt-2 text-sm">
-                  <span className="text-amber-300 font-medium">{fromName}</span>
-                  <ArrowLeft className="w-4 h-4 text-white/30" />
-                  <span className="text-emerald-300 font-medium">{toName}</span>
-                </div>
-                {t.notes && <p className="text-white/30 text-xs mt-1">{t.notes}</p>}
               </div>
             );
           })}
         </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * TAB 4 — تنبيهات المخزون
+ * ═══════════════════════════════════════════════════════════════════════════ */
+function AlertsTab({ warehouses, currentWarehouseId, onTransferPrefill }: {
+  warehouses: { id: number; name: string }[];
+  currentWarehouseId: number | null;
+  onTransferPrefill: (prefill: TransferPrefill) => void;
+}) {
+  const [filterWH, setFilterWH] = useState<number | "all">("all");
+  const [showZeroOnly, setShowZeroOnly] = useState(false);
+
+  const { data, isLoading, refetch } = useQuery<{ items: LowStockItem[]; zero_count: number; low_count: number }>({
+    queryKey: ["inventory-low-stock"],
+    queryFn: () => authFetch(api("/api/inventory/low-stock")).then(r => r.json()),
+    staleTime: 30_000,
+  });
+
+  const allItems  = data?.items ?? [];
+  const zeroCount = data?.zero_count ?? 0;
+  const lowCount  = data?.low_count  ?? 0;
+
+  const uniqueWarehouses = Array.from(
+    new Map(allItems.map(i => [i.warehouse_id, i.warehouse_name])).entries()
+  ).map(([id, name]) => ({ id, name }));
+
+  const filtered = allItems
+    .filter(i => filterWH === "all" || i.warehouse_id === filterWH)
+    .filter(i => !showZeroOnly || i.is_zero);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        {[1, 2, 3].map(i => <div key={i} className="h-20 bg-white/5 rounded-2xl animate-pulse" />)}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* إحصائيات سريعة */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className={`rounded-2xl p-4 border flex items-center gap-3 ${zeroCount > 0 ? "bg-red-500/10 border-red-500/20" : "bg-white/5 border-white/5"}`}>
+          <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center shrink-0">
+            <TrendingDown className={`w-5 h-5 ${zeroCount > 0 ? "text-red-400" : "text-white/20"}`} />
+          </div>
+          <div>
+            <p className="text-white/40 text-xs">نفد المخزون</p>
+            <p className={`text-2xl font-bold ${zeroCount > 0 ? "text-red-400" : "text-white/30"}`}>{zeroCount}</p>
+          </div>
+        </div>
+        <div className={`rounded-2xl p-4 border flex items-center gap-3 ${lowCount > 0 ? "bg-amber-500/10 border-amber-500/20" : "bg-white/5 border-white/5"}`}>
+          <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center shrink-0">
+            <AlertTriangle className={`w-5 h-5 ${lowCount > 0 ? "text-amber-400" : "text-white/20"}`} />
+          </div>
+          <div>
+            <p className="text-white/40 text-xs">تحت حد الطلب</p>
+            <p className={`text-2xl font-bold ${lowCount > 0 ? "text-amber-400" : "text-white/30"}`}>{lowCount}</p>
+          </div>
+        </div>
+        <div className="rounded-2xl p-4 border bg-white/5 border-white/5 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center shrink-0">
+            <Bell className="w-5 h-5 text-white/20" />
+          </div>
+          <div>
+            <p className="text-white/40 text-xs">إجمالي التنبيهات</p>
+            <p className={`text-2xl font-bold ${zeroCount + lowCount > 0 ? "text-white" : "text-white/30"}`}>{zeroCount + lowCount}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* لا توجد تنبيهات */}
+      {allItems.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-20 text-center bg-emerald-500/5 border border-emerald-500/10 rounded-2xl">
+          <CheckCircle className="w-14 h-14 text-emerald-500/30 mb-4" />
+          <h3 className="text-white font-bold text-lg mb-1">المخزون في حالة ممتازة</h3>
+          <p className="text-white/40 text-sm">لا توجد منتجات تحت حد الطلب الدنى في أي مخزن</p>
+          <button onClick={() => refetch()} className="mt-4 flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-xl transition-colors">
+            <RefreshCw className="w-3.5 h-3.5" /> تحديث
+          </button>
+        </div>
+      )}
+
+      {allItems.length > 0 && (
+        <>
+          {/* فلاتر */}
+          <div className="flex gap-2 flex-wrap items-center">
+            <div className="flex items-center gap-1 text-white/50 text-xs">
+              <Filter className="w-3.5 h-3.5" /> تصفية:
+            </div>
+            <select
+              value={filterWH}
+              onChange={e => setFilterWH(e.target.value === "all" ? "all" : Number(e.target.value))}
+              className="bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-white text-xs focus:outline-none focus:ring-1 focus:ring-violet-400/40">
+              <option value="all" className="bg-[#1a1a2e]">جميع المخازن</option>
+              {uniqueWarehouses.map(w => (
+                <option key={w.id} value={w.id} className="bg-[#1a1a2e]">{w.name}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => setShowZeroOnly(p => !p)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors ${
+                showZeroOnly
+                  ? "bg-red-500/20 border-red-500/30 text-red-300"
+                  : "bg-white/5 border-white/10 text-white/50 hover:text-white"
+              }`}>
+              <TrendingDown className="w-3 h-3" /> نافد فقط
+            </button>
+            <div className="flex-1" />
+            <button onClick={() => refetch()} className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white/60 text-xs rounded-xl transition-colors border border-white/10">
+              <RefreshCw className="w-3 h-3" /> تحديث
+            </button>
+          </div>
+
+          {/* جدول التنبيهات */}
+          <div className="overflow-x-auto rounded-2xl border border-white/10">
+            <table className="w-full text-sm min-w-[900px]">
+              <thead>
+                <tr className="border-b border-white/10 bg-white/5">
+                  <th className="p-3 text-right text-white/60 font-medium">المنتج</th>
+                  <th className="p-3 text-right text-white/60 font-medium">المخزن</th>
+                  <th className="p-3 text-right text-white/60 font-medium">الكمية الحالية</th>
+                  <th className="p-3 text-right text-white/60 font-medium">الحد الدنى</th>
+                  <th className="p-3 text-right text-white/60 font-medium">العجز</th>
+                  <th className="p-3 text-right text-white/60 font-medium">مقترح الطلب</th>
+                  <th className="p-3 text-right text-white/60 font-medium">متاح في مخازن أخرى</th>
+                  <th className="p-3 text-right text-white/60 font-medium">إجراء</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="text-center text-white/30 py-10">
+                      {showZeroOnly ? "لا توجد منتجات نافدة في هذا المخزن" : "لا توجد تنبيهات بهذه الفلاتر"}
+                    </td>
+                  </tr>
+                )}
+                {filtered.map((item, idx) => (
+                  <tr key={`${item.product_id}-${item.warehouse_id}-${idx}`}
+                    className={`border-b border-white/5 erp-table-row ${item.is_zero ? "bg-red-500/5" : "bg-amber-500/5"}`}>
+                    <td className="p-3">
+                      <div className="flex items-center gap-2">
+                        {item.is_zero
+                          ? <TrendingDown className="w-4 h-4 text-red-400 shrink-0" />
+                          : <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />}
+                        <div>
+                          <div className="text-white font-medium">{item.product_name}</div>
+                          {item.sku && <div className="text-white/40 text-xs">{item.sku}</div>}
+                          {item.category && <div className="text-white/30 text-xs">{item.category}</div>}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-3">
+                      <span className="px-2 py-1 rounded-lg text-xs bg-white/5 text-white/60 font-medium">
+                        {item.warehouse_name}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <span className={`font-bold font-mono text-sm ${item.is_zero ? "text-red-400" : "text-amber-400"}`}>
+                        {item.current_qty.toFixed(2)}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <span className="text-white/60 font-mono text-sm">{item.min_stock}</span>
+                    </td>
+                    <td className="p-3">
+                      <span className="font-mono text-red-400 text-sm font-bold">
+                        {item.shortage > 0 ? `-${item.shortage.toFixed(2)}` : "—"}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <span className="px-2 py-1 rounded-lg text-xs bg-violet-500/10 text-violet-300 font-bold font-mono">
+                        {item.suggested_qty} وحدة
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      {item.available_elsewhere.length > 0 ? (
+                        <div className="space-y-1">
+                          {item.available_elsewhere.slice(0, 2).map(aw => (
+                            <div key={aw.warehouse_id} className="flex items-center gap-2">
+                              <span className="text-xs text-emerald-300 font-medium">{aw.warehouse_name}</span>
+                              <span className="text-emerald-400 font-mono text-xs font-bold">{aw.qty.toFixed(2)}</span>
+                            </div>
+                          ))}
+                          {item.available_elsewhere.length > 2 && (
+                            <div className="text-white/30 text-xs">+{item.available_elsewhere.length - 2} أخرى</div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-white/25 text-xs">غير متاح</span>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      {item.available_elsewhere.length > 0 ? (
+                        <button
+                          onClick={() => {
+                            const best = item.available_elsewhere[0];
+                            onTransferPrefill({
+                              fromWH:       best.warehouse_id,
+                              toWH:         item.warehouse_id,
+                              productId:    item.product_id,
+                              productName:  item.product_name,
+                              qty:          Math.min(item.suggested_qty, best.qty),
+                            });
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/20 transition-colors whitespace-nowrap">
+                          <ArrowRightLeft className="w-3 h-3" /> نقل من {item.available_elsewhere[0].warehouse_name}
+                        </button>
+                      ) : (
+                        <span className="text-white/20 text-xs">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );

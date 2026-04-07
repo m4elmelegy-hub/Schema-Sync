@@ -1,0 +1,159 @@
+Enhance the existing Inventory System (DO NOT rewrite or break current implementation).
+
+# CONTEXT
+
+A strong inventory system is already implemented:
+
+* warehouse-based stock calculations ✅
+* warehouse summary API ✅
+* full/partial stock count ✅
+* transfer validation ✅
+* clean UI structure ✅
+
+Your task is to EXTEND it into a full SaaS-grade system.
+
+---
+
+# 1) LOW STOCK + REORDER SYSTEM (ADD)
+
+## Extend product model:
+
+* min_stock (already exists or add if missing)
+* reorder_qty (optional)
+
+---
+
+## Compute per warehouse:
+
+qty = SUM(stock_movements WHERE product_id + warehouse_id)
+
+IF:
+qty <= min_stock → LOW STOCK
+
+---
+
+## UI:
+
+### Add new tab:
+
+"تنبيهات المخزون"
+
+Show table:
+
+* product
+* warehouse
+* current qty
+* min_stock
+* shortage
+
+Highlight:
+
+* red if qty = 0
+* amber if low
+
+---
+
+# 2) REORDER SUGGESTION
+
+For each low stock item:
+
+suggested_qty =
+MAX(min_stock * 2 - qty, reorder_qty OR 0)
+
+Display:
+"مقترح طلب: X وحدة"
+
+---
+
+# 3) PEER WAREHOUSE STOCK (SMART FEATURE)
+
+For each low stock item:
+
+Check other warehouses:
+IF same product exists with qty > min_stock
+
+Show:
+"متوفر في مخزن آخر: [warehouse name] — X وحدة"
+
+Add button:
+"نقل من هذا المخزن"
+
+Auto-fill TransferTab
+
+---
+
+# 4) INVENTORY VALUE CALCULATION FIX
+
+Ensure:
+
+* total_value per warehouse uses:
+  qty * product cost (if exists)
+
+Fallback:
+
+* use average cost from movements
+
+---
+
+# 5) HISTORY IMPROVEMENTS
+
+### Count history:
+
+* show:
+
+  * warehouse name
+  * date + time
+  * total adjustments
+  * status
+
+### Transfer history:
+
+* show:
+
+  * from → to
+  * number of items
+  * total qty
+
+---
+
+# 6) ZERO STOCK VIEW
+
+Add filter:
+"منتجات بدون مخزون"
+
+---
+
+# 7) PERFORMANCE
+
+* cache warehouse summary
+* avoid recalculating on every render
+
+---
+
+# 8) UX IMPROVEMENTS
+
+* keep current UI (DO NOT redesign completely)
+* improve only:
+
+  * spacing
+  * clarity
+  * labels
+
+---
+
+# 9) DO NOT TOUCH
+
+* existing count logic
+* existing transfer logic
+* existing APIs
+
+ONLY extend.
+
+---
+
+# OUTPUT
+
+* fully integrated low stock system
+* reorder suggestions
+* cross-warehouse intelligence
+* no regressions
