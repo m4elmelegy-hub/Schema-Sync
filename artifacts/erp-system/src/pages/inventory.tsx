@@ -19,6 +19,7 @@ import {
   useCreateSettingsWarehouse,
   useDeleteSettingsWarehouse,
 } from "@workspace/api-client-react";
+import InventoryReport from "./reports/InventoryReport";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
@@ -86,7 +87,7 @@ const movementTypeLabel: Record<string, { label: string; color: string }> = {
   transfer_in:     { label: "تحويل دخول",     color: "bg-cyan-500/20 text-cyan-300" },
 };
 
-type Tab = "review" | "count" | "transfer" | "alerts";
+type Tab = "review" | "count" | "transfer" | "alerts" | "reports";
 
 function today() { return new Date().toISOString().slice(0, 10); }
 function nowTime() { return new Date().toTimeString().slice(0, 5); }
@@ -301,6 +302,7 @@ export default function Inventory() {
             badge={alertsBadge}
             active={activeTab} onClick={setActiveTab}
           />
+          <TabBtn id="reports" label="تقارير المخزون" icon={<BarChart3 className="w-4 h-4" />} active={activeTab} onClick={setActiveTab} />
         </div>
 
         {activeTab === "review"   && <ReviewTab currentWarehouseId={currentWarehouseId} canAdjustInventory={canAdjustInventory} qc={qc} toast={toast} />}
@@ -319,6 +321,7 @@ export default function Inventory() {
             onTransferPrefill={handleTransferPrefill}
           />
         )}
+        {activeTab === "reports"  && <InventoryReport />}
       </div>
 
       {/* ── Modal: إضافة مخزن ── */}

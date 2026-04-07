@@ -13,7 +13,6 @@ import { api, authFetch, formatCurrency } from "./shared";
 import { safeArray } from "@/lib/safe-data";
 
 import ProfitLossReport        from "./ProfitLossReport";
-import InventoryReport         from "./InventoryReport";
 import SalesInvoicesReport     from "./SalesInvoicesReport";
 import PurchasesInvoicesReport from "./PurchasesInvoicesReport";
 import VouchersHistoryReport   from "./VouchersHistoryReport";
@@ -97,22 +96,25 @@ function FinancialConsistencyBar() {
 /* ── Tab config ─────────────────────────────────────────────────────────── */
 type Tab =
   | "health" | "pl" | "cashflow" | "balance" | "daily" | "products" | "analysis" | "customer"
-  | "top" | "inventory" | "sales" | "purchases" | "vouchers";
+  | "top" | "sales" | "purchases" | "vouchers";
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: "health",    label: "🩺 صحة النظام" },
-  { id: "pl",        label: "📊 الأرباح والخسائر" },
-  { id: "cashflow",  label: "💰 التدفق النقدي" },
-  { id: "balance",   label: "⚖️ الميزانية العمومية" },
-  { id: "daily",     label: "📅 يومي" },
-  { id: "products",  label: "📦 ربحية المنتجات" },
-  { id: "analysis",  label: "📈 تحليل المبيعات" },
-  { id: "customer",  label: "👤 كشف عميل" },
-  { id: "top",       label: "🏆 الأعلى" },
-  { id: "inventory", label: "🏪 المخزون" },
-  { id: "sales",     label: "🧾 فواتير المبيعات" },
-  { id: "purchases", label: "🛒 فواتير المشتريات" },
-  { id: "vouchers",  label: "🏦 سجل السندات" },
+const TABS: { id: Tab; label: string; group?: string }[] = [
+  /* ── النظام ── */
+  { id: "health",    label: "🩺 صحة النظام",        group: "النظام" },
+  /* ── مالي ── */
+  { id: "pl",        label: "📊 الأرباح والخسائر",   group: "مالي" },
+  { id: "cashflow",  label: "💰 التدفق النقدي",       group: "مالي" },
+  { id: "balance",   label: "⚖️ الميزانية",           group: "مالي" },
+  { id: "daily",     label: "📅 يومي",               group: "مالي" },
+  /* ── مبيعات ── */
+  { id: "products",  label: "📦 ربحية المنتجات",      group: "مبيعات" },
+  { id: "analysis",  label: "📈 تحليل المبيعات",      group: "مبيعات" },
+  { id: "top",       label: "🏆 الأعلى مبيعاً",       group: "مبيعات" },
+  { id: "customer",  label: "👤 كشف عميل",            group: "مبيعات" },
+  /* ── سجلات ── */
+  { id: "sales",     label: "🧾 فواتير المبيعات",     group: "سجلات" },
+  { id: "purchases", label: "🛒 فواتير المشتريات",    group: "سجلات" },
+  { id: "vouchers",  label: "🏦 سجل السندات",         group: "سجلات" },
 ];
 
 /* ── Main Page ──────────────────────────────────────────────────────────── */
@@ -131,16 +133,25 @@ export default function Reports() {
     </div>
   );
 
+  /* ── Group tabs by their group label ── */
+  const groups = Array.from(new Set(TABS.map(t => t.group ?? ""))).filter(Boolean);
+
   return (
-    <div className="space-y-4">
-      {/* ── Tab bar ── */}
-      <div className="no-print flex bg-white/5 rounded-2xl p-1 border border-white/10 flex-wrap gap-1">
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${tab === t.id ? "bg-amber-500 text-black shadow" : "text-white/50 hover:text-white"}`}
-            style={{ fontFamily:"'Tajawal','Cairo',sans-serif" }}>
-            {t.label}
-          </button>
+    <div className="space-y-4" dir="rtl">
+      {/* ── Tab bar — grouped ── */}
+      <div className="no-print space-y-1" style={{ fontFamily:"'Tajawal','Cairo',sans-serif" }}>
+        {groups.map(grp => (
+          <div key={grp} className="flex flex-wrap items-center gap-1">
+            <span className="text-white/20 text-xs font-bold w-12 shrink-0 text-left">{grp}</span>
+            <div className="flex flex-wrap gap-1">
+              {TABS.filter(t => t.group === grp).map(t => (
+                <button key={t.id} onClick={() => setTab(t.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${tab === t.id ? "bg-amber-500 text-black shadow" : "text-white/50 hover:text-white bg-white/5 border border-white/8"}`}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
 
@@ -158,7 +169,6 @@ export default function Reports() {
           {tab === "cashflow"  && <CashFlowReport />}
           {tab === "balance"   && <BalanceSheetReport />}
           {tab === "top"       && <TopReportsTab />}
-          {tab === "inventory" && <InventoryReport />}
           {tab === "sales"     && <SalesInvoicesReport />}
           {tab === "purchases" && <PurchasesInvoicesReport />}
           {tab === "vouchers"  && <VouchersHistoryReport />}
