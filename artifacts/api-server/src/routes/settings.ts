@@ -132,7 +132,10 @@ router.delete("/settings/users/:id", authenticate, requireRole("admin"), async (
 
 router.get("/settings/safes", async (req, res) => {
   try {
-    const safes = await db.select().from(safesTable).orderBy(safesTable.id);
+    const companyId = req.user?.company_id ?? null;
+    const safes = await db.select().from(safesTable)
+      .where(companyId !== null ? eq(safesTable.company_id, companyId) : undefined)
+      .orderBy(safesTable.id);
     res.json(safes);
   } catch (e) {
     res.status(500).json({ error: "فشل جلب الخزائن" });
@@ -142,7 +145,8 @@ router.get("/settings/safes", async (req, res) => {
 router.post("/settings/safes", authenticate, requireRole("admin"), async (req, res) => {
   try {
     const { name, balance } = req.body;
-    const [safe] = await db.insert(safesTable).values({ name, balance: String(balance || 0) }).returning();
+    const companyId = req.user?.company_id ?? undefined;
+    const [safe] = await db.insert(safesTable).values({ name, balance: String(balance || 0), company_id: companyId }).returning();
     res.json(safe);
   } catch (e) {
     res.status(500).json({ error: "فشل إضافة الخزنة" });
@@ -348,7 +352,10 @@ router.get("/settings/safes/:id/statement", authenticate, async (req, res) => {
 
 router.get("/settings/warehouses", async (req, res) => {
   try {
-    const warehouses = await db.select().from(warehousesTable).orderBy(warehousesTable.id);
+    const companyId = req.user?.company_id ?? null;
+    const warehouses = await db.select().from(warehousesTable)
+      .where(companyId !== null ? eq(warehousesTable.company_id, companyId) : undefined)
+      .orderBy(warehousesTable.id);
     res.json(warehouses);
   } catch (e) {
     res.status(500).json({ error: "فشل جلب المخازن" });
@@ -358,7 +365,8 @@ router.get("/settings/warehouses", async (req, res) => {
 router.post("/settings/warehouses", authenticate, requireRole("admin"), async (req, res) => {
   try {
     const { name, address } = req.body;
-    const [warehouse] = await db.insert(warehousesTable).values({ name, address: address || null }).returning();
+    const companyId = req.user?.company_id ?? undefined;
+    const [warehouse] = await db.insert(warehousesTable).values({ name, address: address || null, company_id: companyId }).returning();
     res.json(warehouse);
   } catch (e) {
     res.status(500).json({ error: "فشل إضافة المخزن" });

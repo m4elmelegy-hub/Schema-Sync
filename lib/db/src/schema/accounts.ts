@@ -13,6 +13,7 @@ export const accountsTable = pgTable("accounts", {
   opening_balance: numeric("opening_balance", { precision: 12, scale: 2 }).notNull().default("0"),
   current_balance: numeric("current_balance", { precision: 12, scale: 2 }).notNull().default("0"),
   is_active: boolean("is_active").notNull().default(true),
+  company_id: integer("company_id").notNull().default(1),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("accounts_type_idx").on(t.type),
@@ -29,6 +30,7 @@ export const journalEntriesTable = pgTable("journal_entries", {
   reference: text("reference"),
   total_debit: numeric("total_debit", { precision: 12, scale: 2 }).notNull().default("0"),
   total_credit: numeric("total_credit", { precision: 12, scale: 2 }).notNull().default("0"),
+  company_id: integer("company_id").notNull().default(1),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("journal_entries_date_idx").on(t.date),

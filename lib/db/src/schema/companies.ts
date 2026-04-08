@@ -6,8 +6,9 @@ export const companiesTable = pgTable("companies", {
   plan_type:  text("plan_type").notNull().default("trial"), // trial | basic | pro
   start_date: date("start_date").notNull(),
   end_date:   date("end_date").notNull(),
-  is_active:  boolean("is_active").notNull().default(true),
-  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  is_active:   boolean("is_active").notNull().default(true),
+  admin_email: text("admin_email"),
+  created_at:  timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export type Company = typeof companiesTable.$inferSelect;

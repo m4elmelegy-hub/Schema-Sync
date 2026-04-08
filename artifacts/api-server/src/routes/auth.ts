@@ -216,4 +216,171 @@ router.get("/auth/me", authenticate, (req, res) => {
   });
 });
 
+/* ── POST /auth/register — SaaS: register new company + first admin ─ */
+router.post("/auth/register", async (req, res) => {
+  try {
+    const { company_name, admin_name, email, password } = req.body as {
+      company_name?: string; admin_name?: string; email?: string; password?: string;
+    };
+
+    if (!company_name?.trim())
+      { res.status(400).json({ error: "اسم الشركة مطلوب" }); return; }
+    if (!admin_name?.trim())
+      { res.status(400).json({ error: "اسم المسؤول مطلوب" }); return; }
+    if (!email?.trim() || !email.includes("@"))
+      { res.status(400).json({ error: "بريد إلكتروني صحيح مطلوب" }); return; }
+    if (!password || password.length < 6)
+      { res.status(400).json({ error: "كلمة المرور يجب أن تكون 6 أحرف على الأقل" }); return; }
+
+    const normalEmail = email.toLowerCase().trim();
+
+    /* Check duplicate email */
+    const [existing] = await db
+      .select({ id: erpUsersTable.id })
+      .from(erpUsersTable)
+      .where(eq(erpUsersTable.email, normalEmail));
+    if (existing)
+      { res.status(409).json({ error: "البريد الإلكتروني مستخدم بالفعل" }); return; }
+
+    /* Create company — trial 7 days */
+    const today    = new Date();
+    const trialEnd = new Date(today);
+    trialEnd.setDate(trialEnd.getDate() + 7);
+
+    const [company] = await db
+      .insert(companiesTable)
+      .values({
+        name:        company_name.trim(),
+        plan_type:   "trial",
+        start_date:  today.toISOString().slice(0, 10),
+        end_date:    trialEnd.toISOString().slice(0, 10),
+        is_active:   true,
+        admin_email: normalEmail,
+      })
+      .returning();
+
+    /* Create first admin user */
+    const baseUsername = normalEmail.split("@")[0].toLowerCase().replace(/[^a-z0-9_]/g, "") || "admin";
+    const username     = `${baseUsername}_${company.id}`;
+    const hashedPw     = await hashPin(password);
+
+    const [user] = await db
+      .insert(erpUsersTable)
+      .values({
+        name:       admin_name.trim(),
+        username,
+        email:      normalEmail,
+        pin:        hashedPw,
+        role:       "admin",
+        active:     true,
+        company_id: company.id,
+        permissions: "{}",
+      })
+      .returning();
+
+    const token = signToken(user.id, user.role);
+
+    res.status(201).json({
+      token,
+      user: {
+        id:           user.id,
+        name:         user.name,
+        username:     user.username,
+        role:         user.role,
+        permissions:  {},
+        active:       true,
+        warehouse_id: null,
+        safe_id:      null,
+      },
+      company: {
+        id:        company.id,
+        name:      company.name,
+        plan_type: company.plan_type,
+        end_date:  company.end_date,
+        daysRemaining: 7,
+      },
+    });
+  } catch {
+    res.status(500).json({ error: "فشل إنشاء الحساب — حاول مجدداً" });
+  }
+});
+
+/* ── POST /auth/login/email — email + password SaaS login ─── */
+router.post("/auth/login/email", async (req, res) => {
+  try {
+    const { email, password } = req.body as { email?: string; password?: string };
+
+    if (!email?.trim() || !email.includes("@"))
+      { res.status(400).json({ error: "بريد إلكتروني صحيح مطلوب" }); return; }
+    if (!password)
+      { res.status(400).json({ error: "كلمة المرور مطلوبة" }); return; }
+
+    const normalEmail = email.toLowerCase().trim();
+
+    const [user] = await db
+      .select()
+      .from(erpUsersTable)
+      .where(eq(erpUsersTable.email, normalEmail));
+
+    if (!user || user.active === false)
+      { res.status(401).json({ error: "البريد الإلكتروني أو كلمة المرور غير صحيحة" }); return; }
+
+    /* Lockout check using email-based key */
+    const lockout = getLockout(user.id);
+    if (lockout.lockedUntil !== null && Date.now() < lockout.lockedUntil) {
+      const remaining = Math.ceil((lockout.lockedUntil - Date.now()) / 60000);
+      res.status(429).json({ error: `تم تجميد الحساب. انتظر ${remaining} دقيقة` });
+      return;
+    }
+
+    const valid = await verifyPin(password, user.pin ?? "");
+    if (!valid) {
+      const updated = recordFailure(user.id);
+      const rem = MAX_ATTEMPTS - updated.attempts;
+      res.status(401).json({
+        error: rem > 0
+          ? `كلمة المرور غير صحيحة — تبقّى ${rem} محاولة`
+          : "تم تجميد الحساب لمدة 15 دقيقة",
+      });
+      return;
+    }
+
+    /* Subscription check */
+    if (user.company_id) {
+      const [company] = await db
+        .select()
+        .from(companiesTable)
+        .where(eq(companiesTable.id, user.company_id));
+      if (company) {
+        if (!company.is_active)
+          { res.status(403).json({ error: "الاشتراك معطل — تواصل مع المدير", suspended: true }); return; }
+        const days = daysRemaining(company.end_date);
+        if (days < 0)
+          { res.status(403).json({ error: "انتهت صلاحية الاشتراك", expired: true, endDate: company.end_date }); return; }
+      }
+    }
+
+    clearLockout(user.id);
+    const token = signToken(user.id, user.role);
+    let parsedPerms: Record<string, boolean> = {};
+    try { parsedPerms = JSON.parse(user.permissions ?? "{}") as Record<string, boolean>; } catch { /* ignore */ }
+
+    res.json({
+      token,
+      user: {
+        id:           user.id,
+        name:         user.name,
+        username:     user.username,
+        role:         user.role,
+        permissions:  parsedPerms,
+        active:       user.active ?? true,
+        warehouse_id: user.warehouse_id ?? null,
+        safe_id:      user.safe_id ?? null,
+      },
+    });
+  } catch {
+    res.status(500).json({ error: "فشل تسجيل الدخول" });
+  }
+});
+
 export default router;

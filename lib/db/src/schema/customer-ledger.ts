@@ -35,6 +35,7 @@ export const customerLedgerTable = pgTable("customer_ledger", {
 
   description: text("description"),
   date: text("date"),
+  company_id: integer("company_id").notNull().default(1),
 
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [

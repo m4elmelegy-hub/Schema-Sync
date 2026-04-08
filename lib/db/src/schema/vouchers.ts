@@ -16,6 +16,7 @@ export const receiptVouchersTable = pgTable("receipt_vouchers", {
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
   posting_status: text("posting_status").notNull().default("draft"), // draft | posted | cancelled
   notes: text("notes"),
+  company_id: integer("company_id").notNull().default(1),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("receipt_vouchers_customer_id_idx").on(t.customer_id),
@@ -40,6 +41,7 @@ export const depositVouchersTable = pgTable("deposit_vouchers", {
   posting_status: text("posting_status").notNull().default("draft"), // draft | posted | cancelled
   source: text("source"), // مصدر المبلغ (عند عدم وجود عميل)
   notes: text("notes"),
+  company_id: integer("company_id").notNull().default(1),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("deposit_vouchers_customer_id_idx").on(t.customer_id),
@@ -63,6 +65,7 @@ export const paymentVouchersTable = pgTable("payment_vouchers", {
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
   posting_status: text("posting_status").notNull().default("draft"), // draft | posted | cancelled
   notes: text("notes"),
+  company_id: integer("company_id").notNull().default(1),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("payment_vouchers_customer_id_idx").on(t.customer_id),

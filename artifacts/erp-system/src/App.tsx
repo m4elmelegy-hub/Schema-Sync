@@ -34,6 +34,7 @@ const Products             = lazy(() => import("@/pages/products"));
 const Inventory            = lazy(() => import("@/pages/inventory"));
 const Vouchers             = lazy(() => import("@/pages/vouchers"));
 const POS                  = lazy(() => import("@/pages/pos"));
+const SuperAdmin           = lazy(() => import("@/pages/super-admin"));
 
 /* ── QueryClient with staleTime for performance ─────────── */
 const queryClient = new QueryClient({
@@ -76,7 +77,16 @@ function Router() {
       : <Redirect to="/login" />;
   }
   if (location === "/login") {
-    return <Redirect to="/" />;
+    return user.role === "super_admin" ? <Redirect to="/super-admin" /> : <Redirect to="/" />;
+  }
+
+  /* ── Super admin: isolated full-screen panel ─────────── */
+  if (user.role === "super_admin") {
+    return (
+      <Suspense fallback={<PageFallback />}>
+        <SuperAdmin />
+      </Suspense>
+    );
   }
 
   /* ── POS: full-screen standalone (no sidebar / layout) ── */

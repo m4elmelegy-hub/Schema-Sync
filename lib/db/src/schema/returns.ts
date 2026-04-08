@@ -100,6 +100,7 @@ export const treasuryVouchersTable = pgTable("treasury_vouchers", {
   party_name: text("party_name"),
   description: text("description").notNull(),
   category: text("category"),
+  company_id: integer("company_id").notNull().default(1),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("treasury_vouchers_safe_id_idx").on(t.safe_id),

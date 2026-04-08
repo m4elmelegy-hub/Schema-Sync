@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db, incomeTable, transactionsTable, safesTable } from "@workspace/db";
 import {
   GetIncomeResponse,
@@ -15,8 +15,11 @@ function formatIncome(i: typeof incomeTable.$inferSelect) {
   return { ...i, amount: Number(i.amount), created_at: i.created_at.toISOString() };
 }
 
-router.get("/income", wrap(async (_req, res) => {
-  const income = await db.select().from(incomeTable).orderBy(incomeTable.created_at);
+router.get("/income", wrap(async (req, res) => {
+  const companyId = req.user?.company_id ?? null;
+  const income = await db.select().from(incomeTable)
+    .where(companyId !== null ? eq(incomeTable.company_id, companyId) : undefined)
+    .orderBy(incomeTable.created_at);
   res.json(GetIncomeResponse.parse(income.map(formatIncome)));
 }));
 
@@ -35,12 +38,14 @@ router.post("/income", wrap(async (req, res) => {
       await tx.update(safesTable).set({ balance: String(Number(s.balance) + amt) }).where(eq(safesTable.id, s.id));
       safe = s;
     }
+    const companyId = req.user?.company_id ?? undefined;
     const [inc] = await tx.insert(incomeTable).values({
       source: parsed.data.source,
       amount: String(amt),
       description: parsed.data.description ?? null,
       safe_id: safe?.id ?? null,
       safe_name: safe?.name ?? null,
+      company_id: companyId,
     }).returning();
     await tx.insert(transactionsTable).values({
       type: "income", reference_type: "income", reference_id: inc.id,
@@ -48,6 +53,7 @@ router.post("/income", wrap(async (req, res) => {
       amount: String(amt), direction: safe ? "in" : "none",
       description: parsed.data.description ?? parsed.data.source,
       date: new Date().toISOString().split("T")[0],
+      company_id: companyId,
     });
     return inc;
   });

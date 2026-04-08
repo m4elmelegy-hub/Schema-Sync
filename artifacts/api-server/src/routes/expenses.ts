@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db, expensesTable, transactionsTable, safesTable } from "@workspace/db";
 import {
   GetExpensesResponse,
@@ -23,7 +23,10 @@ router.get("/expenses", wrap(async (req, res) => {
   if (!hasPermission(req.user, "can_view_expenses")) {
     res.status(403).json({ error: "غير مصرح بعرض المصروفات" }); return;
   }
-  const expenses = await db.select().from(expensesTable).orderBy(expensesTable.created_at);
+  const companyId = req.user?.company_id ?? null;
+  const expenses = await db.select().from(expensesTable)
+    .where(companyId !== null ? eq(expensesTable.company_id, companyId) : undefined)
+    .orderBy(expensesTable.created_at);
   res.json(GetExpensesResponse.parse(expenses.map(formatExpense)));
 }));
 
@@ -49,12 +52,14 @@ router.post("/expenses", wrap(async (req, res) => {
       await tx.update(safesTable).set({ balance: String(Number(s.balance) - amt) }).where(eq(safesTable.id, s.id));
       safe = s;
     }
+    const companyId = req.user?.company_id ?? undefined;
     const [exp] = await tx.insert(expensesTable).values({
       category: parsed.data.category,
       amount: String(amt),
       description: parsed.data.description ?? null,
       safe_id: safe?.id ?? null,
       safe_name: safe?.name ?? null,
+      company_id: companyId,
     }).returning();
     await tx.insert(transactionsTable).values({
       type: "expense", reference_type: "expense", reference_id: exp.id,
@@ -62,6 +67,7 @@ router.post("/expenses", wrap(async (req, res) => {
       amount: String(amt), direction: safe ? "out" : "none",
       description: parsed.data.description ?? parsed.data.category,
       date: new Date().toISOString().split("T")[0],
+      company_id: companyId,
     });
     return { exp, safe };
   });

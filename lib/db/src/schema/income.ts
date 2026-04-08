@@ -10,6 +10,7 @@ export const incomeTable = pgTable("income", {
   // الخزينة التي دُفع فيها هذا الإيراد
   safe_id: integer("safe_id"),
   safe_name: text("safe_name"),
+  company_id: integer("company_id").notNull().default(1),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("income_safe_id_idx").on(t.safe_id),

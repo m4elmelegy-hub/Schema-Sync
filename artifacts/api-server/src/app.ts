@@ -96,6 +96,8 @@ app.use("/api", generalLimiter);
 
 /* Apply stricter limiter to auth routes */
 app.use("/api/auth/login", authLimiter);
+app.use("/api/auth/register", authLimiter);
+app.use("/api/auth/login/email", authLimiter);
 
 app.use("/api", router);
 

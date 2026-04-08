@@ -32,6 +32,7 @@ import companiesRouter from "./companies";
 import integrityRouter from "./integrity";
 import inventoryControlRouter from "./inventory-control";
 import categoriesRouter from "./categories";
+import superRouter from "./super";
 
 const router: IRouter = Router();
 
@@ -63,6 +64,7 @@ router.use(financialTransactionsRouter);
 router.use(adminRouter);
 router.use(profitsRouter);
 router.use(inventoryRouter);
+router.use(superRouter);
 router.use(reportsRouter);
 router.use(openingBalanceRouter);
 router.use(contactsRouter);

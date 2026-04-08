@@ -4,6 +4,7 @@ export const erpUsersTable = pgTable("erp_users", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   username: text("username").notNull(),
+  email: text("email"),
   pin: text("pin").default("0000"),
   role: text("role").notNull().default("cashier"),
   permissions: text("permissions").default("{}"),
