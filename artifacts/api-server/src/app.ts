@@ -3,6 +3,8 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import pinoHttp from "pino-http";
+import path from "path";
+import { fileURLToPath } from "url";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
@@ -100,6 +102,21 @@ app.use("/api/auth/register", authLimiter);
 app.use("/api/auth/login/email", authLimiter);
 
 app.use("/api", router);
+
+/* ── Production: serve React frontend static files ─────────── */
+if (process.env.NODE_ENV === "production") {
+  const currentDir = path.dirname(fileURLToPath(import.meta.url));
+  const frontendDist =
+    process.env.FRONTEND_DIST ||
+    path.resolve(currentDir, "../../erp-system/dist/public");
+  app.use(express.static(frontendDist, { maxAge: "1h", etag: true }));
+  /* SPA fallback: serve index.html for any non-API path */
+  app.use((req, res, next) => {
+    if (req.path.startsWith("/api")) return next();
+    res.sendFile(path.join(frontendDist, "index.html"));
+  });
+  logger.info({ frontendDist }, "Serving frontend static files");
+}
 
 /* ── Global error handler — no stack traces in responses ───── */
 const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {

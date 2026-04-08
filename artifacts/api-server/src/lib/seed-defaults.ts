@@ -26,10 +26,7 @@ export async function seedDefaults(): Promise<void> {
         role:     DEFAULT_ROLE,
         active:   true,
       });
-      logger.info("Default admin created: admin / 123456");
-      console.log("\n========================================");
-      console.log("  Default admin created: admin / 123456");
-      console.log("========================================\n");
+      logger.info("Default admin created — username: admin, PIN: 123456");
     }
 
     /* ── PIN Migration: hash any plain-text PINs remaining in DB ── */
