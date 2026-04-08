@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
 export interface AuthUser {
   id: number;
@@ -14,15 +14,19 @@ export interface AuthUser {
 interface AuthContextType {
   user: AuthUser | null;
   token: string | null;
+  subscriptionExpired: boolean;
   login: (user: AuthUser, token: string) => void;
   logout: () => void;
+  clearSubscriptionExpired: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   token: null,
+  subscriptionExpired: false,
   login: () => {},
   logout: () => {},
+  clearSubscriptionExpired: () => {},
 });
 
 const USER_KEY  = "erp_current_user";
@@ -56,11 +60,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.getItem(TOKEN_KEY),
   );
 
+  const [subscriptionExpired, setSubscriptionExpired] = useState(false);
+
+  /* Listen for subscription:expired events fired by authFetch */
+  useEffect(() => {
+    const handler = () => {
+      if (user && user.role !== "super_admin") {
+        setSubscriptionExpired(true);
+      }
+    };
+    window.addEventListener("subscription:expired", handler);
+    return () => window.removeEventListener("subscription:expired", handler);
+  }, [user]);
+
   const login = (u: AuthUser, t: string) => {
     localStorage.setItem(USER_KEY, JSON.stringify(u));
     localStorage.setItem(TOKEN_KEY, t);
     setUser(u);
     setToken(t);
+    setSubscriptionExpired(false);
   };
 
   const logout = () => {
@@ -68,10 +86,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(TOKEN_KEY);
     setUser(null);
     setToken(null);
+    setSubscriptionExpired(false);
   };
 
+  const clearSubscriptionExpired = () => setSubscriptionExpired(false);
+
   return (
-    <AuthContext.Provider value={{ user, token, login, logout }}>
+    <AuthContext.Provider value={{ user, token, subscriptionExpired, login, logout, clearSubscriptionExpired }}>
       {children}
     </AuthContext.Provider>
   );

@@ -9,6 +9,7 @@ export const auditLogsTable = pgTable("audit_logs", {
   new_value: jsonb("new_value"),              // snapshot after change  (null for delete)
   user_id: integer("user_id"),
   username: text("username"),
+  company_id: integer("company_id").notNull().default(1),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -1,7 +1,7 @@
 /**
- * period-lock.ts — قفل الفترة المحاسبية
+ * period-lock.ts — قفل الفترة المحاسبية (multi-tenant)
  *
- * إذا كان closing_date مُعيَّناً في system_settings، يُمنع أيّ تعديل أو حذف أو
+ * إذا كان closing_date مُعيَّناً في system_settings للشركة، يُمنع أيّ تعديل أو حذف أو
  * إلغاء لأيّ مستند تاريخه ≤ closing_date.
  *
  * الاستخدام:
@@ -11,46 +11,54 @@
  *   أرسل { admin_override: true } في body مع مستخدم دوره "admin".
  */
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db, systemSettingsTable } from "@workspace/db";
 import { httpError } from "./async-handler";
 import { writeAuditLog } from "./audit-log";
 import type { Request } from "express";
 
 const CACHE_TTL_MS = 5_000; // إعادة القراءة من DB كل 5 ثواني كحد أقصى
-let cachedDate: string | null | undefined = undefined;
-let cacheExpiry = 0;
+
+/* Per-company cache: companyId → { date, expiry } */
+const cache = new Map<number, { date: string | null; expiry: number }>();
 
 /**
  * يُعيد تاريخ الإغلاق الحالي (YYYY-MM-DD) أو null إذا لم يُعيَّن.
  * يستخدم ذاكرة مؤقتة قصيرة لتجنب قراءة DB عند كل طلب.
  */
-export async function getClosingDate(): Promise<string | null> {
+export async function getClosingDate(companyId: number = 1): Promise<string | null> {
   const now = Date.now();
-  if (cachedDate !== undefined && now < cacheExpiry) return cachedDate;
+  const cached = cache.get(companyId);
+  if (cached && now < cached.expiry) return cached.date;
 
   const [row] = await db
     .select({ value: systemSettingsTable.value })
     .from(systemSettingsTable)
-    .where(eq(systemSettingsTable.key, "closing_date"));
+    .where(
+      and(
+        eq(systemSettingsTable.key, "closing_date"),
+        eq(systemSettingsTable.company_id, companyId),
+      )
+    );
 
-  cachedDate = row?.value ?? null;
-  cacheExpiry = now + CACHE_TTL_MS;
-  return cachedDate ?? null;
+  const date = row?.value ?? null;
+  cache.set(companyId, { date, expiry: now + CACHE_TTL_MS });
+  return date;
 }
 
 /**
  * ضع هذا الاستدعاء في أي مُعالج كتابة قبل أيّ منطق عمل.
  *
  * @param docDate  تاريخ المستند (YYYY-MM-DD) أو null/undefined (يُستخدم تاريخ اليوم)
- * @param req      كائن الطلب (يُستخدم للتحقق من دور الأدمن)
+ * @param req      كائن الطلب (يُستخدم للتحقق من دور الأدمن وcompany_id)
  * @throws 423 Locked إذا كانت الفترة مقفلة وليس هناك تجاوز مسموح
  */
 export async function assertPeriodOpen(
   docDate: string | null | undefined,
   req: Request,
 ): Promise<void> {
-  const closingDate = await getClosingDate();
+  const companyId  = req.user?.company_id ?? 1;
+  const closingDate = await getClosingDate(companyId);
   if (!closingDate) return; // لا قفل مُفعَّل
 
   const date = (docDate ?? new Date().toISOString().split("T")[0]).slice(0, 10);
@@ -58,7 +66,7 @@ export async function assertPeriodOpen(
 
   // التاريخ ضمن الفترة المقفلة
   // السماح للأدمن بالتجاوز إذا أرسل admin_override: true
-  const isAdmin   = req.user?.role === "admin";
+  const isAdmin          = req.user?.role === "admin";
   const overrideRequested = req.body?.admin_override === true;
   if (isAdmin && overrideRequested) {
     void writeAuditLog({
@@ -81,7 +89,10 @@ export async function assertPeriodOpen(
 }
 
 /** مسح الذاكرة المؤقتة (يُستدعى عند تغيير الإعداد) */
-export function invalidateClosingDateCache(): void {
-  cachedDate = undefined;
-  cacheExpiry = 0;
+export function invalidateClosingDateCache(companyId?: number): void {
+  if (companyId !== undefined) {
+    cache.delete(companyId);
+  } else {
+    cache.clear();
+  }
 }

@@ -33,6 +33,7 @@ import integrityRouter from "./integrity";
 import inventoryControlRouter from "./inventory-control";
 import categoriesRouter from "./categories";
 import superRouter from "./super";
+import branchesRouter from "./branches";
 
 const router: IRouter = Router();
 
@@ -75,5 +76,6 @@ router.use(companiesRouter);
 router.use(integrityRouter);
 router.use(inventoryControlRouter);
 router.use(categoriesRouter);
+router.use(branchesRouter);
 
 export default router;

@@ -12,6 +12,7 @@ import { canAccess, type UserRole } from "@/lib/rbac";
 import { Spinner } from "@/components/ui/spinner";
 import NotFound from "@/pages/not-found";
 import AccessDenied from "@/pages/access-denied";
+import SubscriptionExpired from "@/pages/subscription-expired";
 
 /* ── Lazy-loaded pages ─────────────────────────────────── */
 const Login                = lazy(() => import("@/pages/login"));
@@ -68,7 +69,7 @@ function Guard({ path, component: Component }: { path: string; component: React.
 }
 
 function Router() {
-  const { user } = useAuth();
+  const { user, subscriptionExpired } = useAuth();
   const [location] = useLocation();
 
   if (!user) {
@@ -78,6 +79,11 @@ function Router() {
   }
   if (location === "/login") {
     return user.role === "super_admin" ? <Redirect to="/super-admin" /> : <Redirect to="/" />;
+  }
+
+  /* ── Subscription expired: full-screen block ─────────── */
+  if (subscriptionExpired) {
+    return <SubscriptionExpired />;
   }
 
   /* ── Super admin: isolated full-screen panel ─────────── */

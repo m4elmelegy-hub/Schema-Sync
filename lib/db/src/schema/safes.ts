@@ -5,6 +5,7 @@ export const safesTable = pgTable("safes", {
   name: text("name").notNull(),
   balance: numeric("balance", { precision: 12, scale: 2 }).default("0"),
   company_id: integer("company_id").notNull().default(1),
+  branch_id:  integer("branch_id"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

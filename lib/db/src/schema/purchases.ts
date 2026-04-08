@@ -19,6 +19,7 @@ export const purchasesTable = pgTable("purchases", {
   notes: text("notes"),
   date: text("date"),
   company_id: integer("company_id").notNull().default(1),
+  branch_id:  integer("branch_id"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("purchases_customer_id_idx").on(t.customer_id),

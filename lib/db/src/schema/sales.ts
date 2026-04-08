@@ -27,6 +27,7 @@ export const salesTable = pgTable("sales", {
   date: text("date"),
   user_id: integer("user_id"),
   company_id: integer("company_id").notNull().default(1),
+  branch_id:  integer("branch_id"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("sales_user_id_idx").on(t.user_id),

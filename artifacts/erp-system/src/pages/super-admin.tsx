@@ -44,8 +44,12 @@ export default function SuperAdmin() {
   const { user, token, logout }   = useAuth();
   const [, setLocation] = useLocation();
   const qc              = useQueryClient();
-  const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [extendDays,  setExtendDays]  = useState<Record<number, number>>({});
+  const [expandedId,    setExpandedId]    = useState<number | null>(null);
+  const [extendDays,    setExtendDays]    = useState<Record<number, number>>({});
+  const [showCreate,    setShowCreate]    = useState(false);
+  const [newName,       setNewName]       = useState("");
+  const [newPlan,       setNewPlan]       = useState("trial");
+  const [newDays,       setNewDays]       = useState(14);
 
   /* Redirect non-super_admin */
   if (user?.role !== "super_admin") {
@@ -80,6 +84,14 @@ export default function SuperAdmin() {
       }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/super/companies"] }); qc.invalidateQueries({ queryKey: ["/api/super/stats"] }); },
   });
+
+  const handleCreate = () => {
+    if (!newName.trim()) return;
+    mutate.mutate(
+      { url: "/api/super/companies", method: "POST", body: { name: newName.trim(), plan_type: newPlan, days: newDays } },
+      { onSuccess: () => { setShowCreate(false); setNewName(""); setNewPlan("trial"); setNewDays(14); } },
+    );
+  };
 
   const pillStyle = (status: string) => {
     const c = STATUS_COLORS[status] ?? STATUS_COLORS.active;
@@ -128,8 +140,76 @@ export default function SuperAdmin() {
         <div style={{ background: "#fff", borderRadius: "20px", border: "1px solid #e5e7eb", overflow: "hidden", boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
           <div style={{ padding: "20px 24px", borderBottom: "1px solid #f3f4f6", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <h2 style={{ fontSize: "16px", fontWeight: 800, color: "#111827" }}>الشركات المسجّلة</h2>
-            <div style={{ fontSize: "12px", color: "#6b7280" }}>{companies.length} شركة</div>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <span style={{ fontSize: "12px", color: "#6b7280" }}>{companies.length} شركة</span>
+              <button
+                onClick={() => setShowCreate(v => !v)}
+                style={{
+                  display: "flex", alignItems: "center", gap: "6px",
+                  padding: "7px 14px", borderRadius: "10px",
+                  background: showCreate ? "#ede9fe" : "#4f46e5",
+                  color: showCreate ? "#4f46e5" : "#fff",
+                  border: "none", fontSize: "13px", fontWeight: 700, cursor: "pointer",
+                  fontFamily: "inherit", transition: "all 0.15s",
+                }}
+              >
+                <span>{showCreate ? "✕" : "+"}</span>
+                <span>{showCreate ? "إلغاء" : "شركة جديدة"}</span>
+              </button>
+            </div>
           </div>
+
+          {/* ── Create Company form ─────────────────────── */}
+          {showCreate && (
+            <div style={{ padding: "20px 24px", background: "#f5f3ff", borderBottom: "1px solid #e5e7eb" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "flex-end" }}>
+                <div style={{ flex: "2 1 200px" }}>
+                  <label style={{ fontSize: "12px", fontWeight: 700, color: "#374151", display: "block", marginBottom: "6px" }}>اسم الشركة *</label>
+                  <input
+                    value={newName}
+                    onChange={e => setNewName(e.target.value)}
+                    placeholder="مثال: شركة الأمل التجارية"
+                    style={{ width: "100%", border: "1.5px solid #c4b5fd", borderRadius: "8px", padding: "8px 12px", fontSize: "14px", outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
+                  />
+                </div>
+                <div style={{ flex: "1 1 130px" }}>
+                  <label style={{ fontSize: "12px", fontWeight: 700, color: "#374151", display: "block", marginBottom: "6px" }}>نوع الاشتراك</label>
+                  <select
+                    value={newPlan}
+                    onChange={e => setNewPlan(e.target.value)}
+                    style={{ width: "100%", border: "1.5px solid #c4b5fd", borderRadius: "8px", padding: "8px 10px", fontSize: "14px", background: "#fff", fontFamily: "inherit" }}
+                  >
+                    <option value="trial">تجريبي</option>
+                    <option value="basic">أساسي</option>
+                    <option value="professional">احترافي</option>
+                    <option value="paid">مدفوع</option>
+                  </select>
+                </div>
+                <div style={{ flex: "1 1 110px" }}>
+                  <label style={{ fontSize: "12px", fontWeight: 700, color: "#374151", display: "block", marginBottom: "6px" }}>المدة (أيام)</label>
+                  <select
+                    value={newDays}
+                    onChange={e => setNewDays(Number(e.target.value))}
+                    style={{ width: "100%", border: "1.5px solid #c4b5fd", borderRadius: "8px", padding: "8px 10px", fontSize: "14px", background: "#fff", fontFamily: "inherit" }}
+                  >
+                    {[7, 14, 30, 60, 90, 180, 365].map(d => <option key={d} value={d}>{d} يوم</option>)}
+                  </select>
+                </div>
+                <button
+                  onClick={handleCreate}
+                  disabled={!newName.trim() || mutate.isPending}
+                  style={{
+                    padding: "9px 20px", borderRadius: "10px", border: "none",
+                    background: newName.trim() ? "#4f46e5" : "#c4b5fd",
+                    color: "#fff", fontSize: "14px", fontWeight: 700, cursor: newName.trim() ? "pointer" : "default",
+                    fontFamily: "inherit", flexShrink: 0,
+                  }}
+                >
+                  {mutate.isPending ? "جاري الإنشاء..." : "إنشاء الشركة"}
+                </button>
+              </div>
+            </div>
+          )}
 
           {isLoading ? (
             <div style={{ padding: "60px", textAlign: "center", color: "#9ca3af" }}>جاري التحميل...</div>

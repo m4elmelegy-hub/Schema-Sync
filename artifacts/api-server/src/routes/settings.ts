@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, desc, or, count } from "drizzle-orm";
+import { eq, desc, or, count, and } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { authenticate, requireRole } from "../middleware/auth";
 import { hashPin } from "../lib/hash";
@@ -407,20 +407,25 @@ router.delete("/settings/warehouses/:id", authenticate, requireRole("admin"), as
 
 // ─── PERIOD LOCK (closing_date + metadata) ────────────────────────────────────
 
-/** Helper: upsert a single system_settings key */
-async function upsertSetting(key: string, value: string | null) {
+/** Helper: upsert a single system_settings key for a given company */
+async function upsertSetting(key: string, value: string | null, companyId: number = 1) {
   if (value === null) {
-    await db.delete(systemSettingsTable).where(eq(systemSettingsTable.key, key));
+    await db.delete(systemSettingsTable)
+      .where(and(eq(systemSettingsTable.key, key), eq(systemSettingsTable.company_id, companyId)));
   } else {
     await db.insert(systemSettingsTable)
-      .values({ key, value })
-      .onConflictDoUpdate({ target: systemSettingsTable.key, set: { value, updated_at: new Date() } });
+      .values({ key, company_id: companyId, value })
+      .onConflictDoUpdate({
+        target: [systemSettingsTable.key, systemSettingsTable.company_id],
+        set:    { value, updated_at: new Date() },
+      });
   }
 }
 
-/** Helper: read multiple settings keys at once */
-async function readSettings(keys: string[]): Promise<Record<string, string | null>> {
-  const rows = await db.select().from(systemSettingsTable);
+/** Helper: read multiple settings keys at once for a given company */
+async function readSettings(keys: string[], companyId: number = 1): Promise<Record<string, string | null>> {
+  const rows = await db.select().from(systemSettingsTable)
+    .where(eq(systemSettingsTable.company_id, companyId));
   const map: Record<string, string | null> = {};
   for (const k of keys) map[k] = null;
   for (const r of rows) if (keys.includes(r.key)) map[r.key] = r.value ?? null;
@@ -431,9 +436,10 @@ async function readSettings(keys: string[]): Promise<Record<string, string | nul
  * GET /settings/period
  * يُعيد حالة الإغلاق الكاملة مع البيانات الوصفية.
  */
-router.get("/settings/period", async (_req, res) => {
+router.get("/settings/period", async (req, res) => {
   try {
-    const s = await readSettings(["closing_date", "lock_locked_by", "lock_locked_at", "lock_mode"]);
+    const companyId = req.user?.company_id ?? 1;
+    const s = await readSettings(["closing_date", "lock_locked_by", "lock_locked_at", "lock_mode"], companyId);
     res.json({
       closing_date:   s["closing_date"],
       locked_by:      s["lock_locked_by"],
@@ -455,8 +461,9 @@ router.get("/settings/period", async (_req, res) => {
 router.put("/settings/period", authenticate, requireRole("admin"), async (req, res) => {
   try {
     const { closing_date, unlock_reason, lock_mode } = req.body;
-    const username = (req as any).user?.username ?? "مجهول";
-    const userId   = (req as any).user?.id ?? null;
+    const username  = (req as any).user?.username  ?? "مجهول";
+    const userId    = (req as any).user?.id        ?? null;
+    const companyId = (req as any).user?.company_id ?? 1;
 
     if (closing_date) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(closing_date)) {
@@ -464,10 +471,10 @@ router.put("/settings/period", authenticate, requireRole("admin"), async (req, r
         return;
       }
       // حفظ التاريخ والبيانات الوصفية
-      await upsertSetting("closing_date",   closing_date);
-      await upsertSetting("lock_locked_by", username);
-      await upsertSetting("lock_locked_at", new Date().toISOString());
-      await upsertSetting("lock_mode",      lock_mode ?? "manual");
+      await upsertSetting("closing_date",   closing_date,                companyId);
+      await upsertSetting("lock_locked_by", username,                    companyId);
+      await upsertSetting("lock_locked_at", new Date().toISOString(),    companyId);
+      await upsertSetting("lock_mode",      lock_mode ?? "manual",       companyId);
 
       // سجل المراجعة
       await writeAuditLog({
@@ -483,11 +490,11 @@ router.put("/settings/period", authenticate, requireRole("admin"), async (req, r
         res.status(400).json({ error: "يجب إدخال سبب فتح الفترة (3 أحرف على الأقل)" });
         return;
       }
-      const prev = await readSettings(["closing_date", "lock_locked_by"]);
-      await upsertSetting("closing_date",   null);
-      await upsertSetting("lock_locked_by", null);
-      await upsertSetting("lock_locked_at", null);
-      await upsertSetting("lock_mode",      null);
+      const prev = await readSettings(["closing_date", "lock_locked_by"], companyId);
+      await upsertSetting("closing_date",   null, companyId);
+      await upsertSetting("lock_locked_by", null, companyId);
+      await upsertSetting("lock_locked_at", null, companyId);
+      await upsertSetting("lock_mode",      null, companyId);
 
       // سجل المراجعة
       await writeAuditLog({
@@ -500,8 +507,8 @@ router.put("/settings/period", authenticate, requireRole("admin"), async (req, r
       });
     }
 
-    invalidateClosingDateCache();
-    const updated = await readSettings(["closing_date", "lock_locked_by", "lock_locked_at", "lock_mode"]);
+    invalidateClosingDateCache(companyId);
+    const updated = await readSettings(["closing_date", "lock_locked_by", "lock_locked_at", "lock_mode"], companyId);
     res.json({
       closing_date: updated["closing_date"],
       locked_by:    updated["lock_locked_by"],

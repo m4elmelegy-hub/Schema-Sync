@@ -1,0 +1,177 @@
+# [HALAL TECH ERP — SaaS Multi-Tenant Transformation]
+
+You are working on a production ERP system called **Halal Tech ERP** built with:
+
+- React 19 + Vite + TypeScript + Tailwind + Radix UI (Frontend)
+- Express 5 + Drizzle ORM + PostgreSQL (Backend)
+- pnpm monorepo structure
+
+## Current State Analysis
+
+The database already has a `companies` table and `company_id` on `erp_users`, but **multi-tenancy is NOT enforced** anywhere in the API. All users see all data — this is a critical security issue.
+
+**Schema already in place:**
+
+```
+companies: { id, name, plan_type (trial|basic|pro), start_date, end_date, is_active, admin_email, created_at }
+erp_users: { id, name, username, pin, role, permissions, active, company_id, warehouse_id, safe_id, ... }
+system_settings: { key, value, updated_at }  ← single global — needs per-company
+```
+
+## What You Must Build
+
+### 1. Add `company_id` to ALL data tables
+
+Add `company_id integer NOT NULL` (with foreign key to `companies.id`) to every data table:
+`products, categories, customers, suppliers, sales, purchases, expenses, income, transactions, safes, warehouses, accounts, returns, vouchers, stock_movements, audit_logs, alerts, backups, customer_ledger, stock_count, stock_transfers`
+
+Also update `system_settings` to add `company_id` as part of the primary key:
+
+```typescript
+export const systemSettingsTable = pgTable("system_settings", {
+  key: text("key").notNull(),
+  company_id: integer("company_id").notNull().references(() => companiesTable.id),
+  value: text("value"),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({ pk: primaryKey({ columns: [t.key, t.company_id] }) }));
+```
+
+### 2. JWT must carry company context
+
+Update the JWT payload to include:
+
+```typescript
+{ userId, username, role, company_id, plan_type, subscription_end }
+```
+
+### 3. Enforce tenant isolation middleware
+
+Create `artifacts/api-server/src/middleware/tenant.ts`:
+
+- Extracts company_id from JWT and attaches to req
+- Blocks request if company is_active = false
+- Blocks request if today > subscription end_date → return 403 with `{ error: "subscription_expired" }`
+- Blocks request if company_id missing from token
+- Apply this middleware to ALL `/api/*` routes EXCEPT `/api/auth/login`
+
+### 4. Inject company_id in ALL queries
+
+Every db.select, db.insert, db.update, db.delete must include `.where(eq(table.company_id, req.company_id))`.
+
+Create helper: `artifacts/api-server/src/lib/tenant-query.ts`
+
+### 5. Branches (فروع) per company
+
+Add a `branches` table:
+
+```typescript
+export const branchesTable = pgTable("branches", {
+  id: serial("id").primaryKey(),
+  company_id: integer("company_id").notNull().references(() => companiesTable.id),
+  name: text("name").notNull(),
+  address: text("address"),
+  is_active: boolean("is_active").notNull().default(true),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+```
+
+Add `branch_id` to: `sales, purchases, safes, warehouses, stock_movements, expenses, income`
+
+### 6. Role hierarchy (4 levels)
+
+```
+super_admin    → Owner — sees ALL companies, manages subscriptions
+company_admin  → Client admin — manages their company + all branches
+branch_manager → Manages one branch only
+cashier/agent  → Limited to their safe/warehouse
+```
+
+Update `erp_users.role` to support: `super_admin | company_admin | branch_manager | agent | cashier | client`
+
+### 7. Super Admin Dashboard (NEW page)
+
+Create a completely separate protected route `/super-admin` (only accessible with role = super_admin) with:
+
+**Companies Management page:**
+
+- Table of all companies: name, plan, start_date, end_date, is_active, user count
+- Actions: Add company, Edit, Activate/Deactivate, Extend subscription, Delete
+- Filter by: plan_type, is_active, expiring soon (within 7 days)
+
+**Subscription Management:**
+
+- Plan types: `trial` (7 days) | `basic` (monthly) | `pro` (yearly)
+- Manual extension of any company subscription
+- Bulk actions: activate all, deactivate expired
+
+**Stats cards:**
+
+- Total companies, Active companies, Expiring this week, Total revenue (manual entry)
+
+### 8. Company Admin features
+
+When role = company_admin:
+
+- Can manage their own users (add/edit/delete/activate)
+- Can manage branches (add/edit/activate)
+- Can see all branches data in reports
+- CANNOT see other companies data (enforced by tenant middleware)
+- Cannot promote anyone to super_admin
+
+### 9. Subscription expiry enforcement
+
+- When subscription expires → all users of that company get 403 on every API call
+- Frontend shows full-screen “subscription expired” page with contact info
+- Trial companies get a banner: “X days remaining in trial”
+- super_admin is NEVER blocked by subscription checks
+
+### 10. Seed data update
+
+Update `seed-defaults.ts`:
+
+- Create default company: `{ name: "Halal Tech Demo", plan_type: "pro", start_date: today, end_date: today + 10 years }`
+- Create super_admin user: `{ username: "superadmin", pin: "000000", role: "super_admin", company_id: 1 }`
+- Create demo company_admin: `{ username: "admin", pin: "123456", role: "company_admin", company_id: 1 }`
+- Only seed if tables are empty
+
+### 11. Security hardening
+
+- Rate limiting: max 5 failed login attempts per IP per 15 minutes → block with 429
+- All PINs must be hashed with bcrypt (not stored as plain text)
+- Add `last_login` timestamp to `erp_users`
+- Add `login_attempts` counter to `erp_users`
+- Add zod validation on ALL API routes
+
+### 12. New API routes needed
+
+```
+POST   /api/auth/login                  ← public (no tenant check)
+GET    /api/super-admin/companies       ← super_admin only
+POST   /api/super-admin/companies       ← super_admin only
+PATCH  /api/super-admin/companies/:id   ← super_admin only
+DELETE /api/super-admin/companies/:id   ← super_admin only
+GET    /api/branches                    ← company_admin + branch_manager
+POST   /api/branches                    ← company_admin only
+PATCH  /api/branches/:id                ← company_admin only
+```
+
+## Constraints (مهم جداً)
+
+- Do NOT break any existing functionality
+- All existing routes must continue to work — just add company_id filtering
+- Run `pnpm run push` in `lib/db` after every schema change
+- Keep all existing UI pages working — only ADD new pages/components
+- All new UI must match existing design system (Tajawal/Cairo fonts, dark mode, existing color tokens)
+- The super admin dashboard must be in Arabic RTL like the rest of the app
+
+## Delivery Order
+
+1. Schema changes (add company_id to all tables + branches table) + run push
+1. Tenant middleware (tenant.ts)
+1. Update JWT payload + auth login route
+1. Update ALL queries to filter by company_id
+1. Branches CRUD (backend + frontend)
+1. Super Admin dashboard UI (/super-admin route)
+1. Subscription expiry UI (expired page + trial banner)
+1. Security hardening (bcrypt + rate limiting + zod)
+1. Full end-to-end test

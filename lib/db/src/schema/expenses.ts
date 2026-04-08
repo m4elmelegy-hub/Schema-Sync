@@ -11,6 +11,7 @@ export const expensesTable = pgTable("expenses", {
   safe_id: integer("safe_id"),
   safe_name: text("safe_name"),
   company_id: integer("company_id").notNull().default(1),
+  branch_id:  integer("branch_id"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("expenses_safe_id_idx").on(t.safe_id),
