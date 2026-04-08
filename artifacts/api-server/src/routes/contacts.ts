@@ -3,7 +3,7 @@
  * كشف الحساب الشامل للعميل — يدمج مبيعات + مشتريات + مرتجعات + سندات قبض/صرف
  */
 import { Router, type IRouter } from "express";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import {
   db,
   customersTable,
@@ -28,17 +28,22 @@ type StatRow = {
 };
 
 router.get("/contacts/:id/full-statement", wrap(async (req, res) => {
+  const cid: number = (req as any).user?.company_id ?? 1;
   const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
 
-  const [c] = await db.select().from(customersTable).where(eq(customersTable.id, id));
+  const [c] = await db.select().from(customersTable)
+    .where(and(eq(customersTable.id, id), eq(customersTable.company_id, cid)));
   if (!c) { res.status(404).json({ error: "العميل غير موجود" }); return; }
 
   const rows: StatRow[] = [];
 
   // رصيد أول المدة
   const openings = await db.select().from(transactionsTable)
-    .where(eq(transactionsTable.reference_type, "customer_opening"));
+    .where(and(
+      eq(transactionsTable.reference_type, "customer_opening"),
+      eq(transactionsTable.company_id, cid),
+    ));
   const ob = openings.filter(o => o.reference_id === id);
   const openingCredit = ob.reduce((s, o) => s + Number(o.amount), 0);
   if (openingCredit !== 0) {
@@ -47,48 +52,64 @@ router.get("/contacts/:id/full-statement", wrap(async (req, res) => {
 
   // مبيعات
   const sales = await db.select().from(salesTable)
-    .where(eq(salesTable.customer_id, id)).orderBy(desc(salesTable.created_at));
+    .where(and(eq(salesTable.customer_id, id), eq(salesTable.company_id, cid)))
+    .orderBy(desc(salesTable.created_at));
   for (const s of sales) {
     rows.push({ date: s.date ?? s.created_at.toISOString().split("T")[0], type: "sale", description: `فاتورة مبيعات ${s.invoice_no ?? ""}`, debit: 0, credit: Number(s.total_amount), reference_no: s.invoice_no });
   }
 
   // مرتجعات مبيعات
   const saleReturns = await db.select().from(salesReturnsTable)
-    .where(eq(salesReturnsTable.customer_id, id)).orderBy(desc(salesReturnsTable.created_at));
+    .where(and(eq(salesReturnsTable.customer_id, id), eq(salesReturnsTable.company_id, cid)))
+    .orderBy(desc(salesReturnsTable.created_at));
   for (const r of saleReturns) {
     rows.push({ date: r.date ?? r.created_at.toISOString().split("T")[0], type: "sale_return", description: `مرتجع مبيعات ${r.return_no ?? ""}`, debit: Number(r.total_amount), credit: 0, reference_no: r.return_no });
   }
 
   // سندات قبض
   const receiptTx = await db.select().from(transactionsTable)
-    .where(eq(transactionsTable.reference_type, "receipt_voucher")).orderBy(desc(transactionsTable.created_at));
-  for (const v of receiptTx.filter(v => v.reference_id === id)) {
+    .where(and(
+      eq(transactionsTable.reference_type, "receipt_voucher"),
+      eq(transactionsTable.company_id, cid),
+    ))
+    .orderBy(desc(transactionsTable.created_at));
+  for (const v of receiptTx.filter(v => v.customer_id === id)) {
     rows.push({ date: v.date ?? v.created_at.toISOString().split("T")[0], type: "receipt_voucher", description: v.description ?? "سند قبض", debit: Number(v.amount), credit: 0 });
   }
 
   // سندات صرف للعميل
   const payTx = await db.select().from(transactionsTable)
-    .where(eq(transactionsTable.reference_type, "payment_voucher")).orderBy(desc(transactionsTable.created_at));
-  for (const v of payTx.filter(v => v.reference_id === id)) {
+    .where(and(
+      eq(transactionsTable.reference_type, "payment_voucher"),
+      eq(transactionsTable.company_id, cid),
+    ))
+    .orderBy(desc(transactionsTable.created_at));
+  for (const v of payTx.filter(v => v.customer_id === id)) {
     rows.push({ date: v.date ?? v.created_at.toISOString().split("T")[0], type: "payment_voucher", description: v.description ?? "سند صرف", debit: 0, credit: Number(v.amount) });
   }
 
   // إذا كان عميل-مورد: مشتريات + مرتجعات مشتريات + سداد موردين
   if (c.is_supplier) {
     const purchases = await db.select().from(purchasesTable)
-      .where(eq(purchasesTable.customer_id, id)).orderBy(desc(purchasesTable.created_at));
+      .where(and(eq(purchasesTable.customer_id, id), eq(purchasesTable.company_id, cid)))
+      .orderBy(desc(purchasesTable.created_at));
     for (const p of purchases) {
       rows.push({ date: p.date ?? p.created_at.toISOString().split("T")[0], type: "purchase", description: `فاتورة شراء ${p.invoice_no ?? ""}`, debit: 0, credit: Number(p.total_amount), reference_no: p.invoice_no });
     }
 
     const purchaseReturns = await db.select().from(purchaseReturnsTable)
-      .where(eq(purchaseReturnsTable.customer_id, id)).orderBy(desc(purchaseReturnsTable.created_at));
+      .where(and(eq(purchaseReturnsTable.customer_id, id), eq(purchaseReturnsTable.company_id, cid)))
+      .orderBy(desc(purchaseReturnsTable.created_at));
     for (const r of purchaseReturns) {
       rows.push({ date: r.date ?? r.created_at.toISOString().split("T")[0], type: "purchase_return", description: `مرتجع مشتريات ${r.return_no}`, debit: Number(r.total_amount), credit: 0, reference_no: r.return_no });
     }
 
     const supplierPayTx = await db.select().from(transactionsTable)
-      .where(eq(transactionsTable.reference_type, "supplier_payment")).orderBy(desc(transactionsTable.created_at));
+      .where(and(
+        eq(transactionsTable.reference_type, "supplier_payment"),
+        eq(transactionsTable.company_id, cid),
+      ))
+      .orderBy(desc(transactionsTable.created_at));
     for (const p of supplierPayTx.filter(p => p.reference_id === id)) {
       rows.push({ date: p.date ?? p.created_at.toISOString().split("T")[0], type: "supplier_payment", description: p.description ?? "سداد للمورد", debit: Number(p.amount), credit: 0 });
     }

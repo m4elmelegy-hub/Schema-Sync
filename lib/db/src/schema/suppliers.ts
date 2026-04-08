@@ -14,7 +14,7 @@ export const suppliersTable = pgTable("suppliers", {
   company_id: integer("company_id").notNull().default(1),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
-  unique("suppliers_supplier_code_unique").on(t.supplier_code),
+  unique("suppliers_supplier_code_company_unique").on(t.supplier_code, t.company_id),
 ]);
 
 export const insertSupplierSchema = createInsertSchema(suppliersTable).omit({ id: true, created_at: true });

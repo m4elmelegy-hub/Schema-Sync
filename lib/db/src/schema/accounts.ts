@@ -1,10 +1,10 @@
-import { pgTable, serial, text, numeric, integer, boolean, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, integer, boolean, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 export const accountsTable = pgTable("accounts", {
   id: serial("id").primaryKey(),
-  code: text("code").notNull().unique(),
+  code: text("code").notNull(),
   name: text("name").notNull(),
   type: text("type").notNull(), // asset, liability, equity, revenue, expense
   parent_id: integer("parent_id"),
@@ -19,6 +19,7 @@ export const accountsTable = pgTable("accounts", {
   index("accounts_type_idx").on(t.type),
   index("accounts_parent_id_idx").on(t.parent_id),
   index("accounts_is_active_idx").on(t.is_active),
+  uniqueIndex("accounts_code_company_uidx").on(t.code, t.company_id),
 ]);
 
 export const journalEntriesTable = pgTable("journal_entries", {

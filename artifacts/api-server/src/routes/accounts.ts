@@ -1,9 +1,13 @@
-import { Router, type IRouter } from "express";
-import { eq, asc } from "drizzle-orm";
+import { Router, type IRouter, type Request } from "express";
+import { eq, asc, and } from "drizzle-orm";
 import { db, accountsTable, journalEntriesTable, journalEntryLinesTable } from "@workspace/db";
 import { wrap } from "../lib/async-handler";
 
 const router: IRouter = Router();
+
+function getCid(req: Request): number {
+  return (req as any).user?.company_id ?? 1;
+}
 
 function fmt(a: typeof accountsTable.$inferSelect) {
   return { ...a, opening_balance: Number(a.opening_balance), current_balance: Number(a.current_balance) };
@@ -19,12 +23,16 @@ function fmtEntry(e: typeof journalEntriesTable.$inferSelect) {
 }
 
 // ── دليل الحسابات ──────────────────────────────────────────
-router.get("/accounts", wrap(async (_req, res) => {
-  const accounts = await db.select().from(accountsTable).orderBy(asc(accountsTable.code));
+router.get("/accounts", wrap(async (req, res) => {
+  const cid = getCid(req);
+  const accounts = await db.select().from(accountsTable)
+    .where(eq(accountsTable.company_id, cid))
+    .orderBy(asc(accountsTable.code));
   res.json(accounts.map(fmt));
 }));
 
 router.post("/accounts", wrap(async (req, res) => {
+  const cid = getCid(req);
   const { code, name, type, parent_id, level, is_posting, opening_balance } = req.body;
   if (!code || !name || !type) {
     res.status(400).json({ error: "code/name/type مطلوبة" });
@@ -37,39 +45,46 @@ router.post("/accounts", wrap(async (req, res) => {
     is_posting: is_posting !== false,
     opening_balance: String(opening_balance ?? 0),
     current_balance: String(opening_balance ?? 0),
+    company_id: cid,
   }).returning();
   res.status(201).json(fmt(acc));
 }));
 
 router.put("/accounts/:id", wrap(async (req, res) => {
+  const cid = getCid(req);
   const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
   const { name, is_active, is_posting } = req.body;
   const [acc] = await db.update(accountsTable)
     .set({ name, is_active, is_posting })
-    .where(eq(accountsTable.id, id)).returning();
+    .where(and(eq(accountsTable.id, id), eq(accountsTable.company_id, cid))).returning();
   if (!acc) { res.status(404).json({ error: "الحساب غير موجود" }); return; }
   res.json(fmt(acc));
 }));
 
 router.delete("/accounts/:id", wrap(async (req, res) => {
+  const cid = getCid(req);
   const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
-  await db.delete(accountsTable).where(eq(accountsTable.id, id));
+  await db.delete(accountsTable).where(and(eq(accountsTable.id, id), eq(accountsTable.company_id, cid)));
   res.json({ success: true });
 }));
 
 // ── القيود اليومية ─────────────────────────────────────────
-router.get("/journal-entries", wrap(async (_req, res) => {
+router.get("/journal-entries", wrap(async (req, res) => {
+  const cid = getCid(req);
   const entries = await db.select().from(journalEntriesTable)
+    .where(eq(journalEntriesTable.company_id, cid))
     .orderBy(journalEntriesTable.created_at);
   res.json(entries.map(fmtEntry).reverse());
 }));
 
 router.get("/journal-entries/:id", wrap(async (req, res) => {
+  const cid = getCid(req);
   const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
-  const [entry] = await db.select().from(journalEntriesTable).where(eq(journalEntriesTable.id, id));
+  const [entry] = await db.select().from(journalEntriesTable)
+    .where(and(eq(journalEntriesTable.id, id), eq(journalEntriesTable.company_id, cid)));
   if (!entry) { res.status(404).json({ error: "غير موجود" }); return; }
   const lines = await db.select().from(journalEntryLinesTable)
     .where(eq(journalEntryLinesTable.entry_id, id));
@@ -80,6 +95,7 @@ router.get("/journal-entries/:id", wrap(async (req, res) => {
 }));
 
 router.post("/journal-entries", wrap(async (req, res) => {
+  const cid = getCid(req);
   const { date, description, reference, lines, status } = req.body;
   if (!date || !description || !lines?.length) {
     res.status(400).json({ error: "البيانات غير مكتملة" });
@@ -91,7 +107,8 @@ router.post("/journal-entries", wrap(async (req, res) => {
     res.status(400).json({ error: "القيد غير متوازن — المدين لا يساوي الدائن" });
     return;
   }
-  const allEntries = await db.select().from(journalEntriesTable);
+  const allEntries = await db.select().from(journalEntriesTable)
+    .where(eq(journalEntriesTable.company_id, cid));
   const entry_no = `JE-${String(allEntries.length + 1).padStart(5, "0")}`;
   const [entry] = await db.insert(journalEntriesTable).values({
     entry_no, date, description,
@@ -99,10 +116,12 @@ router.post("/journal-entries", wrap(async (req, res) => {
     status: status ?? "draft",
     total_debit: String(totalDebit),
     total_credit: String(totalCredit),
+    company_id: cid,
   }).returning();
 
   for (const line of lines) {
-    const [acc] = await db.select().from(accountsTable).where(eq(accountsTable.id, line.account_id));
+    const [acc] = await db.select().from(accountsTable)
+      .where(and(eq(accountsTable.id, line.account_id), eq(accountsTable.company_id, cid)));
     await db.insert(journalEntryLinesTable).values({
       entry_id: entry.id,
       account_id: line.account_id,
@@ -125,11 +144,12 @@ router.post("/journal-entries", wrap(async (req, res) => {
 }));
 
 router.patch("/journal-entries/:id/post", wrap(async (req, res) => {
+  const cid = getCid(req);
   const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
   const [entry] = await db.update(journalEntriesTable)
     .set({ status: "posted" })
-    .where(eq(journalEntriesTable.id, id)).returning();
+    .where(and(eq(journalEntriesTable.id, id), eq(journalEntriesTable.company_id, cid))).returning();
   if (!entry) { res.status(404).json({ error: "غير موجود" }); return; }
 
   const lines = await db.select().from(journalEntryLinesTable).where(eq(journalEntryLinesTable.entry_id, id));
@@ -148,8 +168,13 @@ router.patch("/journal-entries/:id/post", wrap(async (req, res) => {
 }));
 
 router.delete("/journal-entries/:id", wrap(async (req, res) => {
+  const cid = getCid(req);
   const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
+  const [entry] = await db.select({ id: journalEntriesTable.id })
+    .from(journalEntriesTable)
+    .where(and(eq(journalEntriesTable.id, id), eq(journalEntriesTable.company_id, cid)));
+  if (!entry) { res.status(404).json({ error: "غير موجود" }); return; }
   await db.delete(journalEntryLinesTable).where(eq(journalEntryLinesTable.entry_id, id));
   await db.delete(journalEntriesTable).where(eq(journalEntriesTable.id, id));
   res.json({ success: true });

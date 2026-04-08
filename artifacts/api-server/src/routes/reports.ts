@@ -30,6 +30,16 @@ function dateFilter(col: string, from?: string, to?: string): string {
   return parts.length ? `AND ${parts.join(" AND ")}` : "";
 }
 
+/* ── مساعد: فلتر الشركة (companyId رقم آمن من JWT) ──────────────────── */
+function cFilter(tableAlias: string, companyId: number | null): string {
+  if (companyId === null) return "AND 1=0";
+  return `AND ${tableAlias}.company_id = ${companyId}`;
+}
+function cFilterSimple(companyId: number | null): string {
+  if (companyId === null) return "AND 1=0";
+  return `AND company_id = ${companyId}`;
+}
+
 /* ── مساعد: طبقة التحقق من صحة الأرقام ────────────────────────────────── */
 const TOLERANCE = 0.02; // تسامح بحد أقصى قرشين للفروق العشرية
 
@@ -66,7 +76,10 @@ function buildValidation(checks: Omit<CheckItem, "ok">[]): ValidationResult {
  * ───────────────────────────────────────────────────────────────────────── */
 router.get("/reports/product-profit", wrap(async (req, res) => {
   const { date_from, date_to } = req.query as Record<string, string | undefined>;
+  const companyId = (req as any).user?.company_id ?? null;
   const df = dateFilter("s.date", date_from, date_to);
+  const cfS = cFilter("s", companyId);
+  const cfSr = cFilter("sr", companyId);
 
   const rows = await db.execute(sql.raw(`
     SELECT
@@ -77,7 +90,7 @@ router.get("/reports/product-profit", wrap(async (req, res) => {
       COALESCE(SUM(CAST(si.cost_total  AS FLOAT8)), 0) AS cogs
     FROM sale_items si
     JOIN sales s ON s.id = si.sale_id
-    WHERE s.posting_status = 'posted' ${df}
+    WHERE s.posting_status = 'posted' ${df} ${cfS}
     GROUP BY si.product_id, si.product_name
     ORDER BY revenue DESC
   `));
@@ -91,7 +104,7 @@ router.get("/reports/product-profit", wrap(async (req, res) => {
       COALESCE(SUM(CAST(sri.total_cost_at_return AS FLOAT8)), 0) AS ret_cogs
     FROM sale_return_items sri
     JOIN sales_returns sr ON sr.id = sri.return_id
-    WHERE 1=1 ${dfRet}
+    WHERE 1=1 ${dfRet} ${cfSr}
     GROUP BY sri.product_id
   `));
 
@@ -154,8 +167,12 @@ router.get("/reports/product-profit", wrap(async (req, res) => {
  * ───────────────────────────────────────────────────────────────────────── */
 router.get("/reports/daily-profit", wrap(async (req, res) => {
   const { date_from, date_to } = req.query as Record<string, string | undefined>;
+  const companyId = (req as any).user?.company_id ?? null;
   const df    = dateFilter("s.date",  date_from, date_to);
   const dfRet = dateFilter("sr.date", date_from, date_to);
+  const cfS  = cFilter("s", companyId);
+  const cfSr = cFilter("sr", companyId);
+  const cfE  = cFilter("e", companyId);
   // expenses uses created_at (timestamp) — cast to date
   const dfExp = date_from || date_to ? `AND ${[date_from ? `e.created_at::date >= '${date_from}'` : null, date_to ? `e.created_at::date <= '${date_to}'` : null].filter(Boolean).join(" AND ")}` : "";
 
@@ -165,7 +182,7 @@ router.get("/reports/daily-profit", wrap(async (req, res) => {
       COALESCE(SUM(CAST(si.cost_total  AS FLOAT8)), 0) AS sales_cogs
     FROM sales s
     JOIN sale_items si ON si.sale_id = s.id
-    WHERE s.posting_status = 'posted' ${df}
+    WHERE s.posting_status = 'posted' ${df} ${cfS}
     GROUP BY s.date
   `));
 
@@ -175,7 +192,7 @@ router.get("/reports/daily-profit", wrap(async (req, res) => {
       COALESCE(SUM(CAST(sri.total_cost_at_return AS FLOAT8)), 0) AS ret_cogs
     FROM sales_returns sr
     JOIN sale_return_items sri ON sri.return_id = sr.id
-    WHERE 1=1 ${dfRet}
+    WHERE 1=1 ${dfRet} ${cfSr}
     GROUP BY sr.date
   `));
 
@@ -183,7 +200,7 @@ router.get("/reports/daily-profit", wrap(async (req, res) => {
     SELECT e.created_at::date AS day,
       COALESCE(SUM(CAST(e.amount AS FLOAT8)), 0) AS total_expenses
     FROM expenses e
-    WHERE 1=1 ${dfExp}
+    WHERE 1=1 ${dfExp} ${cfE}
     GROUP BY e.created_at::date
   `));
 
@@ -277,7 +294,9 @@ router.get("/reports/daily-profit", wrap(async (req, res) => {
  * ───────────────────────────────────────────────────────────────────────── */
 router.get("/reports/sales-analysis", wrap(async (req, res) => {
   const { date_from, date_to } = req.query as Record<string, string | undefined>;
+  const companyId = (req as any).user?.company_id ?? null;
   const df = dateFilter("s.date", date_from, date_to);
+  const cfS = cFilter("s", companyId);
 
   const byProduct = await db.execute(sql.raw(`
     SELECT
@@ -288,7 +307,7 @@ router.get("/reports/sales-analysis", wrap(async (req, res) => {
       COUNT(DISTINCT s.id)                              AS invoice_count
     FROM sale_items si
     JOIN sales s ON s.id = si.sale_id
-    WHERE s.posting_status = 'posted' ${df}
+    WHERE s.posting_status = 'posted' ${df} ${cfS}
     GROUP BY si.product_id, si.product_name
     ORDER BY total_revenue DESC
   `));
@@ -300,7 +319,7 @@ router.get("/reports/sales-analysis", wrap(async (req, res) => {
       COALESCE(SUM(CAST(s.total_amount AS FLOAT8)), 0) AS total_revenue,
       COUNT(*)                                          AS invoice_count
     FROM sales s
-    WHERE s.posting_status = 'posted' ${df}
+    WHERE s.posting_status = 'posted' ${df} ${cfS}
     GROUP BY s.customer_id, s.customer_name
     ORDER BY total_revenue DESC
   `));
@@ -330,8 +349,11 @@ router.get("/reports/sales-analysis", wrap(async (req, res) => {
 router.get("/reports/customer-statement", wrap(async (req, res) => {
   const { customer_id, date_from, date_to } = req.query as Record<string, string | undefined>;
   if (!customer_id) { res.status(400).json({ error: "يجب تحديد العميل" }); return; }
-  const cid = parseInt(customer_id);
-  if (isNaN(cid)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
+  const custId = parseInt(customer_id);
+  if (isNaN(custId)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
+  const companyId = (req as any).user?.company_id ?? null;
+  const cfSimple = cFilterSimple(companyId);
+  const cfC = cFilter("c", companyId);
 
   const custRow = await db.execute(sql.raw(`
     SELECT c.id, c.name, c.customer_code,
@@ -340,7 +362,7 @@ router.get("/reports/customer-statement", wrap(async (req, res) => {
     FROM customers c
     LEFT JOIN journal_entry_lines jel ON jel.account_id = c.account_id
     LEFT JOIN journal_entries je ON je.id = jel.entry_id AND je.status = 'posted'
-    WHERE c.id = ${cid}
+    WHERE c.id = ${custId} ${cfC}
     GROUP BY c.id, c.name, c.customer_code
   `));
   if (!custRow.rows.length) { res.status(404).json({ error: "العميل غير موجود" }); return; }
@@ -352,7 +374,7 @@ router.get("/reports/customer-statement", wrap(async (req, res) => {
   // رصيد أول المدة (من جدول transactions)
   const openRows = await db.execute(sql.raw(`
     SELECT date, amount, description FROM transactions
-    WHERE reference_type = 'customer_opening' AND customer_id = ${cid}
+    WHERE reference_type = 'customer_opening' AND customer_id = ${custId} ${cfSimple}
   `));
   for (const r of openRows.rows as any[]) {
     rows.push({ date: r.date ?? "1900-01-01", type: "opening_balance", description: r.description ?? "رصيد أول المدة", debit: 0, credit: Number(r.amount) });
@@ -361,7 +383,7 @@ router.get("/reports/customer-statement", wrap(async (req, res) => {
   // فواتير المبيعات (مرحّلة)
   const salesRows = await db.execute(sql.raw(`
     SELECT date, invoice_no, CAST(total_amount AS FLOAT8) AS total_amount
-    FROM sales WHERE customer_id = ${cid} AND posting_status = 'posted'
+    FROM sales WHERE customer_id = ${custId} AND posting_status = 'posted' ${cfSimple}
   `));
   for (const r of salesRows.rows as any[]) {
     rows.push({ date: r.date, type: "sale", description: `فاتورة مبيعات ${r.invoice_no}`, debit: Number(r.total_amount), credit: 0, reference_no: r.invoice_no });
@@ -370,7 +392,7 @@ router.get("/reports/customer-statement", wrap(async (req, res) => {
   // سندات القبض (مرحّلة)
   const rvRows = await db.execute(sql.raw(`
     SELECT date, voucher_no, CAST(amount AS FLOAT8) AS amount, notes
-    FROM receipt_vouchers WHERE customer_id = ${cid} AND posting_status = 'posted'
+    FROM receipt_vouchers WHERE customer_id = ${custId} AND posting_status = 'posted' ${cfSimple}
   `));
   for (const r of rvRows.rows as any[]) {
     rows.push({ date: r.date, type: "receipt", description: `سند قبض ${r.voucher_no}`, debit: 0, credit: Number(r.amount), reference_no: r.voucher_no });
@@ -379,7 +401,7 @@ router.get("/reports/customer-statement", wrap(async (req, res) => {
   // مرتجعات المبيعات
   const retRows = await db.execute(sql.raw(`
     SELECT date, return_no, CAST(total_amount AS FLOAT8) AS total_amount
-    FROM sales_returns WHERE customer_id = ${cid}
+    FROM sales_returns WHERE customer_id = ${custId} ${cfSimple}
   `));
   for (const r of retRows.rows as any[]) {
     rows.push({ date: r.date, type: "sale_return", description: `مرتجع مبيعات ${r.return_no}`, debit: 0, credit: Number(r.total_amount), reference_no: r.return_no });
@@ -448,9 +470,11 @@ router.get("/reports/supplier-statement", wrap(async (req, res) => {
   if (!rawId) { res.status(400).json({ error: "يجب تحديد المورد" }); return; }
   const sid = parseInt(rawId);
   if (isNaN(sid)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
+  const companyId = (req as any).user?.company_id ?? null;
+  const cfSimple = cFilterSimple(companyId);
 
   const custRow = await db.execute(sql.raw(`
-    SELECT id, name, CAST(balance AS FLOAT8) AS balance FROM customers WHERE id = ${sid}
+    SELECT id, name, CAST(balance AS FLOAT8) AS balance FROM customers WHERE id = ${sid} ${cfSimple}
   `));
   if (!custRow.rows.length) { res.status(404).json({ error: "المورد غير موجود" }); return; }
   const supplier = custRow.rows[0] as any;
@@ -460,7 +484,7 @@ router.get("/reports/supplier-statement", wrap(async (req, res) => {
 
   // رصيد أول المدة
   const openRows = await db.execute(sql.raw(`
-    SELECT date, amount FROM transactions WHERE reference_type = 'customer_opening' AND reference_id = ${sid}
+    SELECT date, amount FROM transactions WHERE reference_type = 'customer_opening' AND reference_id = ${sid} ${cfSimple}
   `));
   for (const r of openRows.rows as any[]) {
     rows.push({ date: r.date ?? "1900-01-01", type: "opening_balance", description: "رصيد أول المدة", debit: 0, credit: Number(r.amount) });
@@ -469,7 +493,7 @@ router.get("/reports/supplier-statement", wrap(async (req, res) => {
   // فواتير الشراء (مرحّلة)
   const purRows = await db.execute(sql.raw(`
     SELECT date, invoice_no, CAST(total_amount AS FLOAT8) AS total_amount
-    FROM purchases WHERE customer_id = ${sid} AND posting_status = 'posted'
+    FROM purchases WHERE customer_id = ${sid} AND posting_status = 'posted' ${cfSimple}
   `));
   for (const r of purRows.rows as any[]) {
     rows.push({ date: r.date, type: "purchase", description: `فاتورة شراء ${r.invoice_no}`, debit: 0, credit: Number(r.total_amount), reference_no: r.invoice_no });
@@ -478,7 +502,7 @@ router.get("/reports/supplier-statement", wrap(async (req, res) => {
   // مرتجعات المشتريات
   const retRows = await db.execute(sql.raw(`
     SELECT date, return_no, CAST(total_amount AS FLOAT8) AS total_amount
-    FROM purchase_returns WHERE customer_id = ${sid}
+    FROM purchase_returns WHERE customer_id = ${sid} ${cfSimple}
   `));
   for (const r of retRows.rows as any[]) {
     rows.push({ date: r.date, type: "purchase_return", description: `مرتجع مشتريات ${r.return_no}`, debit: Number(r.total_amount), credit: 0, reference_no: r.return_no });
@@ -487,7 +511,7 @@ router.get("/reports/supplier-statement", wrap(async (req, res) => {
   // سندات الدفع (مرحّلة)
   const pvRows = await db.execute(sql.raw(`
     SELECT date, voucher_no, CAST(amount AS FLOAT8) AS amount
-    FROM payment_vouchers WHERE customer_id = ${sid} AND posting_status = 'posted'
+    FROM payment_vouchers WHERE customer_id = ${sid} AND posting_status = 'posted' ${cfSimple}
   `));
   for (const r of pvRows.rows as any[]) {
     rows.push({ date: r.date, type: "payment", description: `سند دفع ${r.voucher_no}`, debit: Number(r.amount), credit: 0, reference_no: r.voucher_no });
@@ -496,7 +520,7 @@ router.get("/reports/supplier-statement", wrap(async (req, res) => {
   // سداد الموردين
   const spRows = await db.execute(sql.raw(`
     SELECT date, CAST(amount AS FLOAT8) AS amount, description
-    FROM transactions WHERE reference_type = 'supplier_payment' AND reference_id = ${sid}
+    FROM transactions WHERE reference_type = 'supplier_payment' AND reference_id = ${sid} ${cfSimple}
   `));
   for (const r of spRows.rows as any[]) {
     rows.push({ date: r.date ?? "1900-01-01", type: "supplier_payment", description: r.description ?? "سداد للمورد", debit: Number(r.amount), credit: 0 });
@@ -550,6 +574,8 @@ router.get("/reports/supplier-statement", wrap(async (req, res) => {
  * ───────────────────────────────────────────────────────────────────────── */
 router.get("/reports/cash-flow", wrap(async (req, res) => {
   const { date_from, date_to } = req.query as Record<string, string | undefined>;
+  const companyId = (req as any).user?.company_id ?? null;
+  const cfJe = cFilter("je", companyId);
 
   /* ── تصفية التاريخ: نبني جزء WHERE آمناً ─────────────────────────────── */
   const dateFromSafe = (date_from ?? "").replace(/[^0-9\-]/g, "");
@@ -586,7 +612,7 @@ router.get("/reports/cash-flow", wrap(async (req, res) => {
       JOIN journal_entries je ON je.id = jel.entry_id
         AND je.status = 'posted'
       WHERE jel.account_code LIKE 'SAFE-%'
-        ${dateWhere}
+        ${dateWhere} ${cfJe}
     ),
     entry_context AS (
       SELECT
@@ -701,8 +727,11 @@ router.get("/reports/cash-flow", wrap(async (req, res) => {
 router.get("/reports/top", wrap(async (req, res) => {
   const { date_from, date_to, limit: lim } = req.query as Record<string, string | undefined>;
   const LIMIT = Math.min(parseInt(lim ?? "10"), 50);
+  const companyId = (req as any).user?.company_id ?? null;
   const df = dateFilter("s.date", date_from, date_to);
   const dfP = dateFilter("p.date", date_from, date_to);
+  const cfS = cFilter("s", companyId);
+  const cfP = cFilter("p", companyId);
 
   const topProducts = await db.execute(sql.raw(`
     SELECT si.product_id, si.product_name,
@@ -711,7 +740,7 @@ router.get("/reports/top", wrap(async (req, res) => {
       COALESCE(SUM(CAST(si.cost_total  AS FLOAT8)), 0) AS total_cogs
     FROM sale_items si
     JOIN sales s ON s.id = si.sale_id
-    WHERE s.posting_status = 'posted' ${df}
+    WHERE s.posting_status = 'posted' ${df} ${cfS}
     GROUP BY si.product_id, si.product_name
     ORDER BY total_revenue DESC
     LIMIT ${LIMIT}
@@ -722,7 +751,7 @@ router.get("/reports/top", wrap(async (req, res) => {
       COALESCE(SUM(CAST(s.total_amount AS FLOAT8)), 0) AS total_revenue,
       COUNT(*) AS invoice_count
     FROM sales s
-    WHERE s.posting_status = 'posted' ${df}
+    WHERE s.posting_status = 'posted' ${df} ${cfS}
     GROUP BY s.customer_id, s.customer_name
     ORDER BY total_revenue DESC
     LIMIT ${LIMIT}
@@ -733,7 +762,7 @@ router.get("/reports/top", wrap(async (req, res) => {
       COALESCE(SUM(CAST(p.total_amount AS FLOAT8)), 0) AS total_purchases,
       COUNT(*) AS invoice_count
     FROM purchases p
-    WHERE p.posting_status = 'posted' ${dfP}
+    WHERE p.posting_status = 'posted' ${dfP} ${cfP}
     GROUP BY p.customer_id, p.customer_name
     ORDER BY total_purchases DESC
     LIMIT ${LIMIT}
@@ -770,6 +799,11 @@ router.get("/reports/top", wrap(async (req, res) => {
  *   OK / WARNING / CRITICAL
  * ────────────────────────────────────────────────────────────────────────── */
 router.get("/reports/health-check", wrap(async (req, res) => {
+  const companyId = (req as any).user?.company_id ?? null;
+  const cfC  = cFilter("c", companyId);
+  const cfS  = cFilter("s", companyId);
+  const cfP  = cFilter("p", companyId);
+  const cf   = cFilterSimple(companyId);
 
   /* ── ثوابت الخطورة ───────────────────────────────────────────────────── */
   const TOL      = 0.02;   // تسامح فروق عشرية
@@ -813,19 +847,20 @@ router.get("/reports/health-check", wrap(async (req, res) => {
           FROM customers c
           LEFT JOIN journal_entry_lines jel ON jel.account_id = c.account_id
           LEFT JOIN journal_entries je ON je.id = jel.entry_id AND je.status = 'posted'
+          WHERE 1=1 ${cfC}
           GROUP BY c.id
         ),
         cust_sales AS (
           SELECT customer_id, COALESCE(SUM(CAST(total_amount AS FLOAT8)),0) AS tot
-          FROM sales WHERE posting_status='posted' GROUP BY customer_id
+          FROM sales WHERE posting_status='posted' ${cf} GROUP BY customer_id
         ),
         cust_receipts AS (
           SELECT customer_id, COALESCE(SUM(CAST(amount AS FLOAT8)),0) AS tot
-          FROM receipt_vouchers WHERE posting_status='posted' GROUP BY customer_id
+          FROM receipt_vouchers WHERE posting_status='posted' ${cf} GROUP BY customer_id
         ),
         cust_returns AS (
           SELECT customer_id, COALESCE(SUM(CAST(total_amount AS FLOAT8)),0) AS tot
-          FROM sales_returns GROUP BY customer_id
+          FROM sales_returns WHERE 1=1 ${cf} GROUP BY customer_id
         )
       SELECT c.id, c.name,
              COALESCE(al.ar_bal, 0)                                          AS system_balance,
@@ -838,8 +873,8 @@ router.get("/reports/health-check", wrap(async (req, res) => {
       LEFT JOIN cust_sales    cs   ON cs.customer_id  = c.id
       LEFT JOIN cust_receipts cr   ON cr.customer_id  = c.id
       LEFT JOIN cust_returns  cret ON cret.customer_id = c.id
-      WHERE ABS(COALESCE(al.ar_bal,0) - (COALESCE(cs.tot,0) - COALESCE(cr.tot,0) - COALESCE(cret.tot,0))) > ${TOL}
-         OR COALESCE(al.ar_bal,0) != 0
+      WHERE (ABS(COALESCE(al.ar_bal,0) - (COALESCE(cs.tot,0) - COALESCE(cr.tot,0) - COALESCE(cret.tot,0))) > ${TOL}
+         OR COALESCE(al.ar_bal,0) != 0) ${cfC}
       ORDER BY ABS(COALESCE(al.ar_bal,0) - (COALESCE(cs.tot,0) - COALESCE(cr.tot,0) - COALESCE(cret.tot,0))) DESC
     `)),
 
@@ -848,15 +883,15 @@ router.get("/reports/health-check", wrap(async (req, res) => {
       WITH
         sup_purchases AS (
           SELECT customer_id, COALESCE(SUM(CAST(total_amount AS FLOAT8)),0) AS tot
-          FROM purchases WHERE posting_status='posted' AND customer_id IS NOT NULL GROUP BY customer_id
+          FROM purchases WHERE posting_status='posted' AND customer_id IS NOT NULL ${cf} GROUP BY customer_id
         ),
         sup_payments AS (
           SELECT customer_id, COALESCE(SUM(CAST(amount AS FLOAT8)),0) AS tot
-          FROM payment_vouchers WHERE posting_status='posted' GROUP BY customer_id
+          FROM payment_vouchers WHERE posting_status='posted' ${cf} GROUP BY customer_id
         ),
         sup_returns AS (
           SELECT customer_id, COALESCE(SUM(CAST(total_amount AS FLOAT8)),0) AS tot
-          FROM purchase_returns WHERE customer_id IS NOT NULL GROUP BY customer_id
+          FROM purchase_returns WHERE customer_id IS NOT NULL ${cf} GROUP BY customer_id
         )
       SELECT c.id, c.name,
              COALESCE(sp.tot,0)                                                AS system_balance,
@@ -868,7 +903,7 @@ router.get("/reports/health-check", wrap(async (req, res) => {
       JOIN sup_purchases sp   ON sp.customer_id = c.id
       LEFT JOIN sup_payments  spv  ON spv.customer_id = c.id
       LEFT JOIN sup_returns   sret ON sret.customer_id = c.id
-      WHERE c.is_supplier = true
+      WHERE c.is_supplier = true ${cfC}
       ORDER BY total_purchases DESC
     `)),
 
@@ -880,6 +915,7 @@ router.get("/reports/health-check", wrap(async (req, res) => {
              COALESCE(SUM(CAST(sm.quantity AS FLOAT8)),0) AS calculated_qty
       FROM products p
       LEFT JOIN stock_movements sm ON sm.product_id = p.id
+      WHERE 1=1 ${cfP}
       GROUP BY p.id, p.name, p.quantity, p.cost_price
       HAVING ABS(CAST(p.quantity AS FLOAT8) - COALESCE(SUM(CAST(sm.quantity AS FLOAT8)),0)) > ${TOL}
           OR CAST(p.quantity AS FLOAT8) != 0
@@ -893,16 +929,16 @@ router.get("/reports/health-check", wrap(async (req, res) => {
         COALESCE(SUM(CAST(si.cost_total  AS FLOAT8)),0) AS total_cogs
       FROM sale_items si
       JOIN sales s ON s.id = si.sale_id
-      WHERE s.posting_status = 'posted'
+      WHERE s.posting_status = 'posted' ${cfS}
     `)),
 
     /* 5. فحص التدفق النقدي: الوارد - الصادر */
     db.execute(sql.raw(`
       SELECT
-        COALESCE((SELECT SUM(CAST(amount AS FLOAT8)) FROM receipt_vouchers WHERE posting_status='posted'),0) AS total_receipts,
-        COALESCE((SELECT SUM(CAST(amount AS FLOAT8)) FROM payment_vouchers WHERE posting_status='posted'),0) AS total_payments,
-        COALESCE((SELECT SUM(CAST(amount AS FLOAT8)) FROM expenses),0)                                       AS total_expenses,
-        COALESCE((SELECT SUM(CAST(paid_amount AS FLOAT8)) FROM sales WHERE posting_status='posted' AND payment_type='cash'),0) AS cash_sales
+        COALESCE((SELECT SUM(CAST(amount AS FLOAT8)) FROM receipt_vouchers WHERE posting_status='posted' ${cf}),0) AS total_receipts,
+        COALESCE((SELECT SUM(CAST(amount AS FLOAT8)) FROM payment_vouchers WHERE posting_status='posted' ${cf}),0) AS total_payments,
+        COALESCE((SELECT SUM(CAST(amount AS FLOAT8)) FROM expenses WHERE 1=1 ${cf}),0)                             AS total_expenses,
+        COALESCE((SELECT SUM(CAST(paid_amount AS FLOAT8)) FROM sales WHERE posting_status='posted' AND payment_type='cash' ${cf}),0) AS cash_sales
     `)),
   ]);
 
@@ -1229,7 +1265,9 @@ router.get("/reports/manager-sales", wrap(async (req, res) => {
  *   - المخزون: يُقرأ من products (كمية × تكلفة WAC) لأنه الأدق
  *   - رأس المال الافتتاحي: يُقرأ من transactions (لا يزال قيد التوحيد)
  * ─────────────────────────────────────────────────────────────────────────*/
-router.get("/reports/balance-sheet", wrap(async (_req, res) => {
+router.get("/reports/balance-sheet", wrap(async (req, res) => {
+  const companyId = (req as any).user?.company_id ?? null;
+  const cf = cFilterSimple(companyId);
 
   const [accountRows, inventoryRow, capitalRow] = await Promise.all([
 
@@ -1242,21 +1280,21 @@ router.get("/reports/balance-sheet", wrap(async (_req, res) => {
         OR code LIKE 'AR-%'
         OR code LIKE 'AP-%'
         OR type IN ('revenue', 'expense')
-      )
+      ) ${cf}
     `)),
 
     /* ── قيمة المخزون: الكمية × سعر التكلفة (أساس WAC) ── */
     db.execute(sql.raw(`
       SELECT COALESCE(SUM(CAST(quantity AS FLOAT8) * CAST(cost_price AS FLOAT8)), 0) AS inventory_value
       FROM products
-      WHERE CAST(quantity AS FLOAT8) > 0
+      WHERE CAST(quantity AS FLOAT8) > 0 ${cf}
     `)),
 
     /* ── رأس المال الافتتاحي (من transactions — الثغرة المتبقية) ── */
     db.execute(sql.raw(`
       SELECT COALESCE(SUM(CAST(amount AS FLOAT8)), 0) AS opening_capital
       FROM transactions
-      WHERE reference_type IN ('treasury_opening', 'customer_opening', 'supplier_opening', 'inventory_opening')
+      WHERE reference_type IN ('treasury_opening', 'customer_opening', 'supplier_opening', 'inventory_opening') ${cf}
     `)),
   ]);
 

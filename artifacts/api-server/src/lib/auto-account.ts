@@ -16,7 +16,7 @@
  * لكن لا يُستخدم في القيود الجديدة.
  */
 
-import { eq, count, sql } from "drizzle-orm";
+import { eq, and, count, sql } from "drizzle-orm";
 import { db, accountsTable, journalEntriesTable, journalEntryLinesTable } from "@workspace/db";
 
 /** نوع مشترك يقبل `db` أو `tx` داخل transaction */
@@ -43,14 +43,14 @@ export interface JournalLine {
 }
 
 /**
- * Returns existing account by code, or creates it if not found.
- * Never creates a duplicate.
+ * Returns existing account by (code, company_id), or creates it if not found.
+ * Never creates a duplicate within the same company.
  */
-export async function getOrCreateAccount(spec: AccountSpec): Promise<AccountRef> {
+export async function getOrCreateAccount(spec: AccountSpec, companyId = 1): Promise<AccountRef> {
   const [existing] = await db
     .select({ id: accountsTable.id, code: accountsTable.code, name: accountsTable.name })
     .from(accountsTable)
-    .where(eq(accountsTable.code, spec.code));
+    .where(and(eq(accountsTable.code, spec.code), eq(accountsTable.company_id, companyId)));
 
   if (existing) return existing;
 
@@ -65,6 +65,7 @@ export async function getOrCreateAccount(spec: AccountSpec): Promise<AccountRef>
       opening_balance: "0",
       current_balance: "0",
       level: 2,
+      company_id: companyId,
     })
     .returning({ id: accountsTable.id, code: accountsTable.code, name: accountsTable.name });
 
@@ -75,69 +76,73 @@ export async function getOrCreateAccount(spec: AccountSpec): Promise<AccountRef>
 export async function getOrCreateCustomerAccount(
   customerCode: number,
   customerName: string,
+  companyId = 1,
 ): Promise<AccountRef> {
   return getOrCreateAccount({
     code: `AR-${customerCode}`,
     name: `عميل - ${customerName}`,
     type: "asset",
-  });
+  }, companyId);
 }
 
 /** حساب ذمم دائنة للعميل-المورد (liability — ما ندين به للعميل كمورد) */
 export async function getOrCreateCustomerPayableAccount(
   customerCode: number,
   customerName: string,
+  companyId = 1,
 ): Promise<AccountRef> {
   return getOrCreateAccount({
     code: `AP-C-${customerCode}`,
     name: `مورد - ${customerName}`,
     type: "liability",
-  });
+  }, companyId);
 }
 
 /** @deprecated Use getOrCreateCustomerPayableAccount. Kept for backward-compat with old journal entries. */
 export async function getOrCreateSupplierAccount(
   supplierCode: number,
   supplierName: string,
+  companyId = 1,
 ): Promise<AccountRef> {
   return getOrCreateAccount({
     code: `AP-${supplierCode}`,
     name: `مورد - ${supplierName}`,
     type: "liability",
-  });
+  }, companyId);
 }
 
 /** حساب نقدية للخزينة */
 export async function getOrCreateSafeAccount(
   safeId: number,
   safeName: string,
+  companyId = 1,
 ): Promise<AccountRef> {
   return getOrCreateAccount({
     code: `SAFE-${safeId}`,
     name: `خزينة - ${safeName}`,
     type: "asset",
-  });
+  }, companyId);
 }
 
 /** حساب إيرادات المبيعات (مشترك لجميع الفواتير) */
-export async function getOrCreateSalesRevenueAccount(): Promise<AccountRef> {
+export async function getOrCreateSalesRevenueAccount(companyId = 1): Promise<AccountRef> {
   return getOrCreateAccount({
     code: "REV-SALES",
     name: "إيرادات المبيعات",
     type: "revenue",
-  });
+  }, companyId);
 }
 
 /**
  * حساب مخزون البضاعة (أصل — يُدان عند الشراء، يُقيَّد دائناً عند بيع البضاعة)
  * يستخدم كحساب مقابل لـ EXP-COGS
  */
-export async function getOrCreateInventoryAccount(): Promise<AccountRef> {
+export async function getOrCreateInventoryAccount(companyId = 1): Promise<AccountRef> {
   return getOrCreateAccount({
     code: "ASSET-INVENTORY",
     name: "بضاعة المخزون",
     type: "asset",
-  });
+  }, companyId);
 }
 
 /**
@@ -145,48 +150,48 @@ export async function getOrCreateInventoryAccount(): Promise<AccountRef> {
  * يُدان عند ترحيل فاتورة البيع (DR COGS / CR Inventory)
  * يُعكس عند الإلغاء أو مرتجع المبيعات
  */
-export async function getOrCreateCOGSAccount(): Promise<AccountRef> {
+export async function getOrCreateCOGSAccount(companyId = 1): Promise<AccountRef> {
   return getOrCreateAccount({
     code: "EXP-COGS",
     name: "تكلفة البضاعة المباعة",
     type: "expense",
-  });
+  }, companyId);
 }
 
 /**
  * حساب المصروفات العمومية — يُدان عند تسجيل مصروف نقدي
  * DR EXP-GENERAL / CR SAFE-{safeId}
  */
-export async function getOrCreateGeneralExpenseAccount(): Promise<AccountRef> {
+export async function getOrCreateGeneralExpenseAccount(companyId = 1): Promise<AccountRef> {
   return getOrCreateAccount({
     code: "EXP-GENERAL",
     name: "مصروفات عمومية وإدارية",
     type: "expense",
-  });
+  }, companyId);
 }
 
 /**
  * حساب الإيرادات المتنوعة — يُقيَّد دائناً عند استلام مبالغ بلا عميل محدد
  * DR SAFE-{safeId} / CR REV-MISC
  */
-export async function getOrCreateMiscRevenueAccount(): Promise<AccountRef> {
+export async function getOrCreateMiscRevenueAccount(companyId = 1): Promise<AccountRef> {
   return getOrCreateAccount({
     code: "REV-MISC",
     name: "إيرادات متنوعة",
     type: "revenue",
-  });
+  }, companyId);
 }
 
 /**
  * @deprecated استخدم getOrCreateInventoryAccount بدلاً منه للمشتريات الجديدة.
  * أُبقي للتوافق العكسي مع القيود المحاسبية القديمة فقط.
  */
-export async function getOrCreatePurchasesCostAccount(): Promise<AccountRef> {
+export async function getOrCreatePurchasesCostAccount(companyId = 1): Promise<AccountRef> {
   return getOrCreateAccount({
     code: "EXP-PURCHASES",
     name: "تكلفة المشتريات (قديم)",
     type: "expense",
-  });
+  }, companyId);
 }
 
 /**
@@ -201,11 +206,12 @@ export async function createJournalEntry(
     description: string;
     reference: string;
     lines: JournalLine[];
+    companyId?: number;
   },
   tx?: DbOrTx,
 ): Promise<void> {
   const runner: DbOrTx = tx ?? (db as unknown as DbOrTx);
-  const { date, description, reference, lines } = opts;
+  const { date, description, reference, lines, companyId = 1 } = opts;
 
   const totalDebit = lines.reduce((s, l) => s + l.debit, 0);
   const totalCredit = lines.reduce((s, l) => s + l.credit, 0);
@@ -217,7 +223,8 @@ export async function createJournalEntry(
 
   const [{ total }] = await runner
     .select({ total: count() })
-    .from(journalEntriesTable);
+    .from(journalEntriesTable)
+    .where(eq(journalEntriesTable.company_id, companyId));
 
   const entryNo = `JE-${String(Number(total) + 1).padStart(5, "0")}`;
 
@@ -231,6 +238,7 @@ export async function createJournalEntry(
       reference,
       total_debit: String(totalDebit),
       total_credit: String(totalCredit),
+      company_id: companyId,
     })
     .returning({ id: journalEntriesTable.id });
 
@@ -266,12 +274,14 @@ export async function createAutoJournalEntry(opts: {
   debit: AccountRef;
   credit: AccountRef;
   amount: number;
+  companyId?: number;
 }): Promise<void> {
-  const { date, description, reference, debit, credit, amount } = opts;
+  const { date, description, reference, debit, credit, amount, companyId = 1 } = opts;
   await createJournalEntry({
     date,
     description,
     reference,
+    companyId,
     lines: [
       { account: debit, debit: amount, credit: 0 },
       { account: credit, debit: 0, credit: amount },

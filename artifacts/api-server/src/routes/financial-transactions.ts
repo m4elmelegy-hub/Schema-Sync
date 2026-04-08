@@ -10,8 +10,9 @@ function fmt(t: typeof transactionsTable.$inferSelect) {
 }
 
 router.get("/financial-transactions", wrap(async (req, res) => {
+  const cid: number = (req as any).user?.company_id ?? 1;
   const { safe_id, direction, type, from, to, search } = req.query as Record<string, string>;
-  const conditions = [];
+  const conditions = [eq(transactionsTable.company_id, cid)];
 
   if (safe_id) conditions.push(eq(transactionsTable.safe_id, parseInt(safe_id)));
   if (direction) conditions.push(eq(transactionsTable.direction, direction));
@@ -23,13 +24,13 @@ router.get("/financial-transactions", wrap(async (req, res) => {
       or(
         ilike(transactionsTable.description, `%${search}%`),
         ilike(transactionsTable.customer_name, `%${search}%`),
-      ),
+      )!,
     );
   }
 
-  const items = conditions.length > 0
-    ? await db.select().from(transactionsTable).where(and(...conditions)).orderBy(desc(transactionsTable.created_at))
-    : await db.select().from(transactionsTable).orderBy(desc(transactionsTable.created_at));
+  const items = await db.select().from(transactionsTable)
+    .where(and(...conditions))
+    .orderBy(desc(transactionsTable.created_at));
 
   res.json(items.map(fmt));
 }));
