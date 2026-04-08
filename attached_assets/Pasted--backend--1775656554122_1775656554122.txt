@@ -1,0 +1,83 @@
+حلّل مشروع الـ backend الحالي بالكامل وارجع لي بتقرير تقني واضح ومختصر جدًا، بدون تعديل أي ملفات وبدون تنفيذ أوامر destructive.
+
+المطلوب منك تحديد الآتي بدقة:
+
+1. Database architecture
+
+* ما هو نظام قاعدة البيانات المستخدم؟
+* ما هو الـ ORM أو query builder المستخدم؟ (Prisma / Drizzle / raw SQL / غيره)
+* ما هي ملفات تعريف الـ schema الفعلية؟
+* أين يتم تعريف الجداول مثل:
+
+  * erp_users
+  * system_settings
+
+2. Database initialization flow
+
+* ما هي الطريقة الصحيحة لإنشاء الجداول لأول مرة؟
+* هل المشروع يعتمد على:
+
+  * migrations
+  * drizzle-kit push
+  * prisma db push
+  * seed script
+  * startup auto-init
+  * SQL files
+* اذكر الأمر الصحيح الوحيد المطلوب لتجهيز قاعدة البيانات من الصفر.
+
+3. Required environment variables
+
+* ما هي جميع متغيرات البيئة المطلوبة لتشغيل المشروع؟
+* اذكر أسماءها فقط أولًا
+* ثم اذكر مثالًا صحيحًا لملف .env
+* وضّح أي متغيرات mandatory يتوقف عليها التشغيل مثل:
+
+  * DATABASE_URL
+  * JWT_SECRET
+  * PORT
+  * NODE_ENV
+  * أي مفاتيح أخرى
+
+4. Startup order
+
+* ما هو الترتيب الصحيح لتشغيل المشروع من الصفر؟
+  مثال:
+* install dependencies
+* create database
+* push schema / run migrations
+* run seed
+* start server
+
+5. File map
+
+* اذكر الملفات الأساسية المسؤولة عن:
+
+  * DB connection
+  * schema definitions
+  * seed/init
+  * auth / JWT
+  * app startup
+* مع مسار كل ملف بالضبط
+
+6. Error diagnosis
+   بناءً على المشروع نفسه، فسّر سبب الأخطاء التالية تحديدًا:
+
+* relation "erp_users" does not exist
+* relation "system_settings" does not exist
+* DATABASE_URL must be set
+* JWT_SECRET environment variable is not set
+
+7. Final actionable commands
+   في النهاية أعطني فقط:
+
+* الأوامر النهائية الصحيحة بالترتيب
+* بدون شرح طويل
+* لتجهيز المشروع وتشغيله بنجاح على Ubuntu server
+
+مهم:
+
+* لا تخمّن
+* لا تفترض Prisma إذا لم يكن موجودًا فعليًا
+* لا تفترض Drizzle إذا لم يكن مستخدمًا فعليًا إلا بعد التحقق من الملفات
+* اعتمد فقط على تحليل ملفات المشروع الحالية
+* لو في جزء غير واضح، اذكر أنه غير واضح وحدد الملف الذي يجب مراجعته
