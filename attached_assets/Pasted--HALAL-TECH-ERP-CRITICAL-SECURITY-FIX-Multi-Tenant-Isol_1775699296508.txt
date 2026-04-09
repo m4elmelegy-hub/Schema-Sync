@@ -1,0 +1,228 @@
+# [HALAL TECH ERP — CRITICAL SECURITY FIX: Multi-Tenant Isolation]
+
+## ⚠️ CRITICAL ISSUE
+The system has a severe security vulnerability: ALL users from ANY company can see and DELETE data belonging to OTHER companies. This is because:
+1. JWT token does NOT include `company_id`
+2. NO queries filter by `company_id`
+3. There is NO tenant middleware
+
+This must be fixed completely and without breaking existing functionality.
+
+---
+
+## Fix 1: Update JWT to include company_id
+
+In `artifacts/api-server/src/middleware/auth.ts`:
+
+Change `signToken` to include company_id:
+```typescript
+// BEFORE
+export function signToken(userId: number, role: string): string {
+  return jwt.sign({ userId, role }, JWT_SECRET, { expiresIn: "12h" });
+}
+
+// AFTER
+export function signToken(userId: number, role: string, companyId: number): string {
+  return jwt.sign({ userId, role, companyId }, JWT_SECRET, { expiresIn: "12h" });
+}
+```
+
+Update the `authenticate` middleware to extract and attach `companyId` from JWT:
+```typescript
+// After verifying token, add:
+req.companyId = decoded.companyId;
+req.userId = decoded.userId;
+req.role = decoded.role;
+```
+
+Add to Express Request type declaration:
+```typescript
+declare global {
+  namespace Express {
+    interface Request {
+      userId: number;
+      role: string;
+      companyId: number;
+    }
+  }
+}
+```
+
+---
+
+## Fix 2: Update login to pass company_id to signToken
+
+In `artifacts/api-server/src/routes/auth.ts`:
+
+In the login handler, after fetching the user from DB:
+```typescript
+// BEFORE
+const token = signToken(user.id, user.role);
+
+// AFTER  
+const token = signToken(user.id, user.role, user.company_id);
+```
+
+Do the same for ALL places that call `signToken` in auth.ts.
+
+---
+
+## Fix 3: Add tenant isolation to ALL settings routes
+
+In `artifacts/api-server/src/routes/settings.ts`, add `company_id` filter to EVERY query:
+
+### USERS routes (GET, POST, PUT, DELETE /settings/users):
+```typescript
+// GET - only fetch users of the same company
+WHERE erp_users.company_id = req.companyId
+
+// POST - always set company_id from token
+INSERT INTO erp_users (..., company_id) VALUES (..., req.companyId)
+
+// PUT - verify user belongs to same company before updating
+WHERE id = :id AND company_id = req.companyId
+
+// DELETE - verify user belongs to same company before deleting
+WHERE id = :id AND company_id = req.companyId
+// Also: super_admin can NEVER be deleted from settings route
+// Add check: if (targetUser.role === 'super_admin') return 403
+```
+
+### SAFES routes (GET, POST, PUT, DELETE /settings/safes):
+```typescript
+// ALL queries must include:
+WHERE company_id = req.companyId
+```
+
+### WAREHOUSES routes:
+```typescript
+// ALL queries must include:
+WHERE company_id = req.companyId
+```
+
+### PERIOD LOCK routes:
+```typescript
+// Use company_id from req.companyId for all period lock reads/writes
+```
+
+### RESET route:
+```typescript
+// CRITICAL: Only delete data WHERE company_id = req.companyId
+// NEVER delete data from other companies
+// super_admin accounts must NEVER be deleted by reset
+```
+
+---
+
+## Fix 4: Add tenant isolation to ALL other data routes
+
+Search ALL route files in `artifacts/api-server/src/routes/` for any query that reads or writes to these tables WITHOUT a company_id filter:
+- products, categories, customers, suppliers
+- sales, purchases, expenses, income
+- transactions, safes, warehouses, accounts
+- returns, vouchers, stock_movements
+- audit_logs, alerts, backups, customer_ledger
+- stock_count, stock_transfers, branches
+
+For EVERY query in EVERY route file, add `.where(eq(table.company_id, req.companyId))` or equivalent SQL `AND company_id = $companyId`.
+
+---
+
+## Fix 5: Protect super_admin accounts from any deletion
+
+In ALL route files, add this check before any DELETE operation on `erp_users`:
+```typescript
+// Never allow deletion of super_admin from any route except /api/super/managers
+const targetUser = await db.select().from(erpUsersTable).where(eq(erpUsersTable.id, targetId)).limit(1);
+if (targetUser[0]?.role === 'super_admin') {
+  return res.status(403).json({ error: 'لا يمكن حذف حساب المسؤول العام من هنا' });
+}
+```
+
+---
+
+## Fix 6: Add role-based company isolation
+
+In `artifacts/api-server/src/middleware/auth.ts`, update `authenticate` to enforce:
+
+```typescript
+// super_admin: companyId can be null/0 - they see everything via /api/super/* routes only
+// company_admin, branch_manager, cashier, agent: MUST have valid companyId
+// If non-super_admin has no companyId in token → return 403
+
+if (user.role !== 'super_admin' && !user.company_id) {
+  return res.status(403).json({ error: 'حساب غير مرتبط بشركة' });
+}
+```
+
+---
+
+## Fix 7: Add GET /auth/users company isolation
+
+In `artifacts/api-server/src/routes/auth.ts`:
+
+The `GET /auth/users` endpoint that returns users list for the login page must ONLY return users from the same company. 
+
+Since this is a public endpoint (no auth), it should require a `company_id` query parameter OR detect company from subdomain. For now, require it as a query param:
+```typescript
+// GET /auth/users?company_id=1
+const companyId = req.query.company_id;
+if (!companyId) return res.status(400).json({ error: 'company_id مطلوب' });
+// Filter users by company_id
+WHERE company_id = companyId AND role != 'super_admin'
+```
+
+---
+
+## Fix 8: Audit log for all destructive operations
+
+In every DELETE and critical UPDATE operation, add an audit log entry:
+```typescript
+await db.insert(auditLogsTable).values({
+  company_id: req.companyId,
+  user_id: req.userId,
+  action: 'DELETE_USER', // or relevant action
+  target_id: targetId,
+  details: JSON.stringify({ deletedName: targetUser.name }),
+  created_at: new Date(),
+});
+```
+
+---
+
+## Fix 9: Super Admin routes isolation
+
+In `artifacts/api-server/src/routes/super.ts`:
+- All `/api/super/*` routes must check `req.role === 'super_admin'`
+- super_admin routes are the ONLY routes that can access cross-company data
+- Regular company routes (`/api/settings/*`, `/api/sales/*` etc.) must ALWAYS filter by `req.companyId`
+
+---
+
+## Delivery Order (STRICTLY in this order):
+1. Fix `signToken` to include `company_id`  
+2. Fix `authenticate` middleware to extract `company_id`
+3. Fix login route to pass `company_id` to `signToken`
+4. Fix ALL settings routes (users, safes, warehouses, period lock, reset)
+5. Fix ALL data routes (sales, purchases, products, customers, etc.)
+6. Fix `GET /auth/users` to filter by company
+7. Add super_admin protection to all delete routes
+8. Add audit logging
+9. Run full test: login as company A user, verify cannot see company B data
+10. Run `pnpm run build` for both api-server and erp-system
+
+## Testing Checklist (MUST ALL PASS):
+- [ ] Company A user cannot see Company B users in settings
+- [ ] Company A user cannot delete Company B users
+- [ ] Company A user cannot see Company B sales/products/customers
+- [ ] super_admin account cannot be deleted from settings page
+- [ ] Reset only deletes data of the current company
+- [ ] Login page only shows users of the correct company
+- [ ] super_admin can still access all companies via /super/* routes
+- [ ] All existing functionality still works correctly
+
+## IMPORTANT CONSTRAINTS:
+- Do NOT change any database schema
+- Do NOT break existing UI functionality  
+- Keep all existing routes working
+- This is a SECURITY fix - be thorough and check every single query

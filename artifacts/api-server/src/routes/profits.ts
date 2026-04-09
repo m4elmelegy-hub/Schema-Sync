@@ -32,26 +32,26 @@ router.get("/profits", wrap(async (req, res) => {
     ? warehouse_ids.split(",").map(Number).filter(n => !isNaN(n) && n > 0)
     : [];
 
+  const companyId: number = (req as any).user?.company_id ?? 1;
+
   // ── Sale conditions ─────────────────────────────────────────────────────────
-  const saleConditions = [ne(salesTable.posting_status, "cancelled")];
+  const saleConditions = [ne(salesTable.posting_status, "cancelled"), eq(salesTable.company_id, companyId)];
   if (date_from)                saleConditions.push(gte(salesTable.date, date_from));
   if (date_to)                  saleConditions.push(lte(salesTable.date, date_to));
   if (warehouseIdList.length > 0) saleConditions.push(inArray(salesTable.warehouse_id, warehouseIdList));
   const saleWhereClause = and(...saleConditions);
 
-  // ── Expense conditions (expenses have no warehouse_id — global) ─────────────
-  const expenseConditions = [];
+  // ── Expense conditions ──────────────────────────────────────────────────────
+  const expenseConditions = [eq(expensesTable.company_id, companyId)];
   if (date_from) expenseConditions.push(gte(expensesTable.created_at, new Date(date_from + "T00:00:00Z")));
   if (date_to)   expenseConditions.push(lte(expensesTable.created_at, new Date(date_to   + "T23:59:59Z")));
-  const expenseWhereClause = expenseConditions.length > 0 ? and(...expenseConditions) : undefined;
+  const expenseWhereClause = and(...expenseConditions);
 
   // ── Fetch data ──────────────────────────────────────────────────────────────
   const [sales, allExpenses, allWarehouses] = await Promise.all([
     db.select().from(salesTable).where(saleWhereClause),
-    expenseWhereClause
-      ? db.select().from(expensesTable).where(expenseWhereClause)
-      : db.select().from(expensesTable),
-    db.select().from(warehousesTable).orderBy(warehousesTable.id),
+    db.select().from(expensesTable).where(expenseWhereClause),
+    db.select().from(warehousesTable).where(eq(warehousesTable.company_id, companyId)).orderBy(warehousesTable.id),
   ]);
 
   const emptyResult = {

@@ -4,7 +4,7 @@
  * Login lockout: max 5 failed attempts → 15-minute lockout per userId.
  */
 import { Router } from "express";
-import { eq } from "drizzle-orm";
+import { eq, and, ne } from "drizzle-orm";
 import { db, erpUsersTable, companiesTable } from "@workspace/db";
 import { authenticate, signToken } from "../middleware/auth";
 import { verifyPin, hashPin } from "../lib/hash";
@@ -56,8 +56,14 @@ function clearLockout(userId: number): void {
 }
 
 /* ── GET /auth/users — public list for login UI (no PINs) ─ */
-router.get("/auth/users", async (_req, res) => {
+router.get("/auth/users", async (req, res) => {
   try {
+    const companyId = req.query.company_id ? parseInt(String(req.query.company_id)) : null;
+    if (!companyId || isNaN(companyId)) {
+      res.status(400).json({ error: "company_id مطلوب للوصول إلى قائمة المستخدمين" });
+      return;
+    }
+
     const rows = await db
       .select({
         id:       erpUsersTable.id,
@@ -67,11 +73,17 @@ router.get("/auth/users", async (_req, res) => {
         active:   erpUsersTable.active,
       })
       .from(erpUsersTable)
+      .where(
+        and(
+          eq(erpUsersTable.company_id, companyId),
+          ne(erpUsersTable.role, "super_admin"),
+        )
+      )
       .orderBy(erpUsersTable.id);
 
     const users = rows
       .filter((u) => u.active !== false)
-      .map((u) => ({ ...u, pinLength: 4 })); // pinLength is a UI hint only (actual validation is server-side)
+      .map((u) => ({ ...u, pinLength: 4 }));
 
     res.json(users);
   } catch {
@@ -175,7 +187,7 @@ router.post("/auth/login", async (req, res) => {
     /* ── Success — clear lockout ──────────────────────────── */
     clearLockout(uid);
 
-    const token = signToken(user.id, user.role);
+    const token = signToken(user.id, user.role, user.company_id ?? null);
 
     let parsedPerms: Record<string, boolean> = {};
     try { parsedPerms = JSON.parse(user.permissions ?? "{}") as Record<string, boolean>; } catch { /* ignore */ }
@@ -191,6 +203,7 @@ router.post("/auth/login", async (req, res) => {
         active:       user.active ?? true,
         warehouse_id: user.warehouse_id ?? null,
         safe_id:      user.safe_id ?? null,
+        company_id:   user.company_id ?? null,
       },
     });
 
@@ -278,7 +291,7 @@ router.post("/auth/register", async (req, res) => {
       })
       .returning();
 
-    const token = signToken(user.id, user.role);
+    const token = signToken(user.id, user.role, user.company_id ?? null);
 
     res.status(201).json({
       token,
@@ -361,7 +374,7 @@ router.post("/auth/login/email", async (req, res) => {
     }
 
     clearLockout(user.id);
-    const token = signToken(user.id, user.role);
+    const token = signToken(user.id, user.role, user.company_id ?? null);
     let parsedPerms: Record<string, boolean> = {};
     try { parsedPerms = JSON.parse(user.permissions ?? "{}") as Record<string, boolean>; } catch { /* ignore */ }
 
@@ -376,6 +389,7 @@ router.post("/auth/login/email", async (req, res) => {
         active:       user.active ?? true,
         warehouse_id: user.warehouse_id ?? null,
         safe_id:      user.safe_id ?? null,
+        company_id:   user.company_id ?? null,
       },
     });
   } catch {

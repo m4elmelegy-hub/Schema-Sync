@@ -46,10 +46,16 @@ export default function Login() {
 
   const logoSrc = settings.customLogo || `${import.meta.env.BASE_URL}logo.png`;
 
+  /* company_id: read from localStorage (set after login) or URL param, default 1 */
+  const storedCompanyId = typeof window !== "undefined"
+    ? (Number(new URLSearchParams(window.location.search).get("company_id")) ||
+       Number(localStorage.getItem("erp_company_id")) || 1)
+    : 1;
+
   const { data: users = [] } = useQuery<ErpUser[]>({
-    queryKey: ["/api/auth/users"],
+    queryKey: ["/api/auth/users", storedCompanyId],
     queryFn: () =>
-      fetch(api("/api/auth/users")).then((r) => {
+      fetch(api(`/api/auth/users?company_id=${storedCompanyId}`)).then((r) => {
         if (!r.ok) throw new Error("فشل جلب المستخدمين");
         return r.json();
       }),
@@ -86,7 +92,7 @@ export default function Login() {
         return;
       }
       const { user: authedUser, token } = await res.json() as {
-        user: { id: number; name: string; username: string; role: string; active?: boolean; warehouse_id?: number | null; safe_id?: number | null; permissions?: Record<string, boolean> };
+        user: { id: number; name: string; username: string; role: string; active?: boolean; warehouse_id?: number | null; safe_id?: number | null; permissions?: Record<string, boolean>; company_id?: number | null };
         token: string;
       };
       if (authedUser.role === "cashier" || authedUser.role === "salesperson") {
@@ -98,6 +104,10 @@ export default function Login() {
           setError("هذا المستخدم غير مرتبط بخزنة — راجع المدير");
           setLoading(false); return;
         }
+      }
+      /* Store company_id for future login-page user-list fetches */
+      if (authedUser.company_id) {
+        localStorage.setItem("erp_company_id", String(authedUser.company_id));
       }
       login(authedUser, token);
       setLocation("/");

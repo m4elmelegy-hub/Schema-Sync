@@ -23,8 +23,11 @@ const router: IRouter = Router();
 // مرتجعات المبيعات
 // ══════════════════════════════════════════════════════════════════════════════
 
-router.get("/sales-returns", wrap(async (_req, res) => {
-  const items = await db.select().from(salesReturnsTable).orderBy(desc(salesReturnsTable.created_at));
+router.get("/sales-returns", wrap(async (req, res) => {
+  const companyId: number = (req as any).user?.company_id ?? 1;
+  const items = await db.select().from(salesReturnsTable)
+    .where(eq(salesReturnsTable.company_id, companyId))
+    .orderBy(desc(salesReturnsTable.created_at));
   res.json(items.map(r => ({ ...r, total_amount: Number(r.total_amount), created_at: r.created_at.toISOString() })));
 }));
 
@@ -529,8 +532,11 @@ router.delete("/sales-returns/:id", wrap(async (req, res) => {
 // مرتجعات المشتريات
 // ══════════════════════════════════════════════════════════════════════════════
 
-router.get("/purchase-returns", wrap(async (_req, res) => {
-  const items = await db.select().from(purchaseReturnsTable).orderBy(desc(purchaseReturnsTable.created_at));
+router.get("/purchase-returns", wrap(async (req, res) => {
+  const companyId: number = (req as any).user?.company_id ?? 1;
+  const items = await db.select().from(purchaseReturnsTable)
+    .where(eq(purchaseReturnsTable.company_id, companyId))
+    .orderBy(desc(purchaseReturnsTable.created_at));
   res.json(items.map(r => ({ ...r, total_amount: Number(r.total_amount), created_at: r.created_at.toISOString() })));
 }));
 

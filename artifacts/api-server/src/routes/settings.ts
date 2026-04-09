@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, desc, or, count, and } from "drizzle-orm";
+import { eq, desc, or, count, and, ne, inArray } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { authenticate, requireRole } from "../middleware/auth";
 import { hashPin } from "../lib/hash";
@@ -43,7 +43,14 @@ const router = Router();
 
 router.get("/settings/users", authenticate, requireRole("admin"), async (req, res) => {
   try {
-    const users = await db.select().from(erpUsersTable).orderBy(erpUsersTable.id);
+    const companyId = req.user!.company_id;
+    const users = await db.select().from(erpUsersTable)
+      .where(
+        companyId !== null
+          ? and(eq(erpUsersTable.company_id, companyId), ne(erpUsersTable.role, "super_admin"))
+          : ne(erpUsersTable.role, "super_admin")
+      )
+      .orderBy(erpUsersTable.id);
     /* Mask PIN in API responses — never expose raw PIN */
     const masked = users.map(({ pin, ...u }) => ({
       ...u,
@@ -59,6 +66,14 @@ router.get("/settings/users", authenticate, requireRole("admin"), async (req, re
 router.post("/settings/users", authenticate, requireRole("admin"), async (req, res) => {
   try {
     const { name, username, pin, role, permissions, warehouse_id, safe_id, active } = req.body;
+    const companyId = req.user!.company_id ?? undefined;
+
+    /* Prevent creating super_admin via this route */
+    if (role === "super_admin") {
+      res.status(403).json({ error: "لا يمكن إنشاء حساب مسؤول عام من هنا" });
+      return;
+    }
+
     const rawPin = pin || "0000";
     const hashedPin = await hashPin(String(rawPin));
     const [user] = await db.insert(erpUsersTable).values({
@@ -70,6 +85,7 @@ router.post("/settings/users", authenticate, requireRole("admin"), async (req, r
       warehouse_id: warehouse_id ? Number(warehouse_id) : null,
       safe_id: safe_id ? Number(safe_id) : null,
       active: active !== undefined ? Boolean(active) : true,
+      company_id: companyId,
     }).returning();
     res.json({ ...user, pin: "****" });
   } catch (e) {
@@ -81,7 +97,30 @@ router.put("/settings/users/:id", authenticate, requireRole("admin"), async (req
   try {
     const id = Number(req.params.id);
     const requesterId = req.user!.id;
+    const companyId = req.user!.company_id;
     const { name, username, pin, role, permissions, active, warehouse_id, safe_id } = req.body;
+
+    /* Prevent editing super_admin via this route */
+    if (role === "super_admin") {
+      res.status(403).json({ error: "لا يمكن تعيين دور المسؤول العام من هنا" });
+      return;
+    }
+
+    /* Verify target belongs to same company */
+    const [target] = await db.select().from(erpUsersTable)
+      .where(
+        companyId !== null
+          ? and(eq(erpUsersTable.id, id), eq(erpUsersTable.company_id, companyId))
+          : eq(erpUsersTable.id, id)
+      );
+    if (!target) {
+      res.status(404).json({ error: "المستخدم غير موجود" });
+      return;
+    }
+    if (target.role === "super_admin") {
+      res.status(403).json({ error: "لا يمكن تعديل حساب المسؤول العام من هنا" });
+      return;
+    }
 
     /* Self-escalation prevention: no one can change their own role */
     if (requesterId === id && role !== undefined && role !== req.user!.role) {
@@ -114,10 +153,29 @@ router.put("/settings/users/:id", authenticate, requireRole("admin"), async (req
 router.delete("/settings/users/:id", authenticate, requireRole("admin"), async (req, res) => {
   try {
     const id = Number(req.params.id);
+    const companyId = req.user!.company_id;
 
     /* Prevent deleting yourself */
     if (req.user!.id === id) {
       res.status(403).json({ error: "لا يمكنك حذف حسابك الخاص" });
+      return;
+    }
+
+    /* Verify target belongs to same company */
+    const [target] = await db.select().from(erpUsersTable)
+      .where(
+        companyId !== null
+          ? and(eq(erpUsersTable.id, id), eq(erpUsersTable.company_id, companyId))
+          : eq(erpUsersTable.id, id)
+      );
+    if (!target) {
+      res.status(404).json({ error: "المستخدم غير موجود" });
+      return;
+    }
+
+    /* Protect super_admin accounts from deletion via this route */
+    if (target.role === "super_admin") {
+      res.status(403).json({ error: "لا يمكن حذف حساب المسؤول العام من هنا" });
       return;
     }
 
@@ -528,8 +586,12 @@ router.put("/settings/period", authenticate, requireRole("admin"), async (req, r
  */
 router.get("/settings/audit-logs", authenticate, requireRole("admin"), async (req, res) => {
   try {
+    const companyId = req.user!.company_id;
     const limit  = Math.min(parseInt(String(req.query.limit  ?? "200")), 500);
-    const rows   = await db.select().from(auditLogsTable).orderBy(desc(auditLogsTable.created_at)).limit(limit);
+    const rows   = await db.select().from(auditLogsTable)
+      .where(companyId !== null ? eq(auditLogsTable.company_id, companyId) : undefined)
+      .orderBy(desc(auditLogsTable.created_at))
+      .limit(limit);
     const record_type = req.query.record_type as string | undefined;
     const filtered = record_type ? rows.filter(r => r.record_type === record_type) : rows;
     res.json(filtered.map(r => ({ ...r, created_at: r.created_at.toISOString() })));
@@ -548,31 +610,41 @@ router.post("/settings/reset", authenticate, requireRole("admin"), async (req, r
       return;
     }
 
-    // حذف البنود أولاً (foreign keys)
-    await db.delete(journalEntryLinesTable);
-    await db.delete(journalEntriesTable);
-    await db.delete(saleReturnItemsTable);
-    await db.delete(salesReturnsTable);
-    await db.delete(purchaseReturnItemsTable);
-    await db.delete(purchaseReturnsTable);
-    await db.delete(saleItemsTable);
-    await db.delete(salesTable);
-    await db.delete(purchaseItemsTable);
-    await db.delete(purchasesTable);
-    await db.delete(expensesTable);
-    await db.delete(incomeTable);
-    await db.delete(receiptVouchersTable);
-    await db.delete(depositVouchersTable);
-    await db.delete(paymentVouchersTable);
-    await db.delete(treasuryVouchersTable);
-    await db.delete(safeTransfersTable);
-    await db.delete(transactionsTable);
-    await db.delete(accountsTable);
+    const companyId = req.user!.company_id ?? 1;
 
-    // تصفير الأرصدة
-    await db.update(customersTable).set({ balance: "0" });
-    await db.update(productsTable).set({ quantity: "0" });
-    await db.update(safesTable).set({ balance: "0" });
+    /* Helper: fetch IDs of parent rows for this company */
+    const saleIds    = (await db.select({ id: salesTable.id }).from(salesTable).where(eq(salesTable.company_id, companyId))).map(r => r.id);
+    const purIds     = (await db.select({ id: purchasesTable.id }).from(purchasesTable).where(eq(purchasesTable.company_id, companyId))).map(r => r.id);
+    const sRetIds    = (await db.select({ id: salesReturnsTable.id }).from(salesReturnsTable).where(eq(salesReturnsTable.company_id, companyId))).map(r => r.id);
+    const pRetIds    = (await db.select({ id: purchaseReturnsTable.id }).from(purchaseReturnsTable).where(eq(purchaseReturnsTable.company_id, companyId))).map(r => r.id);
+    const jrnIds     = (await db.select({ id: journalEntriesTable.id }).from(journalEntriesTable).where(eq(journalEntriesTable.company_id, companyId))).map(r => r.id);
+
+    // حذف البنود أولاً (foreign keys)
+    if (jrnIds.length > 0)  await db.delete(journalEntryLinesTable).where(inArray(journalEntryLinesTable.journal_id, jrnIds));
+    await db.delete(journalEntriesTable).where(eq(journalEntriesTable.company_id, companyId));
+    if (sRetIds.length > 0) await db.delete(saleReturnItemsTable).where(inArray(saleReturnItemsTable.return_id, sRetIds));
+    await db.delete(salesReturnsTable).where(eq(salesReturnsTable.company_id, companyId));
+    if (pRetIds.length > 0) await db.delete(purchaseReturnItemsTable).where(inArray(purchaseReturnItemsTable.return_id, pRetIds));
+    await db.delete(purchaseReturnsTable).where(eq(purchaseReturnsTable.company_id, companyId));
+    if (saleIds.length > 0) await db.delete(saleItemsTable).where(inArray(saleItemsTable.sale_id, saleIds));
+    await db.delete(salesTable).where(eq(salesTable.company_id, companyId));
+    if (purIds.length > 0)  await db.delete(purchaseItemsTable).where(inArray(purchaseItemsTable.purchase_id, purIds));
+    await db.delete(purchasesTable).where(eq(purchasesTable.company_id, companyId));
+    await db.delete(expensesTable).where(eq(expensesTable.company_id, companyId));
+    await db.delete(incomeTable).where(eq(incomeTable.company_id, companyId));
+    await db.delete(receiptVouchersTable).where(eq(receiptVouchersTable.company_id, companyId));
+    await db.delete(depositVouchersTable).where(eq(depositVouchersTable.company_id, companyId));
+    await db.delete(paymentVouchersTable).where(eq(paymentVouchersTable.company_id, companyId));
+    await db.delete(treasuryVouchersTable).where(eq(treasuryVouchersTable.company_id, companyId));
+    await db.delete(safeTransfersTable).where(eq(safeTransfersTable.company_id, companyId));
+    await db.delete(transactionsTable).where(eq(transactionsTable.company_id, companyId));
+    await db.delete(accountsTable).where(eq(accountsTable.company_id, companyId));
+    await db.delete(stockMovementsTable).where(eq(stockMovementsTable.company_id, companyId));
+
+    // تصفير الأرصدة للشركة فقط
+    await db.update(customersTable).set({ balance: "0" }).where(eq(customersTable.company_id, companyId));
+    await db.update(productsTable).set({ quantity: "0" }).where(eq(productsTable.company_id, companyId));
+    await db.update(safesTable).set({ balance: "0" }).where(eq(safesTable.company_id, companyId));
 
     res.json({ success: true, message: "تم تصفير قاعدة البيانات بنجاح" });
   } catch (e: unknown) {

@@ -16,11 +16,15 @@ const router: IRouter = Router();
 // PRODUCT OPENING BALANCE
 // ─────────────────────────────────────────────────────────────────────────────
 
-router.get("/opening-balance/product", wrap(async (_req, res) => {
+router.get("/opening-balance/product", wrap(async (req, res) => {
+  const companyId: number = (req as any).user?.company_id ?? 1;
   const movements = await db
     .select()
     .from(stockMovementsTable)
-    .where(eq(stockMovementsTable.movement_type, "opening_balance"));
+    .where(and(
+      eq(stockMovementsTable.movement_type, "opening_balance"),
+      eq(stockMovementsTable.company_id, companyId),
+    ));
   res.json(
     movements.map((m) => ({
       ...m,
@@ -58,10 +62,12 @@ router.post("/inventory/opening-balance", wrap(async (req, res) => {
   const queryWarehouseId = req.query.warehouse_id ? parseInt(String(req.query.warehouse_id), 10) : null;
   const effectiveWarehouseId = (role === "admin" || role === "manager") ? queryWarehouseId : (req.user?.warehouse_id ?? null);
 
+  const companyId: number = (req as any).user?.company_id ?? 1;
+
   const [product] = await db
     .select()
     .from(productsTable)
-    .where(eq(productsTable.id, prodId));
+    .where(and(eq(productsTable.id, prodId), eq(productsTable.company_id, companyId)));
   if (!product) {
     res.status(404).json({ error: "المنتج غير موجود" });
     return;
@@ -112,6 +118,7 @@ router.post("/inventory/opening-balance", wrap(async (req, res) => {
       notes: notes ?? "رصيد أول المدة",
       date: date ?? new Date().toISOString().split("T")[0],
       warehouse_id: effectiveWarehouseId ?? 1,
+      company_id: companyId,
     });
   });
 
@@ -130,11 +137,15 @@ router.post("/inventory/opening-balance", wrap(async (req, res) => {
 // TREASURY (SAFE) OPENING BALANCE
 // ─────────────────────────────────────────────────────────────────────────────
 
-router.get("/opening-balance/treasury", wrap(async (_req, res) => {
+router.get("/opening-balance/treasury", wrap(async (req, res) => {
+  const companyId: number = (req as any).user?.company_id ?? 1;
   const txns = await db
     .select()
     .from(transactionsTable)
-    .where(eq(transactionsTable.reference_type, "treasury_opening"));
+    .where(and(
+      eq(transactionsTable.reference_type, "treasury_opening"),
+      eq(transactionsTable.company_id, companyId),
+    ));
   res.json(
     txns.map((t) => ({
       ...t,
@@ -146,6 +157,7 @@ router.get("/opening-balance/treasury", wrap(async (_req, res) => {
 
 router.post("/opening-balance/treasury", wrap(async (req, res) => {
   const { safe_id, amount, date, notes } = req.body;
+  const companyId: number = (req as any).user?.company_id ?? 1;
 
   if (!safe_id || amount === undefined) {
     res.status(400).json({ error: "الخزينة والمبلغ مطلوبان" });
@@ -161,7 +173,7 @@ router.post("/opening-balance/treasury", wrap(async (req, res) => {
   const [safe] = await db
     .select()
     .from(safesTable)
-    .where(eq(safesTable.id, parseInt(safe_id)));
+    .where(and(eq(safesTable.id, parseInt(safe_id)), eq(safesTable.company_id, companyId)));
   if (!safe) {
     res.status(404).json({ error: "الخزينة غير موجودة" });
     return;
@@ -183,6 +195,7 @@ router.post("/opening-balance/treasury", wrap(async (req, res) => {
       direction: "in",
       description: notes ?? `رصيد أول المدة — ${safe.name}`,
       date: date ?? new Date().toISOString().split("T")[0],
+      company_id: companyId,
     });
   });
 
@@ -193,11 +206,15 @@ router.post("/opening-balance/treasury", wrap(async (req, res) => {
 // CUSTOMER OPENING BALANCE
 // ─────────────────────────────────────────────────────────────────────────────
 
-router.get("/opening-balance/customer", wrap(async (_req, res) => {
+router.get("/opening-balance/customer", wrap(async (req, res) => {
+  const companyId: number = (req as any).user?.company_id ?? 1;
   const txns = await db
     .select()
     .from(transactionsTable)
-    .where(eq(transactionsTable.reference_type, "customer_opening"));
+    .where(and(
+      eq(transactionsTable.reference_type, "customer_opening"),
+      eq(transactionsTable.company_id, companyId),
+    ));
   res.json(
     txns.map((t) => ({
       ...t,
@@ -209,6 +226,7 @@ router.get("/opening-balance/customer", wrap(async (_req, res) => {
 
 router.post("/opening-balance/customer", wrap(async (req, res) => {
   const { customer_id, amount, date, notes } = req.body;
+  const companyId: number = (req as any).user?.company_id ?? 1;
 
   if (!customer_id || amount === undefined) {
     res.status(400).json({ error: "العميل والمبلغ مطلوبان" });
@@ -225,7 +243,7 @@ router.post("/opening-balance/customer", wrap(async (req, res) => {
   const [customer] = await db
     .select()
     .from(customersTable)
-    .where(eq(customersTable.id, custId));
+    .where(and(eq(customersTable.id, custId), eq(customersTable.company_id, companyId)));
   if (!customer) {
     res.status(404).json({ error: "العميل غير موجود" });
     return;
@@ -247,6 +265,7 @@ router.post("/opening-balance/customer", wrap(async (req, res) => {
       direction: "none",
       description: notes ?? `رصيد أول المدة — ${customer.name}`,
       date: date ?? new Date().toISOString().split("T")[0],
+      company_id: companyId,
     });
   });
 
@@ -257,11 +276,15 @@ router.post("/opening-balance/customer", wrap(async (req, res) => {
 // SUPPLIER OPENING BALANCE (uses customers with is_supplier = true)
 // ─────────────────────────────────────────────────────────────────────────────
 
-router.get("/opening-balance/supplier", wrap(async (_req, res) => {
+router.get("/opening-balance/supplier", wrap(async (req, res) => {
+  const companyId: number = (req as any).user?.company_id ?? 1;
   const txns = await db
     .select()
     .from(transactionsTable)
-    .where(eq(transactionsTable.reference_type, "customer_opening"));
+    .where(and(
+      eq(transactionsTable.reference_type, "customer_opening"),
+      eq(transactionsTable.company_id, companyId),
+    ));
   res.json(
     txns.map((t) => ({
       ...t,
@@ -274,6 +297,7 @@ router.get("/opening-balance/supplier", wrap(async (_req, res) => {
 router.post("/opening-balance/supplier", wrap(async (req, res) => {
   const { supplier_id, customer_id: qCustId, amount, date, notes } = req.body;
   const rawId = supplier_id ?? qCustId;
+  const companyId: number = (req as any).user?.company_id ?? 1;
 
   if (!rawId || amount === undefined) {
     res.status(400).json({ error: "المورد والمبلغ مطلوبان" });
@@ -290,7 +314,7 @@ router.post("/opening-balance/supplier", wrap(async (req, res) => {
   const [customer] = await db
     .select()
     .from(customersTable)
-    .where(eq(customersTable.id, custId));
+    .where(and(eq(customersTable.id, custId), eq(customersTable.company_id, companyId)));
   if (!customer) {
     res.status(404).json({ error: "المورد غير موجود" });
     return;
@@ -312,6 +336,7 @@ router.post("/opening-balance/supplier", wrap(async (req, res) => {
       direction: "none",
       description: notes ?? `رصيد أول المدة — ${customer.name}`,
       date: date ?? new Date().toISOString().split("T")[0],
+      company_id: companyId,
     });
   });
 

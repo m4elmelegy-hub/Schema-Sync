@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { eq, inArray, ne } from "drizzle-orm";
 import { db,
   productsTable, customersTable,
   salesTable, saleItemsTable,
@@ -23,15 +24,18 @@ const router: IRouter = Router();
    POST /api/system/backup
    Returns a full JSON dump of every table — sent as a downloadable file.
    ══════════════════════════════════════════════════════════════════════════ */
-router.post("/system/backup", authenticate, requireRole("admin"), wrap(async (_req, res) => {
+router.post("/system/backup", authenticate, requireRole("admin"), wrap(async (req, res) => {
+  const companyId: number = (req as any).user?.company_id ?? 1;
+  const cEq = <T extends { company_id: unknown }>(t: T) => eq((t as any).company_id, companyId);
+
+  /* First fetch parent rows so we can collect their IDs for child tables */
   const [
     products, customers,
-    sales, saleItems,
-    purchases, purchaseItems,
-    salesReturns, saleReturnItems,
-    purchaseReturns, purchaseReturnItems,
+    sales, purchases,
+    salesReturns, purchaseReturns,
+    journalEntries,
     expenses, income, transactions,
-    accounts, journalEntries, journalEntryLines,
+    accounts,
     receiptVouchers, depositVouchers,
     paymentVouchers, treasuryVouchers,
     safeTransfers, stockMovements,
@@ -39,40 +43,54 @@ router.post("/system/backup", authenticate, requireRole("admin"), wrap(async (_r
     users, settings,
     alerts, auditLogs,
   ] = await Promise.all([
-    db.select().from(productsTable),
-    db.select().from(customersTable),
-    db.select().from(salesTable),
-    db.select().from(saleItemsTable),
-    db.select().from(purchasesTable),
-    db.select().from(purchaseItemsTable),
-    db.select().from(salesReturnsTable),
-    db.select().from(saleReturnItemsTable),
-    db.select().from(purchaseReturnsTable),
-    db.select().from(purchaseReturnItemsTable),
-    db.select().from(expensesTable),
-    db.select().from(incomeTable),
-    db.select().from(transactionsTable),
-    db.select().from(accountsTable),
-    db.select().from(journalEntriesTable),
-    db.select().from(journalEntryLinesTable),
-    db.select().from(receiptVouchersTable),
-    db.select().from(depositVouchersTable),
-    db.select().from(paymentVouchersTable),
-    db.select().from(treasuryVouchersTable),
-    db.select().from(safeTransfersTable),
-    db.select().from(stockMovementsTable),
-    db.select().from(safesTable),
-    db.select().from(warehousesTable),
-    db.select().from(erpUsersTable),
-    db.select().from(systemSettingsTable),
-    db.select().from(alertsTable),
-    db.select().from(auditLogsTable),
+    db.select().from(productsTable).where(cEq(productsTable)),
+    db.select().from(customersTable).where(cEq(customersTable)),
+    db.select().from(salesTable).where(cEq(salesTable)),
+    db.select().from(purchasesTable).where(cEq(purchasesTable)),
+    db.select().from(salesReturnsTable).where(cEq(salesReturnsTable)),
+    db.select().from(purchaseReturnsTable).where(cEq(purchaseReturnsTable)),
+    db.select().from(journalEntriesTable).where(cEq(journalEntriesTable)),
+    db.select().from(expensesTable).where(cEq(expensesTable)),
+    db.select().from(incomeTable).where(cEq(incomeTable)),
+    db.select().from(transactionsTable).where(cEq(transactionsTable)),
+    db.select().from(accountsTable).where(cEq(accountsTable)),
+    db.select().from(receiptVouchersTable).where(cEq(receiptVouchersTable)),
+    db.select().from(depositVouchersTable).where(cEq(depositVouchersTable)),
+    db.select().from(paymentVouchersTable).where(cEq(paymentVouchersTable)),
+    db.select().from(treasuryVouchersTable).where(cEq(treasuryVouchersTable)),
+    db.select().from(safeTransfersTable).where(cEq(safeTransfersTable)),
+    db.select().from(stockMovementsTable).where(cEq(stockMovementsTable)),
+    db.select().from(safesTable).where(cEq(safesTable)),
+    db.select().from(warehousesTable).where(cEq(warehousesTable)),
+    db.select().from(erpUsersTable)
+      .where(eq(erpUsersTable.company_id, companyId))
+      .then(rows => rows.filter(u => u.role !== "super_admin")),
+    db.select().from(systemSettingsTable).where(cEq(systemSettingsTable)),
+    db.select().from(alertsTable).where(cEq(alertsTable)),
+    db.select().from(auditLogsTable).where(cEq(auditLogsTable)),
   ]);
+
+  /* Collect parent IDs for child tables (which lack direct company_id) */
+  const saleIds    = sales.map(r => r.id);
+  const purchIds   = purchases.map(r => r.id);
+  const srIds      = salesReturns.map(r => r.id);
+  const prIds      = purchaseReturns.map(r => r.id);
+  const jeIds      = journalEntries.map(r => r.id);
+
+  const [saleItems, purchaseItems, saleReturnItems, purchaseReturnItems, journalEntryLines] =
+    await Promise.all([
+      saleIds.length  ? db.select().from(saleItemsTable).where(inArray(saleItemsTable.sale_id, saleIds)) : [],
+      purchIds.length ? db.select().from(purchaseItemsTable).where(inArray(purchaseItemsTable.purchase_id, purchIds)) : [],
+      srIds.length    ? db.select().from(saleReturnItemsTable).where(inArray(saleReturnItemsTable.return_id, srIds)) : [],
+      prIds.length    ? db.select().from(purchaseReturnItemsTable).where(inArray(purchaseReturnItemsTable.return_id, prIds)) : [],
+      jeIds.length    ? db.select().from(journalEntryLinesTable).where(inArray(journalEntryLinesTable.entry_id, jeIds)) : [],
+    ]);
 
   const backup = {
     version: "2.0",
     app: "Halal Tech ERP",
     created_at: new Date().toISOString(),
+    company_id: companyId,
     data: {
       products, customers,
       sales, sale_items: saleItems,

@@ -30,8 +30,8 @@ declare global {
 }
 
 /* ── Sign a new JWT for a user ─────────────────────────── */
-export function signToken(userId: number, role: string): string {
-  return jwt.sign({ userId, role }, JWT_SECRET, { expiresIn: "12h" });
+export function signToken(userId: number, role: string, companyId: number | null = null): string {
+  return jwt.sign({ userId, role, companyId }, JWT_SECRET, { expiresIn: "12h" });
 }
 
 /* ── Verify JWT and attach user from DB ─────────────────── */
@@ -73,6 +73,12 @@ export async function authenticate(
       res.status(400).json({ error: "يجب تحديد المخزن والخزنة لهذا المستخدم — يرجى مراجعة المدير" });
       return;
     }
+  }
+
+  /* Non-super_admin must belong to a company */
+  if (user.role !== "super_admin" && !user.company_id) {
+    res.status(403).json({ error: "حساب غير مرتبط بشركة — تواصل مع المدير" });
+    return;
   }
 
   if (user.company_id) {
