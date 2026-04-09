@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { authFetch } from "@/lib/auth-fetch";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/format";
-import { Plus, ChevronDown, ChevronLeft, Edit2, X } from "lucide-react";
+import { Plus, ChevronDown, ChevronLeft, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TableSkeleton } from "@/components/skeletons";
 
@@ -125,7 +125,7 @@ export default function Accounts() {
   });
 
   const roots = accounts.filter(a => a.parent_id === null);
-  const filteredRoots = filter ? accounts.filter(a => TYPE_LABELS[a.type] === filter || a.type === filter) : roots;
+  const _filteredRoots = filter ? accounts.filter(a => TYPE_LABELS[a.type] === filter || a.type === filter) : roots;
 
   // حساب المجاميع
   const totals = useMemo(() => {

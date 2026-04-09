@@ -65,7 +65,7 @@ router.post("/branches", authenticate, requireRole("admin"), async (req, res) =>
 /* ── PATCH /branches/:id ────────────────────────────────────── */
 router.patch("/branches/:id", authenticate, requireRole("admin"), async (req, res) => {
   try {
-    const id        = parseInt(req.params.id, 10);
+    const id        = parseInt(String(req.params.id), 10);
     const companyId = req.user?.company_id ?? null;
     if (companyId === null) { res.status(403).json({ error: "غير مسموح" }); return; }
 
@@ -93,7 +93,7 @@ router.patch("/branches/:id", authenticate, requireRole("admin"), async (req, re
 /* ── DELETE /branches/:id ───────────────────────────────────── */
 router.delete("/branches/:id", authenticate, requireRole("admin"), async (req, res) => {
   try {
-    const id        = parseInt(req.params.id, 10);
+    const id        = parseInt(String(req.params.id), 10);
     const companyId = req.user?.company_id ?? null;
     if (companyId === null) { res.status(403).json({ error: "غير مسموح" }); return; }
 

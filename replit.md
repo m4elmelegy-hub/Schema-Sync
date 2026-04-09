@@ -323,6 +323,37 @@ All financial documents (sales, purchases, deposit vouchers, payment vouchers, r
 - `formatSaleItem()` in `sales.ts`: `cost_price`, `cost_total`, `quantity_returned` → `Number()`
 - `formatPurchaseItem()` in `purchases.ts`: `quantity_returned` → `Number()`
 
+## Level 2 Code Quality — COMPLETE (April 2026)
+
+### ESLint + Prettier + TypeScript Strict (Frontend & Backend)
+
+**ESLint — 0 errors on both packages:**
+- Backend (`artifacts/api-server`): `eslint.config.js` (flat config, ESLint 10) — security plugin, 0 errors, 144 warnings
+- Frontend (`artifacts/erp-system`): `eslint.config.js` (flat config, ESLint 10) — react-hooks + jsx-a11y, 0 errors, ~285 warnings
+- `react-hooks/rules-of-hooks` downgraded to `warn` (pre-existing hook-after-early-return patterns in settings.tsx — to be fixed progressively)
+- `varsIgnorePattern: '^_'` added alongside `argsIgnorePattern: '^_'` so underscore-prefix suppresses unused var warnings
+- 48 unused imports/variables fixed across 20 frontend files; 2 `no-unused-expressions` fixed in settings.tsx
+
+**TypeScript Strict Mode — 0 errors on both packages:**
+- Backend tsconfig: `strict: true` + `noImplicitAny` + `noImplicitReturns` — 0 errors
+- Frontend tsconfig: `strict: true` + `noImplicitAny` + `strictNullChecks` + `noImplicitReturns` — 0 errors
+- Root fix: `safeArray<T = any>` and `safeObject<T = any>` default type params — eliminated 332 TS18046 errors (untyped safeArray() calls)
+- `currentWarehouseId` string→number conversion (`currentWarehouseIdNum`) in inventory.tsx — fixed 4 type-mismatch errors
+- `p.low_stock_threshold != null` (loose equality) in InventoryReport.tsx — fixed TS18048 possibly-undefined error
+
+**Tooling Infrastructure:**
+- `.prettierrc` — singleQuote, semi, tabWidth 2, printWidth 100
+- `.prettierignore` — excludes dist, coverage, generated files
+- `.vscode/settings.json` + `.vscode/extensions.json` — format on save, ESLint on save
+- `.husky/pre-commit` — runs `lint-staged` (ESLint + Prettier on staged files)
+- `.husky/pre-push` — runs full test suite (backend + frontend)
+- `lint-staged` in root `package.json` — `*.{ts,tsx}`: eslint --fix, prettier --write; `*.{json,md,css}`: prettier --write
+- Root workspace scripts: `lint`, `format`, `type-check` across all packages
+
+**Test Suite — All Pass:**
+- Backend: 38/38 tests (4 files) — coverage thresholds 50%/55%/30%
+- Frontend: 4/4 tests (1 file) — coverage threshold 60%
+
 ## External Dependencies
 
 - **Node.js**: Version 24

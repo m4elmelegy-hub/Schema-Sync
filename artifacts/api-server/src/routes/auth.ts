@@ -288,11 +288,11 @@ router.post("/auth/refresh", async (req, res) => {
 /* ── GET /auth/subscription — subscription status for current company ─ */
 router.get("/auth/subscription", authenticate, async (req, res) => {
   try {
-    if (req.role === "super_admin") {
+    if (req.user?.role === "super_admin") {
       res.json({ unlimited: true });
       return;
     }
-    const companyId = req.companyId;
+    const companyId = req.user?.company_id;
     if (!companyId) {
       res.json({ unlimited: true });
       return;

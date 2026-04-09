@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db, expensesTable, transactionsTable, safesTable } from "@workspace/db";
 import {
   GetExpensesResponse,
@@ -10,7 +10,6 @@ import {
 import { wrap, httpError } from "../lib/async-handler";
 import { hasPermission } from "../lib/permissions";
 import { assertPeriodOpen } from "../lib/period-lock";
-import { writeAuditLog } from "../lib/audit-log";
 import { getOrCreateSafeAccount, getOrCreateGeneralExpenseAccount, createAutoJournalEntry } from "../lib/auto-account";
 
 const router: IRouter = Router();

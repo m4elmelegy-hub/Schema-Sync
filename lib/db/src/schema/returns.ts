@@ -64,6 +64,7 @@ export const purchaseReturnsTable = pgTable("purchase_returns", {
   date: text("date"),
   reason: text("reason"),
   notes: text("notes"),
+  company_id: integer("company_id").notNull().default(1),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("purchase_returns_purchase_id_idx").on(t.purchase_id),

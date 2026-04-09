@@ -8,7 +8,7 @@ import {
   transactionsTable,
   customersTable,
 } from "@workspace/db";
-import { wrap, httpError } from "../lib/async-handler";
+import { wrap } from "../lib/async-handler";
 
 const router: IRouter = Router();
 

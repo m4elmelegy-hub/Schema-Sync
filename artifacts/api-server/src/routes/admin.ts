@@ -9,7 +9,7 @@ import { db,
   productsTable, stockMovementsTable,
   customersTable,
 } from "@workspace/db";
-import { sql, isNull, eq, inArray } from "drizzle-orm";
+import { sql, eq, inArray } from "drizzle-orm";
 import { wrap } from "../lib/async-handler";
 import { authenticate, requireRole } from "../middleware/auth";
 import { getOrCreateCustomerAccount, getOrCreateCustomerPayableAccount } from "../lib/auto-account";

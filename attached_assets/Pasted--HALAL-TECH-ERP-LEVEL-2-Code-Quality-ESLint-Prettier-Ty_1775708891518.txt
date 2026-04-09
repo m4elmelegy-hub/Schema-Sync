@@ -1,0 +1,329 @@
+# [HALAL TECH ERP — LEVEL 2: Code Quality]
+# ESLint + Prettier + TypeScript Strict + Husky
+
+---
+
+## SETUP 1: ESLint للـ Backend
+
+```bash
+cd artifacts/api-server
+pnpm add -D eslint @typescript-eslint/eslint-plugin @typescript-eslint/parser eslint-plugin-security eslint-plugin-node
+```
+
+أنشئ `artifacts/api-server/.eslintrc.json`:
+```json
+{
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": 2022,
+    "sourceType": "module",
+    "project": "./tsconfig.json"
+  },
+  "plugins": ["@typescript-eslint", "security"],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:security/recommended"
+  ],
+  "rules": {
+    "@typescript-eslint/no-explicit-any": "warn",
+    "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    "@typescript-eslint/explicit-function-return-type": "off",
+    "@typescript-eslint/no-floating-promises": "error",
+    "security/detect-object-injection": "warn",
+    "security/detect-non-literal-regexp": "warn",
+    "no-console": "warn",
+    "no-debugger": "error",
+    "prefer-const": "error",
+    "no-var": "error",
+    "eqeqeq": ["error", "always"],
+    "no-throw-literal": "error"
+  },
+  "ignorePatterns": ["dist/", "coverage/", "*.mjs", "build.mjs", "build-test.mjs"]
+}
+```
+
+---
+
+## SETUP 2: ESLint للـ Frontend
+
+```bash
+cd artifacts/erp-system
+pnpm add -D eslint @typescript-eslint/eslint-plugin @typescript-eslint/parser eslint-plugin-react eslint-plugin-react-hooks eslint-plugin-jsx-a11y
+```
+
+أنشئ `artifacts/erp-system/.eslintrc.json`:
+```json
+{
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": 2022,
+    "sourceType": "module",
+    "ecmaFeatures": { "jsx": true }
+  },
+  "plugins": ["@typescript-eslint", "react", "react-hooks", "jsx-a11y"],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:react/recommended",
+    "plugin:react-hooks/recommended",
+    "plugin:jsx-a11y/recommended"
+  ],
+  "settings": {
+    "react": { "version": "detect" }
+  },
+  "rules": {
+    "@typescript-eslint/no-explicit-any": "warn",
+    "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    "react/react-in-jsx-scope": "off",
+    "react/prop-types": "off",
+    "react-hooks/rules-of-hooks": "error",
+    "react-hooks/exhaustive-deps": "warn",
+    "jsx-a11y/click-events-have-key-events": "warn",
+    "jsx-a11y/no-static-element-interactions": "warn",
+    "no-console": "warn",
+    "prefer-const": "error",
+    "no-var": "error"
+  },
+  "ignorePatterns": ["dist/", "coverage/", "*.config.ts", "*.config.js"]
+}
+```
+
+---
+
+## SETUP 3: Prettier (موحد للكل)
+
+في root المشروع:
+```bash
+pnpm add -D prettier eslint-config-prettier eslint-plugin-prettier
+```
+
+أنشئ `.prettierrc` في root:
+```json
+{
+  "semi": true,
+  "singleQuote": true,
+  "tabWidth": 2,
+  "trailingComma": "es5",
+  "printWidth": 100,
+  "arrowParens": "always",
+  "endOfLine": "lf",
+  "bracketSpacing": true
+}
+```
+
+أنشئ `.prettierignore` في root:
+```
+node_modules/
+dist/
+coverage/
+pnpm-lock.yaml
+*.md
+attached_assets/
+```
+
+---
+
+## SETUP 4: تحديث tsconfig للـ Strict Mode
+
+في `artifacts/api-server/tsconfig.json`:
+```json
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "types": ["node"],
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "exactOptionalPropertyTypes": false
+  },
+  "include": ["src"],
+  "exclude": ["src/__tests__", "dist", "coverage"]
+}
+```
+
+في `artifacts/erp-system/tsconfig.json` — أضف:
+```json
+{
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "noUnusedLocals": false,
+    "noImplicitReturns": true
+  }
+}
+```
+
+**مهم:** بعد تفعيل strict — شغّل `pnpm run build` وأصلح أي TypeScript errors تظهر.
+
+---
+
+## SETUP 5: Husky + lint-staged
+
+في root المشروع:
+```bash
+pnpm add -D husky lint-staged
+npx husky init
+```
+
+حدّث `.husky/pre-commit`:
+```bash
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+echo "🔍 Running pre-commit checks..."
+
+# تشغيل lint-staged
+pnpm lint-staged
+
+echo "✅ Pre-commit checks passed!"
+```
+
+حدّث `.husky/pre-push`:
+```bash
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+echo "🧪 Running tests before push..."
+
+# Backend tests
+cd artifacts/api-server && pnpm test
+if [ $? -ne 0 ]; then
+  echo "❌ Backend tests failed — push rejected!"
+  exit 1
+fi
+
+# Frontend tests
+cd ../erp-system && pnpm test
+if [ $? -ne 0 ]; then
+  echo "❌ Frontend tests failed — push rejected!"
+  exit 1
+fi
+
+echo "✅ All tests passed — pushing!"
+```
+
+في root `package.json` — أضف:
+```json
+{
+  "lint-staged": {
+    "artifacts/api-server/src/**/*.ts": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "artifacts/erp-system/src/**/*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "**/*.{json,md,css}": [
+      "prettier --write"
+    ]
+  }
+}
+```
+
+---
+
+## SETUP 6: Scripts في root package.json
+
+في root `package.json`:
+```json
+{
+  "scripts": {
+    "lint": "pnpm --filter @workspace/api-server lint && pnpm --filter @workspace/erp-system lint",
+    "lint:fix": "pnpm --filter @workspace/api-server lint:fix && pnpm --filter @workspace/erp-system lint:fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test:all": "pnpm --filter @workspace/api-server test && pnpm --filter @workspace/erp-system test",
+    "type-check": "pnpm --filter @workspace/api-server type-check && pnpm --filter @workspace/erp-system type-check"
+  }
+}
+```
+
+في `artifacts/api-server/package.json` — أضف:
+```json
+{
+  "scripts": {
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "type-check": "tsc --noEmit",
+    "format": "prettier --write src/**/*.ts"
+  }
+}
+```
+
+في `artifacts/erp-system/package.json` — أضف:
+```json
+{
+  "scripts": {
+    "lint": "eslint src --ext .ts,.tsx",
+    "lint:fix": "eslint src --ext .ts,.tsx --fix",
+    "type-check": "tsc --noEmit",
+    "format": "prettier --write src/**/*.{ts,tsx}"
+  }
+}
+```
+
+---
+
+## SETUP 7: VSCode Settings للمشروع
+
+أنشئ `.vscode/settings.json`:
+```json
+{
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": true
+  },
+  "typescript.preferences.importModuleSpecifier": "relative",
+  "files.eol": "\n",
+  "eslint.workingDirectories": [
+    "artifacts/api-server",
+    "artifacts/erp-system"
+  ]
+}
+```
+
+أنشئ `.vscode/extensions.json`:
+```json
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "ms-vscode.vscode-typescript-next",
+    "bradlc.vscode-tailwindcss",
+    "vitest.explorer"
+  ]
+}
+```
+
+---
+
+## Testing Checklist:
+- [ ] `pnpm lint` في api-server يشتغل بدون errors
+- [ ] `pnpm lint` في erp-system يشتغل بدون errors
+- [ ] `pnpm format:check` يشتغل بدون errors
+- [ ] `pnpm type-check` في api-server بدون TypeScript errors
+- [ ] `pnpm type-check` في erp-system بدون TypeScript errors
+- [ ] Husky pre-commit hook يشتغل عند git commit
+- [ ] Husky pre-push hook يشتغل ويمنع push لو tests فشلت
+- [ ] VSCode يعرض ESLint errors مباشرة في الملفات
+
+## ترتيب التنفيذ:
+1. ESLint للـ backend
+2. ESLint للـ frontend
+3. Prettier
+4. TypeScript strict mode + إصلاح errors
+5. Husky + lint-staged
+6. Scripts في package.json
+7. VSCode settings
+8. تشغيل `pnpm lint` و `pnpm format:check` و `pnpm type-check`

@@ -6,8 +6,8 @@ import {
   LayoutDashboard, Receipt, CreditCard,
   Package, Users, TrendingUp,
   FileText, Settings, Zap,
-  BookOpen, HandCoins, ArrowUpFromLine,
-  ArrowLeftRight, ReceiptText, Wallet, ClipboardList,
+  BookOpen, HandCoins,
+  ReceiptText, Wallet, ClipboardList,
   type LucideIcon,
 } from "lucide-react";
 

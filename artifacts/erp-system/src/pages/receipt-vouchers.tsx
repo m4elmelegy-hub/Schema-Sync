@@ -3,7 +3,7 @@ import { useState, useMemo } from "react";
 import { authFetch } from "@/lib/auth-fetch";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useGetSettingsSafes } from "@workspace/api-client-react";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency } from "@/lib/format";
 import { Plus, Trash2, HandCoins } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TableSkeleton } from "@/components/skeletons";

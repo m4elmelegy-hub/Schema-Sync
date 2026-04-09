@@ -2,10 +2,9 @@
  * Reports — Shared types, helpers, hooks, and small components
  */
 import React, { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { authFetch } from "@/lib/auth-fetch";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { Search, Printer, FileDown, Loader2 } from "lucide-react";
+import { Printer, Loader2 } from "lucide-react";
 import { TableSkeleton } from "@/components/skeletons";
 import { useAppSettings } from "@/contexts/app-settings";
 

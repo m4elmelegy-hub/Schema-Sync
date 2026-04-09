@@ -6,10 +6,34 @@
     "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
     "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
+    "lint": "pnpm --filter @workspace/api-server lint && pnpm --filter @workspace/erp-system lint",
+    "lint:fix": "pnpm --filter @workspace/api-server lint:fix && pnpm --filter @workspace/erp-system lint:fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test:all": "pnpm --filter @workspace/api-server test && pnpm --filter @workspace/erp-system test",
+    "type-check": "pnpm --filter @workspace/api-server type-check && pnpm --filter @workspace/erp-system type-check",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "artifacts/api-server/src/**/*.ts": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "artifacts/erp-system/src/**/*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "**/*.{json,css}": [
+      "prettier --write"
+    ]
   },
   "private": true,
   "devDependencies": {
+    "eslint-config-prettier": "^10.1.5",
+    "eslint-plugin-prettier": "^5.4.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.1",
     "prettier": "^3.8.1",
     "typescript": "~5.9.2"
   },

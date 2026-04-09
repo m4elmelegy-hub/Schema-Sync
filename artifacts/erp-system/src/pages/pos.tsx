@@ -325,8 +325,8 @@ function AdminPOSSetup({ onStart }: { onStart: (w: number, s: number) => void })
 ───────────────────────────────────────────────────────────── */
 export default function POSPage() {
   const { user } = useAuth();
-  const { toast } = useToast();
-  const qc = useQueryClient();
+  const { toast: _toast } = useToast();
+  const _qc = useQueryClient();
 
   /* ── Permissions ── */
   const canEditPrice   = hasPermission(user, "can_edit_price") === true;

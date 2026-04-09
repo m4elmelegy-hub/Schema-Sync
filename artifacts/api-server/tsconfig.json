@@ -3,9 +3,17 @@
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": "src",
-    "types": ["node"]
+    "types": ["node"],
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "exactOptionalPropertyTypes": false
   },
   "include": ["src"],
+  "exclude": ["src/__tests__", "src/tests", "dist", "coverage"],
   "references": [
     {
       "path": "../../lib/db"

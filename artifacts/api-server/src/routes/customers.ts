@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ne, max, asc, sql } from "drizzle-orm";
+import { eq, max, asc, sql } from "drizzle-orm";
 import { db, customersTable, transactionsTable, safesTable, customerLedgerTable } from "@workspace/db";
 import { writeAuditLog } from "../lib/audit-log";
 import { hasPermission } from "../lib/permissions";

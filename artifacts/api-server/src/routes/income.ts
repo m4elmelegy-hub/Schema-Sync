@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db, incomeTable, transactionsTable, safesTable } from "@workspace/db";
 import {
   GetIncomeResponse,

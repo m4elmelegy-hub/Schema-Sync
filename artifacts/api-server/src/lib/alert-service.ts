@@ -8,7 +8,7 @@
  * Auto-resolve : dismissAlert now soft-resolves (keeps history) instead of deleting.
  */
 
-import { eq, and, sql, isNull, or } from "drizzle-orm";
+import { eq, and, sql, isNull } from "drizzle-orm";
 import {
   db, alertsTable, productsTable, safesTable,
   customersTable, systemSettingsTable,

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { authFetch } from "@/lib/auth-fetch";
 import { useQuery } from "@tanstack/react-query";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { X, Loader2, TrendingUp, TrendingDown, ArrowUpFromLine, ArrowDownToLine, RotateCcw, Printer } from "lucide-react";
+import { X, Loader2, TrendingUp, TrendingDown, ArrowDownToLine, RotateCcw, Printer } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;

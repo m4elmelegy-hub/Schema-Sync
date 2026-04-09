@@ -5,7 +5,7 @@
  * 3. Creates a default company_admin user for company 1 if none exists.
  * 4. Migrates any plain-text PINs to bcrypt hashes (one-time, idempotent).
  */
-import { eq, isNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db, erpUsersTable, companiesTable } from "@workspace/db";
 import { logger } from "./logger";
 import { hashPin, isHashed } from "./hash";

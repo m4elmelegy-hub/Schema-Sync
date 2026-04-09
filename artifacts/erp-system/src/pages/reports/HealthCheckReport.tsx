@@ -154,7 +154,7 @@ export default function HealthCheckReport() {
           const hasWarnings=groupIssues.some(i=>i.severity==="WARNING");
           const hasCritical=groupIssues.some(i=>i.severity==="CRITICAL");
           const groupStatus:"OK"|"WARNING"|"CRITICAL"=hasCritical?"CRITICAL":hasWarnings?"WARNING":"OK";
-          const gc=SEV_CFG[groupStatus];
+          const _gc=SEV_CFG[groupStatus];
           const isOpen=expandedGroups[groupKey]??true;
           return (
             <div key={groupKey} className="rounded-2xl border border-white/10 overflow-hidden bg-white/3">

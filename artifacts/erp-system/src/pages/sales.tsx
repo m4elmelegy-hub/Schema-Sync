@@ -13,7 +13,6 @@ import { hasPermission } from "@/lib/permissions";
 import { TableSkeleton } from "@/components/skeletons";
 import { ConfirmModal } from "@/components/confirm-modal";
 import { SearchableSelect } from "@/components/searchable-select";
-import { Link } from "wouter";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
@@ -1141,7 +1140,7 @@ function NewSalePanel({ onDone }: { onDone: () => void }) {
     </div>
   );
 
-  const handleNewSale = () => {
+  const _handleNewSale = () => {
     setCart([]);
     setCustomerId("");
     setSearch("");

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, inArray, ne } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db,
   productsTable, customersTable,
   salesTable, saleItemsTable,

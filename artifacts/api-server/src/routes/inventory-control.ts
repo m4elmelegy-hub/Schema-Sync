@@ -135,7 +135,7 @@ router.get("/inventory/count-sessions/:id", wrap(async (req, res) => {
     res.status(403).json({ error: "ليس لديك صلاحية عرض الجرد" }); return;
   }
 
-  const sessionId = parseInt(req.params.id);
+  const sessionId = parseInt(String(req.params.id));
   const [session] = await db.select().from(stockCountSessionsTable)
     .where(eq(stockCountSessionsTable.id, sessionId));
 
@@ -184,7 +184,7 @@ router.post("/inventory/count-sessions/:id/apply", wrap(async (req, res) => {
     res.status(403).json({ error: "ليس لديك صلاحية تطبيق الجرد" }); return;
   }
 
-  const sessionId = parseInt(req.params.id);
+  const sessionId = parseInt(String(req.params.id));
   const [session] = await db.select().from(stockCountSessionsTable)
     .where(eq(stockCountSessionsTable.id, sessionId));
 

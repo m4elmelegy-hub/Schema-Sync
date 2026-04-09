@@ -1,0 +1,15 @@
+echo "🧪 Running tests before push..."
+
+pnpm --filter @workspace/api-server test
+if [ $? -ne 0 ]; then
+  echo "❌ Backend tests failed — push rejected!"
+  exit 1
+fi
+
+pnpm --filter @workspace/erp-system test
+if [ $? -ne 0 ]; then
+  echo "❌ Frontend tests failed — push rejected!"
+  exit 1
+fi
+
+echo "✅ All tests passed — pushing!"

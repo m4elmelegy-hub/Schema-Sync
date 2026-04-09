@@ -76,7 +76,7 @@ router.post("/settings/users", authenticate, requireRole("admin"), async (req, r
     const companyId = req.user!.company_id ?? undefined;
 
     /* Prevent creating super_admin via this route (belt + suspenders) */
-    if (role === "super_admin") {
+    if ((role as string) === "super_admin") {
       res.status(403).json({ error: "لا يمكن إنشاء حساب مسؤول عام من هنا" });
       return;
     }
@@ -123,7 +123,7 @@ router.put("/settings/users/:id", authenticate, requireRole("admin"), async (req
     const { name, username, pin, role, permissions, active, warehouse_id, safe_id } = v.data;
 
     /* Prevent editing super_admin via this route */
-    if (role === "super_admin") {
+    if ((role as string) === "super_admin") {
       res.status(403).json({ error: "لا يمكن تعيين دور المسؤول العام من هنا" });
       return;
     }

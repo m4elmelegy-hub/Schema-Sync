@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, and } from "drizzle-orm";
-import { db, stockMovementsTable, productsTable, warehousesTable } from "@workspace/db";
+import { eq, sql } from "drizzle-orm";
+import { db, stockMovementsTable, productsTable } from "@workspace/db";
 import { wrap } from "../lib/async-handler";
 import { hasPermission } from "../lib/permissions";
 import { writeAuditLog } from "../lib/audit-log";

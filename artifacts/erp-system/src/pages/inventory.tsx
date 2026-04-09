@@ -100,6 +100,7 @@ export default function Inventory() {
   const { toast } = useToast();
   const { user } = useAuth();
   const { currentWarehouseId } = useWarehouse();
+  const currentWarehouseIdNum: number | null = currentWarehouseId ? Number(currentWarehouseId) : null;
   const canViewInventory   = hasPermission(user, "can_view_inventory")   === true;
   const canAdjustInventory = hasPermission(user, "can_adjust_inventory") === true;
   const isAdmin = user?.role === "admin";
@@ -301,7 +302,7 @@ export default function Inventory() {
                       )}
                     </div>
                   )}
-                  {currentWarehouseId === w.id && (
+                  {currentWarehouseIdNum === w.id && (
                     <span className="inline-block mt-2 px-2 py-0.5 rounded-lg text-xs bg-violet-500/20 text-violet-300 font-medium">
                       المخزن الحالي
                     </span>
@@ -340,14 +341,14 @@ export default function Inventory() {
         )}
         {activeTab === "movements" && (
           <ReviewTab
-            currentWarehouseId={currentWarehouseId}
+            currentWarehouseId={currentWarehouseIdNum}
             canAdjustInventory={canAdjustInventory}
             qc={qc} toast={toast}
             quickFilter={movementsFilter}
             onFilterApplied={() => setMovementsFilter("all")}
           />
         )}
-        {activeTab === "count"    && <CountTab  warehouses={warehouses} currentWarehouseId={currentWarehouseId} qc={qc} toast={toast} />}
+        {activeTab === "count"    && <CountTab  warehouses={warehouses} currentWarehouseId={currentWarehouseIdNum} qc={qc} toast={toast} />}
         {activeTab === "transfer" && (
           <TransferTab
             warehouses={warehouses} qc={qc} toast={toast}
@@ -358,7 +359,7 @@ export default function Inventory() {
         {activeTab === "alerts"   && (
           <AlertsTab
             warehouses={warehouses}
-            currentWarehouseId={currentWarehouseId}
+            currentWarehouseId={currentWarehouseIdNum}
             onTransferPrefill={handleTransferPrefill}
           />
         )}
@@ -501,7 +502,7 @@ function StatCard({ label, value, icon, color, bg }: {
   );
 }
 
-function SummaryCard({ label, value, color }: { label: string; value: string; color: string }) {
+function _SummaryCard({ label, value, color }: { label: string; value: string; color: string }) {
   return (
     <div className="bg-white/5 border border-white/8 rounded-xl p-3 text-center">
       <p className="text-xs text-white/40 mb-1">{label}</p>
@@ -565,7 +566,7 @@ function ReviewTab({ currentWarehouseId, canAdjustInventory, qc, toast, quickFil
   });
 
   const products = auditData?.products ?? [];
-  const summary  = auditData?.summary;
+  const _summary  = auditData?.summary;
 
   const filtered = products
     .filter(p =>
@@ -1662,7 +1663,7 @@ function TransferTab({ warehouses, qc, toast, prefill, onClearPrefill }: {
 /* ═══════════════════════════════════════════════════════════════════════════
  * TAB 4 — تنبيهات المخزون
  * ═══════════════════════════════════════════════════════════════════════════ */
-function AlertsTab({ warehouses, currentWarehouseId, onTransferPrefill }: {
+function AlertsTab({ warehouses: _warehouses, currentWarehouseId: _currentWarehouseId, onTransferPrefill }: {
   warehouses: { id: number; name: string }[];
   currentWarehouseId: number | null;
   onTransferPrefill: (prefill: TransferPrefill) => void;

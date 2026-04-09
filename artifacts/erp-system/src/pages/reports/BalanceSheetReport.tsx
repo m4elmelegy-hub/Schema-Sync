@@ -7,7 +7,7 @@ import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Scale, Printer, AlertTriangle, CheckCircle,
-  ChevronDown, ChevronUp, Users, Truck, Package,
+  Users, Truck, Package,
 } from "lucide-react";
 import { api, authFetch, formatCurrency, useCountUp, todayStr } from "./shared";
 import { useAppSettings } from "@/contexts/app-settings";

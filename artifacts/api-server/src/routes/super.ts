@@ -150,7 +150,7 @@ router.post("/super/companies", ...superOnly, wrap(async (req, res) => {
   const { name, plan_type, duration_days, admin_email } = v.data;
   const today = new Date();
   const end   = new Date(today);
-  end.setDate(end.getDate() + duration_days);
+  end.setDate(end.getDate() + (duration_days ?? 30));
 
   const [co] = await db.insert(companiesTable).values({
     name:        name.trim(),

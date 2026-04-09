@@ -4,7 +4,7 @@ import { useGetProducts, useGetSettingsWarehouses, useCreateProduct } from "@wor
 import { safeArray } from "@/lib/safe-data";
 import { authFetch } from "@/lib/auth-fetch";
 import { Link } from "wouter";
-import { CheckCircle, Circle, Package, Store, ShoppingCart, X, ArrowLeft } from "lucide-react";
+import { CheckCircle, Package, Store, ShoppingCart, X, ArrowLeft } from "lucide-react";
 import { ProductFormModal, ProductFormData, emptyProductForm } from "@/components/product-form-modal";
 import { useToast } from "@/hooks/use-toast";
 

@@ -27,6 +27,8 @@ declare global {
   namespace Express {
     interface Request {
       user?: AuthUser;
+      role?: string;
+      companyId?: number | null;
     }
   }
 }
@@ -151,7 +153,7 @@ export function requireRole(...roles: string[]) {
 }
 
 /* ── XSS body sanitizer ─────────────────────────────────── */
-export function sanitizeBody(req: Request, res: Response, next: NextFunction): void {
+export function sanitizeBody(req: Request, _res: Response, next: NextFunction): void {
   if (req.body && typeof req.body === "object") {
     req.body = sanitizeObject(req.body as Record<string, unknown>);
   }

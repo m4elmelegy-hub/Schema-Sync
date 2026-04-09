@@ -746,7 +746,7 @@ export function printPLReport(data: PLReportData): void {
 
   /* ── Top products ── */
   const topProducts = [...data.by_product].sort((a, b) => b.profit - a.profit).slice(0, 10);
-  const productRows = topProducts.map((p, i) => {
+  const _productRows = topProducts.map((p, i) => {
     const margin = p.revenue > 0 ? (p.profit / p.revenue) * 100 : 0;
     const barW   = Math.max(0, Math.min(100, margin));
     return `<tr>
@@ -766,7 +766,7 @@ export function printPLReport(data: PLReportData): void {
   /* ── Branch table ── */
   const branches = (data.by_warehouse ?? []).filter(w => w.revenue > 0);
   const maxRev   = Math.max(...branches.map(b => b.revenue), 1);
-  const branchRows = branches.map(w => {
+  const _branchRows = branches.map(w => {
     const mg  = w.revenue > 0 ? (w.gross_profit / w.revenue) * 100 : 0;
     const barW = Math.round((w.revenue / maxRev) * 100);
     return `<tr>
@@ -782,7 +782,7 @@ export function printPLReport(data: PLReportData): void {
 
   /* ── Expense table ── */
   const expenses = data.by_expense_category ?? [];
-  const expRows  = expenses.map(e => {
+  const _expRows  = expenses.map(e => {
     const pctE = data.total_expenses > 0 ? (e.total / data.total_expenses) * 100 : 0;
     return `<tr><td style="font-weight:600">${e.category}</td><td class="num">${m(e.total)}</td><td style="color:#6b7280">${pctE.toFixed(1)}%</td></tr>`;
   }).join("");
@@ -792,7 +792,7 @@ export function printPLReport(data: PLReportData): void {
   const creditS  = data.credit_sales  ?? 0;
   const partialS = data.partial_sales ?? 0;
   const retAmt   = data.return_amount ?? 0;
-  const hasPayBreakdown = cashS + creditS + partialS + retAmt > 0;
+  const _hasPayBreakdown = cashS + creditS + partialS + retAmt > 0;
 
   /* ── Build expense lines for statement ── */
   const expLines = expenses.slice(0, 8).map(e =>

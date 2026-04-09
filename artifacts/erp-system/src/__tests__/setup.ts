@@ -5,7 +5,7 @@ import { vi, afterEach } from 'vitest';
 vi.mock('wouter', () => ({
   useLocation: () => ['/', vi.fn()],
   useRoute:    () => [false, {}],
-  Link:        ({ children, href }: any) => children,
+  Link:        ({ children, _href }: any) => children,
   Route:       ({ children }: any) => children,
   Switch:      ({ children }: any) => children,
 }));

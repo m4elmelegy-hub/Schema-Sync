@@ -101,7 +101,7 @@ function NewPurchasePanel({ onDone }: { onDone: () => void }) {
     return null;
   }, [partyKey, customers]);
 
-  const selectedCustomer = useMemo(() => {
+  const _selectedCustomer = useMemo(() => {
     if (customerId) return customers.find(c => c.id === parseInt(customerId)) ?? null;
     if (selectedParty?.type === "customer") return customers.find(c => c.id === selectedParty.id) ?? null;
     return null;

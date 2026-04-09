@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { authFetch } from "@/lib/auth-fetch";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { formatCurrency, formatDate } from "@/lib/format";
-import { Plus, X, Trash2, CheckCircle, AlertCircle, BookOpen } from "lucide-react";
+import { formatCurrency } from "@/lib/format";
+import { Plus, X, Trash2, CheckCircle, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TableSkeleton } from "@/components/skeletons";
 import { ConfirmModal } from "@/components/confirm-modal";
@@ -247,7 +247,7 @@ function NewEntryModal({ onClose }: { onClose: () => void }) {
 }
 
 export default function JournalEntries() {
-  const { toast } = useToast();
+  const { toast: _toast } = useToast();
   const [showNew, setShowNew] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [filter, setFilter] = useState<"all" | "draft" | "posted">("all");

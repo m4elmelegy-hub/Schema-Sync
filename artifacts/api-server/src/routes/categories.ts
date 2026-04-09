@@ -52,7 +52,7 @@ router.post("/categories", wrap(async (req, res) => {
 }));
 
 router.put("/categories/:id", wrap(async (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   const name = String(req.body?.name ?? "").trim();
   if (!name || isNaN(id)) { res.status(400).json({ error: "بيانات غير صحيحة" }); return; }
 
@@ -84,7 +84,7 @@ router.put("/categories/:id", wrap(async (req, res) => {
 }));
 
 router.delete("/categories/:id", wrap(async (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "معرف غير صحيح" }); return; }
 
   const companyId = req.user?.company_id ?? 1;

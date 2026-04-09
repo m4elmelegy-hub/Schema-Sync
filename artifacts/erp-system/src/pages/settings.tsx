@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { safeArray } from "@/lib/safe-data";
-import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
   useGetSettingsUsers, useCreateSettingsUser, useUpdateSettingsUser, useDeleteSettingsUser,
@@ -9,19 +9,19 @@ import {
   useGetProducts, useGetCustomers,
 } from "@workspace/api-client-react";
 import { authFetch } from "@/lib/auth-fetch";
-import { formatCurrency, formatDate, formatCurrencyPreview } from "@/lib/format";
+import { formatDate, formatCurrencyPreview } from "@/lib/format";
 import {
-  useAppSettings, CURRENCIES, FONTS,
+  useAppSettings,
   type CurrencyCode, type FontFamily, type NumberFormat, type LightVariant,
 } from "@/contexts/app-settings";
 import {
   Users, AlertTriangle, Plus, Trash2, Edit2, X, Check,
-  ArrowLeftRight, Eye, EyeOff, Save, DollarSign, Database,
-  Upload, Download, RefreshCcw, Building2, Loader2, CheckCircle2,
+  Eye, EyeOff, Save, DollarSign, Database,
+  Upload, Download, RefreshCcw, Loader2, CheckCircle2,
   HardDrive, History, BookOpen, Package, UserCircle, Truck, Banknote,
-  ChevronDown, ChevronRight, Shield, Store, CaseSensitive, AlignLeft, Sun,
-  Layers, RotateCcw, Search, Lock, LockOpen, ClipboardList, Calendar,
-  AlertOctagon, CheckCircle, XCircle, Info,
+  ChevronDown, ChevronRight, Store, CaseSensitive, AlignLeft, Sun,
+  RotateCcw, Search, Lock, LockOpen, ClipboardList,
+  AlertOctagon, Info,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -1394,7 +1394,7 @@ function BackupImportTab() {
   }
 
   const toggleModule = (key: string) => setBkModules(prev => {
-    const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s;
+    const s = new Set(prev); if (s.has(key)) { s.delete(key); } else { s.add(key); } return s;
   });
   const toggleAllModules = () =>
     setBkModules(bkModules.size === BACKUP_MODULES_LIST.length ? new Set() : new Set(BACKUP_MODULES_LIST.map(m => m.key)));
@@ -2492,7 +2492,7 @@ function DataTab() {
   }, [readyToDelete]);
 
   const toggle = (key: string) => {
-    setSelected(prev => { const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s; });
+    setSelected(prev => { const s = new Set(prev); if (s.has(key)) { s.delete(key); } else { s.add(key); } return s; });
     setConfirmText(""); setCanDelete(false);
   };
   const toggleAll = () => {
