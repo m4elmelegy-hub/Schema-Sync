@@ -342,3 +342,7 @@ All financial documents (sales, purchases, deposit vouchers, payment vouchers, r
 - **Icons**: Lucide icons
 - **Fonts**: Google Fonts
 - **Data Export/Import**: XLSX (for product export/import)
+- **Testing (Backend)**: Vitest + Supertest — `pnpm --filter @workspace/api-server test`
+- **Testing (Frontend)**: Vitest + React Testing Library — `pnpm --filter @workspace/erp-system test`
+- **Coverage (Backend)**: `pnpm --filter @workspace/api-server test:coverage` (scoped to core modules; thresholds: 50% stmts/lines, 55% funcs, 30% branches)
+- **Coverage (Frontend)**: `pnpm --filter @workspace/erp-system test:coverage` (thresholds: 60% lines/funcs)

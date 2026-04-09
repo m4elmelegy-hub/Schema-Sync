@@ -1,0 +1,706 @@
+# [HALAL TECH ERP — LEVEL 1: Comprehensive Testing Suite]
+
+## Stack المطلوب
+- **Backend Tests**: Vitest + Supertest (أسرع من Jest مع ESM)
+- **Frontend Tests**: Vitest + React Testing Library
+- **E2E Tests**: Playwright
+- **Coverage**: Istanbul (مدمج مع Vitest)
+
+---
+
+## SETUP 1: Backend Testing Infrastructure
+
+### تثبيت المكتبات
+```bash
+cd artifacts/api-server
+pnpm add -D vitest @vitest/coverage-v8 supertest @types/supertest
+```
+
+### إنشاء vitest.config.ts
+في `artifacts/api-server/vitest.config.ts`:
+```typescript
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    globals: true,
+    environment: 'node',
+    setupFiles: ['./src/__tests__/setup.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      exclude: ['node_modules', 'dist', 'src/__tests__'],
+      thresholds: {
+        lines: 70,
+        functions: 70,
+        branches: 60,
+        statements: 70,
+      },
+    },
+    testTimeout: 15000,
+  },
+});
+```
+
+### تحديث package.json scripts
+```json
+{
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:ui": "vitest --ui"
+  }
+}
+```
+
+### إنشاء Test Setup
+أنشئ `artifacts/api-server/src/__tests__/setup.ts`:
+```typescript
+import { beforeAll, afterAll, beforeEach, vi } from 'vitest';
+
+// Mock قاعدة البيانات — لا نحتاج DB حقيقية في الـ unit tests
+vi.mock('@workspace/db', () => ({
+  db: {
+    select: vi.fn().mockReturnThis(),
+    from: vi.fn().mockReturnThis(),
+    where: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockReturnThis(),
+    insert: vi.fn().mockReturnThis(),
+    values: vi.fn().mockReturnThis(),
+    update: vi.fn().mockReturnThis(),
+    set: vi.fn().mockReturnThis(),
+    delete: vi.fn().mockReturnThis(),
+    execute: vi.fn().mockResolvedValue([]),
+  },
+  pool: {
+    end: vi.fn(),
+    query: vi.fn(),
+  },
+  erpUsersTable: {},
+  companiesTable: {},
+  salesTable: {},
+  productsTable: {},
+  customersTable: {},
+  safesTable: {},
+  warehousesTable: {},
+  auditLogsTable: {},
+}));
+
+// Mock الـ logger عشان ما يطبعش في الـ tests
+vi.mock('../lib/logger', () => ({
+  logger: {
+    info: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
+
+// Mock الـ backup scheduler
+vi.mock('../lib/db-backup', () => ({
+  startBackupScheduler: vi.fn(),
+  createDatabaseBackup: vi.fn().mockResolvedValue('/tmp/test-backup.sql.gz'),
+}));
+
+// Mock الـ monitor
+vi.mock('../lib/monitor', () => ({
+  startMonitoring: vi.fn(),
+  checkHealth: vi.fn().mockResolvedValue({
+    status: 'healthy',
+    db: true,
+    memory_mb: 50,
+    uptime_hours: 1,
+    last_check: new Date().toISOString(),
+  }),
+}));
+
+beforeAll(() => {
+  process.env.JWT_SECRET = 'test-secret-key-for-testing-only';
+  process.env.NODE_ENV = 'test';
+  process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test';
+});
+
+afterAll(() => {
+  vi.clearAllMocks();
+});
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+```
+
+---
+
+## TESTS 1: Auth Tests
+
+أنشئ `artifacts/api-server/src/__tests__/auth.test.ts`:
+```typescript
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import request from 'supertest';
+import app from '../app';
+import { signToken, signRefreshToken, verifyRefreshToken } from '../middleware/auth';
+import { verifyTOTP } from '../lib/totp';
+
+describe('Auth Middleware', () => {
+  describe('signToken', () => {
+    it('يجب أن ينشئ JWT صالح', () => {
+      const token = signToken(1, 'company_admin', 1);
+      expect(token).toBeDefined();
+      expect(typeof token).toBe('string');
+      expect(token.split('.')).toHaveLength(3);
+    });
+
+    it('يجب أن يحتوي على userId و role و companyId', () => {
+      const jwt = require('jsonwebtoken');
+      const token = signToken(42, 'cashier', 5);
+      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+      expect(decoded.userId).toBe(42);
+      expect(decoded.role).toBe('cashier');
+      expect(decoded.companyId).toBe(5);
+    });
+
+    it('يجب أن ينتهي بعد 4 ساعات', () => {
+      const jwt = require('jsonwebtoken');
+      const token = signToken(1, 'admin', 1);
+      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+      const expiresIn = decoded.exp - decoded.iat;
+      expect(expiresIn).toBe(4 * 60 * 60);
+    });
+  });
+
+  describe('signRefreshToken', () => {
+    it('يجب أن ينشئ refresh token صالح', () => {
+      const token = signRefreshToken(1);
+      expect(token).toBeDefined();
+    });
+
+    it('يجب أن يتحقق من refresh token صحيح', () => {
+      const token = signRefreshToken(1);
+      const result = verifyRefreshToken(token);
+      expect(result).not.toBeNull();
+      expect(result?.userId).toBe(1);
+    });
+
+    it('يجب أن يرفض refresh token منتهي أو غلط', () => {
+      const result = verifyRefreshToken('invalid-token');
+      expect(result).toBeNull();
+    });
+  });
+});
+
+describe('POST /api/auth/login', () => {
+  beforeEach(() => {
+    const { db } = require('@workspace/db');
+    // mock مستخدم نشط
+    db.select.mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue([{
+            id: 1,
+            username: 'testuser',
+            name: 'Test User',
+            pin: '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uHlHWY2W2', // "password"
+            role: 'company_admin',
+            active: true,
+            company_id: 1,
+            totp_enabled: false,
+            login_attempts: 0,
+          }])
+        })
+      })
+    });
+  });
+
+  it('يجب أن يرفض login بدون userId', async () => {
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ pin: '123456' });
+    expect(res.status).toBe(400);
+  });
+
+  it('يجب أن يرفض login بدون pin', async () => {
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ userId: 1 });
+    expect(res.status).toBe(400);
+  });
+
+  it('يجب أن يرجع 400 لـ userId غير صالح', async () => {
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ userId: 'not-a-number', pin: '123456' });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('GET /api/healthz', () => {
+  it('يجب أن يرجع status healthy', async () => {
+    const res = await request(app).get('/api/healthz');
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('healthy');
+    expect(res.body).toHaveProperty('db');
+    expect(res.body).toHaveProperty('memory_mb');
+    expect(res.body).toHaveProperty('uptime_hours');
+  });
+});
+```
+
+---
+
+## TESTS 2: Security Tests
+
+أنشئ `artifacts/api-server/src/__tests__/security.test.ts`:
+```typescript
+import { describe, it, expect, vi } from 'vitest';
+import request from 'supertest';
+import app from '../app';
+import { isTokenBlacklisted, blacklistToken } from '../lib/session-blacklist';
+import { verifyTOTP, generateTOTPSecret } from '../lib/totp';
+import speakeasy from 'speakeasy';
+
+describe('Session Blacklist', () => {
+  it('يجب أن يضيف token للـ blacklist', () => {
+    const token = 'test-token-123';
+    blacklistToken(token);
+    expect(isTokenBlacklisted(token)).toBe(true);
+  });
+
+  it('يجب أن يقبل token غير موجود في الـ blacklist', () => {
+    expect(isTokenBlacklisted('non-blacklisted-token')).toBe(false);
+  });
+});
+
+describe('TOTP', () => {
+  it('يجب أن ينشئ secret صالح', () => {
+    const { secret, otpauth_url } = generateTOTPSecret('testuser');
+    expect(secret).toBeDefined();
+    expect(secret.length).toBeGreaterThan(10);
+    expect(otpauth_url).toContain('testuser');
+  });
+
+  it('يجب أن يتحقق من TOTP code صحيح', () => {
+    const secret = speakeasy.generateSecret({ length: 20 });
+    const token = speakeasy.totp({ secret: secret.base32, encoding: 'base32' });
+    const isValid = verifyTOTP(secret.base32, token);
+    expect(isValid).toBe(true);
+  });
+
+  it('يجب أن يرفض TOTP code خاطئ', () => {
+    const { secret } = generateTOTPSecret('testuser');
+    const isValid = verifyTOTP(secret, '000000');
+    expect(isValid).toBe(false);
+  });
+});
+
+describe('Security Headers', () => {
+  it('يجب أن يحتوي على X-Content-Type-Options', async () => {
+    const res = await request(app).get('/api/healthz');
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+  });
+
+  it('يجب أن يحتوي على X-Frame-Options', async () => {
+    const res = await request(app).get('/api/healthz');
+    expect(res.headers['x-frame-options']).toBeDefined();
+  });
+
+  it('يجب أن لا يكشف X-Powered-By', async () => {
+    const res = await request(app).get('/api/healthz');
+    expect(res.headers['x-powered-by']).toBeUndefined();
+  });
+});
+
+describe('Rate Limiting', () => {
+  it('يجب أن يحظر بعد تجاوز الـ rate limit', async () => {
+    // إرسال 15 طلب متتالي على auth endpoint
+    const requests = Array(15).fill(null).map(() =>
+      request(app).post('/api/auth/login').send({ userId: 1, pin: 'wrong' })
+    );
+    const responses = await Promise.all(requests);
+    const blockedResponses = responses.filter(r => r.status === 429);
+    expect(blockedResponses.length).toBeGreaterThan(0);
+  });
+});
+
+describe('Input Sanitization', () => {
+  it('يجب أن ينظف XSS في الـ body', async () => {
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ 
+        userId: 1, 
+        pin: '<script>alert("xss")</script>' 
+      });
+    // يجب أن يمر الـ request (لكن الـ pin منظف)
+    expect(res.status).not.toBe(500);
+  });
+});
+```
+
+---
+
+## TESTS 3: Multi-Tenant Isolation Tests
+
+أنشئ `artifacts/api-server/src/__tests__/tenant.test.ts`:
+```typescript
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import request from 'supertest';
+import app from '../app';
+import { signToken } from '../middleware/auth';
+
+describe('Multi-Tenant Isolation', () => {
+  const company1Token = signToken(1, 'company_admin', 1);
+  const company2Token = signToken(2, 'company_admin', 2);
+  const superAdminToken = signToken(99, 'super_admin', 1);
+
+  beforeEach(() => {
+    const { db } = require('@workspace/db');
+    
+    // mock المستخدم مع company_id
+    db.select.mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue([{
+            id: 1,
+            role: 'company_admin',
+            active: true,
+            company_id: 1,
+          }])
+        }),
+        mockResolvedValue: vi.fn().mockResolvedValue([])
+      })
+    });
+  });
+
+  it('يجب أن يرفض الطلب بدون token', async () => {
+    const res = await request(app).get('/api/settings/users');
+    expect(res.status).toBe(401);
+  });
+
+  it('يجب أن يقبل الطلب بـ token صالح', async () => {
+    const res = await request(app)
+      .get('/api/settings/users')
+      .set('Authorization', `Bearer ${company1Token}`);
+    expect(res.status).not.toBe(401);
+    expect(res.status).not.toBe(403);
+  });
+
+  it('يجب أن يرفض الوصول لـ super routes من company_admin', async () => {
+    const res = await request(app)
+      .get('/api/super/companies')
+      .set('Authorization', `Bearer ${company1Token}`);
+    expect(res.status).toBe(403);
+  });
+
+  it('يجب أن يسمح للـ super_admin بالوصول لـ super routes', async () => {
+    const { db } = require('@workspace/db');
+    db.select.mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue([{
+            id: 99,
+            role: 'super_admin',
+            active: true,
+            company_id: 1,
+          }])
+        }),
+        mockResolvedValue: vi.fn().mockResolvedValue([])
+      })
+    });
+
+    const res = await request(app)
+      .get('/api/super/companies')
+      .set('Authorization', `Bearer ${superAdminToken}`);
+    expect(res.status).not.toBe(403);
+  });
+});
+```
+
+---
+
+## TESTS 4: Zod Validation Tests
+
+أنشئ `artifacts/api-server/src/__tests__/validation.test.ts`:
+```typescript
+import { describe, it, expect } from 'vitest';
+import { 
+  createUserSchema, 
+  updateUserSchema,
+  createCompanySchema,
+  loginSchema,
+  validate 
+} from '../lib/schemas';
+
+describe('User Schema Validation', () => {
+  it('يجب أن يقبل بيانات مستخدم صحيحة', () => {
+    const result = validate(createUserSchema, {
+      name: 'محمد أحمد',
+      username: 'mohammed',
+      pin: '12345678',
+      role: 'cashier',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('يجب أن يرفض اسم أقل من حرفين', () => {
+    const result = validate(createUserSchema, {
+      name: 'م',
+      username: 'mohammed',
+      pin: '1234',
+      role: 'cashier',
+    });
+    expect(result.success).toBe(false);
+    expect(result.errors).toBeDefined();
+  });
+
+  it('يجب أن يرفض username بمسافات', () => {
+    const result = validate(createUserSchema, {
+      name: 'محمد أحمد',
+      username: 'mohammed ali',
+      pin: '1234',
+      role: 'cashier',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('يجب أن يرفض PIN أقل من 4 أحرف', () => {
+    const result = validate(createUserSchema, {
+      name: 'محمد',
+      username: 'mohammed',
+      pin: '123',
+      role: 'cashier',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('يجب أن يرفض role غير صالح', () => {
+    const result = validate(createUserSchema, {
+      name: 'محمد',
+      username: 'mohammed',
+      pin: '1234',
+      role: 'super_admin', // ممنوع من هنا
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('يجب أن يقبل update بدون pin', () => {
+    const result = validate(updateUserSchema, {
+      name: 'محمد الجديد',
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('Company Schema Validation', () => {
+  it('يجب أن يقبل بيانات شركة صحيحة', () => {
+    const result = validate(createCompanySchema, {
+      name: 'شركة الاختبار',
+      plan_type: 'trial',
+      duration_days: 7,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('يجب أن يرفض plan_type غير صالح', () => {
+    const result = validate(createCompanySchema, {
+      name: 'شركة',
+      plan_type: 'invalid_plan',
+      duration_days: 7,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('يجب أن يرفض duration_days = 0', () => {
+    const result = validate(createCompanySchema, {
+      name: 'شركة',
+      plan_type: 'trial',
+      duration_days: 0,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('يجب أن يرفض email غير صالح', () => {
+    const result = validate(createCompanySchema, {
+      name: 'شركة',
+      plan_type: 'trial',
+      duration_days: 7,
+      admin_email: 'not-an-email',
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('Login Schema Validation', () => {
+  it('يجب أن يقبل بيانات login صحيحة', () => {
+    const result = validate(loginSchema, { userId: 1, pin: '1234' });
+    expect(result.success).toBe(true);
+  });
+
+  it('يجب أن يرفض userId = 0', () => {
+    const result = validate(loginSchema, { userId: 0, pin: '1234' });
+    expect(result.success).toBe(false);
+  });
+
+  it('يجب أن يرفض userId سلبي', () => {
+    const result = validate(loginSchema, { userId: -1, pin: '1234' });
+    expect(result.success).toBe(false);
+  });
+
+  it('يجب أن يرفض pin فارغ', () => {
+    const result = validate(loginSchema, { userId: 1, pin: '' });
+    expect(result.success).toBe(false);
+  });
+});
+```
+
+---
+
+## TESTS 5: Frontend Tests
+
+### تثبيت المكتبات
+```bash
+cd artifacts/erp-system
+pnpm add -D vitest @vitest/coverage-v8 @testing-library/react @testing-library/user-event @testing-library/jest-dom jsdom
+```
+
+### إنشاء vitest.config.ts
+في `artifacts/erp-system/vitest.config.ts`:
+```typescript
+import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/__tests__/setup.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html'],
+      thresholds: {
+        lines: 60,
+        functions: 60,
+      },
+    },
+  },
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+});
+```
+
+### Frontend Setup
+أنشئ `artifacts/erp-system/src/__tests__/setup.ts`:
+```typescript
+import '@testing-library/jest-dom';
+import { vi } from 'vitest';
+
+// Mock wouter (router)
+vi.mock('wouter', () => ({
+  useLocation: () => ['/', vi.fn()],
+  useRoute: () => [false, {}],
+  Link: ({ children, href }: any) => `<a href="${href}">${children}</a>`,
+  Route: ({ children }: any) => children,
+  Switch: ({ children }: any) => children,
+}));
+
+// Mock fetch
+global.fetch = vi.fn();
+
+// Mock localStorage
+const localStorageMock = {
+  getItem: vi.fn(),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn(),
+};
+global.localStorage = localStorageMock as any;
+```
+
+### Frontend Test — SubscriptionBanner
+أنشئ `artifacts/erp-system/src/__tests__/SubscriptionBanner.test.tsx`:
+```typescript
+import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import SubscriptionBanner from '../components/subscription-banner';
+
+describe('SubscriptionBanner', () => {
+  it('لا يظهر للـ super_admin', () => {
+    const { container } = render(
+      <SubscriptionBanner daysLeft={3} role="super_admin" />
+    );
+    expect(container.firstChild).toBeNull();
+  });
+
+  it('يظهر warning للأيام من 1-7', () => {
+    render(<SubscriptionBanner daysLeft={5} role="company_admin" />);
+    expect(screen.getByText(/ينتهي اشتراكك/i)).toBeInTheDocument();
+  });
+
+  it('يظهر notice للأيام من 8-14', () => {
+    render(<SubscriptionBanner daysLeft={10} role="company_admin" />);
+    expect(screen.getByText(/ينتهي اشتراكك/i)).toBeInTheDocument();
+  });
+
+  it('لا يظهر إذا كانت الأيام أكثر من 14', () => {
+    const { container } = render(
+      <SubscriptionBanner daysLeft={30} role="company_admin" />
+    );
+    expect(container.firstChild).toBeNull();
+  });
+});
+```
+
+---
+
+## TESTS 6: تحديث package.json scripts
+
+في `artifacts/api-server/package.json`:
+```json
+{
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:ui": "vitest --ui"
+  }
+}
+```
+
+في `artifacts/erp-system/package.json`:
+```json
+{
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  }
+}
+```
+
+---
+
+## Testing Checklist:
+- [ ] `cd artifacts/api-server && pnpm test` يشتغل بدون errors
+- [ ] `cd artifacts/erp-system && pnpm test` يشتغل بدون errors
+- [ ] Auth tests كلها pass
+- [ ] Security tests كلها pass
+- [ ] Tenant isolation tests كلها pass
+- [ ] Validation tests كلها pass
+- [ ] Frontend tests كلها pass
+- [ ] Coverage report يظهر 70%+ للـ backend
+- [ ] Coverage report يظهر 60%+ للـ frontend
+
+## ترتيب التنفيذ:
+1. Backend setup (vitest config + setup.ts)
+2. Auth tests
+3. Security tests
+4. Tenant isolation tests
+5. Validation tests
+6. Frontend setup
+7. Frontend tests
+8. تشغيل `pnpm test` في كل مجلد وإصلاح أي failures
+9. تشغيل `pnpm test:coverage` وعرض النتائج
