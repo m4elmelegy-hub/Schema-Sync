@@ -87,6 +87,15 @@ router.post("/settings/users", authenticate, requireRole("admin"), async (req, r
       active: active !== undefined ? Boolean(active) : true,
       company_id: companyId,
     }).returning();
+    /* Audit: record user creation */
+    await writeAuditLog({
+      action: "create",
+      record_type: "user",
+      record_id: user.id,
+      new_value: { name: user.name, username: user.username, role: user.role },
+      user: { id: req.user!.id, username: req.user!.username },
+      company_id: companyId ?? 1,
+    });
     res.json({ ...user, pin: "****" });
   } catch (e) {
     res.status(500).json({ error: "فشل إضافة المستخدم" });
@@ -180,6 +189,15 @@ router.delete("/settings/users/:id", authenticate, requireRole("admin"), async (
     }
 
     await db.delete(erpUsersTable).where(eq(erpUsersTable.id, id));
+    /* Audit: record user deletion */
+    await writeAuditLog({
+      action: "delete",
+      record_type: "user",
+      record_id: id,
+      old_value: { name: target.name, username: target.username, role: target.role },
+      user: { id: req.user!.id, username: req.user!.username },
+      company_id: companyId ?? 1,
+    });
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: "فشل حذف المستخدم" });
@@ -620,7 +638,7 @@ router.post("/settings/reset", authenticate, requireRole("admin"), async (req, r
     const jrnIds     = (await db.select({ id: journalEntriesTable.id }).from(journalEntriesTable).where(eq(journalEntriesTable.company_id, companyId))).map(r => r.id);
 
     // حذف البنود أولاً (foreign keys)
-    if (jrnIds.length > 0)  await db.delete(journalEntryLinesTable).where(inArray(journalEntryLinesTable.journal_id, jrnIds));
+    if (jrnIds.length > 0)  await db.delete(journalEntryLinesTable).where(inArray(journalEntryLinesTable.entry_id, jrnIds));
     await db.delete(journalEntriesTable).where(eq(journalEntriesTable.company_id, companyId));
     if (sRetIds.length > 0) await db.delete(saleReturnItemsTable).where(inArray(saleReturnItemsTable.return_id, sRetIds));
     await db.delete(salesReturnsTable).where(eq(salesReturnsTable.company_id, companyId));
@@ -654,11 +672,16 @@ router.post("/settings/reset", authenticate, requireRole("admin"), async (req, r
 
 // ─── CUSTOMER STATEMENT ───────────────────────────────────────────────────────
 
-router.get("/customers/:id/statement", async (req, res) => {
+router.get("/customers/:id/statement", authenticate, async (req, res) => {
   try {
     const customerId = Number(req.params.id as string);
+    const companyId = req.user?.company_id ?? null;
 
-    const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, customerId));
+    const [customer] = await db.select().from(customersTable).where(
+      companyId !== null
+        ? and(eq(customersTable.id, customerId), eq(customersTable.company_id, companyId))
+        : eq(customersTable.id, customerId)
+    );
     if (!customer) { res.status(404).json({ error: "العميل غير موجود" }); return; }
 
     const sales = await db.select().from(salesTable)

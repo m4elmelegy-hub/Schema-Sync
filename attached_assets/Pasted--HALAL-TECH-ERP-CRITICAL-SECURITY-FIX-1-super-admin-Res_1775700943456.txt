@@ -1,0 +1,290 @@
+# [HALAL TECH ERP — CRITICAL SECURITY FIX #1]
+# عزل البيانات + حماية super_admin + إصلاح Reset
+
+## ⚠️ هذا إصلاح أمني حرج — اتبع الترتيب بدقة
+
+---
+
+## FIX 1: حماية super_admin من الحذف في كل مكان
+
+في `artifacts/api-server/src/routes/settings.ts`:
+
+في route حذف المستخدم `DELETE /settings/users/:id`:
+```typescript
+// أضف هذا الcheck قبل أي عملية حذف
+const targetUser = await db.select()
+  .from(erpUsersTable)
+  .where(eq(erpUsersTable.id, Number(req.params.id)))
+  .limit(1);
+
+if (!targetUser[0]) {
+  return res.status(404).json({ error: 'المستخدم غير موجود' });
+}
+
+if (targetUser[0].role === 'super_admin') {
+  return res.status(403).json({ error: 'لا يمكن حذف حساب المسؤول العام من هنا' });
+}
+
+if (targetUser[0].company_id !== req.companyId) {
+  return res.status(403).json({ error: 'غير مصرح بهذه العملية' });
+}
+```
+
+في route تعديل المستخدم `PUT /settings/users/:id`:
+```typescript
+// أضف هذا الcheck قبل التعديل
+if (targetUser[0].company_id !== req.companyId) {
+  return res.status(403).json({ error: 'غير مصرح بهذه العملية' });
+}
+
+// لا تسمح بتغيير role إلى super_admin أو منه
+if (req.body.role === 'super_admin') {
+  return res.status(403).json({ error: 'لا يمكن تعيين دور المسؤول العام من هنا' });
+}
+```
+
+---
+
+## FIX 2: عزل كامل في GET /settings/users
+
+```typescript
+// يجب أن يرجع فقط مستخدمي نفس الشركة وليس super_admin
+const users = await db.select()
+  .from(erpUsersTable)
+  .where(
+    and(
+      eq(erpUsersTable.company_id, req.companyId),
+      ne(erpUsersTable.role, 'super_admin')  // إخفاء super_admin دائماً
+    )
+  );
+```
+
+---
+
+## FIX 3: عزل كامل في POST /settings/users (إنشاء مستخدم)
+
+```typescript
+// دائماً اضبط company_id من الـ token وليس من الـ body
+const newUser = {
+  ...req.body,
+  company_id: req.companyId,  // من الـ token فقط
+  role: req.body.role === 'super_admin' ? 'admin' : req.body.role,  // منع إنشاء super_admin
+};
+```
+
+---
+
+## FIX 4: إصلاح Reset — يمسح بيانات شركته فقط
+
+في `artifacts/api-server/src/routes/admin.ts` أو أي ملف فيه reset/clear:
+
+كل DELETE statement يجب أن يحتوي على WHERE company_id:
+```typescript
+// ❌ خطأ — يمسح كل البيانات
+await db.delete(salesTable);
+
+// ✅ صح — يمسح بيانات الشركة فقط
+await db.delete(salesTable)
+  .where(eq(salesTable.company_id, req.companyId));
+```
+
+طبّق هذا على كل الجداول في reset:
+- sales, purchases, expenses, income
+- products, categories, customers, suppliers
+- transactions, safes, warehouses, accounts
+- returns, vouchers, stock_movements
+- alerts, backups, customer_ledger
+- stock_count, stock_transfers
+
+⚠️ لا تحذف أبداً من: erp_users بـ role = super_admin، companies، branches
+
+---
+
+## FIX 5: إصلاح GET /auth/users — عرض مستخدمي الشركة فقط
+
+في `artifacts/api-server/src/routes/auth.ts`:
+
+```typescript
+// GET /auth/users
+router.get('/users', async (req, res) => {
+  const companyId = req.query.company_id 
+    ? Number(req.query.company_id) 
+    : null;
+
+  if (!companyId) {
+    return res.status(400).json({ error: 'company_id مطلوب' });
+  }
+
+  // تحقق إن الشركة موجودة وفعالة
+  const company = await db.select()
+    .from(companiesTable)
+    .where(eq(companiesTable.id, companyId))
+    .limit(1);
+
+  if (!company[0] || !company[0].is_active) {
+    return res.status(403).json({ error: 'الشركة غير موجودة أو موقوفة' });
+  }
+
+  // أرجع مستخدمي الشركة فقط — بدون super_admin — بدون PIN
+  const users = await db.select({
+    id: erpUsersTable.id,
+    name: erpUsersTable.name,
+    username: erpUsersTable.username,
+    role: erpUsersTable.role,
+    active: erpUsersTable.active,
+  })
+  .from(erpUsersTable)
+  .where(
+    and(
+      eq(erpUsersTable.company_id, companyId),
+      eq(erpUsersTable.active, true),
+      ne(erpUsersTable.role, 'super_admin')
+    )
+  );
+
+  return res.json(users);
+});
+```
+
+---
+
+## FIX 6: bcrypt في seed-defaults
+
+في `artifacts/api-server/src/lib/seed-defaults.ts`:
+
+```typescript
+import bcrypt from 'bcrypt';
+
+// عند إنشاء superadmin
+const hashedSuperPin = await bcrypt.hash('000000', 10);
+await db.insert(erpUsersTable).values({
+  name: 'Super Admin',
+  username: 'superadmin',
+  pin: hashedSuperPin,  // مشفر وليس plain text
+  role: 'super_admin',
+  active: true,
+  company_id: 1,
+});
+
+// عند إنشاء admin
+const hashedAdminPin = await bcrypt.hash('123456', 10);
+await db.insert(erpUsersTable).values({
+  name: 'مدير النظام',
+  username: 'admin',
+  pin: hashedAdminPin,  // مشفر وليس plain text
+  role: 'company_admin',
+  active: true,
+  company_id: 1,
+});
+```
+
+---
+
+## FIX 7: عزل الخزائن والمخازن في settings
+
+في `artifacts/api-server/src/routes/settings.ts`:
+
+كل routes الخزائن (safes):
+```typescript
+// GET - فقط خزائن الشركة
+.where(eq(safesTable.company_id, req.companyId))
+
+// POST - اضبط company_id تلقائياً
+company_id: req.companyId
+
+// PUT - تحقق إن الخزينة تخص الشركة
+.where(and(eq(safesTable.id, id), eq(safesTable.company_id, req.companyId)))
+
+// DELETE - تحقق إن الخزينة تخص الشركة
+.where(and(eq(safesTable.id, id), eq(safesTable.company_id, req.companyId)))
+```
+
+نفس الشيء للمخازن (warehouses).
+
+---
+
+## FIX 8: عزل باقي الـ routes الرئيسية
+
+ابحث في هذه الملفات عن أي query بدون company_id filter وأصلحه:
+- `routes/sales.ts` — كل sales queries
+- `routes/purchases.ts` — كل purchases queries
+- `routes/products.ts` — كل products queries
+- `routes/customers.ts` — كل customers queries
+- `routes/suppliers.ts` — كل suppliers queries
+- `routes/expenses.ts` — كل expenses queries
+- `routes/income.ts` — كل income queries
+- `routes/returns.ts` — كل returns queries
+- `routes/vouchers.ts` — كل vouchers queries
+- `routes/profits.ts` — كل profits queries
+- `routes/safe-transfers.ts` — كل transfers queries
+
+لكل ملف: أضف `.where(eq(table.company_id, req.companyId))` في كل SELECT، وأضف `company_id: req.companyId` في كل INSERT.
+
+---
+
+## FIX 9: منع الوصول لـ routes الـ super بدون super_admin
+
+في `artifacts/api-server/src/routes/super.ts`:
+
+أضف في أول كل route:
+```typescript
+if (req.role !== 'super_admin') {
+  return res.status(403).json({ error: 'غير مصرح' });
+}
+```
+
+أو استخدم middleware:
+```typescript
+router.use((req, res, next) => {
+  if (req.role !== 'super_admin') {
+    return res.status(403).json({ error: 'هذه المنطقة للمسؤول العام فقط' });
+  }
+  next();
+});
+```
+
+---
+
+## FIX 10: Audit Log للعمليات الحساسة
+
+في كل عملية DELETE وكل تغيير صلاحيات، أضف:
+```typescript
+await db.insert(auditLogsTable).values({
+  company_id: req.companyId || 0,
+  user_id: req.userId,
+  action: 'DELETE_USER',  // أو اسم العملية المناسب
+  details: JSON.stringify({
+    target_id: targetId,
+    target_name: targetUser.name,
+    performed_by: req.username,
+    timestamp: new Date().toISOString(),
+  }),
+  created_at: new Date(),
+});
+```
+
+---
+
+## Testing Checklist — يجب أن تنجح كل هذه الاختبارات:
+
+- [ ] مستخدم شركة A لا يرى مستخدمي شركة B في settings
+- [ ] مستخدم شركة A لا يستطيع حذف مستخدمي شركة B
+- [ ] لا يمكن حذف أي مستخدم بـ role = super_admin من settings
+- [ ] لا يمكن إنشاء مستخدم بـ role = super_admin من settings
+- [ ] Reset يمسح بيانات الشركة الحالية فقط
+- [ ] GET /auth/users يرجع مستخدمي الشركة المحددة فقط بدون super_admin
+- [ ] الخزائن والمخازن مفلترة بـ company_id
+- [ ] المبيعات والمشتريات مفلترة بـ company_id
+- [ ] super_admin يستطيع الوصول لـ /api/super/* فقط
+- [ ] PINs محفوظة كـ bcrypt hash في seed
+
+## ترتيب التنفيذ:
+1. FIX 6 (bcrypt في seed) أولاً
+2. FIX 1 + 2 + 3 (حماية super_admin وعزل users)
+3. FIX 4 (إصلاح reset)
+4. FIX 5 (إصلاح auth/users)
+5. FIX 7 (عزل safes وwarehouses)
+6. FIX 8 (عزل باقي الـ routes)
+7. FIX 9 (حماية super routes)
+8. FIX 10 (audit log)
+9. تشغيل Testing Checklist كاملاً

@@ -39,6 +39,7 @@ export type AuditRecordType =
   | "payment_voucher"
   | "deposit_voucher"
   | "treasury_voucher"
+  | "user"
   // ── ERP critical types ─────────────────────────────────────────────────────
   | "account_balances"        // إصلاح أرصدة الحسابات المحاسبية
   | "customer_balances";      // إصلاح أرصدة العملاء
@@ -55,6 +56,7 @@ export async function writeAuditLog(opts: {
   old_value?: object | null;
   new_value?: object | null;
   user?: AuditUser | null;
+  company_id?: number | null;
   note?: string;
 }): Promise<void> {
   try {
@@ -66,6 +68,7 @@ export async function writeAuditLog(opts: {
       new_value: opts.new_value ?? null,
       user_id: opts.user?.id ?? null,
       username: opts.user?.username ?? null,
+      company_id: opts.company_id ?? 1,
     });
   } catch (err) {
     console.error("[audit-log] failed to write log:", err);
