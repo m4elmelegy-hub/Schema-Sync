@@ -29,16 +29,30 @@ interface Stats {
   expired: number; suspended: number; totalUsers: number;
 }
 
-const STATUS_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  active:    { bg: "#f0fdf4", text: "#16a34a", label: "نشط"      },
-  trial:     { bg: "#fefce8", text: "#ca8a04", label: "تجريبي"   },
-  expired:   { bg: "#fef2f2", text: "#dc2626", label: "منتهي"    },
-  suspended: { bg: "#f3f4f6", text: "#6b7280", label: "موقوف"    },
+const STATUS: Record<string, { bg: string; text: string; border: string; label: string }> = {
+  active:    { bg: "rgba(34,197,94,0.12)",  text: "#22C55E", border: "rgba(34,197,94,0.3)",  label: "نشط"    },
+  trial:     { bg: "rgba(249,115,22,0.12)", text: "#F97316", border: "rgba(249,115,22,0.3)", label: "تجريبي" },
+  expired:   { bg: "rgba(239,68,68,0.12)",  text: "#EF4444", border: "rgba(239,68,68,0.3)",  label: "منتهي"  },
+  suspended: { bg: "rgba(148,163,184,0.1)", text: "#94A3B8", border: "rgba(148,163,184,0.2)",label: "موقوف"  },
 };
 
 function authHeaders(token: string) {
   return { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
 }
+
+const C = {
+  bg:       "#0F172A",
+  card:     "#1E293B",
+  cardHov:  "#253147",
+  border:   "#334155",
+  orange:   "#F97316",
+  orangeDim:"rgba(249,115,22,0.15)",
+  text:     "#F8FAFC",
+  muted:    "#94A3B8",
+  success:  "#22C55E",
+  danger:   "#EF4444",
+  warning:  "#F59E0B",
+};
 
 export default function SuperAdmin() {
   const { user, token, logout }   = useAuth();
@@ -51,7 +65,6 @@ export default function SuperAdmin() {
   const [newPlan,       setNewPlan]       = useState("trial");
   const [newDays,       setNewDays]       = useState(14);
 
-  /* Redirect non-super_admin */
   if (user?.role !== "super_admin") {
     setLocation("/");
     return null;
@@ -82,7 +95,10 @@ export default function SuperAdmin() {
         headers: authHeaders(token ?? ""),
         body: body ? JSON.stringify(body) : undefined,
       }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/super/companies"] }); qc.invalidateQueries({ queryKey: ["/api/super/stats"] }); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/super/companies"] });
+      qc.invalidateQueries({ queryKey: ["/api/super/stats"] });
+    },
   });
 
   const handleCreate = () => {
@@ -93,91 +109,147 @@ export default function SuperAdmin() {
     );
   };
 
-  const pillStyle = (status: string) => {
-    const c = STATUS_COLORS[status] ?? STATUS_COLORS.active;
-    return { background: c.bg, color: c.text, padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, display: "inline-block" };
-  };
+  const today = new Date().toLocaleDateString("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+
+  const statCards = [
+    { label: "إجمالي الشركات", value: stats?.total ?? "—",      icon: "🏢", color: C.orange   },
+    { label: "نشطة",            value: stats?.active ?? "—",      icon: "✅", color: C.success  },
+    { label: "تجريبية",         value: stats?.trial ?? "—",       icon: "⏳", color: C.warning  },
+    { label: "منتهية",          value: stats?.expired ?? "—",     icon: "❌", color: C.danger   },
+    { label: "موقوفة",          value: stats?.suspended ?? "—",   icon: "⛔", color: C.muted    },
+    { label: "المستخدمون",      value: stats?.totalUsers ?? "—",  icon: "👥", color: C.orange   },
+  ];
 
   return (
-    <div dir="rtl" style={{ minHeight: "100vh", background: "#f8faff", fontFamily: "inherit" }}>
-      {/* ── Header ─────────────────────────────────────── */}
-      <div style={{ background: "linear-gradient(135deg,#0f0c29 0%,#302b63 100%)", padding: "16px 32px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <div style={{ fontSize: "24px" }}>🛡️</div>
+    <div dir="rtl" style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Tajawal','Cairo',sans-serif", color: C.text }}>
+
+      {/* ── Header ─── */}
+      <div style={{
+        background: C.card,
+        borderBottom: `1px solid ${C.border}`,
+        padding: "0 32px",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        height: "64px",
+        position: "sticky", top: 0, zIndex: 50,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+          <div style={{
+            width: "36px", height: "36px",
+            borderRadius: "10px",
+            background: C.orangeDim,
+            border: `1px solid rgba(249,115,22,0.3)`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: "18px",
+          }}>🛡️</div>
           <div>
-            <div style={{ fontSize: "18px", fontWeight: 900, color: "#fff" }}>لوحة المدير العام</div>
-            <div style={{ fontSize: "12px", color: "rgba(196,181,253,0.7)" }}>SaaS Control Panel</div>
+            <div style={{ fontSize: "16px", fontWeight: 800, color: C.text, lineHeight: 1.2 }}>لوحة تحكم المدير العام</div>
+            <div style={{ fontSize: "11px", color: C.muted }}>{today}</div>
           </div>
         </div>
         <button
           onClick={logout}
-          style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "10px", color: "#fff", padding: "8px 18px", cursor: "pointer", fontSize: "13px", fontWeight: 700 }}
+          style={{
+            background: "transparent", border: `1px solid ${C.border}`,
+            borderRadius: "10px", color: C.muted, padding: "8px 18px",
+            cursor: "pointer", fontSize: "13px", fontWeight: 700,
+            fontFamily: "inherit", transition: "all 0.2s",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = C.danger; e.currentTarget.style.color = C.danger; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.muted; }}
         >
           تسجيل الخروج
         </button>
       </div>
 
-      <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "28px 24px" }}>
-        {/* ── Stats cards ─────────────────────────────── */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: "16px", marginBottom: "28px" }}>
-          {[
-            { label: "إجمالي الشركات", value: stats?.total ?? "—",   icon: "🏢", color: "#4f46e5" },
-            { label: "نشطة",            value: stats?.active ?? "—",   icon: "✅", color: "#16a34a" },
-            { label: "تجريبية",         value: stats?.trial ?? "—",    icon: "⏳", color: "#ca8a04" },
-            { label: "منتهية",          value: stats?.expired ?? "—",  icon: "⚠️", color: "#dc2626" },
-            { label: "موقوفة",          value: stats?.suspended ?? "—",icon: "⛔", color: "#6b7280" },
-            { label: "المستخدمون",      value: stats?.totalUsers ?? "—",icon: "👥", color: "#7c3aed" },
-          ].map(s => (
-            <div key={s.label} style={{ background: "#fff", borderRadius: "16px", border: "1px solid #e5e7eb", padding: "18px 16px", textAlign: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
-              <div style={{ fontSize: "28px", marginBottom: "6px" }}>{s.icon}</div>
-              <div style={{ fontSize: "28px", fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.value}</div>
-              <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px", fontWeight: 600 }}>{s.label}</div>
+      <div style={{ maxWidth: "1280px", margin: "0 auto", padding: "32px 24px" }}>
+
+        {/* ── Stats cards ─── */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(170px,1fr))", gap: "16px", marginBottom: "32px" }}>
+          {statCards.map(s => (
+            <div
+              key={s.label}
+              style={{
+                background: C.card,
+                borderRadius: "16px",
+                border: `1px solid ${C.border}`,
+                padding: "20px 18px",
+                textAlign: "center",
+                transition: "all 0.2s",
+                cursor: "default",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = `${s.color}55`; e.currentTarget.style.boxShadow = `0 0 20px ${s.color}22`; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.boxShadow = "none"; }}
+            >
+              <div style={{ fontSize: "26px", marginBottom: "8px" }}>{s.icon}</div>
+              <div style={{ fontSize: "30px", fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: "12px", color: C.muted, marginTop: "6px", fontWeight: 600 }}>{s.label}</div>
             </div>
           ))}
         </div>
 
-        {/* ── Companies table ──────────────────────────── */}
-        <div style={{ background: "#fff", borderRadius: "20px", border: "1px solid #e5e7eb", overflow: "hidden", boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
-          <div style={{ padding: "20px 24px", borderBottom: "1px solid #f3f4f6", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <h2 style={{ fontSize: "16px", fontWeight: 800, color: "#111827" }}>الشركات المسجّلة</h2>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <span style={{ fontSize: "12px", color: "#6b7280" }}>{companies.length} شركة</span>
-              <button
-                onClick={() => setShowCreate(v => !v)}
-                style={{
-                  display: "flex", alignItems: "center", gap: "6px",
-                  padding: "7px 14px", borderRadius: "10px",
-                  background: showCreate ? "#ede9fe" : "#4f46e5",
-                  color: showCreate ? "#4f46e5" : "#fff",
-                  border: "none", fontSize: "13px", fontWeight: 700, cursor: "pointer",
-                  fontFamily: "inherit", transition: "all 0.15s",
-                }}
-              >
-                <span>{showCreate ? "✕" : "+"}</span>
-                <span>{showCreate ? "إلغاء" : "شركة جديدة"}</span>
-              </button>
+        {/* ── Companies table ─── */}
+        <div style={{ background: C.card, borderRadius: "20px", border: `1px solid ${C.border}`, overflow: "hidden" }}>
+
+          {/* Table header */}
+          <div style={{
+            padding: "18px 24px",
+            borderBottom: `1px solid ${C.border}`,
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+          }}>
+            <div>
+              <h2 style={{ fontSize: "16px", fontWeight: 800, color: C.text, margin: 0 }}>الشركات المسجّلة</h2>
+              <p style={{ fontSize: "12px", color: C.muted, margin: "2px 0 0" }}>{companies.length} شركة</p>
             </div>
+            <button
+              onClick={() => setShowCreate(v => !v)}
+              style={{
+                display: "flex", alignItems: "center", gap: "6px",
+                padding: "8px 16px", borderRadius: "10px",
+                background: showCreate ? "transparent" : C.orange,
+                color: showCreate ? C.muted : "#fff",
+                border: showCreate ? `1px solid ${C.border}` : "none",
+                fontSize: "13px", fontWeight: 700, cursor: "pointer",
+                fontFamily: "inherit", transition: "all 0.18s",
+              }}
+              onMouseEnter={e => { if (!showCreate) e.currentTarget.style.filter = "brightness(1.1)"; }}
+              onMouseLeave={e => { e.currentTarget.style.filter = "none"; }}
+            >
+              <span style={{ fontSize: "15px" }}>{showCreate ? "✕" : "+"}</span>
+              <span>{showCreate ? "إلغاء" : "شركة جديدة"}</span>
+            </button>
           </div>
 
-          {/* ── Create Company form ─────────────────────── */}
+          {/* Create form */}
           {showCreate && (
-            <div style={{ padding: "20px 24px", background: "#f5f3ff", borderBottom: "1px solid #e5e7eb" }}>
+            <div style={{ padding: "20px 24px", background: "rgba(249,115,22,0.06)", borderBottom: `1px solid ${C.border}` }}>
               <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "flex-end" }}>
                 <div style={{ flex: "2 1 200px" }}>
-                  <label style={{ fontSize: "12px", fontWeight: 700, color: "#374151", display: "block", marginBottom: "6px" }}>اسم الشركة *</label>
+                  <label style={{ fontSize: "12px", fontWeight: 700, color: C.muted, display: "block", marginBottom: "6px" }}>اسم الشركة *</label>
                   <input
                     value={newName}
                     onChange={e => setNewName(e.target.value)}
                     placeholder="مثال: شركة الأمل التجارية"
-                    style={{ width: "100%", border: "1.5px solid #c4b5fd", borderRadius: "8px", padding: "8px 12px", fontSize: "14px", outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
+                    style={{
+                      width: "100%", border: `1.5px solid ${C.border}`, borderRadius: "10px",
+                      padding: "10px 14px", fontSize: "14px", outline: "none",
+                      fontFamily: "inherit", boxSizing: "border-box",
+                      background: C.bg, color: C.text,
+                      transition: "border-color 0.2s",
+                    }}
+                    onFocus={e => { e.currentTarget.style.borderColor = C.orange; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = C.border; }}
                   />
                 </div>
                 <div style={{ flex: "1 1 130px" }}>
-                  <label style={{ fontSize: "12px", fontWeight: 700, color: "#374151", display: "block", marginBottom: "6px" }}>نوع الاشتراك</label>
+                  <label style={{ fontSize: "12px", fontWeight: 700, color: C.muted, display: "block", marginBottom: "6px" }}>نوع الاشتراك</label>
                   <select
                     value={newPlan}
                     onChange={e => setNewPlan(e.target.value)}
-                    style={{ width: "100%", border: "1.5px solid #c4b5fd", borderRadius: "8px", padding: "8px 10px", fontSize: "14px", background: "#fff", fontFamily: "inherit" }}
+                    style={{
+                      width: "100%", border: `1.5px solid ${C.border}`, borderRadius: "10px",
+                      padding: "10px 12px", fontSize: "14px",
+                      background: C.bg, color: C.text, fontFamily: "inherit",
+                    }}
                   >
                     <option value="trial">تجريبي</option>
                     <option value="basic">أساسي</option>
@@ -186,11 +258,15 @@ export default function SuperAdmin() {
                   </select>
                 </div>
                 <div style={{ flex: "1 1 110px" }}>
-                  <label style={{ fontSize: "12px", fontWeight: 700, color: "#374151", display: "block", marginBottom: "6px" }}>المدة (أيام)</label>
+                  <label style={{ fontSize: "12px", fontWeight: 700, color: C.muted, display: "block", marginBottom: "6px" }}>المدة (أيام)</label>
                   <select
                     value={newDays}
                     onChange={e => setNewDays(Number(e.target.value))}
-                    style={{ width: "100%", border: "1.5px solid #c4b5fd", borderRadius: "8px", padding: "8px 10px", fontSize: "14px", background: "#fff", fontFamily: "inherit" }}
+                    style={{
+                      width: "100%", border: `1.5px solid ${C.border}`, borderRadius: "10px",
+                      padding: "10px 12px", fontSize: "14px",
+                      background: C.bg, color: C.text, fontFamily: "inherit",
+                    }}
                   >
                     {[7, 14, 30, 60, 90, 180, 365].map(d => <option key={d} value={d}>{d} يوم</option>)}
                   </select>
@@ -199,11 +275,14 @@ export default function SuperAdmin() {
                   onClick={handleCreate}
                   disabled={!newName.trim() || mutate.isPending}
                   style={{
-                    padding: "9px 20px", borderRadius: "10px", border: "none",
-                    background: newName.trim() ? "#4f46e5" : "#c4b5fd",
-                    color: "#fff", fontSize: "14px", fontWeight: 700, cursor: newName.trim() ? "pointer" : "default",
-                    fontFamily: "inherit", flexShrink: 0,
+                    padding: "10px 22px", borderRadius: "10px", border: "none",
+                    background: newName.trim() ? C.orange : C.border,
+                    color: "#fff", fontSize: "14px", fontWeight: 700,
+                    cursor: newName.trim() ? "pointer" : "default",
+                    fontFamily: "inherit", flexShrink: 0, transition: "filter 0.15s",
                   }}
+                  onMouseEnter={e => { if (newName.trim()) e.currentTarget.style.filter = "brightness(1.1)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.filter = "none"; }}
                 >
                   {mutate.isPending ? "جاري الإنشاء..." : "إنشاء الشركة"}
                 </button>
@@ -211,107 +290,160 @@ export default function SuperAdmin() {
             </div>
           )}
 
+          {/* Table body */}
           {isLoading ? (
-            <div style={{ padding: "60px", textAlign: "center", color: "#9ca3af" }}>جاري التحميل...</div>
+            <div style={{ padding: "60px", textAlign: "center", color: C.muted }}>جاري التحميل...</div>
           ) : companies.length === 0 ? (
-            <div style={{ padding: "60px", textAlign: "center", color: "#9ca3af" }}>لا توجد شركات مسجّلة بعد</div>
+            <div style={{ padding: "60px", textAlign: "center", color: C.muted }}>لا توجد شركات مسجّلة بعد</div>
           ) : (
             <div>
-              {companies.map((co) => {
+              {/* Column headers */}
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "44px 1fr 100px 72px 60px 24px",
+                gap: "12px",
+                padding: "10px 24px",
+                background: "rgba(249,115,22,0.08)",
+                borderBottom: `1px solid ${C.border}`,
+                fontSize: "11px", fontWeight: 700, color: C.orange,
+                alignItems: "center",
+              }}>
+                <div>#</div>
+                <div>الشركة</div>
+                <div style={{ textAlign: "center" }}>الحالة</div>
+                <div style={{ textAlign: "center" }}>المتبقي</div>
+                <div style={{ textAlign: "center" }}>مستخدمين</div>
+                <div />
+              </div>
+
+              {companies.map((co, idx) => {
                 const isExpanded = expandedId === co.id;
-                const days = co.daysRemaining;
-                const st   = STATUS_COLORS[co.status] ?? STATUS_COLORS.active;
+                const days       = co.daysRemaining;
+                const st         = STATUS[co.status] ?? STATUS.active;
+                const isOdd      = idx % 2 === 1;
+
                 return (
-                  <div key={co.id} style={{ borderBottom: "1px solid #f9fafb" }}>
-                    {/* ── Row ── */}
+                  <div key={co.id} style={{ borderBottom: `1px solid ${C.border}` }}>
                     <div
                       onClick={() => setExpandedId(isExpanded ? null : co.id)}
-                      style={{ padding: "16px 24px", display: "flex", alignItems: "center", gap: "16px", cursor: "pointer", transition: "background 0.15s" }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = "#f9fafb")}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "44px 1fr 100px 72px 60px 24px",
+                        gap: "12px",
+                        padding: "14px 24px",
+                        alignItems: "center",
+                        cursor: "pointer",
+                        transition: "background 0.15s",
+                        background: isOdd ? "rgba(15,23,42,0.4)" : "transparent",
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "rgba(249,115,22,0.05)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = isOdd ? "rgba(15,23,42,0.4)" : "transparent"; }}
                     >
                       {/* ID badge */}
-                      <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "#ede9fe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 900, color: "#6d28d9", flexShrink: 0 }}>
+                      <div style={{
+                        width: "36px", height: "36px", borderRadius: "10px",
+                        background: C.orangeDim, border: `1px solid rgba(249,115,22,0.25)`,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: "11px", fontWeight: 900, color: C.orange, flexShrink: 0,
+                      }}>
                         #{co.id}
                       </div>
 
                       {/* Name + email */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: "15px", fontWeight: 800, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{co.name}</div>
-                        <div style={{ fontSize: "12px", color: "#9ca3af", direction: "ltr", textAlign: "right" }}>{co.admin_email ?? "—"}</div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: "14px", fontWeight: 700, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {co.name}
+                        </div>
+                        <div style={{ fontSize: "11px", color: C.muted, direction: "ltr", textAlign: "right" }}>
+                          {co.admin_email ?? "—"}
+                        </div>
                       </div>
 
-                      {/* Status */}
-                      <span style={pillStyle(co.status)}>{st.label}</span>
-
-                      {/* Days */}
-                      <div style={{ textAlign: "center", minWidth: "60px" }}>
-                        <div style={{ fontSize: "16px", fontWeight: 900, color: days < 0 ? "#dc2626" : days < 3 ? "#ca8a04" : "#16a34a" }}>{days < 0 ? "منتهي" : `${days}ي`}</div>
-                        <div style={{ fontSize: "10px", color: "#9ca3af" }}>متبقي</div>
+                      {/* Status pill */}
+                      <div style={{ textAlign: "center" }}>
+                        <span style={{
+                          background: st.bg, color: st.text, border: `1px solid ${st.border}`,
+                          padding: "3px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700,
+                          display: "inline-block",
+                        }}>
+                          {st.label}
+                        </span>
                       </div>
 
-                      {/* Users */}
-                      <div style={{ textAlign: "center", minWidth: "44px" }}>
-                        <div style={{ fontSize: "14px", fontWeight: 700, color: "#4f46e5" }}>{co.userCount}</div>
-                        <div style={{ fontSize: "10px", color: "#9ca3af" }}>مستخدم</div>
+                      {/* Days remaining */}
+                      <div style={{ textAlign: "center" }}>
+                        <div style={{
+                          fontSize: "15px", fontWeight: 900,
+                          color: days < 0 ? C.danger : days < 3 ? C.warning : C.success,
+                        }}>
+                          {days < 0 ? "منتهي" : `${days}ي`}
+                        </div>
+                        <div style={{ fontSize: "10px", color: C.muted }}>متبقي</div>
+                      </div>
+
+                      {/* User count */}
+                      <div style={{ textAlign: "center" }}>
+                        <div style={{ fontSize: "14px", fontWeight: 700, color: C.orange }}>{co.userCount}</div>
+                        <div style={{ fontSize: "10px", color: C.muted }}>مستخدم</div>
                       </div>
 
                       {/* Chevron */}
-                      <div style={{ fontSize: "12px", color: "#9ca3af", transition: "transform 0.2s", transform: isExpanded ? "rotate(90deg)" : "rotate(0)" }}>▶</div>
+                      <div style={{
+                        fontSize: "11px", color: C.muted,
+                        transition: "transform 0.2s",
+                        transform: isExpanded ? "rotate(90deg)" : "rotate(0)",
+                        textAlign: "center",
+                      }}>▶</div>
                     </div>
 
-                    {/* ── Expanded actions ── */}
+                    {/* Expanded actions panel */}
                     {isExpanded && (
-                      <div style={{ padding: "16px 24px 20px", background: "#f9fafb", borderTop: "1px solid #f3f4f6" }}>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "center" }}>
-
-                          {/* Activate */}
+                      <div style={{
+                        padding: "16px 24px 20px",
+                        background: "rgba(15,23,42,0.6)",
+                        borderTop: `1px solid ${C.border}`,
+                      }}>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", alignItems: "center" }}>
                           {!co.is_active && (
-                            <ActionBtn
-                              label="تفعيل الشركة" icon="✅" color="#16a34a"
-                              onClick={() => mutate.mutate({ url: `/api/super/companies/${co.id}/activate` })}
-                            />
+                            <ActionBtn label="تفعيل الشركة" icon="✅" color={C.success}
+                              onClick={() => mutate.mutate({ url: `/api/super/companies/${co.id}/activate` })} />
                           )}
-
-                          {/* Suspend */}
                           {co.is_active && (
-                            <ActionBtn
-                              label="إيقاف الشركة" icon="⛔" color="#dc2626"
-                              onClick={() => mutate.mutate({ url: `/api/super/companies/${co.id}/suspend` })}
-                            />
+                            <ActionBtn label="إيقاف الشركة" icon="⛔" color={C.danger}
+                              onClick={() => mutate.mutate({ url: `/api/super/companies/${co.id}/suspend` })} />
                           )}
 
-                          {/* Extend */}
                           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                             <select
                               value={extendDays[co.id] ?? 7}
                               onChange={(e) => setExtendDays(prev => ({ ...prev, [co.id]: Number(e.target.value) }))}
-                              style={{ border: "1px solid #d1d5db", borderRadius: "8px", padding: "7px 10px", fontSize: "13px", background: "#fff" }}
+                              onClick={e => e.stopPropagation()}
+                              style={{
+                                border: `1px solid ${C.border}`, borderRadius: "8px",
+                                padding: "7px 10px", fontSize: "13px",
+                                background: C.card, color: C.text, fontFamily: "inherit",
+                              }}
                             >
                               {[7, 14, 30, 90, 365].map(d => <option key={d} value={d}>{d} يوم</option>)}
                             </select>
-                            <ActionBtn
-                              label="تمديد" icon="⏳" color="#ca8a04"
+                            <ActionBtn label="تمديد" icon="⏳" color={C.warning}
                               onClick={() => mutate.mutate({
                                 url: `/api/super/companies/${co.id}/extend`,
                                 body: { days: extendDays[co.id] ?? 7, plan_type: "paid" },
-                              })}
-                            />
+                              })} />
                           </div>
 
-                          {/* Plan upgrade */}
-                          <ActionBtn
-                            label="ترقية إلى Paid" icon="⭐" color="#7c3aed"
+                          <ActionBtn label="ترقية إلى Paid" icon="⭐" color={C.orange}
                             onClick={() => mutate.mutate({
                               url: `/api/super/companies/${co.id}`,
                               method: "PUT",
                               body: { plan_type: "paid" },
-                            })}
-                          />
+                            })} />
 
-                          {/* Info */}
-                          <div style={{ fontSize: "12px", color: "#6b7280", marginRight: "auto" }}>
-                            تسجيل: {new Date(co.created_at).toLocaleDateString("ar-EG")} &nbsp;·&nbsp; انتهاء: {co.end_date}
+                          <div style={{ fontSize: "12px", color: C.muted, marginRight: "auto" }}>
+                            تسجيل: {new Date(co.created_at).toLocaleDateString("ar-EG")}
+                            &nbsp;·&nbsp;
+                            انتهاء: {co.end_date}
                           </div>
                         </div>
                       </div>
@@ -334,14 +466,14 @@ function ActionBtn({ label, icon, color, onClick }: { label: string; icon: strin
       style={{
         display: "flex", alignItems: "center", gap: "6px",
         padding: "8px 14px", borderRadius: "10px",
-        border: `1.5px solid ${color}22`,
-        background: `${color}12`, color,
+        border: `1.5px solid ${color}44`,
+        background: `${color}18`, color,
         fontSize: "13px", fontWeight: 700,
         cursor: "pointer", transition: "all 0.15s",
-        fontFamily: "inherit",
+        fontFamily: "'Tajawal','Cairo',sans-serif",
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.background = `${color}22`; }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = `${color}12`; }}
+      onMouseEnter={e => { e.currentTarget.style.background = `${color}30`; e.currentTarget.style.borderColor = `${color}88`; }}
+      onMouseLeave={e => { e.currentTarget.style.background = `${color}18`; e.currentTarget.style.borderColor = `${color}44`; }}
     >
       <span>{icon}</span><span>{label}</span>
     </button>

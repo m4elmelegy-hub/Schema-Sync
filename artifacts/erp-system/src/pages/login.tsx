@@ -701,8 +701,7 @@ function LoginForm({
             autoComplete="current-password"
             placeholder="أدخل الرقم السري"
             disabled={loading}
-            inputMode="numeric"
-            onChange={(e) => { setPin(e.target.value.replace(/\D/g, "").slice(0, 6)); setError(""); }}
+            onChange={(e) => { setPin(e.target.value); setError(""); }}
             onFocus={() => setFocused("pin")}
             onBlur={() => setFocused(null)}
             className="lp-input"

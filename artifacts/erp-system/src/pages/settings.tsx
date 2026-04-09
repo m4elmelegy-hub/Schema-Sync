@@ -601,10 +601,10 @@ function UsersTab() {
   };
 
   const pinStrength = (pin: string) => {
-    if (pin.length < 4) return { w: "25%", color: "bg-red-500",    label: "ضعيف" };
-    if (pin.length < 5) return { w: "50%", color: "bg-amber-500",  label: "مقبول" };
-    if (pin.length < 6) return { w: "75%", color: "bg-blue-500",   label: "جيد" };
-    return                     { w: "100%",color: "bg-emerald-500", label: "قوي" };
+    if (pin.length < 4)  return { w: "25%", color: "bg-red-500",    label: "ضعيف جداً (4 أحرف على الأقل)" };
+    if (pin.length < 6)  return { w: "50%", color: "bg-amber-500",  label: "مقبول" };
+    if (pin.length < 8)  return { w: "75%", color: "bg-blue-500",   label: "جيد" };
+    return                      { w: "100%",color: "bg-emerald-500", label: "قوي" };
   };
   const ps = pinStrength(form.pin);
 
@@ -721,7 +721,7 @@ function UsersTab() {
                 <div className="relative">
                   <SInput
                     type={showPin ? "text" : "password"}
-                    placeholder="0000" maxLength={6}
+                    placeholder="أدخل الرقم السري"
                     value={form.pin}
                     onChange={e => setForm(f => ({ ...f, pin: e.target.value }))}
                   />
