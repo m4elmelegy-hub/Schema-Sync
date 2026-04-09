@@ -243,6 +243,41 @@ router.post("/auth/refresh", async (req, res) => {
   }
 });
 
+/* ── GET /auth/subscription — subscription status for current company ─ */
+router.get("/auth/subscription", authenticate, async (req, res) => {
+  try {
+    if (req.role === "super_admin") {
+      res.json({ unlimited: true });
+      return;
+    }
+    const companyId = req.companyId;
+    if (!companyId) {
+      res.json({ unlimited: true });
+      return;
+    }
+    const [company] = await db
+      .select()
+      .from(companiesTable)
+      .where(eq(companiesTable.id, companyId));
+    if (!company) {
+      res.status(404).json({ error: "الشركة غير موجودة" });
+      return;
+    }
+    const days = daysRemaining(company.end_date);
+    res.json({
+      plan_type:         company.plan_type,
+      end_date:          company.end_date,
+      days_left:         days,
+      company_name:      company.name,
+      is_active:         company.is_active,
+      is_expiring_soon:  days <= 14 && days > 0,
+      is_expired:        days <= 0,
+    });
+  } catch {
+    res.status(500).json({ error: "فشل جلب بيانات الاشتراك" });
+  }
+});
+
 /* ── GET /auth/me — verify token + return fresh user data ─── */
 router.get("/auth/me", authenticate, (req, res) => {
   const u = req.user!;

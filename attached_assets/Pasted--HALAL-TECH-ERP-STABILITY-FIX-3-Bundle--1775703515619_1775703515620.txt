@@ -1,0 +1,301 @@
+# [HALAL TECH ERP — STABILITY FIX #3]
+# Bundle تصغير + إشعارات الاشتراك + استقرار عام
+
+---
+
+## FIX 1: Frontend Bundle Code Splitting
+
+في `artifacts/erp-system/vite.config.ts`:
+
+أضف `manualChunks` في rollupOptions:
+
+```typescript
+build: {
+  rollupOptions: {
+    output: {
+      manualChunks: {
+        // مكتبات خارجية كبيرة
+        'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+        'vendor-ui': ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-select', '@radix-ui/react-toast'],
+        'vendor-query': ['@tanstack/react-query'],
+        'vendor-charts': ['recharts'],
+        'vendor-xlsx': ['xlsx'],
+        'vendor-pdf': ['jspdf', 'jspdf-autotable'],
+        'vendor-utils': ['date-fns', 'clsx', 'tailwind-merge'],
+        // صفحات كبيرة
+        'page-reports': [
+          './src/pages/reports/ProfitLossReport',
+          './src/pages/reports/BalanceSheetReport',
+          './src/pages/reports/CashFlowReport',
+        ],
+      },
+    },
+  },
+  chunkSizeWarningLimit: 600,
+},
+```
+
+---
+
+## FIX 2: إشعار انتهاء الاشتراك — Banner في الواجهة
+
+في `artifacts/erp-system/src/contexts/auth.tsx` أو أي مكان مناسب:
+
+أضف حساب الأيام المتبقية:
+```typescript
+// بعد تسجيل الدخول، احسب الأيام المتبقية
+const subscriptionEnd = new Date(user.company?.end_date);
+const today = new Date();
+const daysLeft = Math.ceil((subscriptionEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+// أضف daysLeft للـ auth context
+```
+
+أنشئ component جديد `artifacts/erp-system/src/components/SubscriptionBanner.tsx`:
+```typescript
+// يظهر banner تحذيري إذا كانت الأيام المتبقية <= 14 يوم
+// 14-8 أيام: banner أصفر "ينتهي اشتراكك خلال X أيام"
+// 7-1 أيام: banner برتقالي مع أيقونة تحذير "⚠️ ينتهي اشتراكك خلال X أيام — تواصل معنا للتجديد"
+// 0 أيام أو أقل: لا يظهر الـ banner (صفحة منفصلة تظهر تلقائياً)
+// super_admin لا يرى الـ banner أبداً
+
+// تصميم الـ banner:
+// - شريط في أعلى الصفحة تحت الـ header مباشرة
+// - نص عربي RTL
+// - زرار "تواصل للتجديد" يفتح واتساب أو email
+// - زرار X لإغلاق الـ banner مؤقتاً (يرجع في كل login جديد)
+// - خلفية: أصفر (#FEF3C7) للـ 14-8 أيام، برتقالي (#FED7AA) للـ 7-1 أيام
+```
+
+أضف الـ API endpoint لإرجاع معلومات الاشتراك:
+```typescript
+// في artifacts/api-server/src/routes/auth.ts
+// GET /auth/subscription — يرجع معلومات اشتراك الشركة الحالية
+router.get('/subscription', authenticate, async (req, res) => {
+  if (req.role === 'super_admin') {
+    return res.json({ unlimited: true });
+  }
+  
+  const company = await db.select()
+    .from(companiesTable)
+    .where(eq(companiesTable.id, req.companyId))
+    .limit(1);
+  
+  if (!company[0]) {
+    return res.status(404).json({ error: 'الشركة غير موجودة' });
+  }
+  
+  const today = new Date();
+  const endDate = new Date(company[0].end_date);
+  const daysLeft = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  
+  return res.json({
+    plan_type: company[0].plan_type,
+    end_date: company[0].end_date,
+    days_left: daysLeft,
+    is_active: company[0].is_active,
+    is_expiring_soon: daysLeft <= 14 && daysLeft > 0,
+    is_expired: daysLeft <= 0,
+  });
+});
+```
+
+---
+
+## FIX 3: إصلاح git conflict في السيرفر — deploy.sh
+
+حدّث `/root/deploy.sh` ليتعامل مع الـ conflicts تلقائياً:
+
+أنشئ الملف الجديد في المشروع `deploy/deploy.sh`:
+```bash
+#!/bin/bash
+set -e
+echo "🚀 بدء الـ Deploy..."
+
+cd /root/Schema-Sync
+
+# حل أي conflicts محلية تلقائياً
+git stash 2>/dev/null || true
+git pull origin main
+git stash pop 2>/dev/null || true
+
+pnpm install
+
+# push الـ schema
+cd /root/Schema-Sync/lib/db
+DATABASE_URL="postgresql://erpuser:123456@localhost:5432/erp" pnpm run push
+
+# build Frontend
+cd /root/Schema-Sync/artifacts/erp-system
+PORT=8080 BASE_PATH=/ VITE_API_URL="" pnpm run build
+
+# build Backend
+cd /root/Schema-Sync/artifacts/api-server
+pnpm run build
+
+# restart
+pm2 restart halaltech-api
+
+echo "✅ Deploy خلص! الموقع اتحدث."
+echo "🌐 halaltec.com جاهز"
+```
+
+---
+
+## FIX 4: PM2 Ecosystem File للإدارة الأفضل
+
+أنشئ `ecosystem.config.cjs` في root المشروع:
+```javascript
+module.exports = {
+  apps: [{
+    name: 'halaltech-api',
+    script: './artifacts/api-server/dist/index.mjs',
+    cwd: '/root/Schema-Sync',
+    instances: 1,
+    autorestart: true,
+    watch: false,
+    max_memory_restart: '500M',
+    env: {
+      NODE_ENV: 'production',
+      PORT: 8080,
+    },
+    error_file: '/root/.pm2/logs/halaltech-error.log',
+    out_file: '/root/.pm2/logs/halaltech-out.log',
+    log_date_format: 'YYYY-MM-DD HH:mm:ss',
+    merge_logs: true,
+  }],
+};
+```
+
+---
+
+## FIX 5: إضافة Compression للـ API responses
+
+في `artifacts/api-server/src/app.ts`:
+```typescript
+import compression from 'compression';
+
+// أضف في أول الـ middleware stack
+app.use(compression({
+  level: 6,
+  threshold: 1024, // compress responses > 1kb
+}));
+```
+
+تثبيت:
+```bash
+cd artifacts/api-server && pnpm add compression && pnpm add -D @types/compression
+```
+
+---
+
+## FIX 6: إضافة Cache Headers للـ Static Files
+
+في `artifacts/api-server/src/app.ts`:
+
+```typescript
+// في الـ static files serving
+app.use(express.static(frontendDist, {
+  maxAge: '7d',        // cache الملفات لمدة أسبوع
+  etag: true,
+  lastModified: true,
+  setHeaders: (res, filePath) => {
+    // index.html لا يُكاش عشان يلاقي التحديثات
+    if (filePath.endsWith('index.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    }
+  },
+}));
+```
+
+---
+
+## FIX 7: Graceful Shutdown محسّن
+
+في `artifacts/api-server/src/index.ts`:
+```typescript
+// تحسين الـ cleanup function
+async function cleanup(signal: string) {
+  logger.info({ signal }, 'Shutdown signal received');
+  
+  // أوقف استقبال requests جديدة
+  server.close(async () => {
+    try {
+      // أغلق DB connections بشكل نظيف
+      await pool.end();
+      logger.info('Database pool closed');
+    } catch (err) {
+      logger.error({ err }, 'Error closing database pool');
+    }
+    logger.info('Server closed cleanly');
+    process.exit(0);
+  });
+  
+  // Force exit بعد 10 ثواني لو مش اتقفل
+  setTimeout(() => {
+    logger.error('Forced shutdown after timeout');
+    process.exit(1);
+  }, 10000);
+}
+
+process.on('SIGTERM', () => cleanup('SIGTERM'));
+process.on('SIGINT', () => cleanup('SIGINT'));
+```
+
+---
+
+## FIX 8: تحسين صفحة انتهاء الاشتراك
+
+في `artifacts/erp-system/src/pages/subscription-expired.tsx`:
+
+حسّن الصفحة لتكون أكثر احترافية:
+```typescript
+// أضف:
+// - رقم واتساب للتواصل (قابل للتخصيص من إعدادات المسؤول العام)
+// - بريد إلكتروني للتواصل
+// - عداد تنازلي يوضح متى انتهى الاشتراك
+// - زرار "تسجيل الخروج" واضح
+// - تصميم احترافي بألوان المشروع (أسود + برتقالي)
+// - رسالة واضحة بالعربي: "انتهت صلاحية اشتراككم"
+// - إضافة معلومات الشركة (اسمها) في الصفحة
+```
+
+---
+
+## FIX 9: إضافة معلومات التواصل للـ Super Admin
+
+في لوحة الـ Super Admin، أضف في إعدادات النظام:
+```
+- رقم واتساب للدعم
+- بريد إلكتروني للدعم
+- يُستخدم في صفحة انتهاء الاشتراك وفي الـ banner
+```
+
+هذه المعلومات تُحفظ في `system_settings` table بـ:
+- key: `support_whatsapp`, company_id: 1
+- key: `support_email`, company_id: 1
+
+---
+
+## Testing Checklist:
+- [ ] `GET /api/healthz` يرجع JSON كامل مع DB latency وmemory
+- [ ] Frontend bundle الرئيسي أصغر من 400kb بعد code splitting
+- [ ] Banner يظهر للمستخدمين اللي اشتراكهم ينتهي خلال 14 يوم
+- [ ] Banner لا يظهر للـ super_admin
+- [ ] `GET /api/auth/subscription` يرجع معلومات صحيحة
+- [ ] deploy.sh يعمل بدون conflicts
+- [ ] API responses مضغوطة (Content-Encoding: gzip)
+- [ ] Static files عندها Cache-Control headers
+- [ ] صفحة انتهاء الاشتراك تعرض معلومات التواصل
+
+## ترتيب التنفيذ:
+1. FIX 5 (compression) — أسرع تحسين
+2. FIX 6 (cache headers)
+3. FIX 7 (graceful shutdown)
+4. FIX 1 (bundle code splitting)
+5. FIX 2 (subscription banner + API endpoint)
+6. FIX 8 (تحسين صفحة انتهاء الاشتراك)
+7. FIX 9 (معلومات التواصل في Super Admin)
+8. FIX 3 (تحديث deploy.sh)
+9. FIX 4 (PM2 ecosystem file)
+10. تشغيل Testing Checklist

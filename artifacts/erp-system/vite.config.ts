@@ -57,6 +57,25 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-react":  ["react", "react-dom", "wouter"],
+          "vendor-ui":     [
+            "@radix-ui/react-dialog",
+            "@radix-ui/react-dropdown-menu",
+            "@radix-ui/react-select",
+            "@radix-ui/react-toast",
+          ],
+          "vendor-query":  ["@tanstack/react-query"],
+          "vendor-charts": ["recharts"],
+          "vendor-xlsx":   ["xlsx"],
+          "vendor-pdf":    ["jspdf", "jspdf-autotable"],
+          "vendor-utils":  ["date-fns", "clsx", "tailwind-merge"],
+        },
+      },
+    },
   },
   server: {
     port,

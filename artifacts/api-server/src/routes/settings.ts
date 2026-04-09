@@ -745,4 +745,45 @@ router.get("/customers/:id/statement", authenticate, async (req, res) => {
   }
 });
 
+/**
+ * GET /settings/system
+ * Returns all system_settings keys as a flat key→value object.
+ * Super admins read from company_id=1 (global settings store).
+ */
+router.get("/settings/system", authenticate, async (req, res) => {
+  try {
+    const role      = req.user?.role ?? "";
+    const companyId = role === "super_admin" ? 1 : (req.user?.company_id ?? 1);
+    const rows = await db.select().from(systemSettingsTable)
+      .where(eq(systemSettingsTable.company_id, companyId));
+    const result: Record<string, string> = {};
+    for (const r of rows) result[r.key] = r.value ?? "";
+    res.json(result);
+  } catch {
+    res.status(500).json({ error: "فشل جلب إعدادات النظام" });
+  }
+});
+
+/**
+ * POST /settings/system
+ * Upsert a single system setting key.
+ * Body: { key: string, value: string }
+ * Super admins save to company_id=1; company admins save to their own company.
+ */
+router.post("/settings/system", authenticate, async (req, res) => {
+  try {
+    const role = req.user?.role ?? "";
+    if (!["admin", "super_admin"].includes(role)) {
+      res.status(403).json({ error: "غير مصرح" }); return;
+    }
+    const { key, value } = req.body as { key?: string; value?: string };
+    if (!key?.trim()) { res.status(400).json({ error: "المفتاح مطلوب" }); return; }
+    const companyId = role === "super_admin" ? 1 : (req.user?.company_id ?? 1);
+    await upsertSetting(key.trim(), value ?? "", companyId);
+    res.json({ success: true, key: key.trim(), value: value ?? "" });
+  } catch {
+    res.status(500).json({ error: "فشل حفظ إعداد النظام" });
+  }
+});
+
 export default router;

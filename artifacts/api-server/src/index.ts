@@ -3,6 +3,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { startBackupScheduler, stopBackupScheduler } from "./lib/backup-scheduler";
 import { seedDefaults } from "./lib/seed-defaults";
+import { pool } from "@workspace/db";
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 8080;
 
@@ -41,15 +42,21 @@ async function main() {
     startBackupScheduler();
   });
 
-  function cleanup(signal: string) {
+  async function cleanup(signal: string) {
     logger.info({ signal }, "Shutdown signal received — closing server");
     stopBackupScheduler();
-    server.close(() => {
+    server.close(async () => {
+      try {
+        await pool.end();
+        logger.info("Database pool closed");
+      } catch (err) {
+        logger.error({ err }, "Error closing database pool");
+      }
       logger.info("Server closed cleanly");
       process.exit(0);
     });
     setTimeout(() => {
-      logger.warn("Forced exit after timeout");
+      logger.error("Forced shutdown after timeout");
       process.exit(1);
     }, 10_000);
   }

@@ -248,7 +248,7 @@ export default function SuperAdmin() {
   const qc = useQueryClient();
 
   /* ── Tab ─── */
-  const [activeTab, setActiveTab] = useState<"companies" | "managers">("companies");
+  const [activeTab, setActiveTab] = useState<"companies" | "managers" | "settings">("companies");
 
   /* ── Companies state ─── */
   const [expandedId,   setExpandedId]   = useState<number | null>(null);
@@ -283,6 +283,11 @@ export default function SuperAdmin() {
   const [ePin2,    setEPin2]    = useState("");
   const [eErr,     setEErr]     = useState("");
 
+  /* ── Support settings state ─── */
+  const [supportWa,    setSupportWa]    = useState("");
+  const [supportEmail, setSupportEmail] = useState("");
+  const [settingSaving, setSettingSaving] = useState(false);
+
   /* ── Toast ─── */
   const [toast,    setToast]    = useState<{ msg: string; type?: "success" | "error" } | null>(null);
 
@@ -303,6 +308,40 @@ export default function SuperAdmin() {
   const { data: stats }              = useQuery<Stats>({ queryKey: ["/api/super/stats"], queryFn: () => fetcher("/api/super/stats"), staleTime: 30_000 });
   const { data: companies = [], isLoading: coLoading } = useQuery<Company[]>({ queryKey: ["/api/super/companies"], queryFn: () => fetcher("/api/super/companies"), staleTime: 30_000 });
   const { data: managers  = [], isLoading: mgLoading } = useQuery<Manager[]>({ queryKey: ["/api/super/managers"], queryFn: () => fetcher("/api/super/managers"), staleTime: 30_000 });
+
+  /* ── Support settings query ─── */
+  const { data: sysSettings } = useQuery<Record<string, string>>({
+    queryKey: ["/api/settings/system"],
+    queryFn: () => fetcher("/api/settings/system"),
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    if (sysSettings) {
+      setSupportWa(sysSettings["support_whatsapp"] ?? "");
+      setSupportEmail(sysSettings["support_email"] ?? "");
+    }
+  }, [sysSettings]);
+
+  async function saveSupportSettings() {
+    setSettingSaving(true);
+    try {
+      const upsert = async (key: string, value: string) => {
+        await fetch(api("/api/settings/system"), {
+          method: "POST",
+          headers: authHeaders(token ?? ""),
+          body: JSON.stringify({ key, value }),
+        });
+      };
+      await upsert("support_whatsapp", supportWa.trim());
+      await upsert("support_email", supportEmail.trim());
+      showToast("تم حفظ إعدادات التواصل");
+    } catch {
+      showToast("فشل حفظ الإعدادات", "error");
+    } finally {
+      setSettingSaving(false);
+    }
+  }
 
   /* ── Mutations ─── */
   const coMutate = useMutation({
@@ -535,6 +574,7 @@ export default function SuperAdmin() {
           {([
             { key: "companies", label: "🏢 الشركات المسجلة" },
             { key: "managers",  label: "👑 المديرون العامون" },
+            { key: "settings",  label: "⚙️ إعدادات النظام"  },
           ] as const).map(tab => {
             const active = activeTab === tab.key;
             return (
@@ -865,6 +905,50 @@ export default function SuperAdmin() {
                 );
               })
             )}
+          </div>
+        )}
+
+        {/* ══════════════════════════════
+            TAB: SETTINGS
+            ══════════════════════════════ */}
+        {activeTab === "settings" && (
+          <div style={{ maxWidth: "560px" }}>
+            <div style={{ background: C.card, borderRadius: "20px", border: `1px solid ${C.border}`, padding: "28px 32px" }}>
+              <h2 style={{ fontSize: "16px", fontWeight: 800, color: C.text, margin: "0 0 6px" }}>معلومات التواصل للدعم</h2>
+              <p style={{ fontSize: "12px", color: C.muted, margin: "0 0 24px" }}>
+                تُستخدم هذه المعلومات في صفحة انتهاء الاشتراك وفي شريط التنبيه للمستخدمين
+              </p>
+
+              <DarkInput
+                label="رقم واتساب للدعم"
+                value={supportWa}
+                onChange={setSupportWa}
+                placeholder="مثال: 966501234567"
+                hint="أدخل الرقم كاملاً مع رمز الدولة بدون + أو مسافات"
+              />
+
+              <DarkInput
+                label="البريد الإلكتروني للدعم"
+                value={supportEmail}
+                onChange={setSupportEmail}
+                placeholder="support@example.com"
+                type="email"
+              />
+
+              <button
+                onClick={() => { void saveSupportSettings(); }}
+                disabled={settingSaving}
+                style={{
+                  width: "100%", padding: "12px", borderRadius: "10px",
+                  border: "none", background: settingSaving ? C.border : C.orange,
+                  color: "#fff", fontSize: "14px", fontWeight: 800,
+                  cursor: settingSaving ? "not-allowed" : "pointer", fontFamily: FONT,
+                  transition: "filter 0.15s", marginTop: "8px",
+                }}
+              >
+                {settingSaving ? "جاري الحفظ..." : "💾 حفظ الإعدادات"}
+              </button>
+            </div>
           </div>
         )}
 

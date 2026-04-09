@@ -1,4 +1,5 @@
 import express, { type Express, type ErrorRequestHandler } from "express";
+import compression from "compression";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
@@ -70,6 +71,9 @@ const authLimiter = rateLimit({
   message: { error: "تجاوزت محاولات تسجيل الدخول، حاول مجدداً بعد دقيقة" },
 });
 
+/* ── Compression: gzip responses > 1kb ─────────────────────── */
+app.use(compression({ level: 6, threshold: 1024 }));
+
 app.use(
   pinoHttp({
     logger,
@@ -110,7 +114,16 @@ if (process.env.NODE_ENV === "production") {
   const frontendDist =
     process.env.FRONTEND_DIST ||
     path.resolve(currentDir, "../../erp-system/dist/public");
-  app.use(express.static(frontendDist, { maxAge: "1h", etag: true }));
+  app.use(express.static(frontendDist, {
+    maxAge: "7d",
+    etag: true,
+    lastModified: true,
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith("index.html")) {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      }
+    },
+  }));
   /* SPA fallback: serve index.html for any non-API path */
   app.use((req, res, next) => {
     if (req.path.startsWith("/api")) return next();
