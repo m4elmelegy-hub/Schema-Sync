@@ -9,6 +9,7 @@ import { safeArray } from "@/lib/safe-data";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NAV_ITEMS, canAccess, type UserRole } from "@/lib/rbac";
 import { hasPermission } from "@/lib/permissions";
+import { translateRole } from "@/lib/roles";
 import { LogOut, Warehouse, Search, X } from "lucide-react";
 import { PageTransition } from "@/components/page-transition";
 import { AlertBell } from "@/components/alert-bell";
@@ -27,11 +28,8 @@ const NAV_SECTIONS = [
 
 interface LayoutProps { children: ReactNode; }
 
-const ROLE_LABELS: Record<string, string> = {
-  admin: "مدير", manager: "مشرف", cashier: "كاشير", salesperson: "مندوب",
-};
 const ROLE_DOT: Record<string, string> = {
-  admin: "#f59e0b", manager: "#60a5fa", cashier: "#34d399", salesperson: "#a78bfa",
+  super_admin: "#f97316", admin: "#f59e0b", manager: "#60a5fa", cashier: "#34d399", salesperson: "#a78bfa",
 };
 
 function getInitials(name: string) {
@@ -270,7 +268,7 @@ export function AppLayout({ children }: LayoutProps) {
                   background: ROLE_DOT[user.role] ?? "#94a3b8", flexShrink: 0,
                 }} />
                 <span style={{ fontSize: 11, color: textMuted, fontWeight: 600 }}>
-                  {ROLE_LABELS[user.role] ?? user.role}
+                  {translateRole(user.role)}
                 </span>
               </div>
             </div>
@@ -456,7 +454,7 @@ export function AppLayout({ children }: LayoutProps) {
                     <div className="flex items-center gap-1" style={{ marginTop: 1 }}>
                       <div style={{ width: 5, height: 5, borderRadius: "50%", background: ROLE_DOT[user.role] ?? "#94a3b8", flexShrink: 0 }} />
                       <span style={{ fontSize: 10, color: textMuted, fontWeight: 600 }}>
-                        {ROLE_LABELS[user.role] ?? user.role}
+                        {translateRole(user.role)}
                       </span>
                     </div>
                   </div>

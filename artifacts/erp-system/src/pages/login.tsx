@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/auth";
 import { useAppSettings } from "@/contexts/app-settings";
 import { useLocation } from "wouter";
+import { translateRole } from "@/lib/roles";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
@@ -11,11 +12,6 @@ interface ErpUser {
   id: number; name: string; username: string;
   pinLength: number; role: string; active: boolean;
 }
-
-const ROLE_LABELS: Record<string, string> = {
-  admin: "مدير", manager: "مشرف",
-  cashier: "كاشير", salesperson: "مندوب مبيعات",
-};
 
 const FEATURES = [
   { icon: "⚡", label: "مبيعات فورية", desc: "نقطة بيع سريعة وسهلة" },
@@ -669,7 +665,7 @@ function LoginForm({
               padding: "2px 10px",
               fontSize: "11px", fontWeight: 700,
             }}>
-              {ROLE_LABELS[matchedUser.role] || matchedUser.role}
+              {translateRole(matchedUser.role)}
             </span>
           </div>
         )}

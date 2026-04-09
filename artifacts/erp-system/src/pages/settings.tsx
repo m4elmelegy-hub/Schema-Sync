@@ -60,10 +60,15 @@ const TAB_SECTIONS: { section: string; tabs: { id: Tab; label: string; icon: Rea
 ];
 
 const ROLES: Record<string, { label: string; badge: string; avatarBg: string; avatarText: string }> = {
-  admin:       { label: "مدير النظام", badge: "text-red-400 bg-red-500/15 border-red-500/30",          avatarBg: "bg-red-500/20",    avatarText: "text-red-300" },
-  manager:     { label: "مشرف",        badge: "text-purple-400 bg-purple-500/15 border-purple-500/30",  avatarBg: "bg-purple-500/20", avatarText: "text-purple-300" },
-  cashier:     { label: "كاشير",       badge: "text-blue-400 bg-blue-500/15 border-blue-500/30",        avatarBg: "bg-blue-500/20",   avatarText: "text-blue-300" },
-  salesperson: { label: "مندوب",       badge: "text-emerald-400 bg-emerald-500/15 border-emerald-500/30", avatarBg: "bg-emerald-500/20", avatarText: "text-emerald-300" },
+  super_admin:    { label: "المسؤول العام",  badge: "text-orange-400 bg-orange-500/15 border-orange-500/30",   avatarBg: "bg-orange-500/20",  avatarText: "text-orange-300"  },
+  company_admin:  { label: "مدير الشركة",    badge: "text-yellow-400 bg-yellow-500/15 border-yellow-500/30",   avatarBg: "bg-yellow-500/20",  avatarText: "text-yellow-300"  },
+  branch_manager: { label: "مدير الفرع",     badge: "text-cyan-400 bg-cyan-500/15 border-cyan-500/30",         avatarBg: "bg-cyan-500/20",    avatarText: "text-cyan-300"    },
+  admin:          { label: "مدير النظام",    badge: "text-red-400 bg-red-500/15 border-red-500/30",            avatarBg: "bg-red-500/20",     avatarText: "text-red-300"     },
+  manager:        { label: "مشرف",           badge: "text-purple-400 bg-purple-500/15 border-purple-500/30",   avatarBg: "bg-purple-500/20",  avatarText: "text-purple-300"  },
+  cashier:        { label: "كاشير",          badge: "text-blue-400 bg-blue-500/15 border-blue-500/30",         avatarBg: "bg-blue-500/20",    avatarText: "text-blue-300"    },
+  salesperson:    { label: "مندوب مبيعات",   badge: "text-emerald-400 bg-emerald-500/15 border-emerald-500/30", avatarBg: "bg-emerald-500/20", avatarText: "text-emerald-300" },
+  agent:          { label: "موظف مبيعات",    badge: "text-teal-400 bg-teal-500/15 border-teal-500/30",         avatarBg: "bg-teal-500/20",    avatarText: "text-teal-300"    },
+  client:         { label: "عميل",           badge: "text-slate-400 bg-slate-500/15 border-slate-500/30",      avatarBg: "bg-slate-500/20",   avatarText: "text-slate-300"   },
 };
 
 interface PermEntry { key: string; label: string }
