@@ -253,7 +253,7 @@ export default function SuperAdmin() {
   const qc = useQueryClient();
 
   /* ── Tab ─── */
-  const [activeTab, setActiveTab] = useState<"companies" | "managers" | "settings" | "backups">("companies");
+  const [activeTab, setActiveTab] = useState<"companies" | "managers" | "backups" | "security" | "settings">("companies");
 
   /* ── Companies state ─── */
   const [expandedId,   setExpandedId]   = useState<number | null>(null);
@@ -341,6 +341,68 @@ export default function SuperAdmin() {
     } finally {
       setCreatingBackup(false);
     }
+  }
+
+  /* ── Security / 2FA state ─── */
+  const [totpSetupData, setTotpSetupData]   = useState<{ qr_code: string; secret: string } | null>(null);
+  const [totpInput,     setTotpInput]       = useState("");
+  const [disableTotpInput, setDisableTotpInput] = useState("");
+  const [secLoading,    setSecLoading]      = useState(false);
+  const [secMsg,        setSecMsg]          = useState<{ text: string; ok: boolean } | null>(null);
+  const [showDisable,   setShowDisable]     = useState(false);
+
+  const { data: totpStatus, refetch: refetchTotpStatus } = useQuery<{ totp_enabled: boolean }>({
+    queryKey: ["/api/auth/2fa/status"],
+    queryFn:  () => fetcher("/api/auth/2fa/status"),
+    enabled:  activeTab === "security",
+    staleTime: 10_000,
+  });
+
+  async function startTotpSetup() {
+    setSecLoading(true); setSecMsg(null);
+    try {
+      const res = await fetch(api("/api/auth/2fa/setup"), { headers: { Authorization: `Bearer ${token ?? ""}` } });
+      const data: { qr_code?: string; secret?: string; error?: string } = await res.json();
+      if (data.qr_code) { setTotpSetupData({ qr_code: data.qr_code, secret: data.secret! }); }
+      else setSecMsg({ text: data.error ?? "فشل الإعداد", ok: false });
+    } catch { setSecMsg({ text: "فشل الاتصال", ok: false }); }
+    finally { setSecLoading(false); }
+  }
+
+  async function confirmTotpSetup() {
+    if (totpInput.length !== 6) { setSecMsg({ text: "أدخل 6 أرقام", ok: false }); return; }
+    setSecLoading(true); setSecMsg(null);
+    try {
+      const res = await fetch(api("/api/auth/2fa/verify"), {
+        method: "POST", headers: authHeaders(token ?? ""),
+        body: JSON.stringify({ token: totpInput }),
+      });
+      const data: { success?: boolean; message?: string; error?: string } = await res.json();
+      if (data.success) {
+        setSecMsg({ text: data.message ?? "تم تفعيل 2FA ✅", ok: true });
+        setTotpSetupData(null); setTotpInput("");
+        void refetchTotpStatus();
+      } else setSecMsg({ text: data.error ?? "رمز خاطئ", ok: false });
+    } catch { setSecMsg({ text: "فشل الاتصال", ok: false }); }
+    finally { setSecLoading(false); }
+  }
+
+  async function confirmDisableTotp() {
+    if (disableTotpInput.length !== 6) { setSecMsg({ text: "أدخل 6 أرقام", ok: false }); return; }
+    setSecLoading(true); setSecMsg(null);
+    try {
+      const res = await fetch(api("/api/auth/2fa/disable"), {
+        method: "POST", headers: authHeaders(token ?? ""),
+        body: JSON.stringify({ token: disableTotpInput }),
+      });
+      const data: { success?: boolean; message?: string; error?: string } = await res.json();
+      if (data.success) {
+        setSecMsg({ text: data.message ?? "تم إيقاف 2FA", ok: true });
+        setShowDisable(false); setDisableTotpInput("");
+        void refetchTotpStatus();
+      } else setSecMsg({ text: data.error ?? "رمز خاطئ", ok: false });
+    } catch { setSecMsg({ text: "فشل الاتصال", ok: false }); }
+    finally { setSecLoading(false); }
   }
 
   /* ── Support settings query ─── */
@@ -609,6 +671,7 @@ export default function SuperAdmin() {
             { key: "companies", label: "🏢 الشركات المسجلة" },
             { key: "managers",  label: "👑 المديرون العامون" },
             { key: "backups",   label: "💾 النسخ الاحتياطية" },
+            { key: "security",  label: "🔐 الأمان"           },
             { key: "settings",  label: "⚙️ إعدادات النظام"  },
           ] as const).map(tab => {
             const active = activeTab === tab.key;
@@ -1016,6 +1079,117 @@ export default function SuperAdmin() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════
+            TAB: SECURITY
+            ══════════════════════════════ */}
+        {activeTab === "security" && (
+          <div style={{ maxWidth: "600px" }}>
+            <h2 style={{ fontSize: "16px", fontWeight: 800, color: C.text, marginBottom: "20px" }}>إعدادات الأمان</h2>
+
+            {/* ── 2FA Card ─── */}
+            <div style={{ background: C.card, borderRadius: "16px", border: `1px solid ${C.border}`, overflow: "hidden" }}>
+              {/* Header */}
+              <div style={{ padding: "20px 24px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ fontSize: "15px", fontWeight: 800, color: C.text, marginBottom: "4px" }}>المصادقة الثنائية (2FA)</div>
+                  <div style={{ fontSize: "12px", color: C.muted }}>تضيف طبقة أمان إضافية لحسابك — يتطلب Google Authenticator أو Authy</div>
+                </div>
+                {totpStatus?.totp_enabled ? (
+                  <span style={{ padding: "6px 14px", borderRadius: "999px", background: "rgba(34,197,94,0.15)", color: C.success, fontSize: "12px", fontWeight: 700, border: "1px solid rgba(34,197,94,0.3)" }}>✅ مفعلة</span>
+                ) : (
+                  <span style={{ padding: "6px 14px", borderRadius: "999px", background: "rgba(148,163,184,0.1)", color: C.muted, fontSize: "12px", fontWeight: 700, border: `1px solid ${C.border}` }}>غير مفعلة</span>
+                )}
+              </div>
+
+              <div style={{ padding: "24px" }}>
+                {/* Feedback message */}
+                {secMsg && (
+                  <div style={{ padding: "10px 14px", borderRadius: "10px", marginBottom: "16px", fontSize: "13px", fontWeight: 700, background: secMsg.ok ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", color: secMsg.ok ? C.success : "#EF4444", border: `1px solid ${secMsg.ok ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}` }}>
+                    {secMsg.text}
+                  </div>
+                )}
+
+                {/* ── NOT enabled → show setup flow ─── */}
+                {!totpStatus?.totp_enabled && !totpSetupData && (
+                  <button onClick={() => { void startTotpSetup(); }} disabled={secLoading}
+                    style={{ padding: "11px 22px", borderRadius: "10px", border: "none", background: secLoading ? C.border : C.orange, color: "#fff", fontSize: "14px", fontWeight: 800, cursor: secLoading ? "not-allowed" : "pointer", fontFamily: FONT }}>
+                    {secLoading ? "جاري الإعداد..." : "🔐 تفعيل المصادقة الثنائية"}
+                  </button>
+                )}
+
+                {/* ── Setup step: show QR + input ─── */}
+                {!totpStatus?.totp_enabled && totpSetupData && (
+                  <div>
+                    <p style={{ fontSize: "13px", color: C.muted, marginBottom: "16px" }}>
+                      امسح الكود بتطبيق <strong style={{ color: C.text }}>Google Authenticator</strong> أو <strong style={{ color: C.text }}>Authy</strong>، ثم أدخل الرمز المكون من 6 أرقام للتأكيد:
+                    </p>
+                    <div style={{ display: "flex", justifyContent: "center", marginBottom: "20px" }}>
+                      <img src={totpSetupData.qr_code} alt="QR Code" style={{ width: "200px", height: "200px", borderRadius: "12px", border: `2px solid ${C.border}` }} />
+                    </div>
+                    <div style={{ background: "rgba(15,23,42,0.6)", padding: "10px 14px", borderRadius: "8px", marginBottom: "16px", fontSize: "11px", color: C.muted, wordBreak: "break-all" }}>
+                      <span style={{ color: C.orange, fontWeight: 700 }}>إدخال يدوي: </span>{totpSetupData.secret}
+                    </div>
+                    <div style={{ display: "flex", gap: "10px" }}>
+                      <input
+                        value={totpInput} onChange={(e) => setTotpInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        placeholder="أدخل الرمز (6 أرقام)"
+                        style={{ flex: 1, padding: "10px 14px", borderRadius: "10px", border: `1px solid ${C.border}`, background: "rgba(15,23,42,0.5)", color: C.text, fontSize: "18px", letterSpacing: "6px", textAlign: "center", fontFamily: "monospace", outline: "none" }}
+                        maxLength={6}
+                      />
+                      <button onClick={() => { void confirmTotpSetup(); }} disabled={secLoading || totpInput.length !== 6}
+                        style={{ padding: "10px 18px", borderRadius: "10px", border: "none", background: totpInput.length === 6 ? C.orange : C.border, color: "#fff", fontSize: "14px", fontWeight: 800, cursor: totpInput.length !== 6 ? "not-allowed" : "pointer", fontFamily: FONT }}>
+                        {secLoading ? "..." : "تأكيد"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Enabled → show disable option ─── */}
+                {totpStatus?.totp_enabled && (
+                  <div>
+                    {!showDisable ? (
+                      <button onClick={() => { setShowDisable(true); setSecMsg(null); }}
+                        style={{ padding: "11px 22px", borderRadius: "10px", border: "1px solid rgba(239,68,68,0.4)", background: "rgba(239,68,68,0.1)", color: "#EF4444", fontSize: "14px", fontWeight: 800, cursor: "pointer", fontFamily: FONT }}>
+                        🚫 إيقاف المصادقة الثنائية
+                      </button>
+                    ) : (
+                      <div>
+                        <p style={{ fontSize: "13px", color: C.muted, marginBottom: "12px" }}>أدخل رمز التحقق من التطبيق للتأكيد:</p>
+                        <div style={{ display: "flex", gap: "10px" }}>
+                          <input
+                            value={disableTotpInput} onChange={(e) => setDisableTotpInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                            placeholder="6 أرقام"
+                            style={{ flex: 1, padding: "10px 14px", borderRadius: "10px", border: "1px solid rgba(239,68,68,0.4)", background: "rgba(239,68,68,0.05)", color: C.text, fontSize: "18px", letterSpacing: "6px", textAlign: "center", fontFamily: "monospace", outline: "none" }}
+                            maxLength={6}
+                          />
+                          <button onClick={() => { void confirmDisableTotp(); }} disabled={secLoading || disableTotpInput.length !== 6}
+                            style={{ padding: "10px 18px", borderRadius: "10px", border: "none", background: disableTotpInput.length === 6 ? "#EF4444" : C.border, color: "#fff", fontSize: "14px", fontWeight: 800, cursor: disableTotpInput.length !== 6 ? "not-allowed" : "pointer", fontFamily: FONT }}>
+                            {secLoading ? "..." : "إيقاف"}
+                          </button>
+                          <button onClick={() => { setShowDisable(false); setDisableTotpInput(""); setSecMsg(null); }}
+                            style={{ padding: "10px 14px", borderRadius: "10px", border: `1px solid ${C.border}`, background: "transparent", color: C.muted, fontSize: "14px", cursor: "pointer", fontFamily: FONT }}>
+                            إلغاء
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ── IP Restriction info ─── */}
+            <div style={{ background: C.card, borderRadius: "16px", border: `1px solid ${C.border}`, padding: "20px 24px", marginTop: "16px" }}>
+              <div style={{ fontSize: "15px", fontWeight: 800, color: C.text, marginBottom: "8px" }}>قيود عنوان IP</div>
+              <div style={{ fontSize: "12px", color: C.muted, lineHeight: 1.8 }}>
+                لتقييد الوصول لعناوين IP محددة، أضف المتغير التالي في ملف <code style={{ color: C.orange }}>.env</code> على السيرفر:<br />
+                <code style={{ color: C.success, fontSize: "12px" }}>SUPER_ADMIN_IPS=197.60.235.65,89.167.85.156</code><br />
+                <span style={{ color: C.warning }}>⚠️ اتركه فارغاً للسماح لجميع الـ IPs (وضع التطوير)</span>
+              </div>
             </div>
           </div>
         )}

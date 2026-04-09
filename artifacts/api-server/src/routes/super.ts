@@ -6,7 +6,7 @@
 import { Router } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db, companiesTable, erpUsersTable } from "@workspace/db";
-import { authenticate, requireRole } from "../middleware/auth";
+import { authenticate, requireRole, superAdminIPGuard } from "../middleware/auth";
 import { wrap } from "../lib/async-handler";
 import { hashPin } from "../lib/hash";
 import { createCompanySchema, validate } from "../lib/schemas";
@@ -14,6 +14,9 @@ import { createDatabaseBackup, listBackups } from "../lib/db-backup";
 import fs from "fs";
 
 const router = Router();
+
+/* Apply IP guard to all super-admin routes */
+router.use(superAdminIPGuard);
 
 const superOnly = [authenticate, requireRole("super_admin")];
 

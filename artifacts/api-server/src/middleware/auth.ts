@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { db, erpUsersTable, companiesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { isTokenBlacklisted } from "../lib/session-blacklist";
 
 if (!process.env.JWT_SECRET) {
   throw new Error("[FATAL] JWT_SECRET environment variable is not set. Server cannot start securely.");
@@ -66,6 +67,13 @@ export async function authenticate(
   }
 
   const token = auth.slice(7);
+
+  /* Check token blacklist (logout / revocation) */
+  if (isTokenBlacklisted(token)) {
+    res.status(401).json({ error: "انتهت الجلسة، يرجى تسجيل الدخول مجدداً" });
+    return;
+  }
+
   let payload: { userId: number; role: string };
 
   try {
@@ -145,3 +153,27 @@ export function requireRole(...roles: string[]) {
 export const adminOnly    = [authenticate, requireRole("admin")] as const;
 export const managerUp    = [authenticate, requireRole("admin", "manager")] as const;
 export const anyAuth      = [authenticate] as const;
+
+/* ── IP Allowlist guard for super_admin routes ──────────── */
+export function superAdminIPGuard(req: Request, res: Response, next: NextFunction): void {
+  const allowedIPs = process.env.SUPER_ADMIN_IPS?.split(",").map((ip) => ip.trim()).filter(Boolean);
+
+  /* If no IP list configured — allow all (development default) */
+  if (!allowedIPs || allowedIPs.length === 0) {
+    next();
+    return;
+  }
+
+  const forwardedFor = req.headers["x-forwarded-for"];
+  const clientIP =
+    (Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor?.split(",")[0]?.trim()) ||
+    req.ip ||
+    req.socket.remoteAddress;
+
+  if (!clientIP || !allowedIPs.includes(clientIP)) {
+    res.status(403).json({ error: "الوصول مرفوض — عنوان IP غير مصرح به" });
+    return;
+  }
+
+  next();
+}

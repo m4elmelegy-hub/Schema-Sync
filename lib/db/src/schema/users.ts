@@ -15,6 +15,9 @@ export const erpUsersTable = pgTable("erp_users", {
   login_attempts:  integer("login_attempts").notNull().default(0),
   last_login:      timestamp("last_login", { withTimezone: true }),
   created_at:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  totp_secret:     text("totp_secret"),
+  totp_enabled:    boolean("totp_enabled").default(false),
+  totp_verified:   boolean("totp_verified").default(false),
 });
 
 export type ErpUser = typeof erpUsersTable.$inferSelect;

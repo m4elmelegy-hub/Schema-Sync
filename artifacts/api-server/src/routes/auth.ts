@@ -5,10 +5,15 @@
  */
 import { Router } from "express";
 import { eq, and, ne } from "drizzle-orm";
+import jwt from "jsonwebtoken";
 import { db, erpUsersTable, companiesTable } from "@workspace/db";
 import { authenticate, signToken, signRefreshToken, verifyRefreshToken } from "../middleware/auth";
+import { blacklistToken } from "../lib/session-blacklist";
+import { generateTOTPSecret, generateQRCode, verifyTOTP } from "../lib/totp";
 import { verifyPin, hashPin } from "../lib/hash";
 import { loginSchema, validate } from "../lib/schemas";
+
+const JWT_SECRET: string = process.env.JWT_SECRET!;
 
 function daysRemaining(endDate: string): number {
   const now = new Date(); now.setHours(0, 0, 0, 0);
@@ -188,6 +193,21 @@ router.post("/auth/login", async (req, res) => {
     /* ── Success — clear lockout ──────────────────────────── */
     clearLockout(uid);
 
+    /* ── 2FA check for super_admin ────────────────────────── */
+    if (user.totp_enabled && user.role === "super_admin") {
+      const tempToken = jwt.sign(
+        { userId: user.id, requires_2fa: true },
+        JWT_SECRET,
+        { expiresIn: "5m" },
+      );
+      res.json({
+        requires_2fa: true,
+        temp_token:   tempToken,
+        message:      "أدخل رمز التحقق من تطبيق المصادقة",
+      });
+      return;
+    }
+
     const token        = signToken(user.id, user.role, user.company_id ?? null);
     const refreshToken = signRefreshToken(user.id);
 
@@ -275,6 +295,112 @@ router.get("/auth/subscription", authenticate, async (req, res) => {
     });
   } catch {
     res.status(500).json({ error: "فشل جلب بيانات الاشتراك" });
+  }
+});
+
+/* ── POST /auth/logout — blacklist the current access token ─── */
+router.post("/auth/logout", authenticate, (req, res) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (token) blacklistToken(token);
+  res.json({ success: true, message: "تم تسجيل الخروج بنجاح" });
+});
+
+/* ── GET /auth/2fa/setup — generate TOTP secret + QR for super_admin ─── */
+router.get("/auth/2fa/setup", authenticate, async (req, res) => {
+  try {
+    if (req.user?.role !== "super_admin") {
+      res.status(403).json({ error: "للمسؤول العام فقط" }); return;
+    }
+    const [user] = await db.select().from(erpUsersTable).where(eq(erpUsersTable.id, req.user.id)).limit(1);
+    if (user?.totp_enabled) {
+      res.status(400).json({ error: "المصادقة الثنائية مفعلة بالفعل" }); return;
+    }
+    const { secret, otpauth_url } = generateTOTPSecret(user!.username);
+    const qrCode = await generateQRCode(otpauth_url);
+    await db.update(erpUsersTable).set({ totp_secret: secret, totp_verified: false }).where(eq(erpUsersTable.id, req.user.id));
+    res.json({ qr_code: qrCode, secret, message: "امسح الـ QR Code بتطبيق Google Authenticator أو Authy" });
+  } catch {
+    res.status(500).json({ error: "فشل إعداد المصادقة الثنائية" });
+  }
+});
+
+/* ── POST /auth/2fa/verify — confirm TOTP setup, enable 2FA ─── */
+router.post("/auth/2fa/verify", authenticate, async (req, res) => {
+  try {
+    if (req.user?.role !== "super_admin") {
+      res.status(403).json({ error: "للمسؤول العام فقط" }); return;
+    }
+    const { token } = req.body as { token?: string };
+    if (!token) { res.status(400).json({ error: "رمز التحقق مطلوب" }); return; }
+    const [user] = await db.select().from(erpUsersTable).where(eq(erpUsersTable.id, req.user.id)).limit(1);
+    if (!user?.totp_secret) { res.status(400).json({ error: "يجب إعداد 2FA أولاً" }); return; }
+    if (!verifyTOTP(user.totp_secret, token)) {
+      res.status(400).json({ error: "رمز التحقق غير صحيح" }); return;
+    }
+    await db.update(erpUsersTable).set({ totp_enabled: true, totp_verified: true }).where(eq(erpUsersTable.id, req.user.id));
+    res.json({ success: true, message: "تم تفعيل المصادقة الثنائية بنجاح ✅" });
+  } catch {
+    res.status(500).json({ error: "فشل التحقق" });
+  }
+});
+
+/* ── POST /auth/2fa/disable — disable 2FA (requires valid TOTP) ─── */
+router.post("/auth/2fa/disable", authenticate, async (req, res) => {
+  try {
+    if (req.user?.role !== "super_admin") {
+      res.status(403).json({ error: "للمسؤول العام فقط" }); return;
+    }
+    const { token } = req.body as { token?: string };
+    if (!token) { res.status(400).json({ error: "رمز التحقق مطلوب" }); return; }
+    const [user] = await db.select().from(erpUsersTable).where(eq(erpUsersTable.id, req.user.id)).limit(1);
+    if (!user?.totp_enabled) { res.status(400).json({ error: "المصادقة الثنائية غير مفعلة" }); return; }
+    if (!verifyTOTP(user.totp_secret!, token)) {
+      res.status(400).json({ error: "رمز التحقق غير صحيح" }); return;
+    }
+    await db.update(erpUsersTable).set({ totp_enabled: false, totp_secret: null, totp_verified: false }).where(eq(erpUsersTable.id, req.user.id));
+    res.json({ success: true, message: "تم إيقاف المصادقة الثنائية" });
+  } catch {
+    res.status(500).json({ error: "فشل إيقاف المصادقة الثنائية" });
+  }
+});
+
+/* ── GET /auth/2fa/status — check if 2FA is enabled for current user ─── */
+router.get("/auth/2fa/status", authenticate, async (req, res) => {
+  try {
+    const [user] = await db.select({ totp_enabled: erpUsersTable.totp_enabled }).from(erpUsersTable).where(eq(erpUsersTable.id, req.user!.id)).limit(1);
+    res.json({ totp_enabled: user?.totp_enabled ?? false });
+  } catch {
+    res.status(500).json({ error: "فشل جلب حالة 2FA" });
+  }
+});
+
+/* ── POST /auth/2fa/login — complete login after TOTP check ─── */
+router.post("/auth/2fa/login", async (req, res) => {
+  try {
+    const { temp_token, totp_code } = req.body as { temp_token?: string; totp_code?: string };
+    if (!temp_token || !totp_code) {
+      res.status(400).json({ error: "البيانات ناقصة" }); return;
+    }
+    let payload: { userId: number; requires_2fa: boolean };
+    try {
+      payload = jwt.verify(temp_token, JWT_SECRET) as typeof payload;
+    } catch {
+      res.status(401).json({ error: "انتهت صلاحية الجلسة، أعد تسجيل الدخول" }); return;
+    }
+    if (!payload.requires_2fa) { res.status(400).json({ error: "طلب غير صالح" }); return; }
+    const [user] = await db.select().from(erpUsersTable).where(eq(erpUsersTable.id, payload.userId)).limit(1);
+    if (!user?.totp_secret) { res.status(401).json({ error: "خطأ في البيانات" }); return; }
+    if (!verifyTOTP(user.totp_secret, totp_code)) {
+      res.status(401).json({ error: "رمز التحقق غير صحيح أو منتهي" }); return;
+    }
+    const token        = signToken(user.id, user.role, user.company_id ?? null);
+    const refreshToken = signRefreshToken(user.id);
+    res.json({
+      token, refreshToken,
+      user: { id: user.id, name: user.name, username: user.username, role: user.role, company_id: user.company_id },
+    });
+  } catch {
+    res.status(500).json({ error: "فشل إتمام تسجيل الدخول" });
   }
 });
 

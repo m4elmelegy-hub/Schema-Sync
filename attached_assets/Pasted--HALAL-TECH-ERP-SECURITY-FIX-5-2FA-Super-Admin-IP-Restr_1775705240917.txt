@@ -1,0 +1,373 @@
+# [HALAL TECH ERP — SECURITY FIX #5]
+# 2FA للـ Super Admin + IP Restriction + Session Management
+
+---
+
+## FIX 1: Two-Factor Authentication للـ Super Admin
+
+### تثبيت المكتبات المطلوبة
+```bash
+cd artifacts/api-server && pnpm add speakeasy qrcode
+pnpm add -D @types/speakeasy @types/qrcode
+```
+
+### إضافة عمود 2FA في جدول المستخدمين
+في `lib/db/src/schema/users.ts`:
+```typescript
+export const erpUsersTable = pgTable("erp_users", {
+  // ... الحقول الموجودة ...
+  totp_secret:   text("totp_secret"),           // سر الـ 2FA
+  totp_enabled:  boolean("totp_enabled").default(false), // هل 2FA مفعل؟
+  totp_verified: boolean("totp_verified").default(false), // هل تم التحقق الأول؟
+});
+```
+
+بعد التعديل شغّل: `pnpm run push` في `lib/db`
+
+### إنشاء 2FA Service
+أنشئ `artifacts/api-server/src/lib/totp.ts`:
+
+```typescript
+import speakeasy from 'speakeasy';
+import QRCode from 'qrcode';
+
+const APP_NAME = 'Halal Tech ERP';
+
+export function generateTOTPSecret(username: string) {
+  const secret = speakeasy.generateSecret({
+    name: `${APP_NAME} (${username})`,
+    issuer: APP_NAME,
+    length: 32,
+  });
+  return {
+    secret: secret.base32,
+    otpauth_url: secret.otpauth_url!,
+  };
+}
+
+export async function generateQRCode(otpauth_url: string): Promise<string> {
+  return await QRCode.toDataURL(otpauth_url);
+}
+
+export function verifyTOTP(secret: string, token: string): boolean {
+  return speakeasy.totp.verify({
+    secret,
+    encoding: 'base32',
+    token,
+    window: 2, // يقبل ±2 دقيقة
+  });
+}
+```
+
+### إضافة API endpoints للـ 2FA
+في `artifacts/api-server/src/routes/auth.ts`:
+
+```typescript
+import { generateTOTPSecret, generateQRCode, verifyTOTP } from '../lib/totp';
+
+// GET /api/auth/2fa/setup — يبدأ إعداد الـ 2FA (super_admin فقط)
+router.get('/2fa/setup', authenticate, async (req, res) => {
+  if (req.role !== 'super_admin') {
+    return res.status(403).json({ error: 'للمسؤول العام فقط' });
+  }
+
+  const user = await db.select().from(erpUsersTable)
+    .where(eq(erpUsersTable.id, req.userId)).limit(1);
+
+  if (user[0]?.totp_enabled) {
+    return res.status(400).json({ error: '2FA مفعل بالفعل' });
+  }
+
+  const { secret, otpauth_url } = generateTOTPSecret(user[0].username);
+  const qrCode = await generateQRCode(otpauth_url);
+
+  // احفظ الـ secret مؤقتاً (لم يُفعَّل بعد)
+  await db.update(erpUsersTable)
+    .set({ totp_secret: secret, totp_verified: false })
+    .where(eq(erpUsersTable.id, req.userId));
+
+  return res.json({
+    qr_code: qrCode,           // صورة QR Code بـ base64
+    secret,                     // للإدخال اليدوي
+    message: 'امسح الـ QR Code بتطبيق Google Authenticator أو Authy',
+  });
+});
+
+// POST /api/auth/2fa/verify — تأكيد تفعيل الـ 2FA
+router.post('/2fa/verify', authenticate, async (req, res) => {
+  if (req.role !== 'super_admin') {
+    return res.status(403).json({ error: 'للمسؤول العام فقط' });
+  }
+
+  const { token } = req.body;
+  if (!token) return res.status(400).json({ error: 'رمز التحقق مطلوب' });
+
+  const user = await db.select().from(erpUsersTable)
+    .where(eq(erpUsersTable.id, req.userId)).limit(1);
+
+  if (!user[0]?.totp_secret) {
+    return res.status(400).json({ error: 'يجب إعداد 2FA أولاً' });
+  }
+
+  const isValid = verifyTOTP(user[0].totp_secret, token);
+  if (!isValid) {
+    return res.status(400).json({ error: 'رمز التحقق غير صحيح' });
+  }
+
+  // فعّل الـ 2FA
+  await db.update(erpUsersTable)
+    .set({ totp_enabled: true, totp_verified: true })
+    .where(eq(erpUsersTable.id, req.userId));
+
+  return res.json({ success: true, message: 'تم تفعيل المصادقة الثنائية بنجاح ✅' });
+});
+
+// POST /api/auth/2fa/disable — إيقاف الـ 2FA
+router.post('/2fa/disable', authenticate, async (req, res) => {
+  if (req.role !== 'super_admin') {
+    return res.status(403).json({ error: 'للمسؤول العام فقط' });
+  }
+
+  const { token } = req.body;
+  const user = await db.select().from(erpUsersTable)
+    .where(eq(erpUsersTable.id, req.userId)).limit(1);
+
+  if (!user[0]?.totp_enabled) {
+    return res.status(400).json({ error: '2FA غير مفعل' });
+  }
+
+  // تحقق من الـ token قبل الإيقاف
+  const isValid = verifyTOTP(user[0].totp_secret!, token);
+  if (!isValid) {
+    return res.status(400).json({ error: 'رمز التحقق غير صحيح' });
+  }
+
+  await db.update(erpUsersTable)
+    .set({ totp_enabled: false, totp_secret: null, totp_verified: false })
+    .where(eq(erpUsersTable.id, req.userId));
+
+  return res.json({ success: true, message: 'تم إيقاف المصادقة الثنائية' });
+});
+```
+
+### تعديل تسجيل الدخول ليطلب 2FA
+في `artifacts/api-server/src/routes/auth.ts` — في route تسجيل الدخول:
+
+```typescript
+// بعد التحقق من PIN بنجاح:
+if (user.totp_enabled && user.role === 'super_admin') {
+  // أرجع token مؤقت يتطلب 2FA
+  const tempToken = jwt.sign(
+    { userId: user.id, requires_2fa: true },
+    JWT_SECRET,
+    { expiresIn: '5m' }  // 5 دقائق بس للإدخال
+  );
+  
+  return res.json({
+    requires_2fa: true,
+    temp_token: tempToken,
+    message: 'أدخل رمز التحقق من تطبيق المصادقة',
+  });
+}
+// لو مفيش 2FA — أكمل عادي
+
+// POST /api/auth/2fa/login — إتمام تسجيل الدخول بعد 2FA
+router.post('/2fa/login', async (req, res) => {
+  const { temp_token, totp_code } = req.body;
+  
+  if (!temp_token || !totp_code) {
+    return res.status(400).json({ error: 'البيانات ناقصة' });
+  }
+  
+  let payload: any;
+  try {
+    payload = jwt.verify(temp_token, JWT_SECRET);
+  } catch {
+    return res.status(401).json({ error: 'انتهت صلاحية الجلسة، أعد تسجيل الدخول' });
+  }
+  
+  if (!payload.requires_2fa) {
+    return res.status(400).json({ error: 'طلب غير صالح' });
+  }
+  
+  const user = await db.select().from(erpUsersTable)
+    .where(eq(erpUsersTable.id, payload.userId)).limit(1);
+  
+  if (!user[0] || !user[0].totp_secret) {
+    return res.status(401).json({ error: 'خطأ في البيانات' });
+  }
+  
+  const isValid = verifyTOTP(user[0].totp_secret, totp_code);
+  if (!isValid) {
+    return res.status(401).json({ error: 'رمز التحقق غير صحيح أو منتهي' });
+  }
+  
+  // أصدر الـ access token الحقيقي
+  const token = signToken(user[0].id, user[0].role, user[0].company_id);
+  const refreshToken = signRefreshToken(user[0].id);
+  
+  return res.json({
+    token,
+    refreshToken,
+    user: {
+      id: user[0].id,
+      name: user[0].name,
+      username: user[0].username,
+      role: user[0].role,
+      company_id: user[0].company_id,
+    },
+  });
+});
+```
+
+---
+
+## FIX 2: واجهة 2FA في لوحة الـ Super Admin
+
+في `artifacts/erp-system/src/pages/super-admin.tsx`:
+
+أضف تبويب "🔐 الأمان":
+```typescript
+// Tab جديد
+{ id: 'security', label: '🔐 الأمان' }
+
+// محتوى التبويب
+// قسم: المصادقة الثنائية (2FA)
+// - لو 2FA مش مفعل:
+//   * شرح بسيط: "تضيف طبقة أمان إضافية لحسابك"
+//   * زرار "تفعيل 2FA" (برتقالي)
+//   * عند الضغط: يعرض QR Code + حقل إدخال رمز التحقق
+//   * بعد التحقق: رسالة نجاح خضراء
+// - لو 2FA مفعل:
+//   * badge أخضر "✅ المصادقة الثنائية مفعلة"
+//   * زرار "إيقاف 2FA" (أحمر) + يطلب رمز تحقق للتأكيد
+```
+
+---
+
+## FIX 3: IP Allowlist للـ Super Admin
+
+في `artifacts/api-server/src/middleware/auth.ts`:
+
+```typescript
+// IP Allowlist للـ super_admin (اختياري — إذا كان SUPER_ADMIN_IPS مضبوطاً)
+export function superAdminIPGuard(req: Request, res: Response, next: NextFunction) {
+  const allowedIPs = process.env.SUPER_ADMIN_IPS?.split(',').map(ip => ip.trim());
+  
+  // لو مفيش IPs محددة — اسمح للكل
+  if (!allowedIPs || allowedIPs.length === 0) {
+    return next();
+  }
+  
+  const clientIP = req.ip || 
+    req.headers['x-forwarded-for']?.toString().split(',')[0].trim() || 
+    req.socket.remoteAddress;
+  
+  if (!clientIP || !allowedIPs.includes(clientIP)) {
+    return res.status(403).json({ 
+      error: 'الوصول مرفوض — عنوان IP غير مصرح به',
+    });
+  }
+  
+  next();
+}
+```
+
+في `artifacts/api-server/src/routes/super.ts`:
+```typescript
+import { superAdminIPGuard } from '../middleware/auth';
+
+// أضف الـ IP guard على كل الـ super routes
+router.use(superAdminIPGuard);
+```
+
+في `.env` على السيرفر (اختياري):
+```
+SUPER_ADMIN_IPS=197.60.235.65,89.167.85.156
+```
+
+---
+
+## FIX 4: Session Blacklist — إلغاء الـ tokens
+
+في `artifacts/api-server/src/lib/session-blacklist.ts`:
+
+```typescript
+// In-memory blacklist (يُعاد تعيينه عند restart — كافٍ للـ MVP)
+const blacklistedTokens = new Set<string>();
+
+export function blacklistToken(token: string): void {
+  blacklistedTokens.add(token);
+  // نظّف التوكنات المنتهية كل ساعة
+  setTimeout(() => blacklistedTokens.delete(token), 4 * 60 * 60 * 1000);
+}
+
+export function isTokenBlacklisted(token: string): boolean {
+  return blacklistedTokens.has(token);
+}
+```
+
+في `artifacts/api-server/src/middleware/auth.ts`:
+```typescript
+import { isTokenBlacklisted } from '../lib/session-blacklist';
+
+// في authenticate middleware — بعد verify الـ JWT
+const rawToken = authHeader.split(' ')[1];
+if (isTokenBlacklisted(rawToken)) {
+  return res.status(401).json({ error: 'انتهت الجلسة، يرجى تسجيل الدخول مجدداً' });
+}
+```
+
+في `artifacts/api-server/src/routes/auth.ts`:
+```typescript
+import { blacklistToken } from '../lib/session-blacklist';
+
+// POST /api/auth/logout
+router.post('/logout', authenticate, async (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (token) {
+    blacklistToken(token);
+  }
+  return res.json({ success: true, message: 'تم تسجيل الخروج بنجاح' });
+});
+```
+
+---
+
+## FIX 5: واجهة 2FA في صفحة تسجيل الدخول
+
+في `artifacts/erp-system/src/pages/login.tsx`:
+
+```typescript
+// بعد إدخال PIN بنجاح، لو الـ response يحتوي requires_2fa: true
+// اعرض step ثاني:
+// - عنوان: "أدخل رمز التحقق"
+// - شرح: "افتح تطبيق Google Authenticator وأدخل الرمز المكون من 6 أرقام"
+// - حقل إدخال:숫자 بس، 6 خانات، auto-submit عند اكتمال 6 أرقام
+// - زرار "تحقق" برتقالي
+// - رابط "رجوع" للعودة لإدخال PIN
+// تصميم مطابق للـ login الحالي (داكن + برتقالي)
+```
+
+---
+
+## Testing Checklist:
+- [ ] `GET /api/auth/2fa/setup` يرجع QR Code صحيح
+- [ ] `POST /api/auth/2fa/verify` بـ token صحيح يفعّل الـ 2FA
+- [ ] `POST /api/auth/2fa/verify` بـ token غلط يرجع 400
+- [ ] تسجيل الدخول بـ super_admin بعد تفعيل 2FA يطلب رمز التحقق
+- [ ] `POST /api/auth/2fa/login` بـ رمز صحيح يرجع token كامل
+- [ ] `POST /api/auth/logout` يضيف الـ token للـ blacklist
+- [ ] الـ token المُلغى يرجع 401 في الطلبات التالية
+- [ ] IP guard يمنع الوصول من IP غير مصرح إذا تم تفعيله
+- [ ] تبويب "الأمان" يظهر في Super Admin dashboard
+
+## ترتيب التنفيذ:
+1. FIX 4 (session blacklist) — الأبسط
+2. إضافة logout endpoint
+3. تعديل schema (totp fields) + push
+4. FIX 1 (totp.ts + 2FA endpoints)
+5. FIX 2 (واجهة 2FA في Super Admin)
+6. FIX 3 (IP guard middleware)
+7. FIX 5 (واجهة 2FA في Login)
+8. تشغيل Testing Checklist

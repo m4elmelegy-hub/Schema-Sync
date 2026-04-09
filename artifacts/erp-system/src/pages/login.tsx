@@ -33,6 +33,12 @@ export default function Login() {
   const [loading, setLoading]   = useState(false);
   const [focused, setFocused]   = useState<"username" | "pin" | null>(null);
 
+  /* ── 2FA state ─── */
+  const [requires2FA, setRequires2FA] = useState(false);
+  const [tempToken,   setTempToken]   = useState("");
+  const [totpCode,    setTotpCode]    = useState("");
+  const [totpLoading, setTotpLoading] = useState(false);
+
   const handleRegisterSuccess = useCallback((
     user: { id: number; name: string; username: string; role: string; active?: boolean; warehouse_id?: number | null; safe_id?: number | null; permissions?: Record<string, boolean> },
     token: string
@@ -91,7 +97,21 @@ export default function Login() {
         pinRef.current?.focus();
         return;
       }
-      const { user: authedUser, token } = await res.json() as {
+      const responseData = await res.json() as {
+        requires_2fa?: boolean; temp_token?: string; message?: string;
+        user?: { id: number; name: string; username: string; role: string; active?: boolean; warehouse_id?: number | null; safe_id?: number | null; permissions?: Record<string, boolean>; company_id?: number | null };
+        token?: string;
+      };
+
+      /* ── 2FA required — switch to TOTP step ─── */
+      if (responseData.requires_2fa && responseData.temp_token) {
+        setTempToken(responseData.temp_token);
+        setRequires2FA(true);
+        setLoading(false);
+        return;
+      }
+
+      const { user: authedUser, token } = responseData as {
         user: { id: number; name: string; username: string; role: string; active?: boolean; warehouse_id?: number | null; safe_id?: number | null; permissions?: Record<string, boolean>; company_id?: number | null };
         token: string;
       };
@@ -117,6 +137,35 @@ export default function Login() {
       setLoading(false);
     }
   }, [username, pin, activeUsers, login, setLocation]);
+
+  const handleTotpSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (totpCode.length !== 6) { setError("أدخل 6 أرقام"); return; }
+    setTotpLoading(true); setError("");
+    try {
+      const res = await fetch(api("/api/auth/2fa/login"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ temp_token: tempToken, totp_code: totpCode }),
+      });
+      const data = await res.json() as {
+        token?: string; refreshToken?: string;
+        user?: { id: number; name: string; username: string; role: string; company_id?: number | null };
+        error?: string;
+      };
+      if (!res.ok || !data.token || !data.user) {
+        setError(data.error ?? "رمز التحقق غير صحيح");
+        setTotpCode("");
+        return;
+      }
+      login(data.user as Parameters<typeof login>[0], data.token);
+      setLocation("/");
+    } catch {
+      setError("تعذّر الاتصال بالخادم");
+    } finally {
+      setTotpLoading(false);
+    }
+  }, [totpCode, tempToken, login, setLocation]);
 
   return (
     <div
@@ -345,6 +394,47 @@ export default function Login() {
             padding: "44px 40px",
           }}
         >
+          {/* ── 2FA Step ─── */}
+          {requires2FA ? (
+            <form onSubmit={handleTotpSubmit} noValidate>
+              <div style={{ marginBottom: "28px", textAlign: "center" }}>
+                <div style={{ fontSize: "40px", marginBottom: "12px" }}>🔐</div>
+                <h2 style={{ fontSize: "22px", fontWeight: 900, color: "#0f0c29", marginBottom: "8px" }}>التحقق الثنائي</h2>
+                <p style={{ fontSize: "13px", color: "#7c6fa0", lineHeight: 1.6 }}>
+                  افتح تطبيق <strong>Google Authenticator</strong> أو <strong>Authy</strong><br />وأدخل الرمز المكون من 6 أرقام
+                </p>
+              </div>
+
+              {error && (
+                <div style={{ padding: "10px 14px", borderRadius: "10px", marginBottom: "16px", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)", color: "#EF4444", fontSize: "13px", fontWeight: 700, textAlign: "center" }}>
+                  {error}
+                </div>
+              )}
+
+              <input
+                value={totpCode}
+                onChange={(e) => { setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6)); setError(""); }}
+                onKeyDown={(e) => { if (e.key === "Enter" && totpCode.length === 6) void handleTotpSubmit(e as unknown as React.FormEvent); }}
+                placeholder="• • • • • •"
+                inputMode="numeric"
+                autoFocus
+                style={{ width: "100%", padding: "16px", borderRadius: "14px", border: "1.5px solid rgba(124,58,237,0.3)", fontSize: "32px", letterSpacing: "14px", textAlign: "center", fontFamily: "monospace", color: "#0f0c29", background: "#fdfbff", outline: "none", boxSizing: "border-box", marginBottom: "16px" }}
+                maxLength={6}
+              />
+
+              <button type="submit" disabled={totpLoading || totpCode.length !== 6}
+                className="lp-btn-primary"
+                style={{ width: "100%", padding: "14px", borderRadius: "14px", border: "none", background: totpCode.length === 6 ? "linear-gradient(135deg, #f97316, #ea580c)" : "#e5e7eb", color: totpCode.length === 6 ? "#fff" : "#9ca3af", fontSize: "15px", fontWeight: 800, cursor: totpCode.length !== 6 ? "not-allowed" : "pointer", marginBottom: "14px" }}>
+                {totpLoading ? "جاري التحقق..." : "تحقق →"}
+              </button>
+
+              <button type="button" onClick={() => { setRequires2FA(false); setTempToken(""); setTotpCode(""); setError(""); setPin(""); }}
+                style={{ width: "100%", padding: "10px", borderRadius: "12px", border: "1px solid #e0d9f0", background: "transparent", color: "#7c6fa0", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
+                ← رجوع لإدخال الرقم السري
+              </button>
+            </form>
+          ) : (
+            <>
           {/* Tab toggle */}
           <div
             style={{
@@ -397,6 +487,8 @@ export default function Login() {
             />
           ) : (
             <RegisterForm onSuccess={handleRegisterSuccess} onSwitch={() => setMode("login")} />
+          )}
+            </>
           )}
         </div>
 
