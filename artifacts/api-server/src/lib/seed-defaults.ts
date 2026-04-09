@@ -32,8 +32,10 @@ export async function seedDefaults(): Promise<void> {
       .where(eq(erpUsersTable.role, "super_admin"))
       .limit(1);
 
+    const superAdminPin = process.env.SUPER_ADMIN_PIN ?? "000000";
+
     if (!superAdmin) {
-      const hashed = await hashPin("000000");
+      const hashed = await hashPin(superAdminPin);
       await db.insert(erpUsersTable).values({
         name:       "Super Admin",
         username:   "superadmin",
@@ -42,7 +44,15 @@ export async function seedDefaults(): Promise<void> {
         company_id: null,
         active:     true,
       });
-      logger.info("Super admin created — username: superadmin, PIN: 000000");
+      logger.info(`Super admin created — username: superadmin, PIN: ${superAdminPin}`);
+    } else if (process.env.SUPER_ADMIN_PIN) {
+      /* If SUPER_ADMIN_PIN env var is explicitly set, update the PIN on startup */
+      const hashed = await hashPin(superAdminPin);
+      await db
+        .update(erpUsersTable)
+        .set({ pin: hashed, active: true })
+        .where(eq(erpUsersTable.role, "super_admin"));
+      logger.info(`Super admin PIN updated from SUPER_ADMIN_PIN env var`);
     }
 
     /* ── 3. Ensure default company_admin exists (company_id = 1) ── */

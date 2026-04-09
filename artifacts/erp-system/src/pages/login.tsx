@@ -727,14 +727,14 @@ function LoginForm({
               height: "54px",
             }}
           />
-          {/* Match indicator */}
-          {username.trim() && (
+          {/* Match indicator — only show ✅ when user found in list */}
+          {username.trim() && matchedUser && (
             <span style={{
               position: "absolute", top: "50%", left: "16px",
               transform: "translateY(-50%)",
               fontSize: "15px",
             }}>
-              {matchedUser ? "✅" : "❌"}
+              ✅
             </span>
           )}
         </div>
