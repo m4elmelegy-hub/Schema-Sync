@@ -15,9 +15,13 @@ jobs:
       - uses: pnpm/action-setup@v3
         with:
           version: 10
-      - run: pnpm install --no-frozen-lockfile
-      - run: pnpm --filter @workspace/api-server test
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Update lockfile
+        run: git config user.email "ci@github.com" && git config user.name "CI" && git add pnpm-lock.yaml && git diff --staged --quiet || git commit -m "ci: update lockfile" && git push || true
+      - name: Run backend tests
+        run: pnpm --filter @workspace/api-server test
         env:
-          JWT_SECRET: test-secret
+          JWT_SECRET: test-secret-key-for-ci-only
           NODE_ENV: test
           DATABASE_URL: postgresql://test:test@localhost:5432/test
