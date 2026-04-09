@@ -1,0 +1,367 @@
+# [HALAL TECH ERP — SECURITY FIX #2]
+# Zod Validation + JWT تحسين + Health Check
+
+---
+
+## FIX 1: Zod Validation على كل الـ routes الحساسة
+
+### تثبيت Zod (إذا لم يكن مثبتاً)
+```bash
+cd artifacts/api-server && pnpm add zod
+```
+
+### إنشاء ملف schemas مركزي
+أنشئ `artifacts/api-server/src/lib/schemas.ts`:
+
+```typescript
+import { z } from 'zod';
+
+// مستخدم
+export const createUserSchema = z.object({
+  name: z.string().min(2, 'الاسم يجب أن يكون حرفين على الأقل').max(100),
+  username: z.string()
+    .min(3, 'اسم المستخدم يجب أن يكون 3 أحرف على الأقل')
+    .max(50)
+    .regex(/^\S+$/, 'اسم المستخدم لا يجب أن يحتوي على مسافات'),
+  pin: z.string().min(4, 'الرقم السري يجب أن يكون 4 أحرف على الأقل').max(50),
+  role: z.enum(['company_admin', 'branch_manager', 'cashier', 'agent', 'client']),
+  email: z.string().email('بريد إلكتروني غير صحيح').optional().nullable(),
+  warehouse_id: z.number().int().positive().optional().nullable(),
+  safe_id: z.number().int().positive().optional().nullable(),
+  active: z.boolean().optional().default(true),
+});
+
+export const updateUserSchema = createUserSchema.partial().omit({ pin: true }).extend({
+  pin: z.string().min(4).max(50).optional(),
+});
+
+// شركة
+export const createCompanySchema = z.object({
+  name: z.string().min(2, 'اسم الشركة يجب أن يكون حرفين على الأقل').max(200),
+  plan_type: z.enum(['trial', 'basic', 'pro', 'paid']),
+  duration_days: z.number().int().min(1).max(3650),
+  admin_email: z.string().email().optional().nullable(),
+});
+
+export const updateCompanySchema = createCompanySchema.partial();
+
+// خزينة
+export const createSafeSchema = z.object({
+  name: z.string().min(1).max(100),
+  opening_balance: z.number().min(0).optional().default(0),
+  currency: z.string().max(10).optional(),
+});
+
+// مخزن
+export const createWarehouseSchema = z.object({
+  name: z.string().min(1).max(100),
+  location: z.string().max(200).optional().nullable(),
+});
+
+// منتج
+export const createProductSchema = z.object({
+  name: z.string().min(1).max(200),
+  sku: z.string().max(100).optional().nullable(),
+  price: z.number().min(0),
+  cost: z.number().min(0).optional().default(0),
+  category_id: z.number().int().positive().optional().nullable(),
+  warehouse_id: z.number().int().positive().optional().nullable(),
+  stock: z.number().min(0).optional().default(0),
+  unit: z.string().max(50).optional().nullable(),
+});
+
+// تسجيل الدخول
+export const loginSchema = z.object({
+  userId: z.number().int().positive(),
+  pin: z.string().min(1).max(50),
+});
+
+// عميل / مورد
+export const createCustomerSchema = z.object({
+  name: z.string().min(1).max(200),
+  phone: z.string().max(20).optional().nullable(),
+  email: z.string().email().optional().nullable(),
+  address: z.string().max(500).optional().nullable(),
+  opening_balance: z.number().optional().default(0),
+  is_supplier: z.boolean().optional().default(false),
+});
+
+// helper function للتحقق
+export function validate<T>(schema: z.ZodSchema<T>, data: unknown): 
+  { success: true; data: T } | { success: false; errors: string[] } {
+  const result = schema.safeParse(data);
+  if (result.success) {
+    return { success: true, data: result.data };
+  }
+  const errors = result.error.errors.map(e => `${e.path.join('.')}: ${e.message}`);
+  return { success: false, errors };
+}
+```
+
+### تطبيق Validation في الـ routes
+
+في `artifacts/api-server/src/routes/settings.ts`:
+```typescript
+import { createUserSchema, updateUserSchema, validate } from '../lib/schemas';
+
+// POST /settings/users
+router.post('/users', adminOnly, async (req, res) => {
+  const validation = validate(createUserSchema, req.body);
+  if (!validation.success) {
+    return res.status(400).json({ error: 'بيانات غير صحيحة', details: validation.errors });
+  }
+  // استخدم validation.data بدلاً من req.body
+  const data = validation.data;
+  // ... باقي الكود
+});
+
+// PUT /settings/users/:id
+router.put('/users/:id', adminOnly, async (req, res) => {
+  const validation = validate(updateUserSchema, req.body);
+  if (!validation.success) {
+    return res.status(400).json({ error: 'بيانات غير صحيحة', details: validation.errors });
+  }
+  // ...
+});
+```
+
+في `artifacts/api-server/src/routes/auth.ts`:
+```typescript
+import { loginSchema, validate } from '../lib/schemas';
+
+// POST /auth/login
+router.post('/login', async (req, res) => {
+  const validation = validate(loginSchema, req.body);
+  if (!validation.success) {
+    return res.status(400).json({ error: 'بيانات غير صحيحة', details: validation.errors });
+  }
+  // ...
+});
+```
+
+في `artifacts/api-server/src/routes/super.ts`:
+```typescript
+import { createCompanySchema, validate } from '../lib/schemas';
+
+// POST /super/companies
+router.post('/companies', superOnly, async (req, res) => {
+  const validation = validate(createCompanySchema, req.body);
+  if (!validation.success) {
+    return res.status(400).json({ error: 'بيانات غير صحيحة', details: validation.errors });
+  }
+  // ...
+});
+```
+
+طبّق validate() على كل POST وPATCH وPUT في جميع الـ routes.
+
+---
+
+## FIX 2: تحسين JWT — تقليل المدة + إضافة refresh
+
+في `artifacts/api-server/src/middleware/auth.ts`:
+
+```typescript
+// تقليل مدة الـ access token من 12 ساعة إلى 4 ساعات
+export function signToken(userId: number, role: string, companyId: number): string {
+  return jwt.sign(
+    { userId, role, companyId },
+    JWT_SECRET,
+    { expiresIn: '4h' }  // كان 12h
+  );
+}
+
+// إضافة refresh token (مدة أطول - 7 أيام)
+export function signRefreshToken(userId: number): string {
+  const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || JWT_SECRET + '_refresh';
+  return jwt.sign(
+    { userId, type: 'refresh' },
+    REFRESH_SECRET,
+    { expiresIn: '7d' }
+  );
+}
+
+export function verifyRefreshToken(token: string): { userId: number } | null {
+  try {
+    const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || JWT_SECRET + '_refresh';
+    const decoded = jwt.verify(token, REFRESH_SECRET) as any;
+    if (decoded.type !== 'refresh') return null;
+    return { userId: decoded.userId };
+  } catch {
+    return null;
+  }
+}
+```
+
+في `artifacts/api-server/src/routes/auth.ts`:
+
+```typescript
+// عند تسجيل الدخول — أرجع access token + refresh token
+const accessToken = signToken(user.id, user.role, user.company_id);
+const refreshToken = signRefreshToken(user.id);
+
+return res.json({
+  token: accessToken,
+  refreshToken,
+  user: { ...userInfo }
+});
+
+// إضافة route جديد للـ refresh
+router.post('/refresh', async (req, res) => {
+  const { refreshToken } = req.body;
+  if (!refreshToken) {
+    return res.status(400).json({ error: 'refresh token مطلوب' });
+  }
+  
+  const payload = verifyRefreshToken(refreshToken);
+  if (!payload) {
+    return res.status(401).json({ error: 'refresh token غير صالح أو منتهي' });
+  }
+  
+  // جلب المستخدم من DB للتأكد إنه لا يزال نشطاً
+  const user = await db.select().from(erpUsersTable)
+    .where(and(eq(erpUsersTable.id, payload.userId), eq(erpUsersTable.active, true)))
+    .limit(1);
+  
+  if (!user[0]) {
+    return res.status(401).json({ error: 'المستخدم غير موجود أو موقوف' });
+  }
+  
+  const newAccessToken = signToken(user[0].id, user[0].role, user[0].company_id);
+  return res.json({ token: newAccessToken });
+});
+```
+
+---
+
+## FIX 3: Health Check Endpoint
+
+أنشئ `artifacts/api-server/src/routes/health.ts`:
+
+```typescript
+import { Router } from 'express';
+import { db } from '@workspace/db';
+import { sql } from 'drizzle-orm';
+
+const router = Router();
+
+router.get('/', async (req, res) => {
+  const start = Date.now();
+  
+  try {
+    // اختبار الاتصال بقاعدة البيانات
+    await db.execute(sql`SELECT 1`);
+    const dbLatency = Date.now() - start;
+    
+    return res.json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      uptime: Math.floor(process.uptime()),
+      database: {
+        status: 'connected',
+        latency_ms: dbLatency,
+      },
+      memory: {
+        used_mb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+        total_mb: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
+      },
+      version: process.env.npm_package_version || '1.0.0',
+    });
+  } catch (error) {
+    return res.status(503).json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      database: { status: 'disconnected' },
+      error: 'Database connection failed',
+    });
+  }
+});
+
+export default router;
+```
+
+في `artifacts/api-server/src/app.ts`:
+```typescript
+import healthRouter from './routes/health';
+
+// أضف قبل باقي الـ routes (بدون authentication)
+app.use('/api/health', healthRouter);
+```
+
+---
+
+## FIX 4: Database Connection Pool حد أقصى
+
+في `lib/db/src/index.ts`:
+```typescript
+export const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 20,                    // أقصى عدد connections
+  idleTimeoutMillis: 30000,   // 30 ثانية للـ idle connections
+  connectionTimeoutMillis: 5000, // 5 ثواني timeout للاتصال
+});
+```
+
+---
+
+## FIX 5: Global Error Handler محسّن
+
+في `artifacts/api-server/src/app.ts`:
+```typescript
+// في نهاية الملف — بعد كل الـ routes
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  // لا ترسل stack trace للـ client أبداً
+  const isDev = process.env.NODE_ENV !== 'production';
+  
+  // Zod validation errors
+  if (err.name === 'ZodError') {
+    return res.status(400).json({
+      error: 'بيانات غير صحيحة',
+      details: err.errors.map((e: any) => e.message),
+    });
+  }
+  
+  // JWT errors
+  if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
+    return res.status(401).json({ error: 'جلسة منتهية، يرجى تسجيل الدخول مجدداً' });
+  }
+  
+  // Database errors (لا تكشف تفاصيل DB)
+  if (err.code && err.code.startsWith('23')) {
+    return res.status(409).json({ error: 'البيانات موجودة مسبقاً أو تعارض في البيانات' });
+  }
+  
+  // Generic error
+  console.error('Unhandled error:', isDev ? err : err.message);
+  return res.status(500).json({
+    error: 'حدث خطأ في الخادم',
+    ...(isDev && { details: err.message }),
+  });
+});
+```
+
+---
+
+## Testing Checklist:
+
+- [ ] `GET /api/health` يرجع status: healthy مع DB latency
+- [ ] POST بـ بيانات ناقصة يرجع 400 مع رسالة واضحة بالعربي
+- [ ] POST بـ username فيه مسافات يرجع 400
+- [ ] POST بـ PIN أقل من 4 أحرف يرجع 400
+- [ ] تسجيل الدخول يرجع accessToken + refreshToken
+- [ ] POST /auth/refresh بـ refreshToken صالح يرجع access token جديد
+- [ ] POST /auth/refresh بـ token منتهي يرجع 401
+- [ ] Access token ينتهي بعد 4 ساعات
+- [ ] Database pool لا يتجاوز 20 connection
+
+## ترتيب التنفيذ:
+1. إنشاء lib/schemas.ts
+2. تطبيق validate() في settings routes
+3. تطبيق validate() في auth routes
+4. تطبيق validate() في super routes
+5. تطبيق validate() في باقي الـ routes
+6. تحسين JWT (تقليل لـ 4h + إضافة refresh)
+7. إنشاء health route
+8. تحديث DB pool settings
+9. تحسين global error handler
+10. تشغيل Testing Checklist

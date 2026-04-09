@@ -100,6 +100,7 @@ app.use("/api", generalLimiter);
 app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/register", authLimiter);
 app.use("/api/auth/login/email", authLimiter);
+app.use("/api/auth/refresh", authLimiter);
 
 app.use("/api", router);
 
@@ -121,15 +122,42 @@ if (process.env.NODE_ENV === "production") {
 /* ── Global error handler — no stack traces in responses ───── */
 const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   logger.error({ err }, "Unhandled route error");
+
+  /* Zod validation errors (thrown via schema.parse()) */
+  if (err?.name === "ZodError") {
+    res.status(400).json({
+      error:   "بيانات غير صحيحة",
+      details: (err.errors as Array<{ message: string }>).map((e) => e.message),
+    });
+    return;
+  }
+
+  /* JWT errors */
+  if (err?.name === "JsonWebTokenError" || err?.name === "TokenExpiredError") {
+    res.status(401).json({ error: "الجلسة منتهية، يرجى تسجيل الدخول مجدداً" });
+    return;
+  }
+
+  /* PostgreSQL unique-constraint / FK violation */
+  if (typeof err?.code === "string" && err.code.startsWith("23")) {
+    res.status(409).json({ error: "البيانات موجودة مسبقاً أو يوجد تعارض في البيانات" });
+    return;
+  }
+
+  /* Fallback: generic error — hide internals in production */
   const status: number =
     typeof (err as Record<string, unknown>).status === "number"
       ? ((err as Record<string, unknown>).status as number)
       : typeof (err as Record<string, unknown>).statusCode === "number"
         ? ((err as Record<string, unknown>).statusCode as number)
         : 500;
+  const isDev = process.env.NODE_ENV !== "production";
   const message: string =
     status < 500 && err instanceof Error ? err.message : "خطأ داخلي في الخادم";
-  res.status(status).json({ error: message });
+  res.status(status).json({
+    error: message,
+    ...(isDev && status >= 500 && err instanceof Error ? { details: err.message } : {}),
+  });
 };
 
 app.use(errorHandler);

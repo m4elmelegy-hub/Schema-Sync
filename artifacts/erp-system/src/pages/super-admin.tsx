@@ -646,7 +646,7 @@ export default function SuperAdmin() {
                       onClick={() => {
                         if (!newName.trim()) return;
                         coMutate.mutate(
-                          { url: "/api/super/companies", method: "POST", body: { name: newName.trim(), plan_type: newPlan, days: newDays } },
+                          { url: "/api/super/companies", method: "POST", body: { name: newName.trim(), plan_type: newPlan, duration_days: newDays } },
                           { onSuccess: () => { setShowCreate(false); setNewName(""); setNewPlan("trial"); setNewDays(14); showToast("تم إنشاء الشركة بنجاح"); } },
                         );
                       }}

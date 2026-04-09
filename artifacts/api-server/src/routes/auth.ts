@@ -6,8 +6,9 @@
 import { Router } from "express";
 import { eq, and, ne } from "drizzle-orm";
 import { db, erpUsersTable, companiesTable } from "@workspace/db";
-import { authenticate, signToken } from "../middleware/auth";
+import { authenticate, signToken, signRefreshToken, verifyRefreshToken } from "../middleware/auth";
 import { verifyPin, hashPin } from "../lib/hash";
+import { loginSchema, validate } from "../lib/schemas";
 
 function daysRemaining(endDate: string): number {
   const now = new Date(); now.setHours(0, 0, 0, 0);
@@ -94,14 +95,14 @@ router.get("/auth/users", async (req, res) => {
 /* ── POST /auth/login — validate PIN server-side, return JWT ─ */
 router.post("/auth/login", async (req, res) => {
   try {
-    const { userId, pin } = req.body as { userId?: number; pin?: string };
-
-    if (!userId || !pin) {
-      res.status(400).json({ error: "يلزم تحديد المستخدم والرقم السري" });
+    /* Zod validation */
+    const v = validate(loginSchema, req.body);
+    if (!v.success) {
+      res.status(400).json({ error: "بيانات غير صحيحة", details: v.errors });
       return;
     }
-
-    const uid = Number(userId);
+    const { userId, pin } = v.data;
+    const uid = userId;
 
     /* ── Lockout check ────────────────────────────────────── */
     const lockout = getLockout(uid);
@@ -187,13 +188,15 @@ router.post("/auth/login", async (req, res) => {
     /* ── Success — clear lockout ──────────────────────────── */
     clearLockout(uid);
 
-    const token = signToken(user.id, user.role, user.company_id ?? null);
+    const token        = signToken(user.id, user.role, user.company_id ?? null);
+    const refreshToken = signRefreshToken(user.id);
 
     let parsedPerms: Record<string, boolean> = {};
     try { parsedPerms = JSON.parse(user.permissions ?? "{}") as Record<string, boolean>; } catch { /* ignore */ }
 
     res.json({
       token,
+      refreshToken,
       user: {
         id:           user.id,
         name:         user.name,
@@ -209,6 +212,34 @@ router.post("/auth/login", async (req, res) => {
 
   } catch {
     res.status(500).json({ error: "فشل تسجيل الدخول" });
+  }
+});
+
+/* ── POST /auth/refresh — exchange refresh token for new access token ─ */
+router.post("/auth/refresh", async (req, res) => {
+  try {
+    const { refreshToken } = req.body as { refreshToken?: string };
+    if (!refreshToken) {
+      res.status(400).json({ error: "refresh token مطلوب" });
+      return;
+    }
+    const payload = verifyRefreshToken(refreshToken);
+    if (!payload) {
+      res.status(401).json({ error: "refresh token غير صالح أو منتهي الصلاحية" });
+      return;
+    }
+    const [user] = await db
+      .select()
+      .from(erpUsersTable)
+      .where(and(eq(erpUsersTable.id, payload.userId), eq(erpUsersTable.active, true)));
+    if (!user) {
+      res.status(401).json({ error: "المستخدم غير موجود أو موقوف" });
+      return;
+    }
+    const newToken = signToken(user.id, user.role, user.company_id ?? null);
+    res.json({ token: newToken });
+  } catch {
+    res.status(500).json({ error: "فشل تجديد الجلسة" });
   }
 });
 

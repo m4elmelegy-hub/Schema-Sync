@@ -29,9 +29,28 @@ declare global {
   }
 }
 
-/* ── Sign a new JWT for a user ─────────────────────────── */
+/* ── Sign a short-lived access token (4 h) ──────────────── */
 export function signToken(userId: number, role: string, companyId: number | null = null): string {
-  return jwt.sign({ userId, role, companyId }, JWT_SECRET, { expiresIn: "12h" });
+  return jwt.sign({ userId, role, companyId }, JWT_SECRET, { expiresIn: "4h" });
+}
+
+/* ── Sign a long-lived refresh token (7 d) ──────────────── */
+const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET
+  ? process.env.JWT_REFRESH_SECRET
+  : JWT_SECRET + "_refresh";
+
+export function signRefreshToken(userId: number): string {
+  return jwt.sign({ userId, type: "refresh" }, REFRESH_SECRET, { expiresIn: "7d" });
+}
+
+export function verifyRefreshToken(token: string): { userId: number } | null {
+  try {
+    const decoded = jwt.verify(token, REFRESH_SECRET) as { userId: number; type: string };
+    if (decoded.type !== "refresh") return null;
+    return { userId: decoded.userId };
+  } catch {
+    return null;
+  }
 }
 
 /* ── Verify JWT and attach user from DB ─────────────────── */

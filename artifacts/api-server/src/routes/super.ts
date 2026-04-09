@@ -9,6 +9,7 @@ import { db, companiesTable, erpUsersTable } from "@workspace/db";
 import { authenticate, requireRole } from "../middleware/auth";
 import { wrap } from "../lib/async-handler";
 import { hashPin } from "../lib/hash";
+import { createCompanySchema, validate } from "../lib/schemas";
 
 const router = Router();
 
@@ -138,21 +139,21 @@ router.post("/super/companies/:id/extend", ...superOnly, wrap(async (req, res) =
 
 /* ── POST /super/companies — create company manually (super only) ── */
 router.post("/super/companies", ...superOnly, wrap(async (req, res) => {
-  const { name, plan_type = "trial", days = 7 } = req.body as {
-    name?: string; plan_type?: string; days?: number;
-  };
-  if (!name?.trim()) { res.status(400).json({ error: "اسم الشركة مطلوب" }); return; }
+  const v = validate(createCompanySchema, req.body);
+  if (!v.success) { res.status(400).json({ error: "بيانات غير صحيحة", details: v.errors }); return; }
 
+  const { name, plan_type, duration_days, admin_email } = v.data;
   const today = new Date();
-  const end = new Date(today);
-  end.setDate(end.getDate() + Number(days));
+  const end   = new Date(today);
+  end.setDate(end.getDate() + duration_days);
 
   const [co] = await db.insert(companiesTable).values({
-    name: name.trim(),
+    name:        name.trim(),
     plan_type,
-    start_date: today.toISOString().slice(0, 10),
-    end_date: end.toISOString().slice(0, 10),
-    is_active: true,
+    start_date:  today.toISOString().slice(0, 10),
+    end_date:    end.toISOString().slice(0, 10),
+    is_active:   true,
+    admin_email: admin_email ?? null,
   }).returning();
 
   res.status(201).json(co);

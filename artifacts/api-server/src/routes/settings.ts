@@ -3,6 +3,7 @@ import { eq, desc, or, count, and, ne, inArray } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { authenticate, requireRole } from "../middleware/auth";
 import { hashPin } from "../lib/hash";
+import { createUserSchema, updateUserSchema, validate } from "../lib/schemas";
 import {
   erpUsersTable,
   safesTable,
@@ -65,10 +66,16 @@ router.get("/settings/users", authenticate, requireRole("admin"), async (req, re
 
 router.post("/settings/users", authenticate, requireRole("admin"), async (req, res) => {
   try {
-    const { name, username, pin, role, permissions, warehouse_id, safe_id, active } = req.body;
+    /* Validate request body */
+    const v = validate(createUserSchema, req.body);
+    if (!v.success) {
+      res.status(400).json({ error: "بيانات غير صحيحة", details: v.errors });
+      return;
+    }
+    const { name, username, pin, role, permissions, warehouse_id, safe_id, active } = v.data;
     const companyId = req.user!.company_id ?? undefined;
 
-    /* Prevent creating super_admin via this route */
+    /* Prevent creating super_admin via this route (belt + suspenders) */
     if (role === "super_admin") {
       res.status(403).json({ error: "لا يمكن إنشاء حساب مسؤول عام من هنا" });
       return;
@@ -104,10 +111,16 @@ router.post("/settings/users", authenticate, requireRole("admin"), async (req, r
 
 router.put("/settings/users/:id", authenticate, requireRole("admin"), async (req, res) => {
   try {
+    /* Validate request body */
+    const v = validate(updateUserSchema, req.body);
+    if (!v.success) {
+      res.status(400).json({ error: "بيانات غير صحيحة", details: v.errors });
+      return;
+    }
     const id = Number(req.params.id);
     const requesterId = req.user!.id;
     const companyId = req.user!.company_id;
-    const { name, username, pin, role, permissions, active, warehouse_id, safe_id } = req.body;
+    const { name, username, pin, role, permissions, active, warehouse_id, safe_id } = v.data;
 
     /* Prevent editing super_admin via this route */
     if (role === "super_admin") {

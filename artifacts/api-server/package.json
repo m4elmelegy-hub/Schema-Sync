@@ -23,7 +23,8 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "pino": "^9",
-    "pino-http": "^10"
+    "pino-http": "^10",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
