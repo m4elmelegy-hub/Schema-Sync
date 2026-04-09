@@ -1034,8 +1034,8 @@ function RegisterForm({ onSuccess, onSwitch }: RegisterFormProps) {
   }
 
   const fields = [
-    { id: "company", label: "اسم الشركة", value: companyName, setter: setCompanyName, type: "text",     icon: "🏢", placeholder: "شركة الأفق للتجارة" },
-    { id: "admin",   label: "اسم المسؤول", value: adminName,  setter: setAdminName,  type: "text",     icon: "👤", placeholder: "أحمد محمد" },
+    { id: "company", label: "اسم الشركة", value: companyName, setter: setCompanyName, type: "text",     icon: "🏢", placeholder: "شركة المليجي للتجارة" },
+    { id: "admin",   label: "اسم المسؤول", value: adminName,  setter: setAdminName,  type: "text",     icon: "👤", placeholder: "صالح محمد" },
     { id: "email",   label: "البريد الإلكتروني", value: email, setter: setEmail,     type: "email",    icon: "📧", placeholder: "admin@company.com" },
   ];
 
