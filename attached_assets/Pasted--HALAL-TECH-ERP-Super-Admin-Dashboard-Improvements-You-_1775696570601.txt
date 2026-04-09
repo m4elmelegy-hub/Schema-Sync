@@ -1,0 +1,134 @@
+# [HALAL TECH ERP — Super Admin Dashboard Improvements]
+
+You are improving the Super Admin dashboard page at `artifacts/erp-system/src/pages/super-admin.tsx`.
+
+## Changes Required:
+
+-----
+
+### 1. Add Delete Company Button 🗑️
+
+Add a delete button for each company row with:
+
+- Red trash icon button next to existing action buttons
+- Clicking it opens a confirmation dialog in Arabic:
+  
+  ```
+  عنوان: "حذف الشركة"
+  نص: "هل أنت متأكد من حذف شركة [اسم الشركة]؟ سيتم حذف جميع البيانات المرتبطة بها نهائياً ولا يمكن التراجع عن هذا الإجراء."
+  زر تأكيد: "نعم، احذف" (أحمر)
+  زر إلغاء: "إلغاء" (رمادي)
+  ```
+- After confirmation, call `DELETE /api/super-admin/companies/:id`
+- Show success toast then remove company from list
+- Add the DELETE endpoint in `artifacts/api-server/src/routes/super-admin.ts`:
+  - Only allow delete if company has 0 users OR company is inactive
+  - If company has active users, return 400 with error: “لا يمكن حذف شركة لديها مستخدمون نشطون”
+
+-----
+
+### 2. Add Search Bar 🔍
+
+Add a search input at the top of the companies table:
+
+- Placeholder: “ابحث عن شركة…”
+- Filters companies list in real-time (client-side filtering)
+- Searches by: company name, admin email
+- Styled with dark background matching existing theme
+- Orange focus ring
+- Search icon inside input
+
+-----
+
+### 3. Add Filter by Status 🔽
+
+Add filter buttons next to the search bar:
+
+```
+[ الكل ] [ نشطة ] [ تجريبية ] [ موقوفة ] [ منتهية ]
+```
+
+- Active filter button has orange background
+- Inactive filter buttons have dark outlined style
+- Clicking a filter shows only companies with that status
+- Can combine with search
+
+-----
+
+### 4. Show Expiry Date Clearly in Each Row 📅
+
+In each company row, show:
+
+- End date formatted in Arabic: “ينتهي: ١٥ أبريل ٢٠٢٦”
+- If expiring within 7 days: show in orange with warning icon ⚠️
+- If already expired: show in red with ❌ icon
+- If more than 30 days remaining: show in green
+
+-----
+
+### 5. Translate “Paid” to Arabic
+
+Replace ALL occurrences of English plan names in the UI:
+
+```
+"trial"        → "تجريبي"
+"basic"        → "أساسي"  
+"pro"          → "احترافي"
+"paid"         → "مدفوع"
+"Paid"         → "مدفوع"
+"ترقية إلى Paid" → "ترقية إلى مدفوع"
+```
+
+Also translate the button label:
+
+- “ترقية إلى Paid” button → “⭐ ترقية إلى مدفوع”
+
+-----
+
+### 6. Improve Stats Cards Size and Design
+
+Make the stats cards more visually impactful:
+
+- Increase number font size to 3rem (text-5xl)
+- Add subtle animation when numbers load (count up effect)
+- Add a thin colored bottom border per card:
+  - إجمالي الشركات: orange border
+  - نشطة: green border
+  - تجريبية: yellow border
+  - موقوفة: gray border
+  - منتهية: red border
+  - المستخدمون: blue border
+- Add hover scale effect (scale-105 on hover)
+- Show percentage of active vs total as small subtitle
+
+-----
+
+### 7. Add Pagination for Companies List
+
+If companies count > 10, show pagination at bottom:
+
+- “السابق” / “التالي” buttons
+- Page numbers
+- Show “عرض X من Y شركة”
+- Dark styled matching existing theme
+
+-----
+
+## Design Constraints
+
+- Keep ALL existing dark orange theme (#0F172A, #1E293B, #F97316)
+- All text must be Arabic RTL
+- Use Tajawal/Cairo fonts
+- Keep all existing functionality working
+- Do NOT change database schema
+
+## Delivery Order
+
+1. Translate “Paid” → “مدفوع” everywhere
+1. Add search bar
+1. Add status filter buttons
+1. Add expiry date display with color coding
+1. Improve stats cards
+1. Add delete button + confirmation dialog
+1. Add delete API endpoint
+1. Add pagination

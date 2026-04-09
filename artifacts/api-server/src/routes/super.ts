@@ -157,6 +157,27 @@ router.post("/super/companies", ...superOnly, wrap(async (req, res) => {
   res.status(201).json(co);
 }));
 
+/* ── DELETE /super/companies/:id — delete a company (only if no active users) ── */
+router.delete("/super/companies/:id", ...superOnly, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+
+  const [co] = await db.select().from(companiesTable).where(eq(companiesTable.id, id));
+  if (!co) { res.status(404).json({ error: "الشركة غير موجودة" }); return; }
+
+  const activeUsers = await db
+    .select({ id: erpUsersTable.id })
+    .from(erpUsersTable)
+    .where(eq(erpUsersTable.company_id, id));
+
+  if (activeUsers.length > 0) {
+    res.status(400).json({ error: "لا يمكن حذف شركة لديها مستخدمون نشطون" });
+    return;
+  }
+
+  await db.delete(companiesTable).where(eq(companiesTable.id, id));
+  res.json({ message: "تم حذف الشركة بنجاح" });
+}));
+
 /* ── GET /super/stats — overall stats ── */
 router.get("/super/stats", ...superOnly, wrap(async (_req, res) => {
   const companies = await db.select().from(companiesTable);
