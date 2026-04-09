@@ -1,0 +1,143 @@
+name: CI — Test, Lint, Type Check
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Run backend tests
+        run: pnpm --filter @workspace/api-server test
+        env:
+          JWT_SECRET: test-secret-for-ci
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+
+      - name: Backend coverage report
+        run: pnpm --filter @workspace/api-server test:coverage
+        env:
+          JWT_SECRET: test-secret-for-ci
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: artifacts/api-server/coverage/
+
+  test-frontend:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Run frontend tests
+        run: pnpm --filter @workspace/erp-system test
+
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Lint backend
+        run: pnpm --filter @workspace/api-server lint
+
+      - name: Lint frontend
+        run: pnpm --filter @workspace/erp-system lint
+
+      - name: Type check backend
+        run: pnpm --filter @workspace/api-server type-check
+
+      - name: Type check frontend
+        run: pnpm --filter @workspace/erp-system type-check
+
+  build:
+    name: Build Check
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend, lint]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build frontend
+        run: |
+          cd artifacts/erp-system
+          PORT=8080 BASE_PATH=/ VITE_API_URL="" pnpm run build
+
+      - name: Build backend
+        run: |
+          cd artifacts/api-server
+          pnpm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: |
+            artifacts/erp-system/dist/
+            artifacts/api-server/dist/
+          retention-days: 7

@@ -1,0 +1,64 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: halaltech-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: erpuser
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-localpassword}
+      POSTGRES_DB: erp
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erpuser -d erp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: artifacts/api-server/Dockerfile
+    container_name: halaltech-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://erpuser:${DB_PASSWORD:-localpassword}@postgres:5432/erp
+      JWT_SECRET: ${JWT_SECRET:-change-this-in-production}
+      PORT: 8080
+      NODE_ENV: production
+      BACKUP_DIR: /app/backups
+    volumes:
+      - api_backups:/app/backups
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  nginx:
+    image: nginx:alpine
+    container_name: halaltech-nginx
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./artifacts/erp-system/dist/public:/usr/share/nginx/html:ro
+      - nginx_certs:/etc/letsencrypt:ro
+
+volumes:
+  postgres_data:
+  api_backups:
+  nginx_certs:

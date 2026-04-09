@@ -323,6 +323,25 @@ All financial documents (sales, purchases, deposit vouchers, payment vouchers, r
 - `formatSaleItem()` in `sales.ts`: `cost_price`, `cost_total`, `quantity_returned` → `Number()`
 - `formatPurchaseItem()` in `purchases.ts`: `quantity_returned` → `Number()`
 
+## Level 3 CI/CD + Docker — COMPLETE (April 2026)
+
+### Files Created
+- `.github/workflows/ci.yml` — GitHub Actions CI: 4 jobs (test-backend, test-frontend, lint, build). `build` depends on all 3 passing. Uploads coverage + build artifacts.
+- `.github/workflows/deploy.yml` — Auto deploy on push to `main` via SSH to Hetzner VPS: git pull → pnpm install → db push → frontend build → backend build → pm2 restart → health check.
+- `artifacts/api-server/Dockerfile` — Multi-stage: `builder` (node:22-alpine, full monorepo copy, pnpm install, pnpm build) → `production` (minimal image, non-root `appuser`, HEALTHCHECK on `/api/healthz`).
+- `docker-compose.yml` — 3 services: `postgres` (16-alpine + healthcheck), `api` (built from Dockerfile, depends on healthy postgres), `nginx` (reverse proxy + SSL termination). Named volumes: `postgres_data`, `api_backups`, `nginx_certs`.
+- `.dockerignore` — Excludes node_modules, dist, coverage, .git, .github, .husky, .env files.
+- `docs/DEPLOYMENT.md` — Arabic deployment guide: GitHub Secrets table, SSH key setup, Docker commands, CI/CD pipeline explanation, env var reference table.
+- `.env.example` — Merged/comprehensive: DATABASE_URL, DB_PASSWORD, JWT_SECRET, JWT_REFRESH_SECRET, TOTP_ENCRYPTION_KEY, PORT, NODE_ENV, LOG_LEVEL, ALLOWED_ORIGINS, SUPER_ADMIN_IPS, BACKUP_DIR.
+
+### GitHub Secrets Required (for deploy.yml)
+| Secret | Value |
+|--------|-------|
+| `VPS_HOST` | VPS IP address |
+| `VPS_USER` | SSH username (e.g. `root`) |
+| `VPS_SSH_KEY` | Private key content |
+| `DATABASE_URL` | Production PostgreSQL URL |
+
 ## Level 2 Code Quality — COMPLETE (April 2026)
 
 ### ESLint + Prettier + TypeScript Strict (Frontend & Backend)

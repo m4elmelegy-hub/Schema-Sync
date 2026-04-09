@@ -1,0 +1,465 @@
+# [HALAL TECH ERP — LEVEL 3: CI/CD + Docker]
+# GitHub Actions + Docker + Automated Deployment
+
+---
+
+## SETUP 1: GitHub Actions — CI Pipeline
+
+أنشئ `.github/workflows/ci.yml`:
+```yaml
+name: CI — Test, Lint, Type Check
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Run backend tests
+        run: pnpm --filter @workspace/api-server test
+        env:
+          JWT_SECRET: test-secret-for-ci
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+
+      - name: Backend coverage report
+        run: pnpm --filter @workspace/api-server test:coverage
+        env:
+          JWT_SECRET: test-secret-for-ci
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: artifacts/api-server/coverage/
+
+  test-frontend:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Run frontend tests
+        run: pnpm --filter @workspace/erp-system test
+
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Lint backend
+        run: pnpm --filter @workspace/api-server lint
+
+      - name: Lint frontend
+        run: pnpm --filter @workspace/erp-system lint
+
+      - name: Type check backend
+        run: pnpm --filter @workspace/api-server type-check
+
+      - name: Type check frontend
+        run: pnpm --filter @workspace/erp-system type-check
+
+  build:
+    name: Build Check
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend, lint]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build frontend
+        run: |
+          cd artifacts/erp-system
+          PORT=8080 BASE_PATH=/ VITE_API_URL="" pnpm run build
+
+      - name: Build backend
+        run: |
+          cd artifacts/api-server
+          pnpm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: |
+            artifacts/erp-system/dist/
+            artifacts/api-server/dist/
+          retention-days: 7
+```
+
+---
+
+## SETUP 2: GitHub Actions — Auto Deploy
+
+أنشئ `.github/workflows/deploy.yml`:
+```yaml
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # يسمح بالـ deploy اليدوي من GitHub UI
+
+jobs:
+  deploy:
+    name: Deploy to Hetzner VPS
+    runs-on: ubuntu-latest
+    environment: production
+    needs: []  # يشتغل مباشرة بعد CI
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            echo "🚀 Starting automated deployment..."
+            cd /root/Schema-Sync
+            git stash 2>/dev/null || true
+            git pull origin main
+            git stash pop 2>/dev/null || true
+            pnpm install
+            cd /root/Schema-Sync/lib/db
+            DATABASE_URL="${{ secrets.DATABASE_URL }}" pnpm run push
+            cd /root/Schema-Sync/artifacts/erp-system
+            PORT=8080 BASE_PATH=/ VITE_API_URL="" pnpm run build
+            cd /root/Schema-Sync/artifacts/api-server
+            pnpm run build
+            pm2 restart halaltech-api
+            echo "✅ Deployment completed!"
+
+      - name: Verify deployment
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            sleep 5
+            response=$(curl -s -o /dev/null -w "%{http_code}" https://halaltec.com/api/healthz)
+            if [ "$response" = "200" ]; then
+              echo "✅ Health check passed — deployment successful!"
+            else
+              echo "❌ Health check failed (HTTP $response)"
+              exit 1
+            fi
+```
+
+---
+
+## SETUP 3: Docker للـ Backend
+
+أنشئ `artifacts/api-server/Dockerfile`:
+```dockerfile
+# Stage 1: Build
+FROM node:22-alpine AS builder
+
+WORKDIR /app
+
+# تثبيت pnpm
+RUN npm install -g pnpm
+
+# نسخ ملفات الـ workspace
+COPY pnpm-workspace.yaml ./
+COPY pnpm-lock.yaml ./
+COPY package.json ./
+COPY tsconfig.base.json ./
+COPY tsconfig.json ./
+
+# نسخ الـ packages
+COPY lib/ ./lib/
+COPY artifacts/api-server/ ./artifacts/api-server/
+
+# تثبيت الاعتماديات
+RUN pnpm install --frozen-lockfile
+
+# بناء المشروع
+WORKDIR /app/artifacts/api-server
+RUN pnpm run build
+
+# Stage 2: Production
+FROM node:22-alpine AS production
+
+WORKDIR /app
+
+# تثبيت pnpm
+RUN npm install -g pnpm
+
+# نسخ فقط ما يلزم للتشغيل
+COPY --from=builder /app/artifacts/api-server/dist ./dist
+COPY --from=builder /app/artifacts/api-server/package.json ./
+COPY --from=builder /app/node_modules ./node_modules
+
+# إنشاء مستخدم غير root للأمان
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+RUN mkdir -p /app/backups && chown appuser:appgroup /app/backups
+USER appuser
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD wget -qO- http://localhost:8080/api/healthz || exit 1
+
+CMD ["node", "dist/index.mjs"]
+```
+
+---
+
+## SETUP 4: Docker Compose للتطوير المحلي
+
+أنشئ `docker-compose.yml` في root:
+```yaml
+version: '3.9'
+
+services:
+  # قاعدة البيانات
+  postgres:
+    image: postgres:16-alpine
+    container_name: halaltech-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: erpuser
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-localpassword}
+      POSTGRES_DB: erp
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erpuser -d erp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # الـ Backend API
+  api:
+    build:
+      context: .
+      dockerfile: artifacts/api-server/Dockerfile
+    container_name: halaltech-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://erpuser:${DB_PASSWORD:-localpassword}@postgres:5432/erp
+      JWT_SECRET: ${JWT_SECRET:-change-this-in-production}
+      PORT: 8080
+      NODE_ENV: production
+      BACKUP_DIR: /app/backups
+    volumes:
+      - api_backups:/app/backups
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: halaltech-nginx
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./artifacts/erp-system/dist/public:/usr/share/nginx/html:ro
+      - nginx_certs:/etc/letsencrypt:ro
+
+volumes:
+  postgres_data:
+  api_backups:
+  nginx_certs:
+```
+
+---
+
+## SETUP 5: .dockerignore
+
+أنشئ `.dockerignore`:
+```
+node_modules/
+dist/
+coverage/
+.git/
+.github/
+.husky/
+*.md
+attached_assets/
+screenshots/
+deploy/
+docker-compose.yml
+.env
+.env.*
+```
+
+---
+
+## SETUP 6: GitHub Secrets Instructions
+
+أنشئ `docs/DEPLOYMENT.md`:
+```markdown
+# دليل الـ Deployment
+
+## GitHub Secrets المطلوبة
+
+في GitHub → Settings → Secrets and variables → Actions، أضف:
+
+| Secret | القيمة |
+|--------|--------|
+| `VPS_HOST` | `89.167.85.156` |
+| `VPS_USER` | `root` |
+| `VPS_SSH_KEY` | محتوى ملف `~/.ssh/id_rsa` الخاص |
+| `DATABASE_URL` | `postgresql://erpuser:PASSWORD@localhost:5432/erp` |
+
+## إعداد SSH Key للـ GitHub Actions
+
+على السيرفر:
+```bash
+# إنشاء SSH key مخصص للـ CI/CD
+ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/.ssh/github_deploy
+cat ~/.ssh/github_deploy.pub >> ~/.ssh/authorized_keys
+cat ~/.ssh/github_deploy  # انسخ هذا في GitHub Secret: VPS_SSH_KEY
+```
+
+## تشغيل Docker محلياً
+
+```bash
+# نسخ ملف الـ environment
+cp .env.example .env
+# عدّل .env بالقيم الصحيحة
+
+# تشغيل كل الـ services
+docker-compose up -d
+
+# مشاهدة الـ logs
+docker-compose logs -f api
+
+# إيقاف كل حاجة
+docker-compose down
+```
+```
+
+---
+
+## SETUP 7: .env.example
+
+أنشئ `.env.example` في root:
+```env
+# Database
+DB_PASSWORD=change_this_password
+
+# JWT
+JWT_SECRET=change_this_to_a_long_random_string_min_32_chars
+JWT_REFRESH_SECRET=another_long_random_string_for_refresh_tokens
+
+# TOTP Encryption
+TOTP_ENCRYPTION_KEY=32_char_encryption_key_for_totp_secrets
+
+# Server
+PORT=8080
+NODE_ENV=production
+
+# Optional: IP Restriction for Super Admin (comma-separated)
+# SUPER_ADMIN_IPS=1.2.3.4,5.6.7.8
+
+# Optional: Backup directory
+BACKUP_DIR=/root/db-backups
+```
+
+---
+
+## Testing Checklist:
+- [ ] `.github/workflows/ci.yml` موجود ومكتوب صح
+- [ ] `.github/workflows/deploy.yml` موجود ومكتوب صح
+- [ ] `Dockerfile` يبني بدون errors: `docker build -t halaltech .`
+- [ ] `docker-compose.yml` صحيح
+- [ ] `docs/DEPLOYMENT.md` موجود
+- [ ] `.env.example` موجود
+- [ ] بعد الـ push على GitHub — الـ CI workflow يشتغل تلقائياً
+
+## ترتيب التنفيذ:
+1. إنشاء `.github/workflows/ci.yml`
+2. إنشاء `.github/workflows/deploy.yml`
+3. إنشاء `artifacts/api-server/Dockerfile`
+4. إنشاء `docker-compose.yml`
+5. إنشاء `.dockerignore`
+6. إنشاء `docs/DEPLOYMENT.md`
+7. إنشاء `.env.example`
+8. Commit وpush — مشاهدة الـ CI يشتغل على GitHub

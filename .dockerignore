@@ -1,0 +1,13 @@
+node_modules/
+dist/
+coverage/
+.git/
+.github/
+.husky/
+*.md
+attached_assets/
+screenshots/
+deploy/
+docker-compose.yml
+.env
+.env.*
