@@ -8,6 +8,7 @@ import { eq, desc } from "drizzle-orm";
 import { db, companiesTable, erpUsersTable } from "@workspace/db";
 import { authenticate, requireRole } from "../middleware/auth";
 import { wrap } from "../lib/async-handler";
+import { hashPin } from "../lib/hash";
 
 const router = Router();
 
@@ -194,6 +195,127 @@ router.get("/super/stats", ...superOnly, wrap(async (_req, res) => {
   };
 
   res.json(stats);
+}));
+
+/* ══════════════════════════════════════════════
+   Super-Admin Manager Endpoints
+   /api/super/managers — CRUD for super_admin users
+   ══════════════════════════════════════════════ */
+
+/* ── GET /super/managers — list all super_admin accounts ── */
+router.get("/super/managers", ...superOnly, wrap(async (_req, res) => {
+  const managers = await db
+    .select({
+      id: erpUsersTable.id,
+      name: erpUsersTable.name,
+      username: erpUsersTable.username,
+      email: erpUsersTable.email,
+      active: erpUsersTable.active,
+      last_login: erpUsersTable.last_login,
+      created_at: erpUsersTable.created_at,
+    })
+    .from(erpUsersTable)
+    .where(eq(erpUsersTable.role, "super_admin"))
+    .orderBy(desc(erpUsersTable.created_at));
+  res.json(managers);
+}));
+
+/* ── POST /super/managers — create new super_admin ── */
+router.post("/super/managers", ...superOnly, wrap(async (req, res) => {
+  const { name, username, pin } = req.body as { name?: string; username?: string; pin?: string };
+
+  if (!name?.trim())     { res.status(400).json({ error: "الاسم الكامل مطلوب" }); return; }
+  if (!username?.trim()) { res.status(400).json({ error: "اسم المستخدم مطلوب" }); return; }
+  if (/\s/.test(username)) { res.status(400).json({ error: "اسم المستخدم لا يجب أن يحتوي على مسافات" }); return; }
+  if (!pin || pin.length < 4) { res.status(400).json({ error: "الرقم السري يجب أن يكون 4 أحرف على الأقل" }); return; }
+
+  const [existing] = await db
+    .select({ id: erpUsersTable.id })
+    .from(erpUsersTable)
+    .where(eq(erpUsersTable.username, username.trim()));
+  if (existing) { res.status(400).json({ error: "اسم المستخدم مستخدم بالفعل" }); return; }
+
+  const hashedPin = await hashPin(pin);
+  const [created] = await db.insert(erpUsersTable).values({
+    name: name.trim(),
+    username: username.trim(),
+    pin: hashedPin,
+    role: "super_admin",
+    active: true,
+    company_id: null,
+  }).returning({
+    id: erpUsersTable.id, name: erpUsersTable.name,
+    username: erpUsersTable.username, active: erpUsersTable.active,
+    last_login: erpUsersTable.last_login, created_at: erpUsersTable.created_at,
+  });
+  res.status(201).json(created);
+}));
+
+/* ── PATCH /super/managers/:id — update name/username/pin ── */
+router.patch("/super/managers/:id", ...superOnly, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const { name, username, pin } = req.body as { name?: string; username?: string; pin?: string };
+
+  const [manager] = await db.select().from(erpUsersTable).where(eq(erpUsersTable.id, id));
+  if (!manager || manager.role !== "super_admin") { res.status(404).json({ error: "المدير غير موجود" }); return; }
+
+  if (username?.trim() && /\s/.test(username)) {
+    res.status(400).json({ error: "اسم المستخدم لا يجب أن يحتوي على مسافات" }); return;
+  }
+  if (username?.trim() && username.trim() !== manager.username) {
+    const [dup] = await db.select({ id: erpUsersTable.id }).from(erpUsersTable)
+      .where(eq(erpUsersTable.username, username.trim()));
+    if (dup) { res.status(400).json({ error: "اسم المستخدم مستخدم بالفعل" }); return; }
+  }
+
+  const updates: Partial<typeof erpUsersTable.$inferInsert> = {};
+  if (name?.trim())       updates.name     = name.trim();
+  if (username?.trim())   updates.username = username.trim();
+  if (pin && pin.length >= 4) updates.pin  = await hashPin(pin);
+
+  const [updated] = await db.update(erpUsersTable).set(updates)
+    .where(eq(erpUsersTable.id, id)).returning({
+      id: erpUsersTable.id, name: erpUsersTable.name,
+      username: erpUsersTable.username, active: erpUsersTable.active,
+      last_login: erpUsersTable.last_login, created_at: erpUsersTable.created_at,
+    });
+  res.json(updated);
+}));
+
+/* ── PATCH /super/managers/:id/toggle — toggle active status ── */
+router.patch("/super/managers/:id/toggle", ...superOnly, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  if (id === req.user!.id) { res.status(400).json({ error: "لا يمكن إيقاف حسابك الحالي" }); return; }
+
+  const [manager] = await db.select().from(erpUsersTable).where(eq(erpUsersTable.id, id));
+  if (!manager || manager.role !== "super_admin") { res.status(404).json({ error: "المدير غير موجود" }); return; }
+
+  const [updated] = await db.update(erpUsersTable)
+    .set({ active: !manager.active })
+    .where(eq(erpUsersTable.id, id))
+    .returning({ id: erpUsersTable.id, active: erpUsersTable.active });
+  res.json(updated);
+}));
+
+/* ── DELETE /super/managers/:id — remove a super_admin ── */
+router.delete("/super/managers/:id", ...superOnly, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  if (id === req.user!.id) { res.status(400).json({ error: "لا يمكن حذف حسابك الحالي" }); return; }
+
+  const allManagers = await db
+    .select({ id: erpUsersTable.id })
+    .from(erpUsersTable)
+    .where(eq(erpUsersTable.role, "super_admin"));
+  if (allManagers.length <= 1) {
+    res.status(400).json({ error: "يجب أن يكون هناك مدير عام واحد على الأقل" }); return;
+  }
+
+  const [manager] = await db.select({ id: erpUsersTable.id })
+    .from(erpUsersTable).where(eq(erpUsersTable.id, id));
+  if (!manager) { res.status(404).json({ error: "المدير غير موجود" }); return; }
+
+  await db.delete(erpUsersTable).where(eq(erpUsersTable.id, id));
+  res.json({ message: "تم حذف المدير بنجاح" });
 }));
 
 export default router;
