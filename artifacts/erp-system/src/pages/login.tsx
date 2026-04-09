@@ -81,14 +81,16 @@ export default function Login() {
     const matchedUser = activeUsers.find(
       (u) => u.username.toLowerCase() === trimmed.toLowerCase() || u.name === trimmed
     );
-    if (!matchedUser) { setError("اسم المستخدم غير موجود"); usernameRef.current?.focus(); return; }
 
     setLoading(true);
     try {
+      const body = matchedUser
+        ? { userId: matchedUser.id, pin }
+        : { username: trimmed.toLowerCase(), pin };
       const res = await fetch(api("/api/auth/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: matchedUser.id, pin }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));

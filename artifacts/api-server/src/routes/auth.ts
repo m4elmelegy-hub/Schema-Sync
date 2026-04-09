@@ -128,8 +128,23 @@ router.post("/auth/login", async (req, res) => {
       res.status(400).json({ error: "بيانات غير صحيحة", details: v.errors });
       return;
     }
-    const { userId, pin } = v.data;
-    const uid = userId;
+    const { userId, username, pin } = v.data;
+
+    /* ── Resolve uid — by userId or by username lookup ────── */
+    let uid: number;
+    if (userId !== undefined) {
+      uid = userId;
+    } else {
+      const [found] = await db
+        .select({ id: erpUsersTable.id })
+        .from(erpUsersTable)
+        .where(eq(erpUsersTable.username, username!.trim().toLowerCase()));
+      if (!found) {
+        res.status(401).json({ error: "الحساب غير موجود أو معطل" });
+        return;
+      }
+      uid = found.id;
+    }
 
     /* ── Lockout check ────────────────────────────────────── */
     const lockout = getLockout(uid);

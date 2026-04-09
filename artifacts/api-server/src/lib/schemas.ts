@@ -10,12 +10,16 @@ const noSpaces = (field: string) =>
 
 /* ─── Auth ───────────────────────────────────────────────────────────────── */
 export const loginSchema = z.object({
-  userId: z.number({ required_error: "userId مطلوب", invalid_type_error: "userId يجب أن يكون رقماً" })
-    .int().positive("userId يجب أن يكون رقماً موجباً"),
+  userId: z.number({ invalid_type_error: "userId يجب أن يكون رقماً" })
+    .int().positive("userId يجب أن يكون رقماً موجباً").optional(),
+  username: z.string().min(1).max(100).optional(),
   pin: z.string({ required_error: "الرقم السري مطلوب" })
     .min(1, "الرقم السري مطلوب")
     .max(50, "الرقم السري طويل جداً"),
-});
+}).refine(
+  (data) => data.userId !== undefined || (data.username !== undefined && data.username.trim().length > 0),
+  { message: "userId أو username مطلوب" },
+);
 
 /* ─── Users ──────────────────────────────────────────────────────────────── */
 const ALLOWED_ROLES = ["admin", "manager", "cashier", "salesperson"] as const;
