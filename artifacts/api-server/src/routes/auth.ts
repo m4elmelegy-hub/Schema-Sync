@@ -191,8 +191,8 @@ router.post("/auth/login", async (req, res) => {
       } catch { /* non-fatal */ }
     }
 
-    /* ── Subscription check ───────────────────────────────── */
-    if (user.company_id) {
+    /* ── Subscription check (skip for super_admin) ───────── */
+    if (user.company_id && user.role !== "super_admin") {
       const [company] = await db
         .select()
         .from(companiesTable)
