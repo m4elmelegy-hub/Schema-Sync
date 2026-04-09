@@ -23,7 +23,6 @@ import {
   ProfitsData, EMPTY_PL, thisMonthStart, todayStr, fmtMonth, fmtDay,
   ChartTooltip,
 } from "./shared";
-import { printPLReport } from "@/lib/export-pdf";
 
 /* ── Types ────────────────────────────────────────────────────────────────── */
 interface Warehouse { id: number; name: string; }
@@ -772,7 +771,7 @@ export default function ProfitLossReport() {
             style={{background:"rgba(16,185,129,0.08)"}}>
             <FileDown className="w-3.5 h-3.5"/> Excel
           </button>
-          <button onClick={()=>printPLReport({dateFrom,dateTo,...pl})}
+          <button onClick={async()=>{const {printPLReport}=await import("@/lib/export-pdf");printPLReport({dateFrom,dateTo,...pl});}}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border border-blue-500/25 text-blue-400 hover:border-blue-500/40 transition-all"
             style={{background:"rgba(59,130,246,0.08)"}}>
             <Printer className="w-3.5 h-3.5"/> PDF

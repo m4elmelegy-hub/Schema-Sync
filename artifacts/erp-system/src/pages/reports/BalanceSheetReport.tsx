@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { api, authFetch, formatCurrency, useCountUp, todayStr } from "./shared";
 import { useAppSettings } from "@/contexts/app-settings";
-import { printBalanceSheet, type BalanceSheetPrintData } from "@/lib/export-pdf";
+import type { BalanceSheetPrintData } from "@/lib/export-pdf";
 
 /* ── Types ─────────────────────────────────────────────────────────────── */
 interface BalanceSheetData {
@@ -457,7 +457,7 @@ export default function BalanceSheetReport() {
   const data: BalanceSheetData = { ...EMPTY_BS, ...raw };
   const diff = useMemo(() => data.assets.total - data.total_liabilities_equity, [data.assets.total, data.total_liabilities_equity]);
 
-  function handlePrint() {
+  async function handlePrint() {
     const printData: BalanceSheetPrintData = {
       assets:      data.assets,
       liabilities: data.liabilities,
@@ -466,6 +466,7 @@ export default function BalanceSheetReport() {
       balanced:    data.balanced,
       as_of:       asOfDate,
     };
+    const { printBalanceSheet } = await import("@/lib/export-pdf");
     printBalanceSheet(printData);
   }
 
