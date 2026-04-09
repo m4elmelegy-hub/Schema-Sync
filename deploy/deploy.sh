@@ -21,5 +21,14 @@ pnpm run build
 
 pm2 restart halaltech-api
 
+# تأكد إن الـ monitor script موجود ومُفعَّل
+if [ ! -f /root/monitor.sh ]; then
+  echo "⚠️  Monitor script غير موجود — انسخه من deploy/monitor.sh يدوياً"
+fi
+
+# تأكد من وجود مجلد الـ backups
+mkdir -p /root/db-backups
+echo "📁 Backup directory: /root/db-backups"
+
 echo "✅ Deploy خلص! الموقع اتحدث."
 echo "🌐 halaltec.com جاهز"

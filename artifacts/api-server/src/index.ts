@@ -2,6 +2,8 @@ import net from "net";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startBackupScheduler, stopBackupScheduler } from "./lib/backup-scheduler";
+import { startDbBackupScheduler } from "./lib/db-backup";
+import { startMonitoring } from "./lib/monitor";
 import { seedDefaults } from "./lib/seed-defaults";
 import { pool } from "@workspace/db";
 
@@ -40,6 +42,8 @@ async function main() {
     }
     logger.info(`Backend started on port ${PORT}`);
     startBackupScheduler();
+    startDbBackupScheduler();
+    startMonitoring();
   });
 
   async function cleanup(signal: string) {

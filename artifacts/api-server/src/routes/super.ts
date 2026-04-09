@@ -10,6 +10,8 @@ import { authenticate, requireRole } from "../middleware/auth";
 import { wrap } from "../lib/async-handler";
 import { hashPin } from "../lib/hash";
 import { createCompanySchema, validate } from "../lib/schemas";
+import { createDatabaseBackup, listBackups } from "../lib/db-backup";
+import fs from "fs";
 
 const router = Router();
 
@@ -317,6 +319,25 @@ router.delete("/super/managers/:id", ...superOnly, wrap(async (req, res) => {
 
   await db.delete(erpUsersTable).where(eq(erpUsersTable.id, id));
   res.json({ message: "تم حذف المدير بنجاح" });
+}));
+
+/* ── POST /super/backup/create — trigger pg_dump backup ── */
+router.post("/super/backup/create", ...superOnly, wrap(async (_req, res) => {
+  const filepath = await createDatabaseBackup();
+  const stats    = fs.statSync(filepath);
+  res.json({
+    success:    true,
+    message:    "تم إنشاء النسخة الاحتياطية بنجاح",
+    filename:   filepath.split("/").pop(),
+    size_mb:    (stats.size / 1024 / 1024).toFixed(2),
+    created_at: new Date().toISOString(),
+  });
+}));
+
+/* ── GET /super/backup/list — list available backups ── */
+router.get("/super/backup/list", ...superOnly, wrap(async (_req, res) => {
+  const backups = listBackups();
+  res.json({ backups, total: backups.length });
 }));
 
 export default router;

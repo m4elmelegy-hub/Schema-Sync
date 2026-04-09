@@ -11,6 +11,11 @@ const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api  = (p: string) => `${BASE}${p}`;
 
 /* ── Types ───────────────────────────────────────── */
+interface BackupFile {
+  filename:   string;
+  size_mb:    string;
+  created_at: string;
+}
 interface Company {
   id: number; name: string; plan_type: string;
   start_date: string; end_date: string; is_active: boolean;
@@ -248,7 +253,7 @@ export default function SuperAdmin() {
   const qc = useQueryClient();
 
   /* ── Tab ─── */
-  const [activeTab, setActiveTab] = useState<"companies" | "managers" | "settings">("companies");
+  const [activeTab, setActiveTab] = useState<"companies" | "managers" | "settings" | "backups">("companies");
 
   /* ── Companies state ─── */
   const [expandedId,   setExpandedId]   = useState<number | null>(null);
@@ -308,6 +313,35 @@ export default function SuperAdmin() {
   const { data: stats }              = useQuery<Stats>({ queryKey: ["/api/super/stats"], queryFn: () => fetcher("/api/super/stats"), staleTime: 30_000 });
   const { data: companies = [], isLoading: coLoading } = useQuery<Company[]>({ queryKey: ["/api/super/companies"], queryFn: () => fetcher("/api/super/companies"), staleTime: 30_000 });
   const { data: managers  = [], isLoading: mgLoading } = useQuery<Manager[]>({ queryKey: ["/api/super/managers"], queryFn: () => fetcher("/api/super/managers"), staleTime: 30_000 });
+
+  /* ── Backup state + query ─── */
+  const [creatingBackup, setCreatingBackup] = useState(false);
+  const { data: backupData, refetch: refetchBackups } = useQuery<{ backups: BackupFile[]; total: number }>({
+    queryKey: ["/api/super/backup/list"],
+    queryFn:  () => fetcher("/api/super/backup/list"),
+    enabled:  activeTab === "backups",
+    staleTime: 30_000,
+  });
+
+  async function triggerBackup() {
+    setCreatingBackup(true);
+    try {
+      const res = await fetch(api("/api/super/backup/create"), {
+        method: "POST", headers: authHeaders(token ?? ""),
+      });
+      const data: { success?: boolean; message?: string; filename?: string; size_mb?: string; error?: string } = await res.json();
+      if (data.success) {
+        showToast(`✅ ${data.message ?? "تم إنشاء النسخة الاحتياطية"} (${data.size_mb} MB)`);
+        void refetchBackups();
+      } else {
+        showToast(data.error ?? "فشل إنشاء النسخة الاحتياطية", "error");
+      }
+    } catch {
+      showToast("فشل إنشاء النسخة الاحتياطية", "error");
+    } finally {
+      setCreatingBackup(false);
+    }
+  }
 
   /* ── Support settings query ─── */
   const { data: sysSettings } = useQuery<Record<string, string>>({
@@ -574,6 +608,7 @@ export default function SuperAdmin() {
           {([
             { key: "companies", label: "🏢 الشركات المسجلة" },
             { key: "managers",  label: "👑 المديرون العامون" },
+            { key: "backups",   label: "💾 النسخ الاحتياطية" },
             { key: "settings",  label: "⚙️ إعدادات النظام"  },
           ] as const).map(tab => {
             const active = activeTab === tab.key;
@@ -905,6 +940,83 @@ export default function SuperAdmin() {
                 );
               })
             )}
+          </div>
+        )}
+
+        {/* ══════════════════════════════
+            TAB: BACKUPS
+            ══════════════════════════════ */}
+        {activeTab === "backups" && (
+          <div>
+            {/* Header card */}
+            <div style={{
+              background: C.card, borderRadius: "16px", border: `1px solid ${C.border}`,
+              padding: "20px 24px", marginBottom: "20px",
+              display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px",
+            }}>
+              <div>
+                <h2 style={{ fontSize: "16px", fontWeight: 800, color: C.text, margin: "0 0 4px" }}>النسخ الاحتياطية للقاعدة</h2>
+                <p style={{ fontSize: "12px", color: C.muted, margin: 0 }}>
+                  النسخ الاحتياطي التلقائي يعمل يومياً الساعة 3:00 صباحاً •{" "}
+                  {backupData ? `${backupData.total} نسخة متوفرة` : "جاري التحميل..."}
+                </p>
+              </div>
+              <button
+                onClick={() => { void triggerBackup(); }}
+                disabled={creatingBackup}
+                style={{
+                  display: "flex", alignItems: "center", gap: "8px",
+                  padding: "10px 20px", borderRadius: "10px", border: "none",
+                  background: creatingBackup ? C.border : C.orange, color: "#fff",
+                  fontSize: "14px", fontWeight: 800, cursor: creatingBackup ? "not-allowed" : "pointer",
+                  fontFamily: FONT, transition: "filter 0.15s", flexShrink: 0,
+                }}
+              >
+                💾 {creatingBackup ? "جاري الإنشاء..." : "إنشاء نسخة احتياطية الآن"}
+              </button>
+            </div>
+
+            {/* Backups table */}
+            <div style={{ background: C.card, borderRadius: "16px", border: `1px solid ${C.border}`, overflow: "hidden" }}>
+              {/* Column headers */}
+              <div style={{
+                display: "grid", gridTemplateColumns: "1fr 100px 180px",
+                gap: "8px", padding: "10px 24px",
+                background: "rgba(249,115,22,0.08)", borderBottom: `1px solid ${C.border}`,
+                fontSize: "11px", fontWeight: 700, color: C.orange,
+              }}>
+                <div>اسم الملف</div>
+                <div style={{ textAlign: "center" }}>الحجم</div>
+                <div style={{ textAlign: "center" }}>التاريخ</div>
+              </div>
+
+              {!backupData ? (
+                <div style={{ padding: "48px", textAlign: "center", color: C.muted }}>جاري التحميل...</div>
+              ) : backupData.backups.length === 0 ? (
+                <div style={{ padding: "48px", textAlign: "center", color: C.muted }}>
+                  <div style={{ fontSize: "32px", marginBottom: "12px" }}>💾</div>
+                  <div>لا توجد نسخ احتياطية بعد</div>
+                  <div style={{ fontSize: "12px", marginTop: "6px" }}>اضغط "إنشاء نسخة احتياطية الآن" للبدء</div>
+                </div>
+              ) : backupData.backups.map((b, idx) => (
+                <div key={b.filename} style={{
+                  display: "grid", gridTemplateColumns: "1fr 100px 180px",
+                  gap: "8px", padding: "12px 24px", alignItems: "center",
+                  borderBottom: idx < backupData.backups.length - 1 ? `1px solid ${C.border}` : "none",
+                  background: idx % 2 === 1 ? "rgba(15,23,42,0.4)" : "transparent",
+                }}>
+                  <div style={{ fontSize: "13px", color: C.text, fontFamily: "monospace", wordBreak: "break-all" }}>
+                    {b.filename}
+                  </div>
+                  <div style={{ fontSize: "12px", color: C.muted, textAlign: "center" }}>{b.size_mb} MB</div>
+                  <div style={{ fontSize: "12px", color: C.muted, textAlign: "center" }}>
+                    {new Date(b.created_at).toLocaleString("ar-EG", {
+                      day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

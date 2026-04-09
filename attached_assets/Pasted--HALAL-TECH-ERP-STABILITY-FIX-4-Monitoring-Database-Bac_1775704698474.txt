@@ -1,0 +1,367 @@
+# [HALAL TECH ERP — STABILITY FIX #4]
+
+# Monitoring تلقائي + Database Backup تلقائي
+
+-----
+
+## FIX 1: Database Backup تلقائي يومي
+
+أنشئ `artifacts/api-server/src/lib/db-backup.ts`:
+
+```typescript
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import fs from 'fs';
+import path from 'path';
+import { logger } from './logger';
+
+const execAsync = promisify(exec);
+
+const BACKUP_DIR = process.env.BACKUP_DIR || '/root/db-backups';
+const MAX_BACKUPS = 30; // احتفظ بآخر 30 نسخة احتياطية
+
+export async function createDatabaseBackup(): Promise<string> {
+  // إنشاء مجلد الـ backups لو مش موجود
+  if (!fs.existsSync(BACKUP_DIR)) {
+    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+  }
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const filename = `backup-${timestamp}.sql.gz`;
+  const filepath = path.join(BACKUP_DIR, filename);
+
+  const dbUrl = process.env.DATABASE_URL!;
+  const url = new URL(dbUrl);
+
+  const command = `PGPASSWORD="${url.password}" pg_dump \
+    -h ${url.hostname} \
+    -p ${url.port || 5432} \
+    -U ${url.username} \
+    -d ${url.pathname.slice(1)} \
+    --no-owner \
+    --no-acl \
+    | gzip > "${filepath}"`;
+
+  try {
+    await execAsync(command);
+    logger.info({ filepath, size: fs.statSync(filepath).size }, 'Database backup created');
+
+    // حذف النسخ القديمة
+    await cleanOldBackups();
+
+    return filepath;
+  } catch (error) {
+    logger.error({ error }, 'Database backup failed');
+    throw error;
+  }
+}
+
+async function cleanOldBackups(): Promise<void> {
+  const files = fs.readdirSync(BACKUP_DIR)
+    .filter(f => f.startsWith('backup-') && f.endsWith('.sql.gz'))
+    .map(f => ({
+      name: f,
+      time: fs.statSync(path.join(BACKUP_DIR, f)).mtime.getTime(),
+    }))
+    .sort((a, b) => b.time - a.time);
+
+  // احذف الزيادة عن MAX_BACKUPS
+  const toDelete = files.slice(MAX_BACKUPS);
+  for (const file of toDelete) {
+    fs.unlinkSync(path.join(BACKUP_DIR, file.name));
+    logger.info({ file: file.name }, 'Old backup deleted');
+  }
+}
+
+export function startBackupScheduler(): void {
+  // backup يومي الساعة 3 الفجر
+  const scheduleNextBackup = () => {
+    const now = new Date();
+    const next3am = new Date();
+    next3am.setHours(3, 0, 0, 0);
+    
+    if (next3am <= now) {
+      next3am.setDate(next3am.getDate() + 1);
+    }
+    
+    const msUntilNext = next3am.getTime() - now.getTime();
+    
+    setTimeout(async () => {
+      try {
+        await createDatabaseBackup();
+        logger.info('Scheduled database backup completed');
+      } catch (err) {
+        logger.error({ err }, 'Scheduled database backup failed');
+      }
+      scheduleNextBackup(); // جدول الـ backup التالي
+    }, msUntilNext);
+    
+    logger.info({ 
+      nextBackup: next3am.toISOString() 
+    }, 'Next database backup scheduled');
+  };
+  
+  scheduleNextBackup();
+}
+```
+
+في `artifacts/api-server/src/index.ts`:
+
+```typescript
+import { startBackupScheduler as startDbBackupScheduler } from './lib/db-backup';
+
+// في main() بعد seedDefaults()
+startDbBackupScheduler();
+logger.info('Database backup scheduler started');
+```
+
+أضف API endpoint للـ backup اليدوي:
+
+```typescript
+// في artifacts/api-server/src/routes/super.ts
+import { createDatabaseBackup } from '../lib/db-backup';
+
+// POST /api/super/backup/create — super_admin only
+router.post('/backup/create', superOnly, async (req, res) => {
+  try {
+    const filepath = await createDatabaseBackup();
+    const stats = fs.statSync(filepath);
+    return res.json({
+      success: true,
+      message: 'تم إنشاء النسخة الاحتياطية بنجاح',
+      filename: path.basename(filepath),
+      size_mb: (stats.size / 1024 / 1024).toFixed(2),
+      created_at: new Date().toISOString(),
+    });
+  } catch (error) {
+    return res.status(500).json({ error: 'فشل إنشاء النسخة الاحتياطية' });
+  }
+});
+
+// GET /api/super/backup/list — super_admin only
+router.get('/backup/list', superOnly, async (req, res) => {
+  const BACKUP_DIR = process.env.BACKUP_DIR || '/root/db-backups';
+  
+  if (!fs.existsSync(BACKUP_DIR)) {
+    return res.json({ backups: [] });
+  }
+  
+  const backups = fs.readdirSync(BACKUP_DIR)
+    .filter(f => f.startsWith('backup-') && f.endsWith('.sql.gz'))
+    .map(f => {
+      const stats = fs.statSync(path.join(BACKUP_DIR, f));
+      return {
+        filename: f,
+        size_mb: (stats.size / 1024 / 1024).toFixed(2),
+        created_at: stats.mtime.toISOString(),
+      };
+    })
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  
+  return res.json({ backups, total: backups.length });
+});
+```
+
+-----
+
+## FIX 2: Health Monitoring مع إشعارات تلقائية
+
+أنشئ `artifacts/api-server/src/lib/monitor.ts`:
+
+```typescript
+import { logger } from './logger';
+import { db } from '@workspace/db';
+import { sql } from 'drizzle-orm';
+
+interface HealthStatus {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  db: boolean;
+  memory_mb: number;
+  uptime_hours: number;
+  last_check: string;
+}
+
+let lastStatus: HealthStatus | null = null;
+let alertSent = false;
+
+export async function checkHealth(): Promise<HealthStatus> {
+  const memUsed = Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
+  const uptimeHours = Math.round(process.uptime() / 3600 * 10) / 10;
+  
+  let dbOk = false;
+  try {
+    await db.execute(sql`SELECT 1`);
+    dbOk = true;
+  } catch {
+    dbOk = false;
+  }
+
+  const status: HealthStatus = {
+    status: !dbOk ? 'unhealthy' : memUsed > 400 ? 'degraded' : 'healthy',
+    db: dbOk,
+    memory_mb: memUsed,
+    uptime_hours: uptimeHours,
+    last_check: new Date().toISOString(),
+  };
+
+  // Log إذا تغير الحالة
+  if (!lastStatus || lastStatus.status !== status.status) {
+    if (status.status !== 'healthy') {
+      logger.error({ status }, '🚨 HEALTH CHECK FAILED');
+      alertSent = false;
+    } else if (lastStatus?.status !== 'healthy') {
+      logger.info({ status }, '✅ Service recovered');
+      alertSent = false;
+    }
+  }
+
+  lastStatus = status;
+  return status;
+}
+
+export function startMonitoring(): void {
+  // فحص كل دقيقة
+  setInterval(async () => {
+    try {
+      await checkHealth();
+    } catch (err) {
+      logger.error({ err }, 'Monitor check failed');
+    }
+  }, 60 * 1000);
+  
+  logger.info('Health monitoring started (every 60s)');
+}
+```
+
+في `artifacts/api-server/src/routes/health.ts` — حدّث الـ endpoint:
+
+```typescript
+import { checkHealth } from '../lib/monitor';
+
+router.get('/', async (req, res) => {
+  try {
+    const health = await checkHealth();
+    const statusCode = health.status === 'unhealthy' ? 503 : 200;
+    return res.status(statusCode).json(health);
+  } catch (error) {
+    return res.status(503).json({
+      status: 'unhealthy',
+      error: 'Health check failed',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+```
+
+في `artifacts/api-server/src/index.ts`:
+
+```typescript
+import { startMonitoring } from './lib/monitor';
+
+// في main()
+startMonitoring();
+```
+
+-----
+
+## FIX 3: Backup Management في Super Admin Dashboard
+
+في `artifacts/erp-system/src/pages/super-admin.tsx`:
+
+أضف تبويب جديد “💾 النسخ الاحتياطية”:
+
+```typescript
+// Tab جديد في قائمة التبويبات
+{ id: 'backups', label: '💾 النسخ الاحتياطية' }
+
+// محتوى التبويب
+// - زرار "إنشاء نسخة احتياطية الآن" (برتقالي)
+// - جدول بآخر 30 نسخة: اسم الملف، الحجم، التاريخ
+// - رسالة: "النسخ الاحتياطي التلقائي يعمل يومياً الساعة 3 صباحاً"
+// - مؤشر آخر backup ناجح
+// - تصميم داكن مطابق لبقية الـ dashboard
+```
+
+-----
+
+## FIX 4: Server Monitoring Script خارجي
+
+أنشئ هذا الملف على السيرفر مباشرة (مش في الكود):
+
+في السيرفر، أنشئ `/root/monitor.sh`:
+
+```bash
+#!/bin/bash
+# فحص كل 5 دقائق — يُشغَّل بـ crontab
+
+API_URL="http://localhost:8080/api/healthz"
+LOG_FILE="/root/monitor.log"
+TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+
+response=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$API_URL")
+
+if [ "$response" != "200" ]; then
+  echo "[$TIMESTAMP] ❌ API DOWN (HTTP $response) — Restarting..." >> "$LOG_FILE"
+  pm2 restart halaltech-api
+  sleep 10
+  
+  # تحقق مرة ثانية
+  response2=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$API_URL")
+  if [ "$response2" == "200" ]; then
+    echo "[$TIMESTAMP] ✅ API recovered after restart" >> "$LOG_FILE"
+  else
+    echo "[$TIMESTAMP] 🚨 API still down after restart!" >> "$LOG_FILE"
+  fi
+else
+  echo "[$TIMESTAMP] ✅ API healthy ($response)" >> "$LOG_FILE"
+fi
+
+# احتفظ بآخر 1000 سطر فقط
+tail -n 1000 "$LOG_FILE" > "$LOG_FILE.tmp" && mv "$LOG_FILE.tmp" "$LOG_FILE"
+```
+
+بعد ما Agent يخلص، شغّل على السيرفر:
+
+```bash
+chmod +x /root/monitor.sh
+# أضف للـ crontab — يشتغل كل 5 دقائق
+(crontab -l 2>/dev/null; echo "*/5 * * * * /root/monitor.sh") | crontab -
+# تحقق
+crontab -l
+```
+
+-----
+
+## FIX 5: تحديث deploy.sh ليشمل الـ monitoring script
+
+في `deploy/deploy.sh` الموجود، أضف في الآخر:
+
+```bash
+# تأكد إن الـ monitor script موجود ومُفعَّل
+if [ ! -f /root/monitor.sh ]; then
+  echo "⚠️  Monitor script غير موجود — يرجى إنشاؤه يدوياً"
+fi
+
+# تحقق من الـ backup directory
+mkdir -p /root/db-backups
+echo "📁 Backup directory: /root/db-backups"
+```
+
+-----
+
+## Testing Checklist:
+
+- [ ] `GET /api/healthz` يرجع JSON كامل: status, db, memory_mb, uptime_hours
+- [ ] `POST /api/super/backup/create` ينشئ ملف .sql.gz في `/root/db-backups/`
+- [ ] `GET /api/super/backup/list` يرجع قائمة النسخ الاحتياطية
+- [ ] Super Admin dashboard يعرض تبويب “النسخ الاحتياطية”
+- [ ] الـ monitor يعيد تشغيل الـ API تلقائياً لو وقع
+- [ ] crontab مضبوط على كل 5 دقائق
+- [ ] Backup scheduler يعمل يومياً الساعة 3 صباحاً
+
+## ترتيب التنفيذ:
+
+1. FIX 1 (db-backup.ts + scheduler)
+1. FIX 2 (monitor.ts + health endpoint)
+1. FIX 3 (Backup tab في Super Admin)
+1. FIX 4 + 5 (monitor script — يُطبَّق على السيرفر بعد الـ deploy)
