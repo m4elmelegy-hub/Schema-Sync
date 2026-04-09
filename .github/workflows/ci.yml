@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 10
+      - run: pnpm install
+      - run: pnpm --filter @workspace/api-server test
+        env:
+          JWT_SECRET: test-secret
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
