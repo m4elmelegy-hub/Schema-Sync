@@ -4,7 +4,7 @@
  * Super-admin users have no company_id (null) so subscription checks are bypassed.
  */
 import { Router } from "express";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { db, companiesTable, erpUsersTable } from "@workspace/db";
 import { authenticate, requireRole, superAdminIPGuard } from "../middleware/auth";
 import { wrap } from "../lib/async-handler";
@@ -238,13 +238,13 @@ router.post("/super/managers", ...superOnly, wrap(async (req, res) => {
   const [existing] = await db
     .select({ id: erpUsersTable.id })
     .from(erpUsersTable)
-    .where(eq(erpUsersTable.username, username.trim()));
+    .where(sql`LOWER(${erpUsersTable.username}) = ${username.trim().toLowerCase()}`);
   if (existing) { res.status(400).json({ error: "اسم المستخدم مستخدم بالفعل" }); return; }
 
   const hashedPin = await hashPin(pin);
   const [created] = await db.insert(erpUsersTable).values({
     name: name.trim(),
-    username: username.trim(),
+    username: username.trim().toLowerCase(),
     pin: hashedPin,
     role: "super_admin",
     active: true,
@@ -268,15 +268,15 @@ router.patch("/super/managers/:id", ...superOnly, wrap(async (req, res) => {
   if (username?.trim() && /\s/.test(username)) {
     res.status(400).json({ error: "اسم المستخدم لا يجب أن يحتوي على مسافات" }); return;
   }
-  if (username?.trim() && username.trim() !== manager.username) {
+  if (username?.trim() && username.trim().toLowerCase() !== manager.username.toLowerCase()) {
     const [dup] = await db.select({ id: erpUsersTable.id }).from(erpUsersTable)
-      .where(eq(erpUsersTable.username, username.trim()));
+      .where(sql`LOWER(${erpUsersTable.username}) = ${username.trim().toLowerCase()}`);
     if (dup) { res.status(400).json({ error: "اسم المستخدم مستخدم بالفعل" }); return; }
   }
 
   const updates: Partial<typeof erpUsersTable.$inferInsert> = {};
   if (name?.trim())       updates.name     = name.trim();
-  if (username?.trim())   updates.username = username.trim();
+  if (username?.trim())   updates.username = username.trim().toLowerCase();
   if (pin && pin.length >= 4) updates.pin  = await hashPin(pin);
 
   const [updated] = await db.update(erpUsersTable).set(updates)

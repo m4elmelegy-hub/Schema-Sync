@@ -4,7 +4,7 @@
  * Login lockout: max 5 failed attempts → 15-minute lockout per userId.
  */
 import { Router } from "express";
-import { eq, and, ne } from "drizzle-orm";
+import { eq, and, ne, sql } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 import { db, erpUsersTable, companiesTable } from "@workspace/db";
 import { authenticate, signToken, signRefreshToken, verifyRefreshToken } from "../middleware/auth";
@@ -138,7 +138,7 @@ router.post("/auth/login", async (req, res) => {
       const [found] = await db
         .select({ id: erpUsersTable.id })
         .from(erpUsersTable)
-        .where(eq(erpUsersTable.username, username!.trim().toLowerCase()));
+        .where(sql`LOWER(${erpUsersTable.username}) = ${username!.trim().toLowerCase()}`);
       if (!found) {
         res.status(401).json({ error: "الحساب غير موجود أو معطل" });
         return;
