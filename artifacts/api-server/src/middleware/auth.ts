@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import { db, erpUsersTable, companiesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { isTokenBlacklisted } from "../lib/session-blacklist";
+import { sanitizeObject } from "../lib/sanitize";
 
 if (!process.env.JWT_SECRET) {
   throw new Error("[FATAL] JWT_SECRET environment variable is not set. Server cannot start securely.");
@@ -147,6 +148,14 @@ export function requireRole(...roles: string[]) {
     }
     next();
   };
+}
+
+/* ── XSS body sanitizer ─────────────────────────────────── */
+export function sanitizeBody(req: Request, res: Response, next: NextFunction): void {
+  if (req.body && typeof req.body === "object") {
+    req.body = sanitizeObject(req.body as Record<string, unknown>);
+  }
+  next();
 }
 
 /* ── Convenience combos ─────────────────────────────────── */

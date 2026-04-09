@@ -1,0 +1,274 @@
+# [HALAL TECH ERP — FINAL HARDENING #6]
+# تأمين نهائي + Nginx تحسين + أمان قاعدة البيانات
+
+---
+
+## FIX 1: منع Brute Force على الـ 2FA
+
+في `artifacts/api-server/src/routes/auth.ts`:
+
+في route `POST /api/auth/2fa/login`:
+```typescript
+// أضف rate limiting خاص للـ 2FA attempts
+// في-memory counter (يُعاد تعيينه بعد 15 دقيقة)
+const twoFaAttempts = new Map<string, { count: number; resetAt: number }>();
+
+function check2FAAttempts(ip: string): boolean {
+  const now = Date.now();
+  const record = twoFaAttempts.get(ip);
+  
+  if (record && now < record.resetAt) {
+    if (record.count >= 5) return false; // blocked
+    record.count++;
+  } else {
+    twoFaAttempts.set(ip, { count: 1, resetAt: now + 15 * 60 * 1000 });
+  }
+  return true;
+}
+
+// في route handler:
+const clientIP = req.ip || req.socket.remoteAddress || '';
+if (!check2FAAttempts(clientIP)) {
+  return res.status(429).json({ 
+    error: 'محاولات كثيرة — انتظر 15 دقيقة',
+    retry_after: 900 
+  });
+}
+```
+
+---
+
+## FIX 2: تشفير الـ TOTP Secret في قاعدة البيانات
+
+في `artifacts/api-server/src/lib/totp.ts`:
+
+```typescript
+import crypto from 'crypto';
+
+const ENCRYPTION_KEY = process.env.TOTP_ENCRYPTION_KEY || 
+  crypto.createHash('sha256').update(process.env.JWT_SECRET || 'default').digest('hex').slice(0, 32);
+
+export function encryptSecret(secret: string): string {
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY), iv);
+  let encrypted = cipher.update(secret, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  return iv.toString('hex') + ':' + encrypted;
+}
+
+export function decryptSecret(encryptedSecret: string): string {
+  const [ivHex, encrypted] = encryptedSecret.split(':');
+  const iv = Buffer.from(ivHex, 'hex');
+  const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY), iv);
+  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
+```
+
+طبّق في كل الأماكن التي تحفظ أو تقرأ `totp_secret`:
+```typescript
+// عند الحفظ
+totp_secret: encryptSecret(secret)
+
+// عند القراءة للتحقق
+const rawSecret = decryptSecret(user[0].totp_secret!);
+const isValid = verifyTOTP(rawSecret, token);
+```
+
+---
+
+## FIX 3: Security Headers إضافية في Express
+
+في `artifacts/api-server/src/app.ts`:
+
+```typescript
+// أضف بعد Helmet
+app.use((req, res, next) => {
+  // منع تخزين الـ API responses في الـ cache
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  
+  // منع MIME type sniffing
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  
+  // منع Clickjacking
+  res.setHeader('X-Frame-Options', 'DENY');
+  
+  // إخفاء معلومات السيرفر
+  res.removeHeader('X-Powered-By');
+  
+  next();
+});
+```
+
+---
+
+## FIX 4: Input Sanitization ضد XSS
+
+```bash
+cd artifacts/api-server && pnpm add xss
+```
+
+أنشئ `artifacts/api-server/src/lib/sanitize.ts`:
+```typescript
+import xss from 'xss';
+
+export function sanitizeString(input: string): string {
+  if (typeof input !== 'string') return input;
+  return xss(input.trim());
+}
+
+export function sanitizeObject<T extends Record<string, any>>(obj: T): T {
+  const result = { ...obj };
+  for (const key in result) {
+    if (typeof result[key] === 'string') {
+      result[key] = sanitizeString(result[key]);
+    }
+  }
+  return result;
+}
+```
+
+في `artifacts/api-server/src/middleware/auth.ts`:
+```typescript
+import { sanitizeObject } from '../lib/sanitize';
+
+// middleware لتنظيف الـ body تلقائياً
+export function sanitizeBody(req: Request, res: Response, next: NextFunction) {
+  if (req.body && typeof req.body === 'object') {
+    req.body = sanitizeObject(req.body);
+  }
+  next();
+}
+```
+
+في `app.ts`:
+```typescript
+import { sanitizeBody } from './middleware/auth';
+// أضف بعد express.json()
+app.use(sanitizeBody);
+```
+
+---
+
+## FIX 5: Database Query Timeout
+
+في `lib/db/src/index.ts`:
+```typescript
+export const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+  statement_timeout: 30000,    // أقصى 30 ثانية لأي query
+  query_timeout: 30000,        // timeout للـ query نفسها
+});
+```
+
+---
+
+## FIX 6: Prevent Parameter Pollution
+
+```bash
+cd artifacts/api-server && pnpm add hpp
+pnpm add -D @types/hpp
+```
+
+في `app.ts`:
+```typescript
+import hpp from 'hpp';
+// أضف بعد الـ rate limiters
+app.use(hpp()); // يمنع HTTP Parameter Pollution
+```
+
+---
+
+## FIX 7: Request Size Limit
+
+في `app.ts`:
+```typescript
+// تحديد حجم الـ request body
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+```
+
+---
+
+## FIX 8: Secure Logging — إخفاء البيانات الحساسة
+
+في `artifacts/api-server/src/lib/logger.ts` أو في إعدادات pino:
+
+```typescript
+// إخفاء الحقول الحساسة من الـ logs
+const logger = pino({
+  redact: {
+    paths: [
+      'req.headers.authorization',
+      'req.body.pin',
+      'req.body.password',
+      'req.body.token',
+      'req.body.refreshToken',
+      'req.body.totp_secret',
+      '*.pin',
+      '*.password',
+      '*.totp_secret',
+    ],
+    censor: '[REDACTED]',
+  },
+});
+```
+
+---
+
+## FIX 9: تحديث README للمشروع
+
+أنشئ `SECURITY.md` في root المشروع:
+```markdown
+# Security Policy — Halal Tech ERP
+
+## Features
+- JWT Authentication (4h expiry + refresh tokens)
+- bcrypt PIN hashing
+- 2FA (TOTP) for Super Admin
+- Rate limiting (100/min general, 10/min auth, 5 attempts 2FA)
+- Multi-tenant data isolation
+- Session blacklist on logout
+- XSS protection
+- CSRF protection via SameSite cookies
+- SQL injection prevention (Drizzle ORM parameterized queries)
+- Input validation (Zod)
+- Security headers (Helmet + custom)
+- Audit logging for sensitive operations
+- Automated daily database backups
+- Health monitoring every 60s
+- IP restriction support for Super Admin
+
+## Reporting
+Email: [your security email]
+```
+
+---
+
+## Testing Checklist النهائي:
+- [ ] 5 محاولات 2FA خاطئة → block لـ 15 دقيقة
+- [ ] TOTP secret مشفر في الداتابيز (مش plain text)
+- [ ] XSS في اسم المستخدم يُنظَّف تلقائياً
+- [ ] `X-Content-Type-Options: nosniff` في كل response
+- [ ] `X-Frame-Options: DENY` في كل response
+- [ ] Request body أكبر من 10MB يرجع 413
+- [ ] الـ logs لا تعرض PIN أو token أو password
+- [ ] Parameter pollution في URL لا يكسر الـ API
+- [ ] Query timeout بعد 30 ثانية
+
+## ترتيب التنفيذ:
+1. FIX 7 (request size limit) — الأبسط
+2. FIX 3 (security headers)
+3. FIX 6 (hpp)
+4. FIX 4 (XSS sanitization)
+5. FIX 5 (DB query timeout)
+6. FIX 8 (secure logging)
+7. FIX 1 (2FA brute force protection)
+8. FIX 2 (TOTP secret encryption)
+9. FIX 9 (SECURITY.md)
+10. تشغيل Testing Checklist كاملاً

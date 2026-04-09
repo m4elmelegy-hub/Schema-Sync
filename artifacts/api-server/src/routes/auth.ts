@@ -9,11 +9,33 @@ import jwt from "jsonwebtoken";
 import { db, erpUsersTable, companiesTable } from "@workspace/db";
 import { authenticate, signToken, signRefreshToken, verifyRefreshToken } from "../middleware/auth";
 import { blacklistToken } from "../lib/session-blacklist";
-import { generateTOTPSecret, generateQRCode, verifyTOTP } from "../lib/totp";
+import { generateTOTPSecret, generateQRCode, verifyTOTP, encryptSecret, decryptSecret, isEncrypted } from "../lib/totp";
 import { verifyPin, hashPin } from "../lib/hash";
 import { loginSchema, validate } from "../lib/schemas";
 
 const JWT_SECRET: string = process.env.JWT_SECRET!;
+
+/* ── 2FA brute-force protection ─────────────────────────────────
+   Max 5 attempts per IP per 15-minute window.
+──────────────────────────────────────────────────────────────── */
+interface TwoFaAttemptRecord { count: number; resetAt: number }
+const twoFaAttempts = new Map<string, TwoFaAttemptRecord>();
+
+function check2FAAttempts(ip: string): boolean {
+  const now    = Date.now();
+  const record = twoFaAttempts.get(ip);
+  if (record && now < record.resetAt) {
+    if (record.count >= 5) return false; // blocked
+    record.count++;
+  } else {
+    twoFaAttempts.set(ip, { count: 1, resetAt: now + 15 * 60 * 1000 });
+  }
+  return true;
+}
+
+function reset2FAAttempts(ip: string): void {
+  twoFaAttempts.delete(ip);
+}
 
 function daysRemaining(endDate: string): number {
   const now = new Date(); now.setHours(0, 0, 0, 0);
@@ -317,7 +339,7 @@ router.get("/auth/2fa/setup", authenticate, async (req, res) => {
     }
     const { secret, otpauth_url } = generateTOTPSecret(user!.username);
     const qrCode = await generateQRCode(otpauth_url);
-    await db.update(erpUsersTable).set({ totp_secret: secret, totp_verified: false }).where(eq(erpUsersTable.id, req.user.id));
+    await db.update(erpUsersTable).set({ totp_secret: encryptSecret(secret), totp_verified: false }).where(eq(erpUsersTable.id, req.user.id));
     res.json({ qr_code: qrCode, secret, message: "امسح الـ QR Code بتطبيق Google Authenticator أو Authy" });
   } catch {
     res.status(500).json({ error: "فشل إعداد المصادقة الثنائية" });
@@ -334,7 +356,8 @@ router.post("/auth/2fa/verify", authenticate, async (req, res) => {
     if (!token) { res.status(400).json({ error: "رمز التحقق مطلوب" }); return; }
     const [user] = await db.select().from(erpUsersTable).where(eq(erpUsersTable.id, req.user.id)).limit(1);
     if (!user?.totp_secret) { res.status(400).json({ error: "يجب إعداد 2FA أولاً" }); return; }
-    if (!verifyTOTP(user.totp_secret, token)) {
+    const rawSecret = isEncrypted(user.totp_secret) ? decryptSecret(user.totp_secret) : user.totp_secret;
+    if (!verifyTOTP(rawSecret, token)) {
       res.status(400).json({ error: "رمز التحقق غير صحيح" }); return;
     }
     await db.update(erpUsersTable).set({ totp_enabled: true, totp_verified: true }).where(eq(erpUsersTable.id, req.user.id));
@@ -354,7 +377,8 @@ router.post("/auth/2fa/disable", authenticate, async (req, res) => {
     if (!token) { res.status(400).json({ error: "رمز التحقق مطلوب" }); return; }
     const [user] = await db.select().from(erpUsersTable).where(eq(erpUsersTable.id, req.user.id)).limit(1);
     if (!user?.totp_enabled) { res.status(400).json({ error: "المصادقة الثنائية غير مفعلة" }); return; }
-    if (!verifyTOTP(user.totp_secret!, token)) {
+    const rawSecret2 = isEncrypted(user.totp_secret!) ? decryptSecret(user.totp_secret!) : user.totp_secret!;
+    if (!verifyTOTP(rawSecret2, token)) {
       res.status(400).json({ error: "رمز التحقق غير صحيح" }); return;
     }
     await db.update(erpUsersTable).set({ totp_enabled: false, totp_secret: null, totp_verified: false }).where(eq(erpUsersTable.id, req.user.id));
@@ -377,6 +401,12 @@ router.get("/auth/2fa/status", authenticate, async (req, res) => {
 /* ── POST /auth/2fa/login — complete login after TOTP check ─── */
 router.post("/auth/2fa/login", async (req, res) => {
   try {
+    /* ── Brute-force guard: max 5 attempts / IP / 15 min ── */
+    const clientIP = req.ip || req.socket.remoteAddress || "unknown";
+    if (!check2FAAttempts(clientIP)) {
+      res.status(429).json({ error: "محاولات كثيرة — انتظر 15 دقيقة", retry_after: 900 }); return;
+    }
+
     const { temp_token, totp_code } = req.body as { temp_token?: string; totp_code?: string };
     if (!temp_token || !totp_code) {
       res.status(400).json({ error: "البيانات ناقصة" }); return;
@@ -390,9 +420,16 @@ router.post("/auth/2fa/login", async (req, res) => {
     if (!payload.requires_2fa) { res.status(400).json({ error: "طلب غير صالح" }); return; }
     const [user] = await db.select().from(erpUsersTable).where(eq(erpUsersTable.id, payload.userId)).limit(1);
     if (!user?.totp_secret) { res.status(401).json({ error: "خطأ في البيانات" }); return; }
-    if (!verifyTOTP(user.totp_secret, totp_code)) {
+
+    /* Decrypt before verifying */
+    const rawSecret = isEncrypted(user.totp_secret) ? decryptSecret(user.totp_secret) : user.totp_secret;
+    if (!verifyTOTP(rawSecret, totp_code)) {
       res.status(401).json({ error: "رمز التحقق غير صحيح أو منتهي" }); return;
     }
+
+    /* Success — clear attempts counter */
+    reset2FAAttempts(clientIP);
+
     const token        = signToken(user.id, user.role, user.company_id ?? null);
     const refreshToken = signRefreshToken(user.id);
     res.json({

@@ -2,12 +2,14 @@ import express, { type Express, type ErrorRequestHandler } from "express";
 import compression from "compression";
 import cors from "cors";
 import helmet from "helmet";
+import hpp from "hpp";
 import rateLimit from "express-rate-limit";
 import pinoHttp from "pino-http";
 import path from "path";
 import { fileURLToPath } from "url";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { sanitizeBody } from "./middleware/auth";
 
 const app: Express = express();
 
@@ -33,6 +35,14 @@ app.use(
     noSniff: true,
   }),
 );
+
+/* ── Additional security headers ────────────────────────────── */
+app.use((_req, res, next) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.removeHeader("X-Powered-By");
+  next();
+});
 
 /* ── CORS — allow same-origin / configured domain only ────── */
 const allowedOrigins = process.env.ALLOWED_ORIGINS
@@ -94,8 +104,15 @@ app.use(
   }),
 );
 
-app.use(express.json({ limit: "1mb" }));
-app.use(express.urlencoded({ extended: true, limit: "1mb" }));
+/* ── Body parsing with 10mb limit ──────────────────────────── */
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+/* ── XSS sanitization on all request bodies ────────────────── */
+app.use(sanitizeBody);
+
+/* ── HTTP Parameter Pollution prevention ───────────────────── */
+app.use(hpp());
 
 /* Apply general limiter to all API routes */
 app.use("/api", generalLimiter);
@@ -105,6 +122,7 @@ app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/register", authLimiter);
 app.use("/api/auth/login/email", authLimiter);
 app.use("/api/auth/refresh", authLimiter);
+app.use("/api/auth/2fa/login", authLimiter);
 
 app.use("/api", router);
 
