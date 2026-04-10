@@ -396,3 +396,33 @@ All financial documents (sales, purchases, deposit vouchers, payment vouchers, r
 - **Testing (Frontend)**: Vitest + React Testing Library — `pnpm --filter @workspace/erp-system test`
 - **Coverage (Backend)**: `pnpm --filter @workspace/api-server test:coverage` (scoped to core modules; thresholds: 50% stmts/lines, 55% funcs, 30% branches)
 - **Coverage (Frontend)**: `pnpm --filter @workspace/erp-system test:coverage` (thresholds: 60% lines/funcs)
+
+## Mobile App (erp-mobile)
+
+Standalone iOS & Android mobile companion app at `artifacts/erp-mobile/`. Built with Expo 54 + expo-router v6.
+
+### Architecture
+- **Auth**: `context/AuthContext.tsx` — JWT stored in AsyncStorage, `login()` calls `POST /api/auth/login`, `logout()` clears storage. `setApiBaseUrl()` sets the base URL from `EXPO_PUBLIC_DOMAIN`.
+- **API Client**: `lib/api.ts` — `apiFetch<T>(path, options)` injects Bearer token automatically. `formatCurrency()` / `formatDate()` helpers.
+- **Navigation**: expo-router file-based. Login (`/login`) is unguarded; all tabs (`/(tabs)`) require auth via `NavigationGuard` in `_layout.tsx`.
+- **Data Fetching**: `@tanstack/react-query` with `useQuery` — manual `apiFetch` calls (no generated hooks) for simplicity.
+- **Colors**: `constants/colors.ts` — light/dark palettes with navy primary `#0049A1` + gold accent `#E8A020`. Hook: `hooks/useColors.ts`.
+
+### Screens
+- **Login** (`app/login.tsx`): 2-step: username input → 6-digit PIN pad with haptic feedback.
+- **Dashboard** (`app/(tabs)/index.tsx`): Net profit banner + stats grid (sales, purchases, expenses, income, customers, products, low-stock, pending).
+- **Sales** (`app/(tabs)/sales.tsx`): Searchable list with status badges (مدفوع/جزئي/غير مدفوع) and payment type.
+- **Inventory** (`app/(tabs)/inventory.tsx`): Products with stock level filters (الكل/منخفض/نفذ), color-coded stock badges.
+- **Customers** (`app/(tabs)/customers.tsx`): Customer list with debt/credit balance display and filter chips.
+- **More** (`app/(tabs)/more.tsx`): User profile card, treasury summary (واردات/مصروفات/رصيد), system menu, logout.
+
+### Tab Navigation
+- iOS: `NativeTabs` with SF Symbols (via `isLiquidGlassAvailable()` check).
+- Android/Web: Classic `Tabs` with `@expo/vector-icons/Feather` icons + BlurView on iOS.
+
+### Design
+- Arabic RTL throughout (`textAlign: 'right'`, `flexDirection: 'row-reverse'`).
+- Professional navy blue theme matching the web ERP.
+- Fonts: Inter via `@expo-google-fonts/inter` (400/500/600/700 weights).
+- Safe area handling via `react-native-safe-area-context`.
+- Pull-to-refresh on all list screens.

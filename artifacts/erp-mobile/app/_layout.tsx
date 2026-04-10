@@ -5,25 +5,61 @@ import {
   Inter_700Bold,
   useFonts,
 } from "@expo-google-fonts/inter";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { router, Stack, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { AuthProvider, setApiBaseUrl, useAuth } from "@/context/AuthContext";
+import { setTokenGetter } from "@/lib/api";
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { retry: 1, staleTime: 30_000 },
+  },
+});
+
+const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
+  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
+  : "";
+
+setApiBaseUrl(API_BASE);
+
+function NavigationGuard({ children }: { children: React.ReactNode }) {
+  const { token, isLoading } = useAuth();
+  const segments = useSegments();
+
+  useEffect(() => {
+    if (isLoading) return;
+    const inAuth = segments[0] === "login";
+    if (!token && !inAuth) {
+      router.replace("/login");
+    } else if (token && inAuth) {
+      router.replace("/(tabs)");
+    }
+  }, [token, isLoading, segments]);
+
+  return <>{children}</>;
+}
 
 function RootLayoutNav() {
+  const { token } = useAuth();
+
+  useEffect(() => {
+    setTokenGetter(() => token);
+  }, [token]);
+
   return (
-    <Stack screenOptions={{ headerBackTitle: "Back" }}>
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="login" options={{ headerShown: false, animation: "fade" }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="+not-found" />
     </Stack>
   );
 }
@@ -48,11 +84,15 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
-          <GestureHandlerRootView>
-            <KeyboardProvider>
-              <RootLayoutNav />
-            </KeyboardProvider>
-          </GestureHandlerRootView>
+          <AuthProvider>
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <KeyboardProvider>
+                <NavigationGuard>
+                  <RootLayoutNav />
+                </NavigationGuard>
+              </KeyboardProvider>
+            </GestureHandlerRootView>
+          </AuthProvider>
         </QueryClientProvider>
       </ErrorBoundary>
     </SafeAreaProvider>
