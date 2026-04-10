@@ -248,6 +248,11 @@ router.post("/auth/login", async (req, res) => {
     const token        = signToken(user.id, user.role, user.company_id ?? null);
     const refreshToken = signRefreshToken(user.id);
 
+    /* Update last_login timestamp */
+    await db.update(erpUsersTable)
+      .set({ last_login: new Date() })
+      .where(eq(erpUsersTable.id, user.id));
+
     let parsedPerms: Record<string, boolean> = {};
     try { parsedPerms = JSON.parse(user.permissions ?? "{}") as Record<string, boolean>; } catch { /* ignore */ }
 
@@ -444,6 +449,11 @@ router.post("/auth/2fa/login", async (req, res) => {
 
     /* Success — clear attempts counter */
     reset2FAAttempts(clientIP);
+
+    /* Update last_login timestamp */
+    await db.update(erpUsersTable)
+      .set({ last_login: new Date() })
+      .where(eq(erpUsersTable.id, user.id));
 
     const token        = signToken(user.id, user.role, user.company_id ?? null);
     const refreshToken = signRefreshToken(user.id);
