@@ -22,11 +22,21 @@ router.use((req, res, next) => {
   next();
 });
 
+/* ── مساعد: تحقق من صيغة التاريخ ISO (YYYY-MM-DD) فقط — يمنع SQL Injection ── */
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+function safeDate(val?: string): string | undefined {
+  if (!val) return undefined;
+  const v = val.trim();
+  return ISO_DATE_RE.test(v) ? v : undefined;
+}
+
 /* ── مساعد: تطبيع التاريخ ──────────────────────────────────────────────── */
 function dateFilter(col: string, from?: string, to?: string): string {
+  const safeFrom = safeDate(from);
+  const safeTo   = safeDate(to);
   const parts: string[] = [];
-  if (from) parts.push(`${col} >= '${from}'`);
-  if (to)   parts.push(`${col} <= '${to}'`);
+  if (safeFrom) parts.push(`${col} >= '${safeFrom}'`);
+  if (safeTo)   parts.push(`${col} <= '${safeTo}'`);
   return parts.length ? `AND ${parts.join(" AND ")}` : "";
 }
 
@@ -174,7 +184,9 @@ router.get("/reports/daily-profit", wrap(async (req, res) => {
   const cfSr = cFilter("sr", companyId);
   const cfE  = cFilter("e", companyId);
   // expenses uses created_at (timestamp) — cast to date
-  const dfExp = date_from || date_to ? `AND ${[date_from ? `e.created_at::date >= '${date_from}'` : null, date_to ? `e.created_at::date <= '${date_to}'` : null].filter(Boolean).join(" AND ")}` : "";
+  const safeDfFrom = safeDate(date_from);
+  const safeDfTo   = safeDate(date_to);
+  const dfExp = safeDfFrom || safeDfTo ? `AND ${[safeDfFrom ? `e.created_at::date >= '${safeDfFrom}'` : null, safeDfTo ? `e.created_at::date <= '${safeDfTo}'` : null].filter(Boolean).join(" AND ")}` : "";
 
   const salesRows = await db.execute(sql.raw(`
     SELECT s.date AS day,
