@@ -267,6 +267,10 @@ export default function SuperAdmin() {
   const [page,         setPage]         = useState(1);
   const [deleteTarget, setDeleteTarget] = useState<Company | null>(null);
   const [deleteCoErr,  setDeleteCoErr]  = useState("");
+  /* Confirm-code delete flow */
+  const [deleteStep,     setDeleteStep]     = useState<"confirm" | "code">("confirm");
+  const [generatedCode,  setGeneratedCode]  = useState("");
+  const [enteredCode,    setEnteredCode]    = useState("");
 
   /* ── Managers state ─── */
   const [showAddMgr,   setShowAddMgr]   = useState(false);
@@ -450,16 +454,36 @@ export default function SuperAdmin() {
   });
 
   const coDelete = useMutation({
-    mutationFn: (id: number) =>
-      fetch(api(`/api/super/companies/${id}`), { method: "DELETE", headers: authHeaders(token ?? "") })
-        .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error); return d; }),
+    mutationFn: ({ id, force, confirm_code, expected_code }: {
+      id: number; force?: boolean; confirm_code?: string; expected_code?: string;
+    }) =>
+      fetch(api(`/api/super/companies/${id}`), {
+        method: "DELETE",
+        headers: authHeaders(token ?? ""),
+        body: JSON.stringify({ force, confirm_code, expected_code }),
+      }).then(async r => {
+        const d = await r.json();
+        if (!r.ok) throw Object.assign(new Error(d.error ?? "خطأ"), { data: d });
+        return d;
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/super/companies"] });
       qc.invalidateQueries({ queryKey: ["/api/super/stats"] });
       setDeleteTarget(null); setDeleteCoErr("");
+      setDeleteStep("confirm"); setGeneratedCode(""); setEnteredCode("");
       showToast("تم حذف الشركة بنجاح");
     },
-    onError: (e: Error) => setDeleteCoErr(e.message),
+    onError: (e: Error & { data?: { has_users?: boolean; user_count?: number } }) => {
+      if (e.data?.has_users) {
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        setGeneratedCode(code);
+        setEnteredCode("");
+        setDeleteCoErr("");
+        setDeleteStep("code");
+      } else {
+        setDeleteCoErr(e.message);
+      }
+    },
   });
 
   const mgCreate = useMutation({
@@ -579,15 +603,72 @@ export default function SuperAdmin() {
     <div dir="rtl" style={{ minHeight: "100vh", background: C.bg, fontFamily: FONT, color: C.text }}>
 
       {/* ── Modals ─── */}
-      {deleteTarget && (
+      {deleteTarget && deleteStep === "confirm" && (
         <ConfirmDeleteModal
           title="حذف الشركة"
           body={<>هل أنت متأكد من حذف شركة <strong style={{ color: C.text }}>"{deleteTarget.name}"</strong>؟<br />
             <span style={{ color: C.danger, fontSize: "13px" }}>سيتم حذف جميع البيانات المرتبطة بها نهائياً ولا يمكن التراجع عن هذا الإجراء.</span></>}
           loading={coDelete.isPending} error={deleteCoErr}
-          onConfirm={() => coDelete.mutate(deleteTarget.id)}
-          onCancel={() => { setDeleteTarget(null); setDeleteCoErr(""); }}
+          onConfirm={() => coDelete.mutate({ id: deleteTarget.id })}
+          onCancel={() => { setDeleteTarget(null); setDeleteCoErr(""); setDeleteStep("confirm"); setGeneratedCode(""); setEnteredCode(""); }}
         />
+      )}
+
+      {deleteTarget && deleteStep === "code" && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 1100,
+          background: "rgba(0,0,0,0.85)", backdropFilter: "blur(6px)",
+          display: "flex", alignItems: "center", justifyContent: "center", padding: "24px",
+        }}>
+          <div dir="rtl" style={{
+            background: C.card, borderRadius: "20px", border: `1px solid rgba(239,68,68,0.4)`,
+            padding: "32px", maxWidth: "440px", width: "100%",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.6)", fontFamily: FONT,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
+              <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "22px", flexShrink: 0 }}>⚠️</div>
+              <h3 style={{ fontSize: "18px", fontWeight: 900, color: C.danger, margin: 0 }}>تأكيد الحذف النهائي</h3>
+            </div>
+            <p style={{ fontSize: "13px", color: C.muted, lineHeight: 1.8, marginBottom: "8px" }}>
+              الشركة <strong style={{ color: C.text }}>"{deleteTarget.name}"</strong> تحتوي على مستخدمين مرتبطين. سيتم حذف الشركة وجميع مستخدميها نهائياً.
+            </p>
+            <div style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)", borderRadius: "12px", padding: "16px", marginBottom: "20px", textAlign: "center" }}>
+              <div style={{ fontSize: "12px", color: C.muted, marginBottom: "6px" }}>كود التأكيد — اكتبه في الحقل أدناه</div>
+              <div style={{ fontSize: "36px", fontWeight: 900, letterSpacing: "10px", color: C.danger, fontFamily: "monospace" }}>{generatedCode}</div>
+            </div>
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ fontSize: "13px", color: C.muted, display: "block", marginBottom: "6px" }}>أدخل الكود للتأكيد:</label>
+              <input
+                value={enteredCode}
+                onChange={e => setEnteredCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="_ _ _ _ _ _"
+                maxLength={6}
+                style={{
+                  width: "100%", padding: "14px", borderRadius: "10px", textAlign: "center",
+                  border: `2px solid ${enteredCode.length === 6 && enteredCode === generatedCode ? C.success : "rgba(239,68,68,0.4)"}`,
+                  background: "rgba(15,23,42,0.6)", color: C.text, fontSize: "24px",
+                  fontWeight: 900, letterSpacing: "8px", fontFamily: "monospace",
+                  outline: "none", boxSizing: "border-box",
+                }}
+              />
+            </div>
+            {deleteCoErr && (
+              <div style={{ padding: "10px 14px", borderRadius: "10px", marginBottom: "14px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", fontSize: "13px", color: C.danger }}>⚠️ {deleteCoErr}</div>
+            )}
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                disabled={enteredCode !== generatedCode || coDelete.isPending}
+                onClick={() => coDelete.mutate({ id: deleteTarget.id, force: true, confirm_code: enteredCode, expected_code: generatedCode })}
+                style={{ flex: 1, padding: "12px", borderRadius: "10px", border: "none", background: enteredCode === generatedCode ? C.danger : "#4a1a1a", color: "#fff", fontSize: "14px", fontWeight: 800, cursor: enteredCode === generatedCode ? "pointer" : "not-allowed", fontFamily: FONT, opacity: enteredCode === generatedCode ? 1 : 0.5 }}>
+                {coDelete.isPending ? "جاري الحذف..." : "احذف نهائياً"}
+              </button>
+              <button onClick={() => { setDeleteTarget(null); setDeleteCoErr(""); setDeleteStep("confirm"); setGeneratedCode(""); setEnteredCode(""); }}
+                style={{ flex: 1, padding: "12px", borderRadius: "10px", border: `1px solid ${C.border}`, background: "transparent", color: C.muted, fontSize: "14px", fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {deleteMgr && (
