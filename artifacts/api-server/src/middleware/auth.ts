@@ -39,6 +39,12 @@ export function signToken(userId: number, role: string, companyId: number | null
 }
 
 /* ── Sign a long-lived refresh token (7 d) ──────────────── */
+if (!process.env.JWT_REFRESH_SECRET) {
+  console.warn(
+    "[SECURITY WARNING] JWT_REFRESH_SECRET is not set. " +
+    "Falling back to derived secret — set a strong independent JWT_REFRESH_SECRET in production.",
+  );
+}
 const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET
   ? process.env.JWT_REFRESH_SECRET
   : JWT_SECRET + "_refresh";
@@ -175,11 +181,13 @@ export function superAdminIPGuard(req: Request, res: Response, next: NextFunctio
     return;
   }
 
-  const forwardedFor = req.headers["x-forwarded-for"];
-  const clientIP =
-    (Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor?.split(",")[0]?.trim()) ||
-    req.ip ||
-    req.socket.remoteAddress;
+  /*
+   * Use req.ip only — Express resolves it correctly via "trust proxy"
+   * setting in app.ts (trust proxy = 1), so it reads the real client IP
+   * from X-Forwarded-For safely without allowing header spoofing.
+   * Never read X-Forwarded-For manually here — it can be forged.
+   */
+  const clientIP = req.ip || req.socket.remoteAddress;
 
   if (!clientIP || !allowedIPs.includes(clientIP)) {
     res.status(403).json({ error: "الوصول مرفوض — عنوان IP غير مصرح به" });
