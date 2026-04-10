@@ -161,6 +161,12 @@ export default function MoreScreen() {
           <MenuItem icon="file-text" label="الفواتير" onPress={() => {}} last />
         </SectionCard>
 
+        {/* الإعدادات */}
+        <SectionCard title="الإعدادات">
+          <MenuItem icon="settings" label="إعدادات النظام" onPress={() => router.push("/settings")} />
+          <MenuItem icon="home" label="المخازن والخزائن" onPress={() => router.push("/settings")} last />
+        </SectionCard>
+
         {/* الحساب */}
         <SectionCard title="الحساب">
           <MenuItem icon="log-out" label="تسجيل الخروج" color="#EF4444" onPress={handleLogout} last />

@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
+import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -132,9 +133,24 @@ export default function InventoryScreen() {
           contentContainerStyle={[styles.list, { paddingBottom: isWeb ? 34 : insets.bottom + 100 }, !filtered.length && styles.emptyList]}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={AMBER} />}
-          ListEmptyComponent={<EmptyState icon="package" title="لا توجد منتجات" subtitle="لم يتم إضافة أي منتجات بعد" />}
+          ListEmptyComponent={
+            <EmptyState
+              icon="package" title="لا توجد منتجات"
+              subtitle="أضف أول منتج الآن"
+              actionLabel="إضافة منتج"
+              onAction={() => router.push("/new-product")}
+            />
+          }
         />
       )}
+
+      <TouchableOpacity
+        style={[styles.fab, { bottom: isWeb ? 34 : insets.bottom + 80 }]}
+        onPress={() => router.push("/new-product")}
+        activeOpacity={0.85}
+      >
+        <Feather name="plus" size={26} color="#0a0500" />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -156,6 +172,13 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 13, fontFamily: "Tajawal_500Medium" },
   list: { padding: 16, gap: 12 },
   emptyList: { flex: 1 },
+  fab: {
+    position: "absolute", right: 20,
+    width: 58, height: 58, borderRadius: 29,
+    backgroundColor: AMBER, justifyContent: "center", alignItems: "center",
+    shadowColor: AMBER, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4, shadowRadius: 12, elevation: 8,
+  },
   card: {
     borderRadius: 16, borderWidth: 1,
     flexDirection: "row-reverse", overflow: "hidden",

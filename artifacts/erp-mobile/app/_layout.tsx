@@ -57,6 +57,10 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="login" options={{ headerShown: false, animation: "fade" }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="new-sale" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
+      <Stack.Screen name="new-customer" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
+      <Stack.Screen name="new-product" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
+      <Stack.Screen name="settings" options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="+not-found" />
     </Stack>
   );

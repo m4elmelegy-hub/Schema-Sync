@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
+import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -9,6 +10,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -130,14 +132,27 @@ export default function SalesScreen() {
           data={filtered}
           keyExtractor={(i) => String(i.id)}
           renderItem={({ item }) => <SaleCard item={item} />}
-          contentContainerStyle={[styles.list, { paddingBottom: isWeb ? 34 : insets.bottom + 100 }, !filtered.length && styles.emptyList]}
+          contentContainerStyle={[styles.list, { paddingBottom: isWeb ? 34 : insets.bottom + 120 }, !filtered.length && styles.emptyList]}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={AMBER} />}
           ListEmptyComponent={
-            <EmptyState icon="shopping-cart" title="لا توجد مبيعات" subtitle={search ? "لا نتائج للبحث" : "لم يتم تسجيل أي مبيعات"} />
+            <EmptyState
+              icon="shopping-cart" title="لا توجد مبيعات"
+              subtitle={search ? "لا نتائج للبحث" : "أنشئ أول فاتورة بيع الآن"}
+              actionLabel="فاتورة جديدة"
+              onAction={() => router.push("/new-sale")}
+            />
           }
         />
       )}
+
+      <TouchableOpacity
+        style={[styles.fab, { bottom: isWeb ? 34 : insets.bottom + 80 }]}
+        onPress={() => router.push("/new-sale")}
+        activeOpacity={0.85}
+      >
+        <Feather name="plus" size={26} color="#0a0500" />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -156,6 +171,13 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Tajawal_400Regular" },
   list: { padding: 16, gap: 12 },
   emptyList: { flex: 1 },
+  fab: {
+    position: "absolute", right: 20,
+    width: 58, height: 58, borderRadius: 29,
+    backgroundColor: AMBER, justifyContent: "center", alignItems: "center",
+    shadowColor: AMBER, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4, shadowRadius: 12, elevation: 8,
+  },
   card: {
     borderRadius: 16, padding: 16, borderWidth: 1, overflow: "hidden",
   },
