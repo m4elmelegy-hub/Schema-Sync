@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/erp-mobile/"
+title = "ERP Mobile"
+version = "1.0.0"
+id = "artifacts/erp-mobile"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/erp-mobile/" ]
+localPort = 20384
+
+[services.development]
+run = "pnpm --filter @workspace/erp-mobile run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/erp-mobile", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/erp-mobile", "run", "serve" ]
+
+[services.env]
+PORT = "20384"
+BASE_PATH = "/erp-mobile/"
