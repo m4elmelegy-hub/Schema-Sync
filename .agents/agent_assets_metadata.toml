@@ -11,3 +11,9 @@ id = "bnms8Dplwe2pjvHOhFSyI"
 uri = "file://ui-export.tar.gz"
 type = "unspecified"
 title = "Halal Tech ERP — Frontend UI Export"
+
+[[outputs]]
+id = "Bfrho4AMW3PncMk6XnaM6"
+uri = "file://reports/security-audit-2026-04-10.md"
+type = "text"
+title = "تقرير مراجعة الأمان الشاملة — HalalTech ERP"
