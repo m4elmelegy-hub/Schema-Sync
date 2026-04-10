@@ -63,6 +63,13 @@ function RootLayoutNav() {
       <Stack.Screen name="new-product" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
       <Stack.Screen name="settings" options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="purchases" options={{ animation: "slide_from_right" }} />
+      <Stack.Screen name="sale-details" options={{ animation: "slide_from_right" }} />
+      <Stack.Screen name="product-details" options={{ animation: "slide_from_right" }} />
+      <Stack.Screen name="customer-details" options={{ animation: "slide_from_right" }} />
+      <Stack.Screen name="payment" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
+      <Stack.Screen name="expenses" options={{ animation: "slide_from_right" }} />
+      <Stack.Screen name="reports" options={{ animation: "slide_from_right" }} />
+      <Stack.Screen name="new-purchase" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
       <Stack.Screen name="+not-found" />
     </Stack>
   );

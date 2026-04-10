@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
+import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -214,11 +215,21 @@ export default function PurchasesScreen() {
             <EmptyState
               icon="shopping-bag"
               title="لا توجد مشتريات"
-              subtitle={search ? "لا نتائج للبحث" : "لم يتم تسجيل أي مشتريات"}
+              subtitle={search ? "لا نتائج للبحث" : "أضف أول فاتورة شراء الآن"}
+              actionLabel="فاتورة شراء جديدة"
+              onAction={() => router.push("/new-purchase")}
             />
           }
         />
       )}
+
+      <TouchableOpacity
+        style={[styles.fab, { bottom: isWeb ? 34 : insets.bottom + 20 }]}
+        onPress={() => router.push("/new-purchase")}
+        activeOpacity={0.85}
+      >
+        <Feather name="plus" size={26} color="#fff" />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -253,6 +264,13 @@ const styles = StyleSheet.create({
 
   list: { padding: 16, gap: 12 },
   emptyList: { flex: 1 },
+  fab: {
+    position: "absolute", right: 20,
+    width: 58, height: 58, borderRadius: 29,
+    backgroundColor: PURPLE, justifyContent: "center", alignItems: "center",
+    shadowColor: PURPLE, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4, shadowRadius: 12, elevation: 8,
+  },
 
   card: { borderRadius: 16, padding: 16, borderWidth: 1, overflow: "hidden" },
   cardTopLine: { position: "absolute", top: 0, left: 0, right: 0, height: 2 },
