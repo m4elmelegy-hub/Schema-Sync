@@ -312,7 +312,7 @@ export default function SuperAdmin() {
   /* ── Queries ─── */
   const { data: stats }              = useQuery<Stats>({ queryKey: ["/api/super/stats"], queryFn: () => fetcher("/api/super/stats"), staleTime: 30_000 });
   const { data: companies = [], isLoading: coLoading } = useQuery<Company[]>({ queryKey: ["/api/super/companies"], queryFn: () => fetcher("/api/super/companies"), staleTime: 30_000 });
-  const { data: managers  = [], isLoading: mgLoading } = useQuery<Manager[]>({ queryKey: ["/api/super/managers"], queryFn: () => fetcher("/api/super/managers"), staleTime: 30_000 });
+  const { data: managers  = [], isLoading: mgLoading, isError: mgError, refetch: mgRefetch } = useQuery<Manager[]>({ queryKey: ["/api/super/managers"], queryFn: () => fetcher("/api/super/managers"), staleTime: 30_000, refetchOnMount: "always" });
 
   /* ── Backup state + query ─── */
   const [creatingBackup, setCreatingBackup] = useState(false);
@@ -923,6 +923,13 @@ export default function SuperAdmin() {
 
             {mgLoading ? (
               <div style={{ padding: "60px", textAlign: "center", color: C.muted }}>جاري التحميل...</div>
+            ) : mgError ? (
+              <div style={{ padding: "60px", textAlign: "center" }}>
+                <div style={{ fontSize: "32px", marginBottom: "12px" }}>⚠️</div>
+                <div style={{ color: C.danger, fontWeight: 700, marginBottom: "8px" }}>تعذّر جلب بيانات المديرين</div>
+                <div style={{ color: C.muted, fontSize: "13px", marginBottom: "16px" }}>تحقق من الاتصال بالخادم أو أعد تسجيل الدخول</div>
+                <button onClick={() => void mgRefetch()} style={{ padding: "8px 20px", borderRadius: "10px", background: C.orange, color: "#fff", border: "none", fontSize: "13px", fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>إعادة المحاولة</button>
+              </div>
             ) : managers.length === 0 ? (
               <div style={{ padding: "60px", textAlign: "center", color: C.muted }}>لا يوجد مديرون عامون مسجّلون</div>
             ) : (
