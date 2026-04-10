@@ -1,0 +1,63 @@
+root@erp-halalktec:~/Schema-Sync/artifacts/api-server# PGPASSWORD=123456 psql -U erpuser -h 127.0.0.1 -d erp -c "UPDATE erp_users SET pin='000000', totp_enabled=false, totp_secret=null, totp_verified=false, active=true, login_attempts=0, company_id=null WHERE username='mn';"
+UPDATE 1
+root@erp-halalktec:~/Schema-Sync/artifacts/api-server# PGPASSWORD=123456 psql -U erpuser -h 127.0.0.1 -d erp -c "SELECT id, username, role, totp_enabled, login_attempts FROM erp_users WHERE username='mn';"
+ id | username |    role     | totp_enabled | login_attempts
+----+----------+-------------+--------------+----------------
+  6 | mn       | super_admin | f            |              0
+(1 row)
+
+root@erp-halalktec:~/Schema-Sync/artifacts/api-server# pm2 logs halaltech-api --lines 30 --nostream
+[TAILING] Tailing last 30 lines for [halaltech-api] process (change the value with --lines option)
+/root/.pm2/logs/halaltech-api-error.log last 30 lines:
+0|halaltec | Error: DATABASE_URL must be set. Did you forget to provision a database?
+0|halaltec |     at file:///root/Schema-Sync/lib/db/src/index.ts:8:9
+0|halaltec |     at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+0|halaltec |     at processTicksAndRejections (node:internal/process/task_queues:103:5)
+0|halaltec |     at onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:665:26)
+0|halaltec | Error: DATABASE_URL must be set. Did you forget to provision a database?
+0|halaltec |     at file:///root/Schema-Sync/lib/db/src/index.ts:8:9
+0|halaltec |     at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+0|halaltec |     at processTicksAndRejections (node:internal/process/task_queues:103:5)
+0|halaltec |     at onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:665:26)
+0|halaltec | (node:88550) [DEP0005] DeprecationWarning: Buffer() is deprecated due to security and usability issues. Please use the Buffer.alloc(), Buffer.allocUnsafe(), or Buffer.from() methods instead.
+0|halaltec | (Use `node --trace-deprecation ...` to show where the warning was created)
+0|halaltec | (node:96664) [DEP0005] DeprecationWarning: Buffer() is deprecated due to security and usability issues. Please use the Buffer.alloc(), Buffer.allocUnsafe(), or Buffer.from() methods instead.
+0|halaltec | (Use `node --trace-deprecation ...` to show where the warning was created)
+0|halaltec | (node:98040) [DEP0005] DeprecationWarning: Buffer() is deprecated due to security and usability issues. Please use the Buffer.alloc(), Buffer.allocUnsafe(), or Buffer.from() methods instead.
+0|halaltec | (Use `node --trace-deprecation ...` to show where the warning was created)
+0|halaltec | (node:126711) [DEP0005] DeprecationWarning: Buffer() is deprecated due to security and usability issues. Please use the Buffer.alloc(), Buffer.allocUnsafe(), or Buffer.from() methods instead.
+0|halaltec | (Use `node --trace-deprecation ...` to show where the warning was created)
+
+/root/.pm2/logs/halaltech-api-out.log last 30 lines:
+0|halaltec | {"level":30,"time":1775838788090,"pid":126711,"hostname":"erp-halalktec","req":{"id":1,"method":"GET","url":"/api/auth/users"},"res":{"statusCode":200},"responseTime":15,"msg":"request completed"}
+0|halaltec | {"level":30,"time":1775838795064,"pid":126711,"hostname":"erp-halalktec","req":{"id":2,"method":"POST","url":"/api/auth/login"},"res":{"statusCode":200},"responseTime":102,"msg":"request completed"}
+0|halaltec | {"level":30,"time":1775838808852,"pid":126711,"hostname":"erp-halalktec","req":{"id":3,"method":"POST","url":"/api/auth/2fa/login"},"res":{"statusCode":200},"responseTime":16,"msg":"request completed"}
+0|halaltec | {"level":30,"time":1775838809375,"pid":126711,"hostname":"erp-halalktec","req":{"id":4,"method":"GET","url":"/api/super/stats"},"res":{"statusCode":403},"responseTime":8,"msg":"request completed"}
+0|halaltec | {"level":30,"time":1775838809385,"pid":126711,"hostname":"erp-halalktec","req":{"id":6,"method":"GET","url":"/api/super/managers"},"res":{"statusCode":403},"responseTime":9,"msg":"request completed"}
+0|halaltec | {"level":30,"time":1775838809402,"pid":126711,"hostname":"erp-halalktec","req":{"id":5,"method":"GET","url":"/api/super/companies"},"res":{"statusCode":403},"responseTime":30,"msg":"request completed"}
+0|halaltec | {"level":30,"time":1775838809403,"pid":126711,"hostname":"erp-halalktec","req":{"id":7,"method":"GET","url":"/api/settings/system"},"res":{"statusCode":403},"responseTime":21,"msg":"request completed"}
+0|halaltec | {"level":30,"time":1775838813263,"pid":126711,"hostname":"erp-halalktec","req":{"id":8,"method":"GET","url":"/api/super/backup/list"},"res":{"statusCode":403},"responseTime":5,"msg":"request completed"}
+0|halaltec | {"level":30,"time":1775838813886,"pid":126711,"hostname":"erp-halalktec","req":{"id":9,"method":"GET","url":"/api/auth/2fa/status"},"res":{"statusCode":403},"responseTime":5,"msg":"request completed"}
+0|halaltec | {"level":30,"time":1775838819554,"pid":126711,"hostname":"erp-halalktec","req":{"id":10,"method":"GET","url":"/api/super/managers"},"res":{"statusCode":403},"responseTime":5,"msg":"request completed"}
+0|halaltec | {"level":30,"time":1775838820225,"pid":126711,"hostname":"erp-halalktec","req":{"id":11,"method":"GET","url":"/api/super/managers"},"res":{"statusCode":403},"responseTime":4,"msg":"request completed"}
+0|halaltec | {"level":30,"time":1775838820786,"pid":126711,"hostname":"erp-halalktec","req":{"id":12,"method":"GET","url":"/api/super/managers"},"res":{"statusCode":403},"responseTime":5,"msg":"request completed"}
+0|halaltec | {"level":30,"time":1775838821384,"pid":126711,"hostname":"erp-halalktec","req":{"id":13,"method":"GET","url":"/api/super/managers"},"res":{"statusCode":403},"responseTime":5,"msg":"request completed"}
+0|halaltec | {"level":30,"time":1775838830697,"pid":126711,"hostname":"erp-halalktec","req":{"id":14,"method":"GET","url":"/api/super/backup/list"},"res":{"statusCode":403},"responseTime":4,"msg":"request completed"}
+0|halaltec | {"level":30,"time":1775838831892,"pid":126711,"hostname":"erp-halalktec","req":{"id":15,"method":"GET","url":"/api/auth/2fa/status"},"res":{"statusCode":403},"responseTime":5,"msg":"request completed"}
+0|halaltec | {"level":30,"time":1775838885010,"pid":126711,"hostname":"erp-halalktec","req":{"id":16,"method":"GET","url":"/api/auth/users"},"res":{"statusCode":200},"responseTime":14,"msg":"request completed"}
+0|halaltec | {"level":30,"time":1775838898745,"pid":126711,"hostname":"erp-halalktec","req":{"id":17,"method":"POST","url":"/api/auth/login"},"res":{"statusCode":401},"responseTime":5,"msg":"request completed"}
+0|halaltec | {"level":30,"time":1775838901669,"pid":126711,"hostname":"erp-halalktec","req":{"id":18,"method":"GET","url":"/api/healthz"},"res":{"statusCode":200},"responseTime":3,"msg":"request completed"}
+0|halaltec | {"level":30,"time":1775839201710,"pid":126711,"hostname":"erp-halalktec","req":{"id":19,"method":"GET","url":"/api/healthz"},"res":{"statusCode":200},"responseTime":3,"msg":"request completed"}
+0|halaltec | {"level":30,"time":1775839299840,"pid":126711,"hostname":"erp-halalktec","req":{"id":20,"method":"GET","url":"/login"},"res":{"statusCode":200},"responseTime":6,"msg":"request completed"}
+0|halaltec | {"level":30,"time":1775839501736,"pid":126711,"hostname":"erp-halalktec","req":{"id":21,"method":"GET","url":"/api/healthz"},"res":{"statusCode":200},"responseTime":2,"msg":"request completed"}
+0|halaltec | {"level":30,"time":1775839584777,"pid":126711,"hostname":"erp-halalktec","signal":"SIGINT","msg":"Shutdown signal received — closing server"}
+0|halaltec | {"level":30,"time":1775839584778,"pid":126711,"hostname":"erp-halalktec","msg":"Database pool closed"}
+0|halaltec | {"level":30,"time":1775839584778,"pid":126711,"hostname":"erp-halalktec","msg":"Server closed cleanly"}
+0|halaltec | {"level":30,"time":1775839585533,"pid":127017,"hostname":"erp-halalktec","frontendDist":"/root/Schema-Sync/artifacts/erp-system/dist/public","msg":"Serving frontend static files"}
+0|halaltec | {"level":30,"time":1775839585560,"pid":127017,"hostname":"erp-halalktec","msg":"Backend started on port 8080"}
+0|halaltec | {"level":30,"time":1775839585560,"pid":127017,"hostname":"erp-halalktec","msg":"Backup scheduler started"}
+0|halaltec | {"level":30,"time":1775839585560,"pid":127017,"hostname":"erp-halalktec","nextBackup":"2026-04-11T03:00:00.000Z","msg":"Next database backup scheduled"}
+0|halaltec | {"level":30,"time":1775839585560,"pid":127017,"hostname":"erp-halalktec","msg":"Database backup scheduler started"}
+0|halaltec | {"level":30,"time":1775839585560,"pid":127017,"hostname":"erp-halalktec","msg":"Health monitoring started (every 60s)"}
+
+root@erp-halalktec:~/Schema-Sync/artifacts/api-server#
