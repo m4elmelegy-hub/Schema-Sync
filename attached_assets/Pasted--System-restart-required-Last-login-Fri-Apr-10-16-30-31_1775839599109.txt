@@ -1,0 +1,61 @@
+*** System restart required ***
+Last login: Fri Apr 10 16:30:31 2026 from 197.60.235.65
+root@erp-halalktec:~# psql -U erpuser -d erp -c "SELECT id, username, name, role, active FROM erp_users ORDER BY role;"
+psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: FATAL:  Peer authentication failed for user "erpuser"
+root@erp-halalktec:~# PGPASSWORD=123456 psql -U erpuser -h 127.0.0.1 -d erp -c "SELECT id, username, name, role, active FROM erp_users ORDER BY role;"
+ id | username  |       name       |    role     | active
+----+-----------+------------------+-------------+--------
+  9 | a3wad54_5 | Ahmed awad       | admin       | t
+  8 | mobihub   | Ahmed            | admin       | t
+  2 | admin     | محمد             | admin       | t
+  6 | mn        | MOHAMED ELMELEGY | super_admin | t
+(4 rows)
+
+root@erp-halalktec:~# cd /root/Schema-Sync/artifacts/api-server && DATABASE_URL="postgresql://erpuser:123456@127.0.0.1:5432/erp" node -e "
+const bcrypt = require('bcryptjs');
+bcrypt.hash('000000', 10).then(hash => {
+  const {Pool} = require('pg');
+  const p = new Pool({connectionString: 'postgresql://erpuser:123456@127.0.0.1:5432/erp'});
+  p.query(
+    \`INSERT INTO erp_users (name, username, pin, role, active, company_id, login_attempts)
+     VALUES ('المدير العام', 'melmelegy', '\${hash}', 'super_admin', true, null, 0)
+     ON CONFLICT (username) DO UPDATE SET role='super_admin', pin='\${hash}', totp_enabled=false, totp_secret=null, totp_verified=false, active=true, login_attempts=0, company_id=null\`,
+    (err, r) => {
+      if(err) console.log('خطأ:', err.message);
+      else console.log('تم بنجاح، صفوف:', r.rowCount);
+      p.end();
+    }
+  );
+});
+"
+node:internal/modules/cjs/loader:1383
+  const err = new Error(message);
+              ^
+
+Error: Cannot find module 'pg'
+Require stack:
+- /root/Schema-Sync/artifacts/api-server/[eval]
+    at Function._resolveFilename (node:internal/modules/cjs/loader:1383:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1025:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1030:22)
+    at Function._load (node:internal/modules/cjs/loader:1192:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)
+    at Module.require (node:internal/modules/cjs/loader:1463:12)
+    at require (node:internal/modules/helpers:147:16)
+    at [eval]:4:18 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [ '/root/Schema-Sync/artifacts/api-server/[eval]' ]
+}
+
+Node.js v22.22.2
+root@erp-halalktec:~/Schema-Sync/artifacts/api-server# pm2 restart halaltech-api
+Use --update-env to update environment variables
+[PM2] Applying action restartProcessId on app [halaltech-api](ids: [ 0 ])
+[PM2] [halaltech-api](0) ✓
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 0  │ halaltech-api      │ fork     │ 38   │ online    │ 0%       │ 18.0mb   │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+root@erp-halalktec:~/Schema-Sync/artifacts/api-server#
