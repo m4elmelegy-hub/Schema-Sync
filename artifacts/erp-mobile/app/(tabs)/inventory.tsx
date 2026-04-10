@@ -39,7 +39,11 @@ function ProductCard({ item }: { item: Product }) {
   const stockLabel = isOut ? "نفذ" : isLow ? "منخفض" : "متاح";
 
   return (
-    <View style={[styles.card, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
+    <TouchableOpacity
+      style={[styles.card, { backgroundColor: c.card, borderColor: c.cardBorder }]}
+      onPress={() => router.push({ pathname: "/product-details", params: { id: String(item.id) } })}
+      activeOpacity={0.8}
+    >
       <View style={[styles.cardLeft, { backgroundColor: stockColor + "18" }]}>
         <Text style={[styles.qtyNum, { color: stockColor }]}>{item.quantity}</Text>
         <Text style={[styles.qtyUnit, { color: stockColor }]}>وحدة</Text>
@@ -58,7 +62,7 @@ function ProductCard({ item }: { item: Product }) {
           <Text style={[styles.priceLabel, { color: c.mutedForeground }]}>سعر البيع</Text>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 

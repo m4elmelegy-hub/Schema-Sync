@@ -4,6 +4,7 @@ import { Image } from "expo-image";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -12,12 +13,12 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/context/AuthContext";
 
+const MIN_PIN = 4;
 const PIN_LENGTH = 6;
 const AMBER = "#F59E0B";
 
@@ -96,7 +97,7 @@ export default function LoginScreen() {
   };
 
   const handleLogin = async () => {
-    if (pin.length < 4) { setError("الرقم السري قصير جداً"); return; }
+    if (pin.length < MIN_PIN) { setError(`الرقم السري يجب أن يكون ${MIN_PIN} أرقام على الأقل`); return; }
     setLoading(true);
     setError("");
     try {
@@ -113,12 +114,13 @@ export default function LoginScreen() {
   };
 
   React.useEffect(() => {
-    if (pin.length === PIN_LENGTH && step === "pin") handleLogin();
+    if (pin.length === PIN_LENGTH && step === "pin" && !loading) {
+      handleLogin();
+    }
   }, [pin]);
 
   return (
     <View style={[styles.container, { backgroundColor: bg }]}>
-      {/* خلفية ضوئية */}
       <View style={[styles.glow, { opacity: c.isDark ? 1 : 0.5 }]} pointerEvents="none" />
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
@@ -130,7 +132,6 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* ── الشعار ── */}
           <View style={styles.headerSection}>
             <View style={[styles.logoWrap, {
               backgroundColor: AMBER + "15",
@@ -149,7 +150,6 @@ export default function LoginScreen() {
             <Text style={[styles.slogan, { color: AMBER }]}>الحلال = البركة</Text>
           </View>
 
-          {/* ── البطاقة ── */}
           <View style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder,
             shadowColor: c.isDark ? "#000" : "rgba(0,0,0,0.08)" }]}>
             <View style={styles.cardAccentLine} />
@@ -209,14 +209,27 @@ export default function LoginScreen() {
                 {loading ? (
                   <ActivityIndicator color={AMBER} size="large" style={{ marginTop: 32 }} />
                 ) : (
-                  <View style={styles.pad}>
-                    {["1","2","3","4","5","6","7","8","9"].map((n) => (
-                      <PinButton key={n} label={n} onPress={() => handleNumPress(n)} />
-                    ))}
-                    <View style={{ width: 80, height: 80 }} />
-                    <PinButton label="0" onPress={() => handleNumPress("0")} />
-                    <PinButton onPress={handleDelete} icon={<Feather name="delete" size={22} color={c.text} />} />
-                  </View>
+                  <>
+                    <View style={styles.pad}>
+                      {["1","2","3","4","5","6","7","8","9"].map((n) => (
+                        <PinButton key={n} label={n} onPress={() => handleNumPress(n)} />
+                      ))}
+                      <View style={{ width: 80, height: 80 }} />
+                      <PinButton label="0" onPress={() => handleNumPress("0")} />
+                      <PinButton onPress={handleDelete} icon={<Feather name="delete" size={22} color={c.text} />} />
+                    </View>
+
+                    {/* زر دخول يظهر دائماً بعد 4 أرقام */}
+                    {pin.length >= MIN_PIN && (
+                      <TouchableOpacity
+                        style={[styles.loginBtn, { marginTop: 16 }]}
+                        onPress={handleLogin}
+                      >
+                        <Feather name="log-in" size={18} color="#0a0500" />
+                        <Text style={styles.loginBtnText}>دخول</Text>
+                      </TouchableOpacity>
+                    )}
+                  </>
                 )}
               </>
             )}
@@ -290,6 +303,12 @@ const styles = StyleSheet.create({
     justifyContent: "center", alignItems: "center", borderWidth: 1,
   },
   pinBtnText: { fontSize: 26, fontFamily: "Tajawal_400Regular" },
+
+  loginBtn: {
+    backgroundColor: AMBER, borderRadius: 12, paddingVertical: 14,
+    flexDirection: "row-reverse", alignItems: "center", justifyContent: "center", gap: 8,
+  },
+  loginBtnText: { color: "#0a0500", fontSize: 16, fontFamily: "Tajawal_800ExtraBold" },
 
   footer: { marginTop: 28, fontSize: 12, fontFamily: "Tajawal_400Regular", textAlign: "center" },
 });

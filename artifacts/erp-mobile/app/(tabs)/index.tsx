@@ -121,6 +121,24 @@ export default function DashboardScreen() {
             </View>
 
             {/* إجراءات سريعة */}
+            {/* FEATURE 8: تنبيه المخزون المنخفض */}
+            {data.lowStockCount > 0 && (
+              <TouchableOpacity
+                style={[styles.lowStockBanner, { backgroundColor: "#EF4444" + "12", borderColor: "#EF4444" + "40" }]}
+                onPress={() => router.push("/(tabs)/inventory")}
+                activeOpacity={0.8}
+              >
+                <Feather name="chevron-left" size={18} color="#EF4444" />
+                <View style={styles.lowStockInfo}>
+                  <Text style={styles.lowStockTitle}>تحذير: مخزون منخفض</Text>
+                  <Text style={styles.lowStockSub}>{data.lowStockCount} منتج يحتاج إعادة تخزين</Text>
+                </View>
+                <View style={[styles.lowStockIcon, { backgroundColor: "#EF4444" + "20" }]}>
+                  <Feather name="alert-triangle" size={22} color="#EF4444" />
+                </View>
+              </TouchableOpacity>
+            )}
+
             <View style={[styles.quickCard, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
               <View style={styles.quickCardHeader}>
                 <View style={[styles.quickDot, { backgroundColor: AMBER }]} />
@@ -185,4 +203,12 @@ const styles = StyleSheet.create({
   actionItem: { alignItems: "center", gap: 8 },
   actionIcon: { width: 56, height: 56, borderRadius: 16, justifyContent: "center", alignItems: "center" },
   actionLabel: { fontSize: 12, fontFamily: "Tajawal_400Regular" },
+  lowStockBanner: {
+    borderRadius: 14, borderWidth: 1,
+    flexDirection: "row-reverse", alignItems: "center", gap: 12, padding: 14,
+  },
+  lowStockIcon: { width: 44, height: 44, borderRadius: 12, justifyContent: "center", alignItems: "center" },
+  lowStockInfo: { flex: 1, alignItems: "flex-end" },
+  lowStockTitle: { fontSize: 14, fontFamily: "Tajawal_700Bold", color: "#EF4444", textAlign: "right" },
+  lowStockSub: { fontSize: 12, fontFamily: "Tajawal_400Regular", color: "#EF4444", textAlign: "right", marginTop: 2, opacity: 0.8 },
 });

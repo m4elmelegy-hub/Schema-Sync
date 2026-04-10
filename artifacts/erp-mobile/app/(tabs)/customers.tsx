@@ -37,7 +37,11 @@ function CustomerCard({ item }: { item: Customer }) {
   const initial = item.name.charAt(0);
 
   return (
-    <View style={[styles.card, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
+    <TouchableOpacity
+      style={[styles.card, { backgroundColor: c.card, borderColor: c.cardBorder }]}
+      onPress={() => router.push({ pathname: "/customer-details", params: { id: String(item.id) } })}
+      activeOpacity={0.8}
+    >
       <View style={styles.row}>
         {/* رصيد */}
         <View style={[styles.balanceBox, { backgroundColor: balColor + "18", borderColor: balColor + "30" }]}>
@@ -60,12 +64,32 @@ function CustomerCard({ item }: { item: Customer }) {
           ) : null}
         </View>
 
-        {/* الأفاتار */}
-        <View style={[styles.avatar, { backgroundColor: AMBER + "18", borderColor: AMBER + "30" }]}>
-          <Text style={[styles.avatarText, { color: AMBER }]}>{initial}</Text>
+        {/* أزرار الدفعة + الأفاتار */}
+        <View style={styles.rightCol}>
+          <View style={[styles.avatar, { backgroundColor: AMBER + "18", borderColor: AMBER + "30" }]}>
+            <Text style={[styles.avatarText, { color: AMBER }]}>{initial}</Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.payBtn, { backgroundColor: isDebt ? "#10B981" : "#EF4444" }]}
+            onPress={(e) => {
+              e.stopPropagation();
+              router.push({
+                pathname: "/payment",
+                params: {
+                  customerId: String(item.id),
+                  customerName: item.name,
+                  currentBalance: String(item.balance),
+                  type: isDebt ? "receive" : "pay",
+                },
+              });
+            }}
+          >
+            <Feather name={isDebt ? "arrow-down-left" : "arrow-up-right"} size={12} color="#fff" />
+            <Text style={styles.payBtnText}>{isDebt ? "استلام" : "دفع"}</Text>
+          </TouchableOpacity>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -184,11 +208,17 @@ const styles = StyleSheet.create({
   },
   card: { borderRadius: 16, borderWidth: 1, padding: 14 },
   row: { flexDirection: "row-reverse", alignItems: "center", gap: 12 },
+  rightCol: { alignItems: "center", gap: 6 },
   avatar: {
     width: 46, height: 46, borderRadius: 23,
     justifyContent: "center", alignItems: "center", borderWidth: 1,
   },
   avatarText: { fontSize: 18, fontFamily: "Tajawal_700Bold" },
+  payBtn: {
+    flexDirection: "row", alignItems: "center", gap: 3,
+    borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5,
+  },
+  payBtnText: { color: "#fff", fontSize: 10, fontFamily: "Tajawal_700Bold" },
   info: { flex: 1, alignItems: "flex-end" },
   name: { fontSize: 15, fontFamily: "Tajawal_700Bold", textAlign: "right" },
   phoneRow: { flexDirection: "row-reverse", alignItems: "center", gap: 4, marginTop: 3 },

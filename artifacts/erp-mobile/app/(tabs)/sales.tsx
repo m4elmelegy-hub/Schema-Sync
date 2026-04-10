@@ -48,7 +48,11 @@ function SaleCard({ item }: { item: Sale }) {
   const st = STATUS[item.status] || { label: item.status, color: c.mutedForeground };
 
   return (
-    <View style={[styles.card, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
+    <TouchableOpacity
+      style={[styles.card, { backgroundColor: c.card, borderColor: c.cardBorder }]}
+      onPress={() => router.push({ pathname: "/sale-details", params: { id: String(item.id) } })}
+      activeOpacity={0.8}
+    >
       <View style={[styles.cardTopLine, { backgroundColor: st.color }]} />
       <View style={styles.cardHeader}>
         <View style={[styles.badge, { backgroundColor: st.color + "18" }]}>
@@ -82,7 +86,7 @@ function SaleCard({ item }: { item: Sale }) {
           </View>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 

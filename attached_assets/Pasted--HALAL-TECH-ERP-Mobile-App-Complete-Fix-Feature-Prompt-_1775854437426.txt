@@ -1,0 +1,289 @@
+# [HALAL TECH ERP — Mobile App: Complete Fix & Feature Prompt]
+
+## الهدف
+إصلاح جميع الأخطاء الحالية وإضافة الميزات المفقودة في تطبيق Expo الموبايل بحيث يصبح مكافئاً كاملاً للنسخة الويب.
+
+---
+
+## FIX 1: إصلاح API Base URL
+
+في `artifacts/erp-mobile/lib/api.ts`:
+```typescript
+// استبدل الكود الحالي بهذا:
+const API_BASE = "https://halaltec.com";
+
+export async function apiFetch(path: string, options?: RequestInit) {
+  const token = tokenGetter?.();
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options?.headers,
+    },
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+```
+
+---
+
+## FIX 2: إصلاح تسجيل الدخول (دعم PIN أقل من 6 أرقام)
+
+في `artifacts/erp-mobile/app/login.tsx`:
+- أضف زر "دخول" يظهر دائماً (ليس فقط عند 6 أرقام)
+- PIN التحقق يكون >= 4 أرقام وليس == 6 بالضبط
+- استخدم `username` مباشرة في الـ POST بدلاً من `userId` فقط:
+```typescript
+body: JSON.stringify({ username: username.trim(), pin })
+```
+
+---
+
+## FIX 3: إصلاح الإعدادات — حذف التكرار
+
+في `artifacts/erp-mobile/app/(tabs)/more.tsx` و `artifacts/erp-mobile/app/settings.tsx`:
+- احذف قسم "المخازن والخزائن" من `more.tsx` — يكفي وجوده في `settings.tsx`
+- في `more.tsx` ابق فقط على: بروفايل المستخدم، ملخص الخزينة، روابط العمليات، مبدّل الثيم، تسجيل الخروج
+
+---
+
+## FIX 4: إصلاح Role Dropdown في إضافة مستخدم
+
+في `artifacts/erp-mobile/app/settings.tsx`:
+- استبدل حقل role النص الحر بـ Picker/Dropdown:
+```typescript
+const ROLES = [
+  { label: "مدير", value: "admin" },
+  { label: "محاسب", value: "accountant" },
+  { label: "كاشير", value: "cashier" },
+  { label: "مندوب مبيعات", value: "salesperson" },
+];
+```
+
+---
+
+## FIX 5: إصلاح حذف مستخدم
+
+في `artifacts/erp-mobile/app/settings.tsx`:
+- أضف زر حذف لكل مستخدم مع تأكيد
+- استخدم endpoint: `DELETE /api/settings/users/:id`
+
+---
+
+## FIX 6: إصلاح حساب المعاملات في more.tsx
+
+في `artifacts/erp-mobile/app/(tabs)/more.tsx`:
+```typescript
+// استبدل المنطق الحالي بهذا:
+const totalIn = transactions
+  .filter((t: Transaction) => t.type === "in" || t.direction === "in")
+  .reduce((sum: number, t: Transaction) => sum + Number(t.amount), 0);
+
+const totalOut = transactions
+  .filter((t: Transaction) => t.type === "out" || t.direction === "out")
+  .reduce((sum: number, t: Transaction) => sum + Number(t.amount), 0);
+```
+
+---
+
+## FEATURE 1: شاشة تفاصيل الفاتورة
+
+أنشئ `artifacts/erp-mobile/app/sale-details.tsx`:
+- عرض بيانات الفاتورة الكاملة: رقم الفاتورة، التاريخ، العميل، الحالة
+- جدول المنتجات: الاسم، الكمية، السعر، الإجمالي
+- ملخص: المجموع، الخصم، الضريبة، الصافي
+- زر "استلام دفعة" لو الفاتورة غير مكتملة الدفع
+- Navigation: من sales.tsx → sale-details.tsx عند الضغط على فاتورة
+
+```typescript
+// في stack navigator _layout.tsx أضف:
+<Stack.Screen
+  name="sale-details"
+  options={{ presentation: "card", animation: "slide_from_right" }}
+/>
+```
+
+---
+
+## FEATURE 2: شاشة إضافة فاتورة شراء جديدة
+
+أنشئ `artifacts/erp-mobile/app/new-purchase.tsx`:
+نفس نمط `new-sale.tsx` بالضبط لكن للمشتريات:
+
+**الخطوة 1 — اختيار المورد:**
+- قائمة موردين من `/api/customers?type=supplier`
+- بحث
+- زر "مورد جديد"
+
+**الخطوة 2 — إضافة المنتجات:**
+- بحث في المنتجات
+- إضافة للسلة مع الكمية وسعر الشراء
+- إجمالي تلقائي
+
+**الخطوة 3 — الدفع:**
+- اختيار المخزن والخزينة
+- طريقة الدفع: نقدي/آجل/جزئي
+- ملاحظات
+- زر "حفظ الفاتورة" → POST /api/purchases
+
+```typescript
+// في stack navigator أضف:
+<Stack.Screen
+  name="new-purchase"
+  options={{ presentation: "modal", animation: "slide_from_bottom" }}
+/>
+```
+
+---
+
+## FEATURE 3: تسوية الديون — استلام/تسديد دفعة
+
+أنشئ `artifacts/erp-mobile/app/payment.tsx`:
+```typescript
+// شاشة modal لاستلام أو تسديد دفعة
+// تُفتح من: customers.tsx (زر "دفعة") أو sale-details.tsx (زر "استلام")
+
+interface PaymentScreenProps {
+  customerId: number;
+  customerName: string;
+  currentBalance: number;
+  type: "receive" | "pay"; // استلام من عميل / دفع لمورد
+}
+
+// POST /api/treasury/receipt-vouchers (استلام)
+// POST /api/treasury/payment-vouchers (دفع)
+```
+
+الشاشة تحتوي على:
+- اسم العميل/المورد والرصيد الحالي
+- حقل المبلغ (مع لوحة أرقام)
+- اختيار الخزينة
+- ملاحظات
+- زر تأكيد
+
+---
+
+## FEATURE 4: شاشة المصروفات الكاملة
+
+في `artifacts/erp-mobile/app/(tabs)/more.tsx` أو شاشة منفصلة:
+أنشئ `artifacts/erp-mobile/app/expenses.tsx`:
+- قائمة مصروفات مع بحث وتصفية بالتاريخ
+- FAB لإضافة مصروف جديد
+- نموذج الإضافة: الوصف، المبلغ، التاريخ، اختيار الخزينة
+- POST /api/expenses
+
+---
+
+## FEATURE 5: تعديل وحذف منتج
+
+في `artifacts/erp-mobile/app/(tabs)/inventory.tsx`:
+- عند الضغط على منتج → شاشة تفاصيل/تعديل
+- أنشئ `artifacts/erp-mobile/app/product-details.tsx`:
+  - عرض بيانات المنتج
+  - زر "تعديل" → نموذج تعديل (PUT /api/products/:id)
+  - زر "حذف" مع تأكيد (DELETE /api/products/:id)
+
+---
+
+## FEATURE 6: تعديل وحذف عميل
+
+في `artifacts/erp-mobile/app/(tabs)/customers.tsx`:
+- عند الضغط على عميل → شاشة تفاصيل
+- أنشئ `artifacts/erp-mobile/app/customer-details.tsx`:
+  - الاسم، الهاتف، الرصيد، سجل المعاملات
+  - زر "استلام دفعة" أو "تسديد دفعة"
+  - زر "تعديل" (PUT /api/customers/:id)
+  - زر "حذف" مع تأكيد (DELETE /api/customers/:id)
+
+---
+
+## FEATURE 7: شاشة التقارير الأساسية
+
+في `artifacts/erp-mobile/app/(tabs)/more.tsx`:
+- استبدل زر "التقارير — قريباً" بشاشة حقيقية
+- أنشئ `artifacts/erp-mobile/app/reports.tsx`:
+
+```typescript
+// تقارير بسيطة:
+// 1. ملخص اليوم: مبيعات/مشتريات/مصروفات/صافي
+// 2. مقارنة الأسبوع (آخر 7 أيام) - BarChart بسيط
+// 3. أفضل 5 منتجات مبيعاً
+// 4. تصفية بالتاريخ: اليوم/الأسبوع/الشهر/مخصص
+// Endpoints: GET /api/reports/profit-loss?from=&to=
+```
+
+---
+
+## FEATURE 8: إشعارات المخزون المنخفض
+
+في `artifacts/erp-mobile/app/(tabs)/index.tsx` (الرئيسية):
+- لو في منتجات مخزونها تحت الحد الأدنى:
+  - اعرض Badge على تاب المخزون
+  - اعرض بطاقة تحذير في الرئيسية مع قائمة المنتجات المنخفضة
+  - Endpoint: GET /api/products?low_stock=true
+
+---
+
+## REFACTOR 1: توحيد الألوان
+
+في `artifacts/erp-mobile/constants/colors.ts`:
+```typescript
+export const COLORS = {
+  primary: "#F59E0B",      // Amber
+  primaryDark: "#D97706",
+  success: "#10B981",
+  danger: "#EF4444",
+  warning: "#F59E0B",
+  info: "#3B82F6",
+  // Dark theme
+  darkBg: "#090c14",
+  darkCard: "#111827",
+  darkBorder: "#1F2937",
+  // Light theme
+  lightBg: "#F8FAFC",
+  lightCard: "#FFFFFF",
+  lightBorder: "#E2E8F0",
+};
+```
+
+استخدم `COLORS.primary` بدلاً من `"#F59E0B"` في كل الملفات.
+
+---
+
+## REFACTOR 2: مكوّن SectionHeader موحّد
+
+أنشئ `artifacts/erp-mobile/components/SectionHeader.tsx`:
+```typescript
+interface SectionHeaderProps {
+  title: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}
+// يُستخدم في كل شاشة بدلاً من تكرار نفس الكود
+```
+
+---
+
+## ترتيب التنفيذ:
+1. FIX 1-6 (الإصلاحات)
+2. REFACTOR 1-2 (التوحيد)
+3. FEATURE 1 (تفاصيل الفاتورة)
+4. FEATURE 2 (فاتورة شراء جديدة)
+5. FEATURE 3 (تسوية الديون)
+6. FEATURE 4 (المصروفات)
+7. FEATURE 5-6 (تعديل/حذف منتج وعميل)
+8. FEATURE 7 (التقارير)
+9. FEATURE 8 (إشعارات المخزون)
+
+## ملاحظات مهمة:
+- API Base URL: `https://halaltec.com`
+- كل الشاشات الجديدة تتبع نفس نمط التصميم الموجود (ألوان، خطوط، RTL)
+- استخدم `apiFetch` من `lib/api.ts` لكل الـ API calls
+- كل النماذج تحتاج loading state وerror handling
+- لا تغير أي ملف في `artifacts/erp-system` أو `artifacts/api-server`
+- اختبر كل شاشة جديدة في Expo Go قبل الانتهاء

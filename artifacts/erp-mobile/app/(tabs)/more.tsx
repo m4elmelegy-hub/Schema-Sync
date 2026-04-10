@@ -20,10 +20,8 @@ import { useQuery } from "@tanstack/react-query";
 
 const AMBER = "#F59E0B";
 
-interface Transaction { id: number; type: string; amount: number; }
+interface Transaction { id: number; type?: string; direction?: string; amount: number; }
 interface Expense { id: number; amount: number; }
-
-// ── Theme Switcher ──────────────────────────────────────────────────────────
 
 function ThemeSwitcher() {
   const c = useColors();
@@ -55,8 +53,6 @@ function ThemeSwitcher() {
   );
 }
 
-// ── Section Card ─────────────────────────────────────────────────────────────
-
 function SectionCard({ title, color, children }: { title: string; color?: string; children: React.ReactNode }) {
   const c = useColors();
   return (
@@ -71,8 +67,6 @@ function SectionCard({ title, color, children }: { title: string; color?: string
     </View>
   );
 }
-
-// ── Menu Item ─────────────────────────────────────────────────────────────────
 
 function MenuItem({
   icon, label, value, color, onPress, last, badge,
@@ -111,8 +105,6 @@ function MenuItem({
   );
 }
 
-// ── Main Screen ────────────────────────────────────────────────────────────────
-
 export default function MoreScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
@@ -131,9 +123,16 @@ export default function MoreScreen() {
     staleTime: 60_000,
   });
 
-  const totalIn  = (transactions || []).reduce((a, t) => t.type === "in"  ? a + Number(t.amount) : a, 0);
-  const totalOut = (transactions || []).reduce((a, t) => t.type === "out" ? a + Number(t.amount) : a, 0);
-  const cashBalance  = totalIn - totalOut;
+  // FIX 6: دعم كلا الحقلين type و direction
+  const totalIn = (transactions || [])
+    .filter((t) => t.type === "in" || t.direction === "in")
+    .reduce((a, t) => a + Number(t.amount), 0);
+
+  const totalOut = (transactions || [])
+    .filter((t) => t.type === "out" || t.direction === "out")
+    .reduce((a, t) => a + Number(t.amount), 0);
+
+  const cashBalance = totalIn - totalOut;
   const totalExpenses = (expenses || []).reduce((a, e) => a + Number(e.amount), 0);
 
   const roleLabel =
@@ -152,7 +151,6 @@ export default function MoreScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: c.background }]}>
-      {/* هيدر */}
       <View style={[styles.header, { backgroundColor: c.headerBg, paddingTop: isWeb ? 67 : insets.top + 12, borderBottomColor: c.border }]}>
         <View style={[styles.headerLine, { backgroundColor: AMBER }]} />
         <Text style={[styles.headerTitle, { color: c.text }]}>المزيد</Text>
@@ -194,23 +192,22 @@ export default function MoreScreen() {
 
         {/* الخزينة */}
         <SectionCard title="الخزينة">
-          <MenuItem icon="trending-up"   label="إجمالي الواردات"  value={`${formatCurrency(totalIn)} ج.م`}          color="#10B981" />
-          <MenuItem icon="trending-down" label="إجمالي المدفوعات" value={`${formatCurrency(totalOut)} ج.م`}         color="#EF4444" />
-          <MenuItem icon="dollar-sign"   label="الرصيد النقدي"    value={`${formatCurrency(cashBalance)} ج.م`}      color={cashBalance >= 0 ? "#10B981" : "#EF4444"} last />
+          <MenuItem icon="trending-up"   label="إجمالي الواردات"  value={`${formatCurrency(totalIn)} ج.م`}         color="#10B981" />
+          <MenuItem icon="trending-down" label="إجمالي المدفوعات" value={`${formatCurrency(totalOut)} ج.م`}        color="#EF4444" />
+          <MenuItem icon="dollar-sign"   label="الرصيد النقدي"    value={`${formatCurrency(cashBalance)} ج.م`}     color={cashBalance >= 0 ? "#10B981" : "#EF4444"} last />
         </SectionCard>
 
         {/* العمليات */}
         <SectionCard title="العمليات">
-          <MenuItem icon="shopping-bag"  label="فواتير المشتريات" badge="عرض"   onPress={() => router.push("/purchases")} color="#7C3AED" />
-          <MenuItem icon="credit-card"   label="المصروفات"        value={`${formatCurrency(totalExpenses)} ج.م`}  color={AMBER} />
-          <MenuItem icon="bar-chart-2"   label="التقارير"          badge="قريباً" onPress={() => {}} color="#06B6D4" last />
+          <MenuItem icon="shopping-bag"  label="فواتير المشتريات"  badge="عرض"   onPress={() => router.push("/purchases")}    color="#7C3AED" />
+          <MenuItem icon="plus-circle"   label="فاتورة شراء جديدة" badge="جديد" onPress={() => router.push("/new-purchase")}  color="#7C3AED" />
+          <MenuItem icon="credit-card"   label="المصروفات"         value={`${formatCurrency(totalExpenses)} ج.م`}  onPress={() => router.push("/expenses")} color={AMBER} />
+          <MenuItem icon="bar-chart-2"   label="التقارير"          badge="عرض"   onPress={() => router.push("/reports")}      color="#06B6D4" last />
         </SectionCard>
 
         {/* الإعدادات */}
         <SectionCard title="الإعدادات" color="#10B981">
-          <MenuItem icon="settings"      label="إعدادات النظام"  onPress={() => router.push("/settings")} color="#10B981" />
-          <MenuItem icon="home"          label="المخازن والخزائن" onPress={() => router.push("/settings")} color="#10B981" />
-          <MenuItem icon="users"         label="إدارة المستخدمين" onPress={() => router.push("/settings")} color="#10B981" last />
+          <MenuItem icon="settings" label="إعدادات النظام"   onPress={() => router.push("/settings")} color="#10B981" last />
         </SectionCard>
 
         {/* الحساب */}
@@ -230,9 +227,7 @@ const styles = StyleSheet.create({
   headerLine: { position: "absolute", top: 0, left: 0, right: 0, height: 2 },
   headerTitle: { fontSize: 22, fontFamily: "Tajawal_700Bold", textAlign: "right" },
   headerSub: { fontSize: 12, fontFamily: "Tajawal_400Regular", textAlign: "right", marginTop: 2 },
-
   content: { padding: 16, gap: 4 },
-
   profileCard: { borderRadius: 20, borderWidth: 1, overflow: "hidden", marginBottom: 12 },
   profileTopLine: { height: 2 },
   profileRow: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", padding: 18 },
@@ -243,13 +238,11 @@ const styles = StyleSheet.create({
   profileUsername: { fontSize: 12, fontFamily: "Tajawal_400Regular" },
   logoWrap: { width: 56, height: 56, borderRadius: 16, justifyContent: "center", alignItems: "center", borderWidth: 1 },
   logoImg: { width: 40, height: 40 },
-
   section: { marginBottom: 12 },
   sectionHeaderRow: { flexDirection: "row-reverse", alignItems: "center", gap: 8, marginBottom: 6, marginRight: 4 },
   sectionDot: { width: 3, height: 14, borderRadius: 2 },
   sectionTitle: { fontSize: 12, fontFamily: "Tajawal_500Medium" },
   sectionCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
-
   menuItem: {
     flexDirection: "row-reverse", alignItems: "center",
     paddingVertical: 14, paddingHorizontal: 16, gap: 10,
@@ -259,8 +252,6 @@ const styles = StyleSheet.create({
   menuValue: { fontSize: 13, fontFamily: "Tajawal_700Bold" },
   badge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
   badgeText: { fontSize: 11, fontFamily: "Tajawal_700Bold" },
-
-  // ── Theme Switcher ──
   themePad: { padding: 14, gap: 10 },
   themeHint: { fontSize: 12, fontFamily: "Tajawal_400Regular", textAlign: "center" },
   themeSwitcher: {
@@ -273,6 +264,5 @@ const styles = StyleSheet.create({
     gap: 6, borderRadius: 10, paddingVertical: 10,
   },
   themeLabel: { fontSize: 13, fontFamily: "Tajawal_700Bold" },
-
   version: { fontSize: 12, fontFamily: "Tajawal_400Regular", textAlign: "center", marginTop: 16 },
 });
