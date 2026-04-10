@@ -46,13 +46,13 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 17,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "Tajawal_700Bold",
     textAlign: "center",
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Tajawal_400Regular",
     textAlign: "center",
     lineHeight: 20,
   },
@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
   },
   btnText: {
     color: "#fff",
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "Tajawal_700Bold",
     fontSize: 15,
   },
 });

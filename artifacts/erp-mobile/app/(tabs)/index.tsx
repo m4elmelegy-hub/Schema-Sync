@@ -17,7 +17,8 @@ import { StatCard } from "@/components/StatCard";
 import { useAuth } from "@/context/AuthContext";
 import { apiFetch, formatCurrency } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
-import colors from "@/constants/colors";
+
+const AMBER = "#F59E0B";
 
 interface DashboardStats {
   totalSales: number;
@@ -29,7 +30,6 @@ interface DashboardStats {
   productsCount: number;
   lowStockCount: number;
   pendingSales: number;
-  todaySales?: number;
 }
 
 export default function DashboardScreen() {
@@ -49,25 +49,38 @@ export default function DashboardScreen() {
     router.replace("/login");
   };
 
+  const isProfit = (data?.netProfit || 0) >= 0;
+
   return (
     <View style={[styles.container, { backgroundColor: c.background }]}>
+      {/* ── الهيدر ── */}
       <View style={[styles.header, { backgroundColor: c.headerBg, paddingTop: isWeb ? 67 : insets.top + 12 }]}>
+        {/* خط ذهبي أعلى الهيدر */}
+        <View style={styles.headerGoldLine} />
+
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
-            <Feather name="log-out" size={20} color="rgba(255,255,255,0.8)" />
+            <Feather name="log-out" size={20} color="rgba(255,255,255,0.5)" />
           </TouchableOpacity>
-          <View style={styles.headerText}>
+          <View style={styles.headerTextWrap}>
             <Text style={styles.greeting}>مرحباً، {user?.name?.split(" ")[0]} 👋</Text>
-            <Text style={styles.subtitle}>لوحة التحكم الرئيسية</Text>
+            <Text style={styles.subGreeting}>نظام Halal Tech ERP</Text>
           </View>
         </View>
 
         {data && (
-          <View style={styles.profitBanner}>
+          <View style={[styles.profitBanner, { borderColor: isProfit ? "rgba(16,185,129,0.3)" : "rgba(239,68,68,0.3)" }]}>
+            <View style={styles.profitLeft}>
+              <Feather
+                name={isProfit ? "trending-up" : "trending-down"}
+                size={20}
+                color={isProfit ? "#10B981" : "#EF4444"}
+              />
+              <Text style={[styles.profitValue, { color: isProfit ? "#10B981" : "#EF4444" }]}>
+                {formatCurrency(data.netProfit)} ج.م
+              </Text>
+            </View>
             <Text style={styles.profitLabel}>صافي الربح</Text>
-            <Text style={[styles.profitValue, { color: data.netProfit >= 0 ? "#4ADE80" : "#F87171" }]}>
-              {formatCurrency(data.netProfit)} ج.م
-            </Text>
           </View>
         )}
       </View>
@@ -76,48 +89,57 @@ export default function DashboardScreen() {
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingBottom: isWeb ? 34 : insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={c.primary} />}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={AMBER} />}
       >
         {isLoading ? (
-          <ActivityIndicator color={c.primary} size="large" style={{ marginTop: 40 }} />
+          <ActivityIndicator color={AMBER} size="large" style={{ marginTop: 48 }} />
         ) : data ? (
           <>
             <Text style={[styles.sectionTitle, { color: c.mutedForeground }]}>إجمالي العمليات</Text>
             <View style={styles.grid}>
-              <StatCard title="المبيعات" value={`${formatCurrency(data.totalSales)}`} icon="shopping-cart" color={colors.light.primary} trend="up" />
-              <StatCard title="المشتريات" value={`${formatCurrency(data.totalPurchases)}`} icon="package" color={colors.light.warning} />
+              <StatCard title="المبيعات" value={formatCurrency(data.totalSales)} icon="shopping-cart" color={AMBER} trend="up" />
+              <StatCard title="المشتريات" value={formatCurrency(data.totalPurchases)} icon="package" color="#7C3AED" />
             </View>
             <View style={styles.grid}>
-              <StatCard title="المصروفات" value={`${formatCurrency(data.totalExpenses)}`} icon="trending-down" color={colors.light.destructive} trend="down" />
-              <StatCard title="الإيرادات" value={`${formatCurrency(data.totalIncome)}`} icon="trending-up" color={colors.light.success} trend="up" />
+              <StatCard title="المصروفات" value={formatCurrency(data.totalExpenses)} icon="trending-down" color="#EF4444" trend="down" />
+              <StatCard title="الإيرادات" value={formatCurrency(data.totalIncome)} icon="trending-up" color="#10B981" trend="up" />
             </View>
 
             <Text style={[styles.sectionTitle, { color: c.mutedForeground }]}>نظرة عامة</Text>
             <View style={styles.grid}>
-              <StatCard title="العملاء" value={String(data.customersCount || 0)} icon="users" color="#8B5CF6" />
-              <StatCard title="المنتجات" value={String(data.productsCount || 0)} icon="box" color="#06B6D4" />
+              <StatCard title="العملاء" value={String(data.customersCount || 0)} icon="users" color="#06B6D4" />
+              <StatCard title="المنتجات" value={String(data.productsCount || 0)} icon="box" color="#8B5CF6" />
             </View>
             <View style={styles.grid}>
-              <StatCard title="مخزون منخفض" value={String(data.lowStockCount || 0)} icon="alert-triangle" color={data.lowStockCount > 0 ? colors.light.destructive : colors.light.success} />
-              <StatCard title="مبيعات معلقة" value={String(data.pendingSales || 0)} icon="clock" color={colors.light.warning} />
+              <StatCard
+                title="مخزون منخفض"
+                value={String(data.lowStockCount || 0)}
+                icon="alert-triangle"
+                color={data.lowStockCount > 0 ? "#EF4444" : "#10B981"}
+              />
+              <StatCard title="مبيعات معلقة" value={String(data.pendingSales || 0)} icon="clock" color={AMBER} />
             </View>
 
-            <View style={[styles.quickActions, { backgroundColor: c.card, shadowColor: c.shadow }]}>
-              <Text style={[styles.quickTitle, { color: c.text }]}>إجراءات سريعة</Text>
+            {/* إجراءات سريعة */}
+            <View style={[styles.quickCard, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
+              <View style={styles.quickCardHeader}>
+                <View style={[styles.quickDot, { backgroundColor: AMBER }]} />
+                <Text style={[styles.quickTitle, { color: c.text }]}>إجراءات سريعة</Text>
+              </View>
               <View style={styles.actionsRow}>
                 {[
-                  { icon: "shopping-cart" as const, label: "المبيعات", route: "/(tabs)/sales" },
-                  { icon: "package" as const, label: "المخزون", route: "/(tabs)/inventory" },
-                  { icon: "users" as const, label: "العملاء", route: "/(tabs)/customers" },
-                  { icon: "more-horizontal" as const, label: "المزيد", route: "/(tabs)/more" },
+                  { icon: "shopping-cart" as const, label: "المبيعات", route: "/(tabs)/sales", color: AMBER },
+                  { icon: "package" as const, label: "المخزون", route: "/(tabs)/inventory", color: "#8B5CF6" },
+                  { icon: "users" as const, label: "العملاء", route: "/(tabs)/customers", color: "#06B6D4" },
+                  { icon: "more-horizontal" as const, label: "المزيد", route: "/(tabs)/more", color: "#10B981" },
                 ].map((a) => (
                   <TouchableOpacity
                     key={a.label}
                     style={styles.actionItem}
                     onPress={() => router.push(a.route as any)}
                   >
-                    <View style={[styles.actionIcon, { backgroundColor: c.primary + "18" }]}>
-                      <Feather name={a.icon} size={22} color={c.primary} />
+                    <View style={[styles.actionIcon, { backgroundColor: a.color + "1A" }]}>
+                      <Feather name={a.icon} size={22} color={a.color} />
                     </View>
                     <Text style={[styles.actionLabel, { color: c.text }]}>{a.label}</Text>
                   </TouchableOpacity>
@@ -133,29 +155,34 @@ export default function DashboardScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingBottom: 20, paddingHorizontal: 20 },
+  header: { paddingBottom: 20, paddingHorizontal: 20, position: "relative" },
+  headerGoldLine: { position: "absolute", top: 0, left: 0, right: 0, height: 2, backgroundColor: "#F59E0B" },
   headerRow: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
-  headerText: { alignItems: "flex-end" },
-  greeting: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#fff", textAlign: "right" },
-  subtitle: { fontSize: 13, color: "rgba(255,255,255,0.75)", fontFamily: "Inter_400Regular", marginTop: 2 },
+  headerTextWrap: { alignItems: "flex-end" },
+  greeting: { fontSize: 20, fontFamily: "Tajawal_700Bold", color: "#F0F7FF", textAlign: "right" },
+  subGreeting: { fontSize: 12, color: "#F59E0B", fontFamily: "Tajawal_400Regular", marginTop: 2 },
   logoutBtn: { padding: 8 },
   profitBanner: {
-    backgroundColor: "rgba(255,255,255,0.12)", borderRadius: 14,
-    padding: 16, alignItems: "flex-end",
+    flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between",
+    backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 14,
+    padding: 16, borderWidth: 1,
   },
-  profitLabel: { fontSize: 13, color: "rgba(255,255,255,0.8)", fontFamily: "Inter_400Regular", marginBottom: 4 },
-  profitValue: { fontSize: 26, fontFamily: "Inter_700Bold" },
+  profitLeft: { flexDirection: "row-reverse", alignItems: "center", gap: 10 },
+  profitValue: { fontSize: 22, fontFamily: "Tajawal_700Bold" },
+  profitLabel: { fontSize: 13, color: "rgba(255,255,255,0.6)", fontFamily: "Tajawal_400Regular" },
   scroll: { flex: 1 },
   content: { padding: 16, gap: 12 },
-  sectionTitle: { fontSize: 13, fontFamily: "Inter_500Medium", textAlign: "right", marginTop: 8, marginBottom: 4 },
+  sectionTitle: { fontSize: 12, fontFamily: "Tajawal_500Medium", textAlign: "right", marginTop: 8, marginBottom: 2 },
   grid: { flexDirection: "row-reverse", gap: 12 },
-  quickActions: {
-    borderRadius: 16, padding: 20, marginTop: 8,
-    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 3,
+  quickCard: {
+    borderRadius: 20, padding: 20, marginTop: 8,
+    borderWidth: 1,
   },
-  quickTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", textAlign: "right", marginBottom: 16 },
+  quickCardHeader: { flexDirection: "row-reverse", alignItems: "center", gap: 8, marginBottom: 16 },
+  quickDot: { width: 4, height: 18, borderRadius: 2 },
+  quickTitle: { fontSize: 16, fontFamily: "Tajawal_700Bold", textAlign: "right" },
   actionsRow: { flexDirection: "row-reverse", justifyContent: "space-between" },
   actionItem: { alignItems: "center", gap: 8 },
-  actionIcon: { width: 52, height: 52, borderRadius: 14, justifyContent: "center", alignItems: "center" },
-  actionLabel: { fontSize: 12, fontFamily: "Inter_500Medium" },
+  actionIcon: { width: 56, height: 56, borderRadius: 16, justifyContent: "center", alignItems: "center" },
+  actionLabel: { fontSize: 12, fontFamily: "Tajawal_400Regular" },
 });

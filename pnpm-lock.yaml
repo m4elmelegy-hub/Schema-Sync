@@ -308,6 +308,10 @@ importers:
         version: 4.1.3(@types/node@25.3.5)(@vitest/coverage-v8@4.1.3)(jiti@2.6.1)(jsdom@29.0.2(@noble/hashes@1.8.0))(lightningcss@1.31.1)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.2)
 
   artifacts/erp-mobile:
+    dependencies:
+      '@expo-google-fonts/tajawal':
+        specifier: ^0.4.1
+        version: 0.4.1
     devDependencies:
       '@babel/core':
         specifier: ^7.25.2
@@ -1557,6 +1561,9 @@ packages:
 
   '@expo-google-fonts/inter@0.4.2':
     resolution: {integrity: sha512-syfiImMaDmq7cFi0of+waE2M4uSCyd16zgyWxdPOY7fN2VBmSLKEzkfbZgeOjJq61kSqPBNNtXjggiQiSD6gMQ==}
+
+  '@expo-google-fonts/tajawal@0.4.1':
+    resolution: {integrity: sha512-cxbpKCUn8784UwrUQz/YLz8eHbqXN1vWjx5oyvf481pxho+CQR8QfoaeCS0LJ03Op2HG8SMCxRbPopNHebPR5Q==}
 
   '@expo/cli@54.0.23':
     resolution: {integrity: sha512-km0h72SFfQCmVycH/JtPFTVy69w6Lx1cHNDmfLfQqgKFYeeHTjx7LVDP4POHCtNxFP2UeRazrygJhlh4zz498g==}
@@ -8262,6 +8269,8 @@ snapshots:
       '@noble/hashes': 1.8.0
 
   '@expo-google-fonts/inter@0.4.2': {}
+
+  '@expo-google-fonts/tajawal@0.4.1': {}
 
   '@expo/cli@54.0.23(expo-router@6.0.23)(expo@54.0.33)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))':
     dependencies:

@@ -56,12 +56,12 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 15,
-    fontFamily: "Inter_500Medium",
+    fontFamily: "Tajawal_500Medium",
     textAlign: "right",
   },
   subtitle: {
     fontSize: 13,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Tajawal_400Regular",
     marginTop: 2,
     textAlign: "right",
   },
@@ -74,7 +74,7 @@ const styles = StyleSheet.create({
   },
   right: {
     fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "Tajawal_700Bold",
     textAlign: "right",
   },
   badge: {
@@ -85,6 +85,6 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: 11,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "Tajawal_700Bold",
   },
 });

@@ -45,14 +45,14 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 22,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Tajawal_700Bold",
     color: "#FFFFFF",
     textAlign: "right",
   },
   subtitle: {
     fontSize: 13,
     color: "rgba(255,255,255,0.75)",
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Tajawal_400Regular",
     marginTop: 2,
     textAlign: "right",
   },

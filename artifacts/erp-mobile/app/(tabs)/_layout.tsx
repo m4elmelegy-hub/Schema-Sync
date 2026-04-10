@@ -5,8 +5,10 @@ import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
-import { Platform, StyleSheet, View, useColorScheme } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 import { useColors } from "@/hooks/useColors";
+
+const AMBER = "#F59E0B";
 
 function NativeTabLayout() {
   return (
@@ -37,8 +39,6 @@ function NativeTabLayout() {
 
 function ClassicTabLayout() {
   const colors = useColors();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
 
@@ -53,28 +53,28 @@ function ClassicTabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: colors.primary,
+        tabBarActiveTintColor: AMBER,
         tabBarInactiveTintColor: colors.mutedForeground,
         headerShown: false,
         tabBarStyle: {
           position: "absolute",
-          backgroundColor: isIOS ? "transparent" : colors.tabBar,
-          borderTopWidth: isWeb ? 1 : StyleSheet.hairlineWidth,
-          borderTopColor: colors.border,
+          backgroundColor: isIOS || isWeb ? "transparent" : colors.tabBar,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: "rgba(245,158,11,0.2)",
           elevation: 0,
           height: isWeb ? 84 : 68,
           paddingBottom: isWeb ? 34 : 8,
         },
         tabBarLabelStyle: {
-          fontFamily: "Inter_500Medium",
+          fontFamily: "Tajawal_500Medium",
           fontSize: 11,
         },
         tabBarBackground: () =>
           isIOS ? (
-            <BlurView intensity={100} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
-          ) : isWeb ? (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.tabBar }]} />
-          ) : null,
+            <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+          ) : (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.tabBar, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "rgba(245,158,11,0.15)" }]} />
+          ),
       }}
     >
       {tabs.map((tab) => (

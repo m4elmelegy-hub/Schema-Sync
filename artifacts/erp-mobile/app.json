@@ -1,24 +1,26 @@
 {
   "expo": {
-    "name": "ERP Mobile",
+    "name": "Halal Tech ERP",
     "slug": "erp-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/halal-logo.png",
     "scheme": "erp-mobile",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/icon.png",
+      "image": "./assets/images/halal-logo.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0049A1"
+      "backgroundColor": "#090c14"
     },
     "ios": {
       "supportsTablet": false
     },
-    "android": {},
+    "android": {
+      "backgroundColor": "#090c14"
+    },
     "web": {
-      "favicon": "./assets/images/icon.png"
+      "favicon": "./assets/images/halal-logo.png"
     },
     "plugins": [
       [

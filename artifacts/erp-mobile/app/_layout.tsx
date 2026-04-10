@@ -1,10 +1,10 @@
 import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
+  Tajawal_400Regular,
+  Tajawal_500Medium,
+  Tajawal_700Bold,
+  Tajawal_800ExtraBold,
   useFonts,
-} from "@expo-google-fonts/inter";
+} from "@expo-google-fonts/tajawal";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { router, Stack, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -64,10 +64,10 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
+    Tajawal_400Regular,
+    Tajawal_500Medium,
+    Tajawal_700Bold,
+    Tajawal_800ExtraBold,
   });
 
   useEffect(() => {

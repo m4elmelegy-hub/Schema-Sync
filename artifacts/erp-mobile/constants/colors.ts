@@ -1,59 +1,97 @@
+// Halal Tech ERP - Dark Glass-Morphism Theme
+// Primary: Amber Gold | Background: Dark Navy
+
 const colors = {
   light: {
-    text: "#111827",
-    tint: "#0049A1",
-    background: "#F2F4F8",
-    foreground: "#111827",
-    card: "#FFFFFF",
-    cardForeground: "#111827",
-    primary: "#0049A1",
-    primaryForeground: "#FFFFFF",
-    secondary: "#E8F0FE",
-    secondaryForeground: "#0049A1",
-    muted: "#F3F4F6",
-    mutedForeground: "#6B7280",
-    accent: "#E8A020",
-    accentForeground: "#FFFFFF",
-    destructive: "#DC2626",
-    destructiveForeground: "#FFFFFF",
-    success: "#16A34A",
-    successForeground: "#FFFFFF",
-    warning: "#D97706",
-    border: "#E5E7EB",
-    input: "#E5E7EB",
-    headerBg: "#0049A1",
-    headerText: "#FFFFFF",
-    tabBar: "#FFFFFF",
-    shadow: "rgba(0,0,0,0.08)",
-  },
-  dark: {
-    text: "#F9FAFB",
-    tint: "#60A5FA",
-    background: "#0F172A",
-    foreground: "#F9FAFB",
-    card: "#1E293B",
-    cardForeground: "#F9FAFB",
-    primary: "#3B82F6",
-    primaryForeground: "#FFFFFF",
-    secondary: "#1E3A5F",
-    secondaryForeground: "#93C5FD",
-    muted: "#1E293B",
-    mutedForeground: "#9CA3AF",
-    accent: "#E8A020",
-    accentForeground: "#FFFFFF",
+    // ── الألوان الأساسية ──
+    background: "#090c14",
+    foreground: "#F0F7FF",
+    text: "#F0F7FF",
+    tint: "#F59E0B",
+
+    // ── البطاقات والأسطح ──
+    card: "#0d1120",
+    cardBorder: "rgba(255,255,255,0.06)",
+    cardForeground: "#F0F7FF",
+
+    // ── Primary (ذهبي عنبري) ──
+    primary: "#F59E0B",
+    primaryForeground: "#0a0500",
+    primaryGlow: "rgba(245,158,11,0.15)",
+    primaryBorder: "rgba(245,158,11,0.25)",
+
+    // ── ثانوي ──
+    secondary: "#161c2e",
+    secondaryForeground: "#F0F7FF",
+
+    // ── Muted ──
+    muted: "#111827",
+    mutedForeground: "#7A8FA6",
+
+    // ── Accent (بنفسجي) ──
+    accent: "#7C3AED",
+    accentForeground: "#F0F7FF",
+
+    // ── حالات ──
     destructive: "#EF4444",
     destructiveForeground: "#FFFFFF",
-    success: "#22C55E",
+    success: "#10B981",
     successForeground: "#FFFFFF",
     warning: "#F59E0B",
-    border: "#334155",
-    input: "#334155",
-    headerBg: "#1E293B",
-    headerText: "#F9FAFB",
-    tabBar: "#1E293B",
-    shadow: "rgba(0,0,0,0.3)",
+    warningForeground: "#0a0500",
+
+    // ── الحدود ──
+    border: "#1a1f2c",
+    input: "#161c2e",
+
+    // ── الهيدر والتاب بار ──
+    headerBg: "#080b12",
+    headerText: "#F0F7FF",
+    tabBar: "#080b12",
+
+    // ── الظل ──
+    shadow: "rgba(0,0,0,0.5)",
+
+    // ── طبقات السطح ──
+    surface0: "#090c14",
+    surface1: "rgba(15,18,30,0.9)",
+    surface2: "rgba(20,24,40,0.95)",
   },
-  radius: 12,
+  dark: {
+    background: "#090c14",
+    foreground: "#F0F7FF",
+    text: "#F0F7FF",
+    tint: "#F59E0B",
+    card: "#0d1120",
+    cardBorder: "rgba(255,255,255,0.06)",
+    cardForeground: "#F0F7FF",
+    primary: "#F59E0B",
+    primaryForeground: "#0a0500",
+    primaryGlow: "rgba(245,158,11,0.15)",
+    primaryBorder: "rgba(245,158,11,0.25)",
+    secondary: "#161c2e",
+    secondaryForeground: "#F0F7FF",
+    muted: "#111827",
+    mutedForeground: "#7A8FA6",
+    accent: "#7C3AED",
+    accentForeground: "#F0F7FF",
+    destructive: "#EF4444",
+    destructiveForeground: "#FFFFFF",
+    success: "#10B981",
+    successForeground: "#FFFFFF",
+    warning: "#F59E0B",
+    warningForeground: "#0a0500",
+    border: "#1a1f2c",
+    input: "#161c2e",
+    headerBg: "#080b12",
+    headerText: "#F0F7FF",
+    tabBar: "#080b12",
+    shadow: "rgba(0,0,0,0.6)",
+    surface0: "#090c14",
+    surface1: "rgba(15,18,30,0.9)",
+    surface2: "rgba(20,24,40,0.95)",
+  },
+  radius: 16,
 };
 
 export default colors;
