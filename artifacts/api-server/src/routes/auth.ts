@@ -12,30 +12,13 @@ import { blacklistToken } from "../lib/session-blacklist";
 import { generateTOTPSecret, generateQRCode, verifyTOTP, encryptSecret, decryptSecret, isEncrypted } from "../lib/totp";
 import { verifyPin, hashPin } from "../lib/hash";
 import { loginSchema, validate } from "../lib/schemas";
+import {
+  getLoginLockout, recordLoginFailure, clearLoginLockout,
+  check2FAAllowed, reset2FALockout,
+  MAX_ATTEMPTS, LOCKOUT_MS,
+} from "../lib/brute-force-store";
 
 const JWT_SECRET: string = process.env.JWT_SECRET!;
-
-/* ── 2FA brute-force protection ─────────────────────────────────
-   Max 5 attempts per IP per 15-minute window.
-──────────────────────────────────────────────────────────────── */
-interface TwoFaAttemptRecord { count: number; resetAt: number }
-const twoFaAttempts = new Map<string, TwoFaAttemptRecord>();
-
-function check2FAAttempts(ip: string): boolean {
-  const now    = Date.now();
-  const record = twoFaAttempts.get(ip);
-  if (record && now < record.resetAt) {
-    if (record.count >= 5) return false; // blocked
-    record.count++;
-  } else {
-    twoFaAttempts.set(ip, { count: 1, resetAt: now + 15 * 60 * 1000 });
-  }
-  return true;
-}
-
-function reset2FAAttempts(ip: string): void {
-  twoFaAttempts.delete(ip);
-}
 
 function daysRemaining(endDate: string): number {
   const now = new Date(); now.setHours(0, 0, 0, 0);
@@ -44,44 +27,6 @@ function daysRemaining(endDate: string): number {
 }
 
 const router = Router();
-
-/* ── In-memory lockout store ────────────────────────────────────────
-   Structure: { userId → { attempts: number; lockedUntil: number | null } }
-   This resets on server restart — sufficient for a single-instance server.
-   For multi-instance deployments, move to Redis or DB.
-──────────────────────────────────────────────────────────────────── */
-const MAX_ATTEMPTS  = 5;
-const LOCKOUT_MS    = 15 * 60 * 1000; // 15 minutes
-
-interface LockoutEntry {
-  attempts: number;
-  lockedUntil: number | null;
-}
-const lockoutMap = new Map<number, LockoutEntry>();
-
-function getLockout(userId: number): LockoutEntry {
-  return lockoutMap.get(userId) ?? { attempts: 0, lockedUntil: null };
-}
-
-function recordFailure(userId: number): LockoutEntry {
-  const entry = getLockout(userId);
-  const now   = Date.now();
-
-  /* reset if previous lockout has expired */
-  if (entry.lockedUntil !== null && now >= entry.lockedUntil) {
-    lockoutMap.set(userId, { attempts: 1, lockedUntil: null });
-    return lockoutMap.get(userId)!;
-  }
-
-  const attempts = entry.attempts + 1;
-  const lockedUntil = attempts >= MAX_ATTEMPTS ? now + LOCKOUT_MS : null;
-  lockoutMap.set(userId, { attempts, lockedUntil });
-  return lockoutMap.get(userId)!;
-}
-
-function clearLockout(userId: number): void {
-  lockoutMap.delete(userId);
-}
 
 /* ── GET /auth/users — public list for login UI (no PINs) ─ */
 router.get("/auth/users", async (req, res) => {
@@ -147,7 +92,7 @@ router.post("/auth/login", async (req, res) => {
     }
 
     /* ── Lockout check ────────────────────────────────────── */
-    const lockout = getLockout(uid);
+    const lockout = await getLoginLockout(uid);
     if (lockout.lockedUntil !== null && Date.now() < lockout.lockedUntil) {
       const remainingMs  = lockout.lockedUntil - Date.now();
       const remainingMin = Math.ceil(remainingMs / 60000);
@@ -169,7 +114,7 @@ router.post("/auth/login", async (req, res) => {
 
     const pinValid = await verifyPin(pin, user.pin ?? "");
     if (!pinValid) {
-      const updated = recordFailure(uid);
+      const updated = await recordLoginFailure(uid);
       const remaining = MAX_ATTEMPTS - updated.attempts;
       if (remaining <= 0) {
         res.status(429).json({
@@ -228,7 +173,7 @@ router.post("/auth/login", async (req, res) => {
     }
 
     /* ── Success — clear lockout ──────────────────────────── */
-    clearLockout(uid);
+    await clearLoginLockout(uid);
 
     /* ── 2FA check for super_admin ────────────────────────── */
     if (user.totp_enabled && user.role === "super_admin") {
@@ -423,7 +368,7 @@ router.post("/auth/2fa/login", async (req, res) => {
   try {
     /* ── Brute-force guard: max 5 attempts / IP / 15 min ── */
     const clientIP = req.ip || req.socket.remoteAddress || "unknown";
-    if (!check2FAAttempts(clientIP)) {
+    if (!(await check2FAAllowed(clientIP))) {
       res.status(429).json({ error: "محاولات كثيرة — انتظر 15 دقيقة", retry_after: 900 }); return;
     }
 
@@ -448,7 +393,7 @@ router.post("/auth/2fa/login", async (req, res) => {
     }
 
     /* Success — clear attempts counter */
-    reset2FAAttempts(clientIP);
+    await reset2FALockout(clientIP);
 
     /* Update last_login timestamp */
     await db.update(erpUsersTable)
