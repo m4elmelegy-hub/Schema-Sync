@@ -1,32 +1,34 @@
 import { lazy, Suspense, useState } from "react";
 import {
-  Users, BookOpen, Lock, Store, HardDrive, Database, Loader2, Settings,
+  Users, BookOpen, Lock, Store, HardDrive, Database, Loader2, Settings, Building2,
 } from "lucide-react";
 
 /* ─── Lazy-load each tab ─── */
-const UsersTab         = lazy(() => import("./users-tab"));
+const UsersTab          = lazy(() => import("./users-tab"));
 const OpeningBalanceTab = lazy(() => import("./opening-balance-tab"));
 const FinancialLockTab  = lazy(() => import("./financial-lock-tab"));
-const CurrencyTab      = lazy(() => import("./currency-tab"));
-const BackupTab        = lazy(() => import("./backup-tab"));
-const DataTab          = lazy(() => import("./data-tab"));
+const CurrencyTab       = lazy(() => import("./currency-tab"));
+const BackupTab         = lazy(() => import("./backup-tab"));
+const DataTab           = lazy(() => import("./data-tab"));
+const CompanyTab        = lazy(() => import("./company-tab"));
 
 /* ─── Tab types ─── */
-type Tab = "users" | "opening-balance" | "financial-lock" | "currency" | "backup" | "data";
+type Tab = "users" | "opening-balance" | "financial-lock" | "currency" | "backup" | "data" | "company";
 
 /* ─── Section config (explicit iteration — NOT flatMap, preserves section headers) ─── */
 const TAB_SECTIONS: { section: string; tabs: { id: Tab; label: string; icon: React.FC<{ className?: string }> }[] }[] = [
   {
     section: "الإدارة",
     tabs: [
-      { id: "users", label: "المستخدمون", icon: Users },
+      { id: "users",   label: "المستخدمون",  icon: Users },
+      { id: "company", label: "بيانات الشركة", icon: Building2 },
     ],
   },
   {
     section: "المالية",
     tabs: [
-      { id: "opening-balance", label: "أول المدة",       icon: BookOpen },
-      { id: "financial-lock",  label: "إغلاق الفترات",  icon: Lock },
+      { id: "opening-balance", label: "أول المدة",      icon: BookOpen },
+      { id: "financial-lock",  label: "إغلاق الفترات", icon: Lock },
     ],
   },
   {
@@ -147,6 +149,7 @@ export default function SettingsPage() {
         <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
           <Suspense fallback={<TabSkeleton />}>
             {activeTab === "users"           && <UsersTab />}
+            {activeTab === "company"         && <CompanyTab />}
             {activeTab === "opening-balance" && <OpeningBalanceTab />}
             {activeTab === "financial-lock"  && <FinancialLockTab />}
             {activeTab === "currency"        && <CurrencyTab />}

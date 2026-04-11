@@ -161,13 +161,12 @@ export const BACKUP_MODULES_LIST = [
 ] as const;
 
 export const DATA_GROUPS = [
-  { key: "sales",            label: "المبيعات",        sub: "فواتير البيع والمدفوعات" },
-  { key: "purchases",        label: "المشتريات",        sub: "فواتير الشراء وتكاليفها" },
-  { key: "expenses",         label: "المصروفات",        sub: "جميع سجلات المصروفات" },
-  { key: "income",           label: "الإيرادات",        sub: "جميع سجلات الإيرادات" },
-  { key: "receipt_vouchers", label: "سندات القبض",      sub: "مدفوعات العملاء" },
-  { key: "deposit_vouchers", label: "سندات التوريد",    sub: "توريدات العملاء النقدية" },
-  { key: "transactions",     label: "الحركات المالية",  sub: "السجل المركزي للمعاملات" },
-  { key: "products",         label: "الأصناف",          sub: "بيانات المنتجات والمخزون" },
-  { key: "customers",        label: "العملاء",          sub: "بيانات العملاء وأرصدتهم" },
-];
+  { key: "sales",              label: "المبيعات",          sub: "فواتير البيع والمرتجعات",                type: "default" },
+  { key: "purchases",          label: "المشتريات",          sub: "فواتير الشراء والمرتجعات",               type: "default" },
+  { key: "expenses",           label: "المصروفات",          sub: "جميع سجلات المصروفات",                  type: "default" },
+  { key: "income",             label: "الإيرادات",          sub: "جميع سجلات الإيرادات",                  type: "default" },
+  { key: "vouchers_treasury",  label: "السندات والخزينة",   sub: "سندات القبض والدفع والتوريد والحركات",   type: "default" },
+  { key: "products",           label: "الأصناف",            sub: "بيانات المنتجات والمخزون الكامل",        type: "default" },
+  { key: "warehouse",          label: "تفريغ مخزن",         sub: "حركات المخزون لمخزن محدد",               type: "warehouse" },
+  { key: "customers",          label: "العملاء",            sub: "بيانات العملاء وأرصدتهم",               type: "default" },
+] as const;

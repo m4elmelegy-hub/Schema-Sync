@@ -510,11 +510,12 @@ router.get("/settings/audit-logs", authenticate, requireRole("admin"), wrap(asyn
 
 router.post("/settings/reset", authenticate, requireRole("admin"), wrap(async (req, res) => {
   const { confirm } = req.body;
-  if (confirm !== "تأكيد الحذف") {
+  if (confirm !== "إعادة تعيين كاملة") {
     res.status(400).json({ error: "يجب كتابة عبارة التأكيد بشكل صحيح" }); return;
   }
 
-  const companyId = req.user!.company_id ?? 1;
+  const companyId    = req.user!.company_id ?? 1;
+  const currentUserId = req.user!.id;
 
   const saleIds = (await db.select({ id: salesTable.id }).from(salesTable).where(eq(salesTable.company_id, companyId))).map(r => r.id);
   const purIds  = (await db.select({ id: purchasesTable.id }).from(purchasesTable).where(eq(purchasesTable.company_id, companyId))).map(r => r.id);
@@ -546,6 +547,15 @@ router.post("/settings/reset", authenticate, requireRole("admin"), wrap(async (r
   await db.update(customersTable).set({ balance: "0" }).where(eq(customersTable.company_id, companyId));
   await db.update(productsTable).set({ quantity: "0" }).where(eq(productsTable.company_id, companyId));
   await db.update(safesTable).set({ balance: "0" }).where(eq(safesTable.company_id, companyId));
+
+  /* حذف جميع مستخدمي الشركة ما عدا المستخدم الحالي */
+  await db.delete(erpUsersTable).where(
+    and(
+      eq(erpUsersTable.company_id, companyId),
+      ne(erpUsersTable.id, currentUserId),
+      ne(erpUsersTable.role, "super_admin")
+    )
+  );
 
   res.json({ success: true, message: "تم تصفير قاعدة البيانات بنجاح" });
 }));

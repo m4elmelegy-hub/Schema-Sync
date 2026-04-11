@@ -7,10 +7,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import { authFetch } from "@/lib/auth-fetch";
 import { useToast } from "@/hooks/use-toast";
-import { useResetDatabase } from "@workspace/api-client-react";
+import { useResetDatabase, useGetSettingsWarehouses } from "@workspace/api-client-react";
 import {
   AlertTriangle, Loader2, Check, Download, Upload, CheckCircle2,
-  X, Package, ShoppingCart, History, Trash2,
+  X, Package, ShoppingCart, History, Trash2, Warehouse,
 } from "lucide-react";
 import { PageHeader, FieldLabel, SInput, SSelect, DangerBtn } from "./_shared";
 import { DATA_GROUPS } from "./_constants";
@@ -67,6 +67,10 @@ export default function DataTab() {
   const { toast } = useToast();
   const qc        = useQueryClient();
   const resetDb   = useResetDatabase();
+
+  /* ── المخازن ── */
+  const { data: warehousesList = [] } = useGetSettingsWarehouses();
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | "">("");
 
   /* ── Import subtab ── */
   const [importTab, setImportTab] = useState<"products" | "purchases">("products");
@@ -240,18 +244,25 @@ export default function DataTab() {
   const toggle = (key: string) => {
     setSelected(prev => { const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s; });
     setConfirmText(""); };
-  const toggleAll = () => { setSelected(selected.size === DATA_GROUPS.length ? new Set() : new Set(DATA_GROUPS.map(g => g.key))); setConfirmText(""); };
+  const allKeys   = DATA_GROUPS.map(g => g.key);
+  const toggleAll = () => { setSelected(selected.size === allKeys.length ? new Set<string>() : new Set<string>(allKeys)); setConfirmText(""); };
 
   const handleClear = async () => {
     if (!canDelete) return;
+    /* إذا تم تحديد "مخزن" ولم يُختر مخزن محدد — أبلغ المستخدم */
+    if (selected.has("warehouse") && !selectedWarehouseId && warehousesList.length > 0) {
+      toast({ title: "اختر المخزن المراد تفريغه أولاً", variant: "destructive" }); return;
+    }
     setClearBusy(true);
-    const r = await authFetch(api("/api/admin/clear"), { method: "POST", body: JSON.stringify({ tables: Array.from(selected) }) });
+    const body: Record<string, unknown> = { tables: Array.from(selected) };
+    if (selected.has("warehouse") && selectedWarehouseId) body.warehouse_id = selectedWarehouseId;
+    const r = await authFetch(api("/api/admin/clear"), { method: "POST", body: JSON.stringify(body) });
     setClearBusy(false);
     const d = await r.json();
     if (!r.ok) { toast({ title: d.error ?? "فشل المسح", variant: "destructive" }); return; }
-    toast({ title: `✅ تم مسح ${selected.size} جدول` });
-    pushActivity({ date: new Date().toISOString(), type: "delete", file: Array.from(selected).join(", "), status: `✅ ${selected.size} جدول` });
-    refreshLog(); setSelected(new Set()); setConfirmText(""); qc.invalidateQueries();
+    toast({ title: `✅ تم مسح ${selected.size} مجموعة` });
+    pushActivity({ date: new Date().toISOString(), type: "delete", file: Array.from(selected).join(", "), status: `✅ ${selected.size} مجموعة` });
+    refreshLog(); setSelected(new Set()); setConfirmText(""); setSelectedWarehouseId(""); qc.invalidateQueries();
   };
 
   /* ────────────────────────────────────────
@@ -498,18 +509,22 @@ export default function DataTab() {
                 {selected.size > 0 && <span className="px-2 py-0.5 rounded-md bg-red-500/20 text-red-400 text-xs font-bold">{selected.size} محدد</span>}
               </p>
               <button onClick={toggleAll} className="text-xs text-amber-400 hover:text-amber-300 transition-colors">
-                {selected.size === DATA_GROUPS.length ? "إلغاء الكل" : "تحديد الكل"}
+                {selected.size === allKeys.length ? "إلغاء الكل" : "تحديد الكل"}
               </button>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {DATA_GROUPS.map(g => {
-                const on = selected.has(g.key);
+                const on        = selected.has(g.key);
+                const isWarehouse = g.type === "warehouse";
                 return (
                   <button key={g.key} onClick={() => toggle(g.key)}
                     className={`p-3 rounded-xl text-right border transition-all ${on ? "bg-red-500/12 border-red-500/35" : "bg-[#1A2235] border-[#2D3748] hover:border-red-500/20"}`}>
                     <div className="flex items-center justify-between mb-0.5">
-                      <span className={`text-xs font-bold ${on ? "text-red-300" : "text-white/60"}`}>{g.label}</span>
+                      <span className={`text-xs font-bold flex items-center gap-1 ${on ? "text-red-300" : "text-white/60"}`}>
+                        {isWarehouse && <Warehouse className="w-3 h-3" />}
+                        {g.label}
+                      </span>
                       {on ? <Check className="w-3 h-3 text-red-400" /> : <div className="w-3 h-3 rounded border border-white/15" />}
                     </div>
                     <p className="text-white/20 text-[10px]">{g.sub}</p>
@@ -517,6 +532,29 @@ export default function DataTab() {
                 );
               })}
             </div>
+
+            {/* منتقي المخزن — يظهر فقط إذا تم تحديد "تفريغ مخزن" */}
+            {selected.has("warehouse") && (
+              <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 space-y-2">
+                <p className="text-amber-300 text-xs font-bold flex items-center gap-2">
+                  <Warehouse className="w-3.5 h-3.5" /> اختر المخزن المراد تفريغه
+                </p>
+                <SSelect
+                  value={String(selectedWarehouseId)}
+                  onChange={e => setSelectedWarehouseId(e.target.value === "" ? "" : Number(e.target.value))}
+                >
+                  <option value="">— كل المخازن —</option>
+                  {warehousesList.map((w: any) => (
+                    <option key={w.id} value={w.id}>{w.name}</option>
+                  ))}
+                </SSelect>
+                <p className="text-white/25 text-[10px]">
+                  {selectedWarehouseId
+                    ? `سيتم تفريغ حركات المخزن "${warehousesList.find((w: any) => w.id === selectedWarehouseId)?.name ?? ""}" فقط`
+                    : "سيتم تفريغ حركات جميع المخازن وتصفير الكميات"}
+                </p>
+              </div>
+            )}
 
             {selected.size > 0 && (
               <div className="space-y-3 pt-2 border-t border-red-500/10">

@@ -6,21 +6,27 @@ import { db,
   purchaseReturnsTable, purchaseReturnItemsTable,
   expensesTable, incomeTable,
   receiptVouchersTable, depositVouchersTable, transactionsTable,
+  paymentVouchersTable, treasuryVouchersTable, safeTransfersTable,
   productsTable, stockMovementsTable,
   customersTable,
 } from "@workspace/db";
-import { sql, eq, inArray } from "drizzle-orm";
+import { sql, eq, inArray, and } from "drizzle-orm";
 import { wrap } from "../lib/async-handler";
 import { authenticate, requireRole } from "../middleware/auth";
 import { getOrCreateCustomerAccount, getOrCreateCustomerPayableAccount } from "../lib/auto-account";
 
 const router: IRouter = Router();
 
-const TABLES: Record<string, (companyId: number) => Promise<void>> = {
+/* ──────────────────────────────────────────────────────────────────────────────
+   جدول التنظيف — كل مفتاح = دالة تمسح بيانات الشركة
+   vouchers_treasury = يشمل جميع السندات والحركات المالية
+   warehouse         = يُمرَّر warehouse_id اختيارياً (من الـ body)
+────────────────────────────────────────────────────────────────────────────── */
+const TABLES: Record<string, (companyId: number, extra?: { warehouseId?: number }) => Promise<void>> = {
   sales: async (cid) => {
     const saleIds = (await db.select({ id: salesTable.id }).from(salesTable).where(eq(salesTable.company_id, cid))).map(r => r.id);
-    const retIds = (await db.select({ id: salesReturnsTable.id }).from(salesReturnsTable).where(eq(salesReturnsTable.company_id, cid))).map(r => r.id);
-    if (retIds.length > 0) await db.delete(saleReturnItemsTable).where(inArray(saleReturnItemsTable.return_id, retIds));
+    const retIds  = (await db.select({ id: salesReturnsTable.id }).from(salesReturnsTable).where(eq(salesReturnsTable.company_id, cid))).map(r => r.id);
+    if (retIds.length  > 0) await db.delete(saleReturnItemsTable).where(inArray(saleReturnItemsTable.return_id, retIds));
     await db.delete(salesReturnsTable).where(eq(salesReturnsTable.company_id, cid));
     if (saleIds.length > 0) await db.delete(saleItemsTable).where(inArray(saleItemsTable.sale_id, saleIds));
     await db.delete(salesTable).where(eq(salesTable.company_id, cid));
@@ -33,47 +39,77 @@ const TABLES: Record<string, (companyId: number) => Promise<void>> = {
     if (purIds.length > 0) await db.delete(purchaseItemsTable).where(inArray(purchaseItemsTable.purchase_id, purIds));
     await db.delete(purchasesTable).where(eq(purchasesTable.company_id, cid));
   },
-  expenses:         async (cid) => { await db.delete(expensesTable).where(eq(expensesTable.company_id, cid)); },
-  income:           async (cid) => { await db.delete(incomeTable).where(eq(incomeTable.company_id, cid)); },
-  receipt_vouchers: async (cid) => { await db.delete(receiptVouchersTable).where(eq(receiptVouchersTable.company_id, cid)); },
-  deposit_vouchers: async (cid) => { await db.delete(depositVouchersTable).where(eq(depositVouchersTable.company_id, cid)); },
-  transactions:     async (cid) => { await db.delete(transactionsTable).where(eq(transactionsTable.company_id, cid)); },
+  expenses:  async (cid) => { await db.delete(expensesTable).where(eq(expensesTable.company_id, cid)); },
+  income:    async (cid) => { await db.delete(incomeTable).where(eq(incomeTable.company_id, cid)); },
+
+  /* السندات والخزينة — مجموعة موحدة تشمل كل السندات والحركات المالية */
+  vouchers_treasury: async (cid) => {
+    await db.delete(safeTransfersTable).where(eq(safeTransfersTable.company_id, cid));
+    await db.delete(receiptVouchersTable).where(eq(receiptVouchersTable.company_id, cid));
+    await db.delete(depositVouchersTable).where(eq(depositVouchersTable.company_id, cid));
+    await db.delete(paymentVouchersTable).where(eq(paymentVouchersTable.company_id, cid));
+    await db.delete(treasuryVouchersTable).where(eq(treasuryVouchersTable.company_id, cid));
+    await db.delete(transactionsTable).where(eq(transactionsTable.company_id, cid));
+  },
+
   products: async (cid) => {
     await db.delete(stockMovementsTable).where(eq(stockMovementsTable.company_id, cid));
-    const retIds = (await db.select({ id: salesReturnsTable.id }).from(salesReturnsTable).where(eq(salesReturnsTable.company_id, cid))).map(r => r.id);
-    if (retIds.length > 0) await db.delete(saleReturnItemsTable).where(inArray(saleReturnItemsTable.return_id, retIds));
+    const retIds    = (await db.select({ id: salesReturnsTable.id }).from(salesReturnsTable).where(eq(salesReturnsTable.company_id, cid))).map(r => r.id);
+    if (retIds.length > 0)    await db.delete(saleReturnItemsTable).where(inArray(saleReturnItemsTable.return_id, retIds));
     const purRetIds = (await db.select({ id: purchaseReturnsTable.id }).from(purchaseReturnsTable).where(eq(purchaseReturnsTable.company_id, cid))).map(r => r.id);
     if (purRetIds.length > 0) await db.delete(purchaseReturnItemsTable).where(inArray(purchaseReturnItemsTable.return_id, purRetIds));
-    const saleIds = (await db.select({ id: salesTable.id }).from(salesTable).where(eq(salesTable.company_id, cid))).map(r => r.id);
-    if (saleIds.length > 0) await db.delete(saleItemsTable).where(inArray(saleItemsTable.sale_id, saleIds));
-    const purIds = (await db.select({ id: purchasesTable.id }).from(purchasesTable).where(eq(purchasesTable.company_id, cid))).map(r => r.id);
-    if (purIds.length > 0) await db.delete(purchaseItemsTable).where(inArray(purchaseItemsTable.purchase_id, purIds));
+    const saleIds   = (await db.select({ id: salesTable.id }).from(salesTable).where(eq(salesTable.company_id, cid))).map(r => r.id);
+    if (saleIds.length > 0)   await db.delete(saleItemsTable).where(inArray(saleItemsTable.sale_id, saleIds));
+    const purIds    = (await db.select({ id: purchasesTable.id }).from(purchasesTable).where(eq(purchasesTable.company_id, cid))).map(r => r.id);
+    if (purIds.length > 0)    await db.delete(purchaseItemsTable).where(inArray(purchaseItemsTable.purchase_id, purIds));
     await db.delete(productsTable).where(eq(productsTable.company_id, cid));
   },
+
+  /* تفريغ مخزن محدد — يحذف حركات المخزون الخاصة بالمخزن ويصفّر كمية منتجاته */
+  warehouse: async (cid, extra) => {
+    const wid = extra?.warehouseId;
+    if (wid) {
+      await db.delete(stockMovementsTable).where(
+        and(eq(stockMovementsTable.company_id, cid), eq(stockMovementsTable.warehouse_id, wid))
+      );
+      /* صفّر الكميات للمنتجات المرتبطة بالمخزن */
+      await db.execute(
+        sql`UPDATE products SET quantity = 0 WHERE company_id = ${cid}
+            AND id IN (SELECT DISTINCT product_id FROM stock_movements WHERE company_id = ${cid} AND warehouse_id = ${wid})`
+      );
+    } else {
+      /* تفريغ كل المخازن */
+      await db.delete(stockMovementsTable).where(eq(stockMovementsTable.company_id, cid));
+      await db.update(productsTable).set({ quantity: "0" }).where(eq(productsTable.company_id, cid));
+    }
+  },
+
   customers: async (cid) => {
     await db.delete(customersTable).where(eq(customersTable.company_id, cid));
   },
 };
 
 router.post("/admin/clear", authenticate, requireRole("admin"), wrap(async (req, res) => {
-  const { tables } = req.body as { tables: string[] };
+  const { tables, warehouse_id } = req.body as { tables: string[]; warehouse_id?: number };
   if (!tables || !Array.isArray(tables) || tables.length === 0) {
-    res.status(400).json({ error: "حدد الجداول المطلوب مسحها" });
-    return;
+    res.status(400).json({ error: "حدد الجداول المطلوب مسحها" }); return;
   }
 
   const invalid = tables.filter(t => !TABLES[t]);
   if (invalid.length > 0) {
-    res.status(400).json({ error: `جداول غير معروفة: ${invalid.join(", ")}` });
-    return;
+    res.status(400).json({ error: `جداول غير معروفة: ${invalid.join(", ")}` }); return;
   }
 
   const companyId: number = (req as any).user?.company_id ?? 1;
 
-  const ORDER = ["sales", "purchases", "expenses", "income", "receipt_vouchers", "deposit_vouchers", "transactions", "products", "customers"];
+  const ORDER = [
+    "sales", "purchases", "expenses", "income",
+    "vouchers_treasury", "products", "warehouse", "customers",
+  ];
   const sorted = ORDER.filter(t => tables.includes(t));
+  const extra  = { warehouseId: warehouse_id };
 
-  for (const t of sorted) await TABLES[t](companyId);
+  for (const t of sorted) await TABLES[t](companyId, extra);
   res.json({ success: true, cleared: sorted });
 }));
 
