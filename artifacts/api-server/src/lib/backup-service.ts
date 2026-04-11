@@ -169,3 +169,17 @@ export async function triggerBackup(trigger: string): Promise<typeof backupsTabl
 export function isBackupInProgress() {
   return isBackingUp;
 }
+
+/** Check a boolean backup trigger setting */
+export async function isBackupTriggerEnabled(key: "backup_on_login" | "backup_on_logout"): Promise<boolean> {
+  const [row] = await db.select().from(systemSettingsTable).where(eq(systemSettingsTable.key, key));
+  return row?.value === "true";
+}
+
+/** Fire-and-forget backup triggered on login or logout (reads setting first) */
+export function maybeBackupAsync(trigger: "login" | "logout") {
+  const settingKey = trigger === "login" ? "backup_on_login" : "backup_on_logout";
+  void isBackupTriggerEnabled(settingKey).then((enabled) => {
+    if (enabled) void triggerBackup(trigger);
+  });
+}

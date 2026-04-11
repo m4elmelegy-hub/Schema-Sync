@@ -27,6 +27,7 @@ import {
   reset2FALockout,
   MAX_ATTEMPTS,
 } from '../lib/brute-force-store';
+import { maybeBackupAsync } from '../lib/backup-service';
 
 const JWT_SECRET: string = process.env.JWT_SECRET!;
 
@@ -216,6 +217,8 @@ router.post('/auth/login', async (req, res) => {
       /* ignore */
     }
 
+    maybeBackupAsync("login");
+
     res.json({
       token,
       refreshToken,
@@ -303,6 +306,7 @@ router.get('/auth/subscription', authenticate, async (req, res) => {
 router.post('/auth/logout', authenticate, (req, res) => {
   const token = req.headers.authorization?.split(' ')[1];
   if (token) blacklistToken(token);
+  maybeBackupAsync("logout");
   res.json({ success: true, message: 'تم تسجيل الخروج بنجاح' });
 });
 
@@ -484,6 +488,7 @@ router.post('/auth/2fa/login', async (req, res) => {
 
     const token = signToken(user.id, user.role, user.company_id ?? null);
     const refreshToken = signRefreshToken(user.id);
+    maybeBackupAsync("login");
     res.json({
       token,
       refreshToken,
