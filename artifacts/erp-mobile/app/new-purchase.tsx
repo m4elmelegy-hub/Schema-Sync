@@ -158,10 +158,12 @@ export default function NewPurchaseScreen() {
         body: JSON.stringify({
           items: cart.map((i) => ({
             product_id: i.product.id,
+            product_name: i.product.name,
             quantity: i.qty,
             unit_price: i.unitPrice,
+            total_price: i.unitPrice * i.qty,
           })),
-          supplier_id: selectedSupplier?.id || null,
+          customer_id: selectedSupplier?.id || null,
           supplier_name: selectedSupplier?.name || "مورد نقدي",
           payment_type: paymentType,
           total_amount: cartTotal,

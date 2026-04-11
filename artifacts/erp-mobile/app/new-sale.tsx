@@ -174,8 +174,10 @@ export default function NewSaleScreen() {
       const body = {
         items: cart.map((i) => ({
           product_id: i.product.id,
+          product_name: i.product.name,
           quantity: i.qty,
           unit_price: i.unitPrice,
+          total_price: i.unitPrice * i.qty,
         })),
         customer_id: selectedCustomer?.id || null,
         customer_name: selectedCustomer?.name || customerName || "عميل نقدي",

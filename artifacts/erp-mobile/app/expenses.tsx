@@ -98,7 +98,7 @@ export default function ExpensesScreen() {
         body: JSON.stringify({
           description: description.trim(),
           amount: Number(amount),
-          category: category.trim() || null,
+          category: category.trim() || "عام",
           safe_id: selectedSafe || safes?.[0]?.id || null,
           date: new Date().toISOString().split("T")[0],
         }),
