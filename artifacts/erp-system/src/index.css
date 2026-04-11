@@ -1626,6 +1626,8 @@ html.light .interactive-card:hover {
 :root {
   /* Background layers */
   --erp-bg-app:       hsl(225,25%,5%);
+  --erp-bg-sidebar:   #0B1120;
+  --erp-bg-main:      #0D1424;
   --erp-bg-surface:   rgba(255,255,255,0.030);
   --erp-bg-card:      rgba(255,255,255,0.045);
   --erp-bg-hover:     rgba(255,255,255,0.065);
@@ -1655,6 +1657,8 @@ html.light .interactive-card:hover {
 /* ── 2. Light mode token override ────────────────────────── */
 html.light {
   --erp-bg-app:       #f0f2f7;
+  --erp-bg-sidebar:   #f8fafc;
+  --erp-bg-main:      #f0f2f7;
   --erp-bg-surface:   rgba(0,0,0,0.020);
   --erp-bg-card:      #ffffff;
   --erp-bg-hover:     rgba(0,0,0,0.040);
