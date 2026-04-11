@@ -78,17 +78,25 @@ router.post('/auth/login', async (req, res) => {
       res.status(400).json({ error: 'بيانات غير صحيحة', details: v.errors });
       return;
     }
-    const { userId, username, pin } = v.data;
+    const { userId, username, pin, company_id: loginCompanyId } = v.data;
 
     /* ── Resolve uid — by userId or by username lookup ────── */
     let uid: number;
     if (userId !== undefined) {
       uid = userId;
     } else {
+      const usernameNorm = username!.trim().toLowerCase();
       const [found] = await db
-        .select({ id: erpUsersTable.id })
+        .select({ id: erpUsersTable.id, company_id: erpUsersTable.company_id })
         .from(erpUsersTable)
-        .where(sql`LOWER(${erpUsersTable.username}) = ${username!.trim().toLowerCase()}`);
+        .where(
+          loginCompanyId
+            ? and(
+                sql`LOWER(${erpUsersTable.username}) = ${usernameNorm}`,
+                eq(erpUsersTable.company_id, loginCompanyId),
+              )
+            : sql`LOWER(${erpUsersTable.username}) = ${usernameNorm}`,
+        );
       if (!found) {
         res.status(401).json({ error: 'الحساب غير موجود أو معطل' });
         return;

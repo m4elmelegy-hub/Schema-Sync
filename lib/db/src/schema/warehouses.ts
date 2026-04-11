@@ -1,10 +1,11 @@
 import { pgTable, serial, text, integer, timestamp } from "drizzle-orm/pg-core";
+import { companiesTable } from "./companies";
 
 export const warehousesTable = pgTable("warehouses", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   address: text("address"),
-  company_id: integer("company_id").notNull().default(1),
+  company_id: integer("company_id").notNull().default(1).references(() => companiesTable.id),
   branch_id:  integer("branch_id"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

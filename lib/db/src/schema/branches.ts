@@ -1,8 +1,9 @@
 import { pgTable, serial, text, integer, boolean, timestamp, index } from "drizzle-orm/pg-core";
+import { companiesTable } from "./companies";
 
 export const branchesTable = pgTable("branches", {
   id:         serial("id").primaryKey(),
-  company_id: integer("company_id").notNull().default(1),
+  company_id: integer("company_id").notNull().default(1).references(() => companiesTable.id),
   name:       text("name").notNull(),
   address:    text("address"),
   phone:      text("phone"),

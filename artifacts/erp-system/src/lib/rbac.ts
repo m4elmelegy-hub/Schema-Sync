@@ -7,7 +7,7 @@ import {
   Package, Users, TrendingUp,
   FileText, Settings, Zap,
   BookOpen, HandCoins,
-  ReceiptText, Wallet, ClipboardList,
+  ReceiptText, Wallet, ClipboardList, GitBranch,
   type LucideIcon,
 } from "lucide-react";
 
@@ -30,6 +30,7 @@ export const ROUTE_ROLES: Record<string, AppRole[]> = {
   "/expenses":               ["admin", "manager"],
   "/income":                 ["admin", "manager"],
   "/vouchers":               ["admin", "manager"],
+  "/branches":               ["admin", "manager"],
   "/settings":               ["admin"],
 };
 
@@ -49,6 +50,7 @@ export const NAV_ITEMS: { name: string; href: string; icon: LucideIcon; roles: A
   { name: "شجرة الحسابات",    href: "/accounts",               icon: BookOpen,        roles: ["admin"] },
   { name: "القيود اليومية",    href: "/journal-entries",        icon: FileText,        roles: ["admin"] },
   { name: "السندات",            href: "/vouchers",               icon: HandCoins,       roles: ["admin","manager"] },
+  { name: "الفروع",             href: "/branches",               icon: GitBranch,       roles: ["admin","manager"] },
   { name: "الإعدادات",         href: "/settings",               icon: Settings,        roles: ["admin"] },
 ];
 

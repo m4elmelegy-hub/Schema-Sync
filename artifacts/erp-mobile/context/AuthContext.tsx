@@ -62,10 +62,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(async (username: string, pin: string) => {
+    const companyId = process.env.EXPO_PUBLIC_COMPANY_ID
+      ? parseInt(process.env.EXPO_PUBLIC_COMPANY_ID, 10)
+      : undefined;
+    const body: Record<string, unknown> = { username, pin };
+    if (companyId && !isNaN(companyId)) body.company_id = companyId;
     const res = await fetch(`${_baseUrl}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, pin }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));

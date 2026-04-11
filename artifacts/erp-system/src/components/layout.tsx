@@ -23,7 +23,7 @@ const NAV_SECTIONS = [
   { label: "التجارة",    hrefs: ["/pos", "/sales", "/purchases", "/products", "/inventory", "/customers"] },
   { label: "المالية",    hrefs: ["/income", "/expenses", "/reports"] },
   { label: "المحاسبة",   hrefs: ["/accounts", "/journal-entries"] },
-  { label: "النظام",     hrefs: ["/settings"] },
+  { label: "النظام",     hrefs: ["/settings", "/branches"] },
 ];
 
 interface LayoutProps { children: ReactNode; }

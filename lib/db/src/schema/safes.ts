@@ -1,10 +1,11 @@
 import { pgTable, serial, text, numeric, integer, timestamp, index } from "drizzle-orm/pg-core";
+import { companiesTable } from "./companies";
 
 export const safesTable = pgTable("safes", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   balance: numeric("balance", { precision: 12, scale: 2 }).default("0"),
-  company_id: integer("company_id").notNull().default(1),
+  company_id: integer("company_id").notNull().default(1).references(() => companiesTable.id),
   branch_id:  integer("branch_id"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -17,7 +18,7 @@ export const safeTransfersTable = pgTable("safe_transfers", {
   to_safe_name: text("to_safe_name"),
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
   notes: text("notes"),
-  company_id: integer("company_id").notNull().default(1),
+  company_id: integer("company_id").notNull().default(1).references(() => companiesTable.id),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("safe_transfers_from_safe_id_idx").on(t.from_safe_id),

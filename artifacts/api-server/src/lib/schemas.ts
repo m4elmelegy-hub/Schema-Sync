@@ -16,6 +16,7 @@ export const loginSchema = z.object({
   pin: z.string({ required_error: "الرقم السري مطلوب" })
     .min(1, "الرقم السري مطلوب")
     .max(50, "الرقم السري طويل جداً"),
+  company_id: z.number().int().positive().optional(),
 }).refine(
   (data) => data.userId !== undefined || (data.username !== undefined && data.username.trim().length > 0),
   { message: "userId أو username مطلوب" },

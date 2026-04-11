@@ -2,6 +2,7 @@ import { pgTable, serial, text, numeric, integer, timestamp, index, uniqueIndex 
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { productsTable } from "./products";
+import { companiesTable } from "./companies";
 
 export const purchasesTable = pgTable("purchases", {
   id: serial("id").primaryKey(),
@@ -18,7 +19,7 @@ export const purchasesTable = pgTable("purchases", {
   posting_status: text("posting_status").notNull().default("draft"), // draft | posted | cancelled
   notes: text("notes"),
   date: text("date"),
-  company_id: integer("company_id").notNull().default(1),
+  company_id: integer("company_id").notNull().default(1).references(() => companiesTable.id),
   branch_id:  integer("branch_id"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [

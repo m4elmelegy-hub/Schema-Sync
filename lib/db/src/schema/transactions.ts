@@ -1,6 +1,7 @@
 import { pgTable, serial, text, numeric, integer, timestamp, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { companiesTable } from "./companies";
 
 // ── الجدول المركزي للحركات المالية ─────────────────────────────────────────
 // كل عملية مالية في النظام تُسجَّل هنا بشكل إلزامي عبر DB transaction
@@ -30,7 +31,7 @@ export const transactionsTable = pgTable("transactions", {
 
   description: text("description"),
   date: text("date"),
-  company_id: integer("company_id").notNull().default(1),
+  company_id: integer("company_id").notNull().default(1).references(() => companiesTable.id),
 
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
