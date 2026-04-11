@@ -1,4 +1,5 @@
 import { pgTable, serial, text, integer, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { companiesTable } from "./companies";
 
 /**
  * إعدادات النظام — key/value per company
@@ -7,7 +8,7 @@ import { pgTable, serial, text, integer, timestamp, uniqueIndex } from "drizzle-
 export const systemSettingsTable = pgTable("system_settings", {
   id:         serial("id").primaryKey(),
   key:        text("key").notNull(),
-  company_id: integer("company_id").notNull().default(1),
+  company_id: integer("company_id").notNull().default(1).references(() => companiesTable.id),
   value:      text("value"),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [

@@ -1,9 +1,8 @@
 import { pgTable, serial, text, numeric, integer, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { companiesTable } from "./companies";
 
-// ── سندات القبض (Receipt Vouchers) ─────────────────────────────────────────
-// العميل يدفع دَيْنه → رصيد العميل ينزل، الخزينة ترتفع
 export const receiptVouchersTable = pgTable("receipt_vouchers", {
   id: serial("id").primaryKey(),
   request_id: text("request_id"),
@@ -14,9 +13,9 @@ export const receiptVouchersTable = pgTable("receipt_vouchers", {
   safe_id: integer("safe_id").notNull(),
   safe_name: text("safe_name").notNull(),
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
-  posting_status: text("posting_status").notNull().default("draft"), // draft | posted | cancelled
+  posting_status: text("posting_status").notNull().default("draft"),
   notes: text("notes"),
-  company_id: integer("company_id").notNull().default(1),
+  company_id: integer("company_id").notNull().default(1).references(() => companiesTable.id),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("receipt_vouchers_customer_id_idx").on(t.customer_id),
@@ -26,8 +25,6 @@ export const receiptVouchersTable = pgTable("receipt_vouchers", {
   uniqueIndex("receipt_vouchers_request_id_uidx").on(t.request_id),
 ]);
 
-// ── سندات التوريد / الإيداع (Deposit Vouchers) ─────────────────────────────
-// إيداع نقود في الخزينة من عميل أو مصدر خارجي → الخزينة ترتفع، رصيد العميل ينزل
 export const depositVouchersTable = pgTable("deposit_vouchers", {
   id: serial("id").primaryKey(),
   request_id: text("request_id"),
@@ -38,10 +35,10 @@ export const depositVouchersTable = pgTable("deposit_vouchers", {
   safe_id: integer("safe_id").notNull(),
   safe_name: text("safe_name").notNull(),
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
-  posting_status: text("posting_status").notNull().default("draft"), // draft | posted | cancelled
-  source: text("source"), // مصدر المبلغ (عند عدم وجود عميل)
+  posting_status: text("posting_status").notNull().default("draft"),
+  source: text("source"),
   notes: text("notes"),
-  company_id: integer("company_id").notNull().default(1),
+  company_id: integer("company_id").notNull().default(1).references(() => companiesTable.id),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("deposit_vouchers_customer_id_idx").on(t.customer_id),
@@ -51,8 +48,6 @@ export const depositVouchersTable = pgTable("deposit_vouchers", {
   uniqueIndex("deposit_vouchers_request_id_uidx").on(t.request_id),
 ]);
 
-// ── سندات الصرف (Payment Vouchers) ──────────────────────────────────────────
-// الشركة تصرف نقداً لعميل (استرداد، دفعة عكسية...) → الخزينة تنزل
 export const paymentVouchersTable = pgTable("payment_vouchers", {
   id: serial("id").primaryKey(),
   request_id: text("request_id"),
@@ -63,9 +58,9 @@ export const paymentVouchersTable = pgTable("payment_vouchers", {
   safe_id: integer("safe_id").notNull(),
   safe_name: text("safe_name").notNull(),
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
-  posting_status: text("posting_status").notNull().default("draft"), // draft | posted | cancelled
+  posting_status: text("posting_status").notNull().default("draft"),
   notes: text("notes"),
-  company_id: integer("company_id").notNull().default(1),
+  company_id: integer("company_id").notNull().default(1).references(() => companiesTable.id),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("payment_vouchers_customer_id_idx").on(t.customer_id),

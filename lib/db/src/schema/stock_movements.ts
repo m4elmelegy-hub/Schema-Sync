@@ -1,12 +1,12 @@
 import { pgTable, serial, text, numeric, integer, timestamp, index } from "drizzle-orm/pg-core";
 import { productsTable } from "./products";
+import { companiesTable } from "./companies";
 
 export const stockMovementsTable = pgTable("stock_movements", {
   id: serial("id").primaryKey(),
   product_id: integer("product_id").notNull().references(() => productsTable.id),
   product_name: text("product_name").notNull(),
   movement_type: text("movement_type").notNull(),
-  // positive = وارد (IN), negative = صادر (OUT)
   quantity: numeric("quantity", { precision: 12, scale: 3 }).notNull(),
   quantity_before: numeric("quantity_before", { precision: 12, scale: 3 }).notNull().default("0"),
   quantity_after: numeric("quantity_after", { precision: 12, scale: 3 }).notNull().default("0"),
@@ -17,7 +17,7 @@ export const stockMovementsTable = pgTable("stock_movements", {
   notes: text("notes"),
   date: text("date"),
   warehouse_id: integer("warehouse_id").notNull().default(1),
-  company_id:  integer("company_id").notNull().default(1),
+  company_id:  integer("company_id").notNull().default(1).references(() => companiesTable.id),
   branch_id:   integer("branch_id"),
   created_at:  timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [

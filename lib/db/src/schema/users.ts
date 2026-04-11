@@ -1,4 +1,5 @@
 import { pgTable, serial, text, boolean, timestamp, integer } from "drizzle-orm/pg-core";
+import { companiesTable } from "./companies";
 
 export const erpUsersTable = pgTable("erp_users", {
   id: serial("id").primaryKey(),
@@ -9,7 +10,7 @@ export const erpUsersTable = pgTable("erp_users", {
   role: text("role").notNull().default("cashier"),
   permissions: text("permissions").default("{}"),
   active: boolean("active").default(true),
-  company_id:      integer("company_id"),
+  company_id:      integer("company_id").references(() => companiesTable.id),
   warehouse_id:    integer("warehouse_id"),
   safe_id:         integer("safe_id"),
   login_attempts:  integer("login_attempts").notNull().default(0),

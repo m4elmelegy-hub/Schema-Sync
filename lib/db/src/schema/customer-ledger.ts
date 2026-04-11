@@ -1,6 +1,7 @@
 import { pgTable, serial, text, numeric, integer, timestamp, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { companiesTable } from "./companies";
 
 /**
  * دفتر أستاذ العملاء
@@ -16,27 +17,15 @@ import { z } from "zod/v4";
  */
 export const customerLedgerTable = pgTable("customer_ledger", {
   id: serial("id").primaryKey(),
-
   customer_id: integer("customer_id").notNull(),
-
-  // نوع الحركة
-  // sale | sale_return | receipt_voucher | payment | adjustment | opening_balance
   type: text("type").notNull(),
-
-  // المبلغ
-  // موجب = دين على العميل ← يزيد الرصيد
-  // سالب = سداد / رصيد دائن ← يقلّل الرصيد
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
-
-  // المرجع
   reference_type: text("reference_type"),
   reference_id: integer("reference_id"),
   reference_no: text("reference_no"),
-
   description: text("description"),
   date: text("date"),
-  company_id: integer("company_id").notNull().default(1),
-
+  company_id: integer("company_id").notNull().default(1).references(() => companiesTable.id),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("customer_ledger_customer_id_idx").on(t.customer_id),

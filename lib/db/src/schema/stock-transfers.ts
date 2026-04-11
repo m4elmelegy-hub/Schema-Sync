@@ -1,5 +1,6 @@
 import { pgTable, serial, text, numeric, integer, timestamp } from "drizzle-orm/pg-core";
 import { productsTable } from "./products";
+import { companiesTable } from "./companies";
 
 export const stockTransfersTable = pgTable("stock_transfers", {
   id:                serial("id").primaryKey(),
@@ -7,7 +8,7 @@ export const stockTransfersTable = pgTable("stock_transfers", {
   to_warehouse_id:   integer("to_warehouse_id").notNull(),
   status:            text("status").notNull().default("completed"),
   notes:             text("notes"),
-  company_id:        integer("company_id").notNull().default(1),
+  company_id:        integer("company_id").notNull().default(1).references(() => companiesTable.id),
   created_by:        integer("created_by"),
   created_at:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

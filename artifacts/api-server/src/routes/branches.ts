@@ -9,105 +9,78 @@ import { Router } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, branchesTable } from "@workspace/db";
 import { authenticate, requireRole } from "../middleware/auth";
+import { wrap } from "../lib/async-handler";
 
 const router = Router();
 
-/* ── GET /branches ──────────────────────────────────────────── */
-router.get("/branches", authenticate, async (req, res) => {
-  try {
-    const companyId = req.user?.company_id ?? null;
-    if (companyId === null) {
-      res.json([]);
-      return;
-    }
-    const rows = await db
-      .select()
-      .from(branchesTable)
-      .where(eq(branchesTable.company_id, companyId))
-      .orderBy(branchesTable.id);
-    res.json(rows);
-  } catch (err) {
-    console.error("branches GET error:", err);
-    res.status(500).json({ error: "فشل جلب الفروع" });
+router.get("/branches", authenticate, wrap(async (req, res) => {
+  const companyId = req.user?.company_id ?? null;
+  if (companyId === null) { res.json([]); return; }
+
+  const rows = await db
+    .select()
+    .from(branchesTable)
+    .where(eq(branchesTable.company_id, companyId))
+    .orderBy(branchesTable.id);
+  res.json(rows);
+}));
+
+router.post("/branches", authenticate, requireRole("admin"), wrap(async (req, res) => {
+  const companyId = req.user?.company_id ?? null;
+  if (companyId === null) { res.status(403).json({ error: "غير مسموح" }); return; }
+
+  const { name, address, phone } = req.body;
+  if (!name || !String(name).trim()) {
+    res.status(400).json({ error: "اسم الفرع مطلوب" }); return;
   }
-});
 
-/* ── POST /branches ─────────────────────────────────────────── */
-router.post("/branches", authenticate, requireRole("admin"), async (req, res) => {
-  try {
-    const companyId = req.user?.company_id ?? null;
-    if (companyId === null) {
-      res.status(403).json({ error: "غير مسموح" });
-      return;
-    }
-    const { name, address, phone } = req.body;
-    if (!name || !String(name).trim()) {
-      res.status(400).json({ error: "اسم الفرع مطلوب" });
-      return;
-    }
-    const [branch] = await db
-      .insert(branchesTable)
-      .values({
-        company_id: companyId,
-        name:       String(name).trim(),
-        address:    address ? String(address).trim() : null,
-        phone:      phone   ? String(phone).trim()   : null,
-        is_active:  true,
-      })
-      .returning();
-    res.status(201).json(branch);
-  } catch (err) {
-    console.error("branches POST error:", err);
-    res.status(500).json({ error: "فشل إنشاء الفرع" });
-  }
-});
+  const [branch] = await db
+    .insert(branchesTable)
+    .values({
+      company_id: companyId,
+      name:       String(name).trim(),
+      address:    address ? String(address).trim() : null,
+      phone:      phone   ? String(phone).trim()   : null,
+      is_active:  true,
+    })
+    .returning();
+  res.status(201).json(branch);
+}));
 
-/* ── PATCH /branches/:id ────────────────────────────────────── */
-router.patch("/branches/:id", authenticate, requireRole("admin"), async (req, res) => {
-  try {
-    const id        = parseInt(String(req.params.id), 10);
-    const companyId = req.user?.company_id ?? null;
-    if (companyId === null) { res.status(403).json({ error: "غير مسموح" }); return; }
+router.patch("/branches/:id", authenticate, requireRole("admin"), wrap(async (req, res) => {
+  const id        = parseInt(String(req.params.id), 10);
+  const companyId = req.user?.company_id ?? null;
+  if (companyId === null) { res.status(403).json({ error: "غير مسموح" }); return; }
 
-    const { name, address, phone, is_active } = req.body;
-    const updates: Record<string, unknown> = {};
-    if (name      !== undefined) updates.name      = String(name).trim();
-    if (address   !== undefined) updates.address   = address ? String(address).trim() : null;
-    if (phone     !== undefined) updates.phone     = phone   ? String(phone).trim()   : null;
-    if (is_active !== undefined) updates.is_active = Boolean(is_active);
+  const { name, address, phone, is_active } = req.body;
+  const updates: Record<string, unknown> = {};
+  if (name      !== undefined) updates.name      = String(name).trim();
+  if (address   !== undefined) updates.address   = address ? String(address).trim() : null;
+  if (phone     !== undefined) updates.phone     = phone   ? String(phone).trim()   : null;
+  if (is_active !== undefined) updates.is_active = Boolean(is_active);
 
-    const [branch] = await db
-      .update(branchesTable)
-      .set(updates)
-      .where(and(eq(branchesTable.id, id), eq(branchesTable.company_id, companyId)))
-      .returning();
+  const [branch] = await db
+    .update(branchesTable)
+    .set(updates)
+    .where(and(eq(branchesTable.id, id), eq(branchesTable.company_id, companyId)))
+    .returning();
 
-    if (!branch) { res.status(404).json({ error: "الفرع غير موجود" }); return; }
-    res.json(branch);
-  } catch (err) {
-    console.error("branches PATCH error:", err);
-    res.status(500).json({ error: "فشل تحديث الفرع" });
-  }
-});
+  if (!branch) { res.status(404).json({ error: "الفرع غير موجود" }); return; }
+  res.json(branch);
+}));
 
-/* ── DELETE /branches/:id ───────────────────────────────────── */
-router.delete("/branches/:id", authenticate, requireRole("admin"), async (req, res) => {
-  try {
-    const id        = parseInt(String(req.params.id), 10);
-    const companyId = req.user?.company_id ?? null;
-    if (companyId === null) { res.status(403).json({ error: "غير مسموح" }); return; }
+router.delete("/branches/:id", authenticate, requireRole("admin"), wrap(async (req, res) => {
+  const id        = parseInt(String(req.params.id), 10);
+  const companyId = req.user?.company_id ?? null;
+  if (companyId === null) { res.status(403).json({ error: "غير مسموح" }); return; }
 
-    const [deleted] = await db
-      .delete(branchesTable)
-      .where(and(eq(branchesTable.id, id), eq(branchesTable.company_id, companyId)))
-      .returning();
+  const [deleted] = await db
+    .delete(branchesTable)
+    .where(and(eq(branchesTable.id, id), eq(branchesTable.company_id, companyId)))
+    .returning();
 
-    if (!deleted) { res.status(404).json({ error: "الفرع غير موجود" }); return; }
-    res.json({ success: true });
-  } catch (err) {
-    console.error("branches DELETE error:", err);
-    res.status(500).json({ error: "فشل حذف الفرع" });
-  }
-});
+  if (!deleted) { res.status(404).json({ error: "الفرع غير موجود" }); return; }
+  res.json({ success: true });
+}));
 
 export default router;

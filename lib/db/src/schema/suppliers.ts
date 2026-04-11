@@ -1,6 +1,7 @@
 import { pgTable, serial, text, numeric, integer, timestamp, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { companiesTable } from "./companies";
 
 export const suppliersTable = pgTable("suppliers", {
   id: serial("id").primaryKey(),
@@ -11,7 +12,7 @@ export const suppliersTable = pgTable("suppliers", {
   balance: numeric("balance", { precision: 12, scale: 2 }).notNull().default("0"),
   linked_customer_id: integer("linked_customer_id"),
   account_id: integer("account_id"),
-  company_id: integer("company_id").notNull().default(1),
+  company_id: integer("company_id").notNull().default(1).references(() => companiesTable.id),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   unique("suppliers_supplier_code_company_unique").on(t.supplier_code, t.company_id),
