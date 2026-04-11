@@ -216,8 +216,6 @@ export default function PurchasesScreen() {
               icon="shopping-bag"
               title="لا توجد مشتريات"
               subtitle={search ? "لا نتائج للبحث" : "أضف أول فاتورة شراء الآن"}
-              actionLabel="فاتورة شراء جديدة"
-              onAction={() => router.push("/new-purchase")}
             />
           }
         />
@@ -267,8 +265,8 @@ const styles = StyleSheet.create({
   fab: {
     position: "absolute", right: 20,
     width: 58, height: 58, borderRadius: 29,
-    backgroundColor: PURPLE, justifyContent: "center", alignItems: "center",
-    shadowColor: PURPLE, shadowOffset: { width: 0, height: 4 },
+    backgroundColor: AMBER, justifyContent: "center", alignItems: "center",
+    shadowColor: AMBER, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4, shadowRadius: 12, elevation: 8,
   },
 

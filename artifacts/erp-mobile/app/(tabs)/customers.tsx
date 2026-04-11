@@ -164,8 +164,6 @@ export default function CustomersScreen() {
             <EmptyState
               icon="users" title="لا يوجد عملاء"
               subtitle="أضف أول عميل الآن"
-              actionLabel="إضافة عميل"
-              onAction={() => router.push("/new-customer")}
             />
           }
         />

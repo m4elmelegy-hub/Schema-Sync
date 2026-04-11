@@ -140,9 +140,7 @@ export default function InventoryScreen() {
           ListEmptyComponent={
             <EmptyState
               icon="package" title="لا توجد منتجات"
-              subtitle="أضف أول منتج الآن"
-              actionLabel="إضافة منتج"
-              onAction={() => router.push("/new-product")}
+              subtitle="اضغط + لإضافة أول منتج"
             />
           }
         />

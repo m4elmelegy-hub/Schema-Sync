@@ -143,9 +143,6 @@ export default function ExpensesScreen() {
               {data?.length || 0} مصروف • الإجمالي: {formatCurrency(total)} ج.م
             </Text>
           </View>
-          <TouchableOpacity onPress={() => setAddModal(true)} style={[styles.headerAddBtn, { backgroundColor: AMBER }]} activeOpacity={0.8}>
-            <Feather name="plus" size={18} color="#0a0500" />
-          </TouchableOpacity>
         </View>
       </View>
 
@@ -175,8 +172,6 @@ export default function ExpensesScreen() {
               icon="credit-card"
               title="لا توجد مصروفات"
               subtitle={search ? "لا نتائج للبحث" : "أضف أول مصروف الآن"}
-              actionLabel="إضافة مصروف"
-              onAction={() => setAddModal(true)}
             />
           }
         />

@@ -142,9 +142,7 @@ export default function SalesScreen() {
           ListEmptyComponent={
             <EmptyState
               icon="shopping-cart" title="لا توجد مبيعات"
-              subtitle={search ? "لا نتائج للبحث" : "أنشئ أول فاتورة بيع الآن"}
-              actionLabel="فاتورة جديدة"
-              onAction={() => router.push("/new-sale")}
+              subtitle={search ? "لا نتائج للبحث" : "اضغط + لإنشاء أول فاتورة بيع"}
             />
           }
         />
