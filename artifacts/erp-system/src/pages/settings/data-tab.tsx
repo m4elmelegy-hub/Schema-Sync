@@ -72,6 +72,9 @@ export default function DataTab() {
   const { data: warehousesList = [] } = useGetSettingsWarehouses();
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | "">("");
 
+  /* ── تبويب رئيسي ── */
+  const [mainTab,    setMainTab]   = useState<"import" | "danger">("import");
+
   /* ── Import subtab ── */
   const [importTab, setImportTab] = useState<"products" | "purchases">("products");
 
@@ -281,12 +284,26 @@ export default function DataTab() {
   };
 
   return (
-    <div className="space-y-6" dir="rtl">
+    <div className="space-y-5" dir="rtl">
       <PageHeader title="إدارة البيانات" sub="استيراد البيانات وإدارة قاعدة البيانات" />
 
-      {/* ═══════════════════════════════════════════════════
-          بطاقة 1 — الاستيراد
-      ════════════════════════════════════════════════════ */}
+      {/* ═══════ التبويب الرئيسي ═══════ */}
+      <div className="flex gap-2">
+        <button onClick={() => setMainTab("import")}
+          className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold border transition-all ${mainTab === "import" ? "bg-amber-500/15 border-amber-500/30 text-amber-400" : "border-white/8 text-white/40 hover:text-white/70 hover:border-white/15"}`}>
+          <Upload className="w-4 h-4" /> الاستيراد وسجل العمليات
+        </button>
+        <button onClick={() => setMainTab("danger")}
+          className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold border transition-all ${mainTab === "danger" ? "bg-red-500/15 border-red-500/30 text-red-400" : "border-white/8 text-white/40 hover:text-white/70 hover:border-white/15"}`}>
+          <AlertTriangle className="w-4 h-4" /> منطقة الخطر
+          {mainTab !== "danger" && <span className="text-[10px] font-black text-red-500/60 mr-1">⚠</span>}
+        </button>
+      </div>
+
+      {/* ══════ محتوى الاستيراد وسجل العمليات ══════ */}
+      {mainTab === "import" && (<>
+
+      {/* ─── بطاقة الاستيراد ─── */}
       <div className="bg-[#111827] border border-white/8 rounded-2xl overflow-hidden">
         <div className="flex border-b border-white/8">
           {([
@@ -485,11 +502,12 @@ export default function DataTab() {
         )}
       </div>
 
-      {/* ═══════════════════════════════════════════════════
-          بطاقة 3 — منطقة الخطر
-      ════════════════════════════════════════════════════ */}
+      </>)}
+
+      {/* ══════ منطقة الخطر ══════ */}
+      {mainTab === "danger" && (<>
+
       <div className="bg-[#111827] border border-red-500/25 rounded-2xl overflow-hidden">
-        {/* رأس منطقة الخطر */}
         <div className="px-5 py-4 border-b border-red-500/15 bg-red-500/5 flex items-center gap-3">
           <div className="w-8 h-8 rounded-xl bg-red-500/15 flex items-center justify-center">
             <AlertTriangle className="w-4 h-4 text-red-400" />
@@ -604,6 +622,9 @@ export default function DataTab() {
           </div>
         </div>
       </div>
+
+      </>)}
+
     </div>
   );
 }
