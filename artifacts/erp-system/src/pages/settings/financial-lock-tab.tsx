@@ -9,6 +9,103 @@ import {
 import { PageHeader, FieldLabel, SInput } from "./_shared";
 import { ACTION_LABELS } from "./_constants";
 
+/* ── Arabic label maps for audit log ───────────────────────── */
+const RECORD_TYPE_AR: Record<string, string> = {
+  user:                  "مستخدم",
+  customer:              "عميل",
+  supplier:              "مورد",
+  product:               "صنف",
+  category:              "تصنيف",
+  sale:                  "فاتورة بيع",
+  sale_return:           "مرتجع مبيعات",
+  sales_return:          "مرتجع مبيعات",
+  purchase:              "فاتورة شراء",
+  purchase_return:       "مرتجع مشتريات",
+  expense:               "مصروف",
+  income:                "إيراد",
+  voucher:               "سند",
+  receipt_voucher:       "سند قبض",
+  payment_voucher:       "سند صرف",
+  financial_transaction: "حركة مالية",
+  inventory:             "مخزون",
+  branch:                "فرع",
+  warehouse:             "مخزن",
+  safe:                  "خزينة",
+  period:                "فترة مالية",
+  setting:               "إعداد",
+  backup:                "نسخة احتياطية",
+};
+
+const FIELD_AR: Record<string, string> = {
+  name:            "الاسم",
+  username:        "اسم المستخدم",
+  email:           "البريد الإلكتروني",
+  phone:           "الهاتف",
+  address:         "العنوان",
+  role:            "الدور",
+  active:          "الحالة",
+  customer_code:   "كود العميل",
+  customer_name:   "اسم العميل",
+  customer_id:     "رقم العميل",
+  supplier_name:   "اسم المورد",
+  supplier_id:     "رقم المورد",
+  total_amount:    "الإجمالي",
+  amount:          "المبلغ",
+  refund_type:     "نوع الإرجاع",
+  description:     "البيان",
+  date:            "التاريخ",
+  direction:       "الاتجاه",
+  type:            "النوع",
+  notes:           "ملاحظات",
+  tax_id:          "الرقم الضريبي",
+  balance:         "الرصيد",
+  opening_balance: "رصيد أول مدة",
+  closing_date:    "تاريخ الإغلاق",
+  lock_mode:       "وضع الإغلاق",
+  unlock_reason:   "سبب الفتح",
+  quantity:        "الكمية",
+  price:           "السعر",
+  barcode:         "الباركود",
+  sku:             "كود الصنف",
+};
+
+/* Fields to hide from audit detail (technical/internal) */
+const SKIP_FIELDS = new Set([
+  "id", "company_id", "normalized_name", "created_at", "updated_at",
+  "password", "totp_secret", "permissions", "deleted_at", "branch_id",
+  "warehouse_id", "safe_id",
+]);
+
+function formatDetailValue(key: string, value: unknown): string {
+  if (value === null || value === undefined) return "—";
+  if (key === "active")    return value ? "نشط" : "موقوف";
+  if (key === "direction") return value === "in" ? "وارد" : "صادر";
+  if (key === "refund_type") {
+    const map: Record<string, string> = { credit: "آجل", cash: "نقدي", partial: "جزئي" };
+    return map[String(value)] ?? String(value);
+  }
+  if (key === "role") {
+    const map: Record<string, string> = {
+      super_admin: "المسؤول العام", company_admin: "مدير الشركة",
+      admin: "مدير النظام", manager: "مشرف", cashier: "كاشير",
+      branch_manager: "مدير الفرع", salesperson: "مندوب مبيعات",
+    };
+    return map[String(value)] ?? String(value);
+  }
+  if (typeof value === "number") return value.toLocaleString("ar-EG");
+  return String(value);
+}
+
+function buildDetail(record: Record<string, unknown>): string {
+  return Object.entries(record)
+    .filter(([k]) => !SKIP_FIELDS.has(k))
+    .map(([k, v]) => {
+      const label = FIELD_AR[k] ?? k;
+      return `${label}: ${formatDetailValue(k, v)}`;
+    })
+    .join(" · ") || "—";
+}
+
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const api = (p: string) => `${BASE}${p}`;
 
@@ -279,10 +376,9 @@ export default function FinancialLockTab() {
                   <tbody>
                     {auditLogs.map((log, i) => {
                       const actionInfo = ACTION_LABELS[log.action] ?? { label: log.action, color: "text-white/40 bg-white/5 border-white/10" };
+                      const recordTypeAr = RECORD_TYPE_AR[log.record_type] ?? log.record_type;
                       const detail = log.new_value
-                        ? Object.entries(log.new_value as Record<string, unknown>)
-                            .map(([k, v]) => `${k}: ${v}`)
-                            .join(" · ")
+                        ? buildDetail(log.new_value as Record<string, unknown>)
                         : "—";
                       return (
                         <tr key={log.id} className={`border-b border-white/5 hover:bg-white/3 ${i % 2 === 0 ? "" : "bg-white/[0.015]"}`}>
@@ -291,9 +387,9 @@ export default function FinancialLockTab() {
                               {actionInfo.label}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-white/50 text-xs">{log.record_type}</td>
+                          <td className="px-4 py-3 text-white/50 text-xs">{recordTypeAr}</td>
                           <td className="px-4 py-3 text-white/70 text-xs font-medium">{log.username ?? "—"}</td>
-                          <td className="px-4 py-3 text-white/40 text-xs" dir="ltr">
+                          <td className="px-4 py-3 text-white/40 text-xs">
                             {new Date(log.created_at).toLocaleString("ar-EG")}
                           </td>
                           <td className="px-4 py-3 text-white/35 text-[11px] max-w-[200px] truncate" title={detail}>{detail}</td>

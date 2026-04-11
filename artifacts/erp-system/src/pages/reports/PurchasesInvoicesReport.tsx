@@ -3,15 +3,18 @@ import { useGetPurchases } from "@workspace/api-client-react";
 import { Search, FileDown, Printer } from "lucide-react";
 import { formatCurrency, formatDate, TableSkeleton, PaymentBadge, StatusBadge, InvoicePdfButton } from "./shared";
 
+const PAY_AR: Record<string,string> = { cash:"نقدي", credit:"آجل", partial:"جزئي" };
+const STATUS_AR: Record<string,string> = { paid:"مدفوع", partial:"جزئي", unpaid:"غير مدفوع", pending:"معلق" };
+
 function exportPurchasesExcel(rows: any[]) {
-  const header = ["رقم الفاتورة","العميل","الإجمالي","المدفوع","المتبقي","نوع الدفع","الحالة","التاريخ"];
-  const body = rows.map(p => [p.invoice_no,p.customer_name||"—",p.total_amount,p.paid_amount,p.remaining_amount,p.payment_type,p.status,formatDate(p.created_at)]);
+  const header = ["رقم الفاتورة","المورد","الإجمالي","المدفوع","المتبقي","نوع الدفع","الحالة","التاريخ"];
+  const body = rows.map(p => [p.invoice_no,p.customer_name||"—",p.total_amount,p.paid_amount,p.remaining_amount,PAY_AR[p.payment_type]||p.payment_type,STATUS_AR[p.status]||p.status,formatDate(p.created_at)]);
   const csv = [header,...body].map(r=>r.join(",")).join("\n");
   const url = URL.createObjectURL(new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"}));
   const a = document.createElement("a"); a.href=url; a.download="فواتير_المشتريات.csv"; a.click(); URL.revokeObjectURL(url);
 }
 function printPurchasesReport(rows: any[]) {
-  const html = `<html dir="rtl"><head><meta charset="UTF-8"><style>body{font-family:Tajawal,Cairo,Arial;font-size:11px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:6px;text-align:right}th{background:#f5f5f5}</style></head><body><h2>تقرير فواتير المشتريات</h2><table><thead><tr><th>رقم الفاتورة</th><th>العميل</th><th>الإجمالي</th><th>المدفوع</th><th>المتبقي</th><th>الحالة</th><th>التاريخ</th></tr></thead><tbody>${rows.map(p=>`<tr><td>${p.invoice_no}</td><td>${p.customer_name||"—"}</td><td>${formatCurrency(p.total_amount)}</td><td>${formatCurrency(p.paid_amount)}</td><td>${formatCurrency(p.remaining_amount)}</td><td>${p.status}</td><td>${formatDate(p.created_at)}</td></tr>`).join("")}</tbody></table></body></html>`;
+  const html = `<html dir="rtl"><head><meta charset="UTF-8"><style>body{font-family:Tajawal,Cairo,Arial;font-size:11px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:6px;text-align:right}th{background:#f5f5f5}</style></head><body><h2>تقرير فواتير المشتريات</h2><table><thead><tr><th>رقم الفاتورة</th><th>المورد</th><th>الإجمالي</th><th>المدفوع</th><th>المتبقي</th><th>نوع الدفع</th><th>الحالة</th><th>التاريخ</th></tr></thead><tbody>${rows.map(p=>`<tr><td>${p.invoice_no}</td><td>${p.customer_name||"—"}</td><td>${formatCurrency(p.total_amount)}</td><td>${formatCurrency(p.paid_amount)}</td><td>${formatCurrency(p.remaining_amount)}</td><td>${PAY_AR[p.payment_type]||p.payment_type}</td><td>${STATUS_AR[p.status]||p.status}</td><td>${formatDate(p.created_at)}</td></tr>`).join("")}</tbody></table></body></html>`;
   const w=window.open("","_blank"); if(w){w.document.write(html);w.document.close();setTimeout(()=>w.print(),500);}
 }
 
