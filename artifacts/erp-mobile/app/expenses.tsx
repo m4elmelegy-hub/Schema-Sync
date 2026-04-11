@@ -132,11 +132,21 @@ export default function ExpensesScreen() {
   return (
     <View style={[styles.container, { backgroundColor: c.background }]}>
       <View style={[styles.header, { backgroundColor: c.headerBg, paddingTop: isWeb ? 67 : insets.top + 12 }]}>
-        <View style={[styles.headerLine, { backgroundColor: DANGER }]} />
-        <Text style={styles.headerTitle}>المصروفات</Text>
-        <Text style={[styles.headerSub, { color: DANGER }]}>
-          {data?.length || 0} مصروف • الإجمالي: {formatCurrency(total)} ج.م
-        </Text>
+        <View style={[styles.headerLine, { backgroundColor: AMBER }]} />
+        <View style={styles.headerRow}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+            <Feather name="arrow-right" size={22} color={c.text} />
+          </TouchableOpacity>
+          <View style={styles.headerTexts}>
+            <Text style={[styles.headerTitle, { color: c.text }]}>المصروفات</Text>
+            <Text style={[styles.headerSub, { color: c.mutedForeground }]}>
+              {data?.length || 0} مصروف • الإجمالي: {formatCurrency(total)} ج.م
+            </Text>
+          </View>
+          <TouchableOpacity onPress={() => setAddModal(true)} style={[styles.headerAddBtn, { backgroundColor: AMBER }]} activeOpacity={0.8}>
+            <Feather name="plus" size={18} color="#0a0500" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={[styles.searchBox, { backgroundColor: c.card, borderColor: c.border }]}>
@@ -173,11 +183,11 @@ export default function ExpensesScreen() {
       )}
 
       <TouchableOpacity
-        style={[styles.fab, { bottom: isWeb ? 34 : insets.bottom + 80, backgroundColor: DANGER }]}
+        style={[styles.fab, { bottom: isWeb ? 34 : insets.bottom + 80 }]}
         onPress={() => setAddModal(true)}
         activeOpacity={0.85}
       >
-        <Feather name="plus" size={26} color="#fff" />
+        <Feather name="plus" size={26} color="#0a0500" />
       </TouchableOpacity>
 
       {/* Add Modal */}
@@ -268,10 +278,14 @@ export default function ExpensesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingBottom: 16, paddingHorizontal: 20, position: "relative" },
+  header: { paddingBottom: 14, paddingHorizontal: 16, position: "relative" },
   headerLine: { position: "absolute", top: 0, left: 0, right: 0, height: 2 },
-  headerTitle: { fontSize: 22, fontFamily: "Tajawal_700Bold", color: "#F0F7FF", textAlign: "right" },
-  headerSub: { fontSize: 12, fontFamily: "Tajawal_400Regular", textAlign: "right", marginTop: 2 },
+  headerRow: { flexDirection: "row-reverse", alignItems: "center", gap: 12 },
+  backBtn: { width: 36, height: 36, justifyContent: "center", alignItems: "center", borderRadius: 10 },
+  headerTexts: { flex: 1, alignItems: "flex-end" },
+  headerAddBtn: { width: 36, height: 36, borderRadius: 10, justifyContent: "center", alignItems: "center" },
+  headerTitle: { fontSize: 20, fontFamily: "Tajawal_700Bold", textAlign: "right" },
+  headerSub: { fontSize: 11, fontFamily: "Tajawal_400Regular", textAlign: "right", marginTop: 1 },
   searchBox: {
     flexDirection: "row-reverse", alignItems: "center",
     marginHorizontal: 16, marginTop: 12, marginBottom: 4,
@@ -283,8 +297,9 @@ const styles = StyleSheet.create({
   fab: {
     position: "absolute", right: 20,
     width: 58, height: 58, borderRadius: 29,
+    backgroundColor: AMBER,
     justifyContent: "center", alignItems: "center",
-    shadowOffset: { width: 0, height: 4 },
+    shadowColor: AMBER, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4, shadowRadius: 12, elevation: 8,
   },
   card: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },

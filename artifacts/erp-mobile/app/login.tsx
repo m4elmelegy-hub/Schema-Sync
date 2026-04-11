@@ -2,9 +2,10 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -17,6 +18,14 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/context/AuthContext";
+import {
+  authenticateWithBiometric,
+  getBiometricCredentials,
+  getBiometricStatus,
+  saveBiometricCredentials,
+  setBiometricEnabled,
+  type BiometricStatus,
+} from "@/hooks/useBiometric";
 
 const MIN_PIN = 4;
 const PIN_LENGTH = 6;
@@ -60,6 +69,11 @@ function PinButton({ label, onPress, icon }: { label?: string; onPress: () => vo
   );
 }
 
+function BiometricIcon({ type, color }: { type: BiometricStatus["type"]; color: string }) {
+  const iconName = type === "face" ? "smile" : "aperture";
+  return <Feather name={iconName} size={26} color={color} />;
+}
+
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === "web";
@@ -73,9 +87,15 @@ export default function LoginScreen() {
   const [step, setStep] = useState<"username" | "pin">("username");
   const inputRef = useRef<TextInput>(null);
 
+  const [biometric, setBiometric] = useState<BiometricStatus | null>(null);
+
   const bg = c.isDark ? "#0F1117" : "#F4F6FA";
   const cardBg = c.isDark ? "rgba(26,32,53,0.97)" : "#FFFFFF";
   const cardBorder = c.isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+
+  useEffect(() => {
+    getBiometricStatus().then(setBiometric);
+  }, []);
 
   const handleNumPress = (num: string) => {
     if (pin.length >= PIN_LENGTH) return;
@@ -96,14 +116,36 @@ export default function LoginScreen() {
     setError("");
   };
 
-  const handleLogin = async () => {
-    if (pin.length < MIN_PIN) { setError(`الرقم السري يجب أن يكون ${MIN_PIN} أرقام على الأقل`); return; }
+  const performLogin = async (u: string, p: string) => {
     setLoading(true);
     setError("");
     try {
-      await login(username.trim(), pin);
+      await login(u.trim(), p);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace("/(tabs)");
+
+      const bStatus = await getBiometricStatus();
+      if (bStatus.available && bStatus.enrolled && !bStatus.enabled && Platform.OS !== "web") {
+        Alert.alert(
+          "تفعيل الدخول بالبصمة",
+          "هل تريد استخدام البصمة / Face ID للدخول السريع في المرة القادمة؟",
+          [
+            { text: "لاحقاً", style: "cancel", onPress: () => router.replace("/(tabs)") },
+            {
+              text: "تفعيل",
+              onPress: async () => {
+                const ok = await authenticateWithBiometric();
+                if (ok) {
+                  await saveBiometricCredentials(u.trim(), p);
+                  await setBiometricEnabled(true);
+                }
+                router.replace("/(tabs)");
+              },
+            },
+          ]
+        );
+      } else {
+        router.replace("/(tabs)");
+      }
     } catch (e: any) {
       setError(e.message || "خطأ في تسجيل الدخول");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -113,11 +155,35 @@ export default function LoginScreen() {
     }
   };
 
-  React.useEffect(() => {
+  const handleLogin = async () => {
+    if (pin.length < MIN_PIN) { setError(`الرقم السري يجب أن يكون ${MIN_PIN} أرقام على الأقل`); return; }
+    await performLogin(username, pin);
+  };
+
+  const handleBiometricLogin = async () => {
+    if (!biometric?.enabled) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const ok = await authenticateWithBiometric();
+    if (!ok) {
+      setError("فشل التحقق بالبصمة");
+      return;
+    }
+    const creds = await getBiometricCredentials();
+    if (!creds) {
+      setError("لا توجد بيانات محفوظة، أدخل كلمة المرور");
+      return;
+    }
+    setUsername(creds.username);
+    await performLogin(creds.username, creds.pin);
+  };
+
+  useEffect(() => {
     if (pin.length === PIN_LENGTH && step === "pin" && !loading) {
       handleLogin();
     }
   }, [pin]);
+
+  const showBiometric = biometric?.enabled && step === "username";
 
   return (
     <View style={[styles.container, { backgroundColor: bg }]}>
@@ -189,6 +255,19 @@ export default function LoginScreen() {
                   <Text style={styles.nextBtnText}>التالي</Text>
                   <Feather name="arrow-left" size={18} color="#FFFFFF" />
                 </TouchableOpacity>
+
+                {showBiometric && (
+                  <TouchableOpacity
+                    style={[styles.biometricBtn, { borderColor: AMBER + "40", backgroundColor: AMBER + "0F" }]}
+                    onPress={handleBiometricLogin}
+                    activeOpacity={0.7}
+                  >
+                    <BiometricIcon type={biometric.type} color={AMBER} />
+                    <Text style={[styles.biometricText, { color: AMBER }]}>
+                      {biometric.type === "face" ? "الدخول بـ Face ID" : "الدخول بالبصمة"}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </>
             ) : (
               <>
@@ -214,12 +293,15 @@ export default function LoginScreen() {
                       {["1","2","3","4","5","6","7","8","9"].map((n) => (
                         <PinButton key={n} label={n} onPress={() => handleNumPress(n)} />
                       ))}
-                      <View style={{ width: 80, height: 80 }} />
+                      {biometric?.enabled ? (
+                        <PinButton onPress={handleBiometricLogin} icon={<BiometricIcon type={biometric.type} color={c.text} />} />
+                      ) : (
+                        <View style={{ width: 80, height: 80 }} />
+                      )}
                       <PinButton label="0" onPress={() => handleNumPress("0")} />
                       <PinButton onPress={handleDelete} icon={<Feather name="delete" size={22} color={c.text} />} />
                     </View>
 
-                    {/* زر دخول يظهر دائماً بعد 4 أرقام */}
                     {pin.length >= MIN_PIN && (
                       <TouchableOpacity
                         style={[styles.loginBtn, { marginTop: 16 }]}
@@ -293,6 +375,12 @@ const styles = StyleSheet.create({
     backgroundColor: AMBER, borderRadius: 12, paddingVertical: 16, gap: 8, marginTop: 8,
   },
   nextBtnText: { color: "#FFFFFF", fontSize: 16, fontFamily: "Tajawal_700Bold" },
+
+  biometricBtn: {
+    flexDirection: "row-reverse", alignItems: "center", justifyContent: "center",
+    borderRadius: 12, borderWidth: 1, paddingVertical: 14, gap: 10, marginTop: 12,
+  },
+  biometricText: { fontSize: 15, fontFamily: "Tajawal_700Bold" },
 
   dotsRow: { flexDirection: "row-reverse", justifyContent: "center", gap: 14, marginBottom: 8, marginTop: 12 },
   dot: { width: 14, height: 14, borderRadius: 7, borderWidth: 2 },

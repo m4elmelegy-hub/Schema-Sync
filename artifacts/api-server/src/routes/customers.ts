@@ -148,6 +148,42 @@ router.post("/customers", wrap(async (req, res) => {
   res.status(201).json(formatCustomer(updated));
 }));
 
+router.get("/customers/:id", wrap(async (req, res) => {
+  if (!hasPermission(req.user, "can_view_customers")) {
+    res.status(403).json({ error: "غير مصرح بعرض العملاء" }); return;
+  }
+  const id = parseInt(String(req.params.id), 10);
+  if (isNaN(id)) { res.status(400).json({ error: "معرّف غير صالح" }); return; }
+  const companyId = req.user?.company_id ?? null;
+  const companyFilter = companyId !== null ? sql` AND c.company_id = ${companyId}` : sql``;
+  const rows = await db.execute(sql`
+    SELECT
+      c.id, c.name, c.customer_code, c.phone,
+      c.is_customer, c.is_supplier, c.account_id, c.created_at,
+      COALESCE(SUM(CAST(cl.amount AS FLOAT8)), 0) AS ledger_balance
+    FROM customers c
+    LEFT JOIN customer_ledger cl ON cl.customer_id = c.id
+    WHERE c.id = ${id}
+    ${companyFilter}
+    GROUP BY c.id, c.name, c.customer_code, c.phone,
+             c.is_customer, c.is_supplier, c.account_id, c.created_at
+  `);
+  if (!rows.rows.length) {
+    res.status(404).json({ error: "العميل غير موجود" }); return;
+  }
+  const r = rows.rows[0] as any;
+  res.json({
+    id: r.id,
+    name: r.name,
+    customer_code: r.customer_code,
+    phone: r.phone,
+    balance: Math.round(Number(r.ledger_balance) * 100) / 100,
+    is_customer: r.is_customer ?? true,
+    is_supplier: r.is_supplier ?? false,
+    created_at: new Date(r.created_at).toISOString(),
+  });
+}));
+
 router.put("/customers/:id", wrap(async (req, res) => {
   if (!hasPermission(req.user, "can_manage_customers")) {
     res.status(403).json({ error: "غير مصرح بتعديل العملاء" }); return;

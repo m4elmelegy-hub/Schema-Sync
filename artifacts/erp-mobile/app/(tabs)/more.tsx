@@ -105,6 +105,36 @@ function MenuItem({
   );
 }
 
+function PurchasesMenuItem() {
+  const c = useColors();
+  return (
+    <View style={[styles.menuItem, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border }]}>
+      <View style={styles.purchasesActions}>
+        <TouchableOpacity
+          style={[styles.purchaseBtn, { backgroundColor: "#7C3AED18", borderColor: "#7C3AED30" }]}
+          onPress={() => router.push("/new-purchase")}
+          activeOpacity={0.7}
+        >
+          <Feather name="plus" size={13} color="#7C3AED" />
+          <Text style={[styles.purchaseBtnText, { color: "#7C3AED" }]}>فاتورة جديدة</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.purchaseBtn, { backgroundColor: "#7C3AED18", borderColor: "#7C3AED30" }]}
+          onPress={() => router.push("/purchases")}
+          activeOpacity={0.7}
+        >
+          <Feather name="list" size={13} color="#7C3AED" />
+          <Text style={[styles.purchaseBtnText, { color: "#7C3AED" }]}>عرض الكل</Text>
+        </TouchableOpacity>
+      </View>
+      <Text style={[styles.menuLabel, { color: c.text }]}>المشتريات</Text>
+      <View style={[styles.menuIcon, { backgroundColor: "#7C3AED1A" }]}>
+        <Feather name="shopping-bag" size={16} color="#7C3AED" />
+      </View>
+    </View>
+  );
+}
+
 export default function MoreScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
@@ -199,8 +229,7 @@ export default function MoreScreen() {
 
         {/* العمليات */}
         <SectionCard title="العمليات">
-          <MenuItem icon="shopping-bag"  label="فواتير المشتريات"  badge="عرض"   onPress={() => router.push("/purchases")}    color="#7C3AED" />
-          <MenuItem icon="plus-circle"   label="فاتورة شراء جديدة" badge="جديد" onPress={() => router.push("/new-purchase")}  color="#7C3AED" />
+          <PurchasesMenuItem />
           <MenuItem icon="credit-card"   label="المصروفات"         value={`${formatCurrency(totalExpenses)} ج.م`}  onPress={() => router.push("/expenses")} color={AMBER} />
           <MenuItem icon="bar-chart-2"   label="التقارير"          badge="عرض"   onPress={() => router.push("/reports")}      color="#06B6D4" last />
         </SectionCard>
@@ -265,4 +294,10 @@ const styles = StyleSheet.create({
   },
   themeLabel: { fontSize: 13, fontFamily: "Tajawal_700Bold" },
   version: { fontSize: 12, fontFamily: "Tajawal_400Regular", textAlign: "center", marginTop: 16 },
+  purchasesActions: { flexDirection: "row-reverse", gap: 6 },
+  purchaseBtn: {
+    flexDirection: "row-reverse", alignItems: "center", gap: 4,
+    borderRadius: 8, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 6,
+  },
+  purchaseBtnText: { fontSize: 11, fontFamily: "Tajawal_700Bold" },
 });

@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -11,6 +11,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -21,6 +22,13 @@ import { ModalHeader } from "@/components/ModalHeader";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/context/AuthContext";
 import { apiFetch, formatCurrency } from "@/lib/api";
+import {
+  authenticateWithBiometric,
+  clearBiometricCredentials,
+  getBiometricStatus,
+  setBiometricEnabled,
+  type BiometricStatus,
+} from "@/hooks/useBiometric";
 
 const AMBER = "#F59E0B";
 
@@ -300,9 +308,56 @@ export default function SettingsScreen() {
 
   const isLoading = whLoading || sfLoading || usLoading;
 
+  const [biometric, setBiometric] = useState<BiometricStatus | null>(null);
+
+  useEffect(() => {
+    getBiometricStatus().then(setBiometric);
+  }, []);
+
+  const handleBiometricToggle = async (value: boolean) => {
+    if (value) {
+      if (!biometric?.enrolled) {
+        Alert.alert("غير متوفر", "لم يتم تسجيل بصمة أو Face ID على هذا الجهاز");
+        return;
+      }
+      const ok = await authenticateWithBiometric();
+      if (ok) {
+        await setBiometricEnabled(true);
+        setBiometric((prev) => prev ? { ...prev, enabled: true } : prev);
+        Alert.alert("تم التفعيل", "سيتم استخدام البصمة للدخول السريع في المرة القادمة");
+      }
+    } else {
+      await clearBiometricCredentials();
+      setBiometric((prev) => prev ? { ...prev, enabled: false } : prev);
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: c.background }]}>
       <ModalHeader title="الإعدادات" />
+
+      {biometric?.available && Platform.OS !== "web" && (
+        <View style={[styles.biometricCard, { backgroundColor: c.card, borderColor: c.cardBorder }]}>
+          <Switch
+            value={biometric.enabled}
+            onValueChange={handleBiometricToggle}
+            trackColor={{ false: c.border, true: AMBER + "80" }}
+            thumbColor={biometric.enabled ? AMBER : c.mutedForeground}
+          />
+          <View style={styles.biometricInfo}>
+            <Text style={[styles.biometricTitle, { color: c.text }]}>
+              {biometric.type === "face" ? "الدخول بـ Face ID" : "الدخول بالبصمة"}
+            </Text>
+            <Text style={[styles.biometricSub, { color: c.mutedForeground }]}>
+              {biometric.enabled ? "مُفعَّل — سيظهر عند تسجيل الدخول" : "غير مُفعَّل"}
+            </Text>
+          </View>
+          <View style={[styles.biometricIcon, { backgroundColor: AMBER + "18" }]}>
+            <Feather name={biometric.type === "face" ? "smile" : "aperture"} size={22} color={AMBER} />
+          </View>
+        </View>
+      )}
 
       <View style={[styles.tabBar, { backgroundColor: c.headerBg, borderBottomColor: c.border }]}>
         {tabs.map((t) => (
@@ -502,4 +557,13 @@ const styles = StyleSheet.create({
   roleRow: { flexDirection: "row-reverse", gap: 8, paddingBottom: 4 },
   roleChip: { borderRadius: 20, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 8 },
   roleChipText: { fontSize: 13, fontFamily: "Tajawal_700Bold" },
+  biometricCard: {
+    flexDirection: "row-reverse", alignItems: "center", gap: 12,
+    marginHorizontal: 16, marginTop: 12, marginBottom: 4,
+    borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12,
+  },
+  biometricIcon: { width: 42, height: 42, borderRadius: 12, justifyContent: "center", alignItems: "center" },
+  biometricInfo: { flex: 1, alignItems: "flex-end" },
+  biometricTitle: { fontSize: 14, fontFamily: "Tajawal_700Bold" },
+  biometricSub: { fontSize: 11, fontFamily: "Tajawal_400Regular", marginTop: 2 },
 });
