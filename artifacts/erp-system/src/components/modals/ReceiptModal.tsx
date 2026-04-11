@@ -93,7 +93,7 @@ export default function ReceiptModal({ onClose }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
       <form onSubmit={handleSubmit}
-        className="relative w-full max-w-sm rounded-3xl p-7 space-y-4 shadow-2xl border border-emerald-500/30 bg-[#0f1f18]">
+        className="relative w-full max-w-sm rounded-3xl p-7 space-y-4 shadow-2xl border border-emerald-500/30 bg-[var(--erp-bg-card)]">
 
         <button type="button" onClick={onClose}
           className="absolute top-4 left-4 text-white/30 hover:text-white transition-colors">

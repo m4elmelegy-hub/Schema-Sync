@@ -100,7 +100,7 @@ export default function CloseSafeModal({ onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-      <div className="relative w-full max-w-lg rounded-3xl p-7 space-y-5 shadow-2xl border border-amber-500/30 bg-[#1a1408] max-h-[92vh] overflow-y-auto">
+      <div className="relative w-full max-w-lg rounded-3xl p-7 space-y-5 shadow-2xl border border-amber-500/30 bg-[var(--erp-bg-card)] max-h-[92vh] overflow-y-auto">
 
         {/* Close */}
         <button type="button" onClick={onClose}

@@ -21,7 +21,10 @@ async function getSetting(key: string): Promise<string | null> {
 async function setSetting(key: string, value: string) {
   await db.insert(systemSettingsTable)
     .values({ key, value })
-    .onConflictDoUpdate({ target: systemSettingsTable.key, set: { value, updated_at: new Date() } });
+    .onConflictDoUpdate({
+      target: [systemSettingsTable.key, systemSettingsTable.company_id],
+      set: { value, updated_at: new Date() },
+    });
 }
 
 function isDue(schedule: string, lastRun: Date | null): boolean {

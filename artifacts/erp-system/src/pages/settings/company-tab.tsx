@@ -108,14 +108,14 @@ export default function CompanyTab() {
       {/* ═══════════════════════════════════════════════════
           بطاقة — بيانات الشركة الأساسية
       ════════════════════════════════════════════════════ */}
-      <div className="bg-[#111827] border border-white/8 rounded-2xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-white/5 flex items-center gap-3">
+      <div className="bg-[var(--erp-bg-card)] border border-[var(--erp-border-md)] rounded-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-[var(--erp-border)] flex items-center gap-3">
           <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center">
             <Building2 className="w-4 h-4 text-amber-400" />
           </div>
           <div>
-            <p className="font-bold text-white text-sm">المعلومات الأساسية</p>
-            <p className="text-white/30 text-xs">تُستخدم في رأس الفواتير والتقارير المطبوعة</p>
+            <p className="font-bold text-[var(--erp-text-1)] text-sm">المعلومات الأساسية</p>
+            <p className="text-[var(--erp-text-4)] text-xs">تُستخدم في رأس الفواتير والتقارير المطبوعة</p>
           </div>
         </div>
 
@@ -152,7 +152,7 @@ export default function CompanyTab() {
                 placeholder="أي معلومات إضافية تظهر أسفل الفواتير..."
                 value={form.company_notes}
                 onChange={e => update("company_notes", e.target.value)}
-                className="w-full bg-[#0B1120] border border-white/10 rounded-xl px-4 py-3 text-white text-sm placeholder-white/20 outline-none focus:border-amber-500/40 resize-none transition-colors"
+                className="glass-input w-full rounded-xl px-4 py-3 text-sm outline-none focus:border-amber-500/40 resize-none transition-colors"
               />
             </div>
           </div>
@@ -161,17 +161,17 @@ export default function CompanyTab() {
 
       {/* معاينة — كيف تبدو البيانات في الفاتورة */}
       {!loading && (form.company_name || form.company_phone || form.company_address) && (
-        <div className="bg-[#111827] border border-amber-500/15 rounded-2xl overflow-hidden">
-          <div className="px-5 py-3 border-b border-white/5 bg-amber-500/5">
+        <div className="bg-[var(--erp-bg-card)] border border-amber-500/25 rounded-2xl overflow-hidden">
+          <div className="px-5 py-3 border-b border-[var(--erp-border)] bg-amber-500/5">
             <p className="text-amber-400 text-xs font-bold">معاينة — رأس الفاتورة</p>
           </div>
           <div className="p-5 space-y-1 text-right">
-            {form.company_name    && <p className="text-white font-black text-base">{form.company_name}</p>}
-            {form.company_address && <p className="text-white/45 text-sm">{form.company_address}</p>}
-            {form.company_phone   && <p className="text-white/45 text-sm">{form.company_phone}</p>}
-            {form.company_tax_id  && <p className="text-white/35 text-xs">الرقم الضريبي: {form.company_tax_id}</p>}
+            {form.company_name    && <p className="text-[var(--erp-text-1)] font-black text-base">{form.company_name}</p>}
+            {form.company_address && <p className="text-[var(--erp-text-3)] text-sm">{form.company_address}</p>}
+            {form.company_phone   && <p className="text-[var(--erp-text-3)] text-sm">{form.company_phone}</p>}
+            {form.company_tax_id  && <p className="text-[var(--erp-text-4)] text-xs">الرقم الضريبي: {form.company_tax_id}</p>}
             {form.company_website && <p className="text-amber-400/60 text-xs">{form.company_website}</p>}
-            {form.company_notes   && <p className="text-white/25 text-xs mt-2 border-t border-white/5 pt-2">{form.company_notes}</p>}
+            {form.company_notes   && <p className="text-[var(--erp-text-4)] text-xs mt-2 border-t border-[var(--erp-border)] pt-2">{form.company_notes}</p>}
           </div>
         </div>
       )}

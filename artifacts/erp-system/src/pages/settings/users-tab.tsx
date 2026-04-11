@@ -145,7 +145,7 @@ export default function UsersTab() {
             return (
               <div
                 key={u.id}
-                className="group bg-[#111827] border border-white/5 hover:border-amber-500/20 rounded-2xl p-5 transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(0,0,0,0.4)]"
+                className="group bg-[var(--erp-bg-card)] border border-[var(--erp-border)] hover:border-amber-500/20 rounded-2xl p-5 transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(0,0,0,0.15)]"
               >
                 <div className="flex items-start gap-3 mb-4">
                   <div className={`w-12 h-12 rounded-xl ${role.avatarBg} flex items-center justify-center shrink-0`}>
@@ -180,7 +180,7 @@ export default function UsersTab() {
                   })()}
                 </div>
 
-                <div className="flex gap-2 pt-3 border-t border-white/5">
+                <div className="flex gap-2 pt-3 border-t border-[var(--erp-border)]">
                   <button
                     onClick={() => handleEdit(u)}
                     className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-xs font-bold transition-all"

@@ -154,15 +154,14 @@ export default function Branches() {
           { label: "فروع موقوفة",     value: inactiveBranches, icon: XCircle,      color: "#EF4444" },
         ].map(s => (
           <div key={s.label}
-            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}
-            className="rounded-xl p-4 flex items-center gap-3"
+            className="rounded-xl p-4 flex items-center gap-3 bg-[var(--erp-bg-card)] border border-[var(--erp-border)]"
           >
             <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: s.color + "1A" }}>
               <s.icon className="w-4 h-4" style={{ color: s.color }} />
             </div>
             <div>
-              <p className="text-2xl font-bold text-white">{s.value}</p>
-              <p className="text-xs text-white/40">{s.label}</p>
+              <p className="text-2xl font-bold text-[var(--erp-text-1)]">{s.value}</p>
+              <p className="text-xs text-[var(--erp-text-3)]">{s.label}</p>
             </div>
           </div>
         ))}
@@ -170,50 +169,47 @@ export default function Branches() {
 
       {/* ── Form ───────────────────────────────────────────── */}
       {showForm && isAdmin && (
-        <div
-          style={{ background: "rgba(26,32,53,0.95)", border: "1px solid rgba(245,158,11,0.25)" }}
-          className="rounded-2xl p-5"
-        >
+        <div className="rounded-2xl p-5 bg-[var(--erp-bg-card)] border border-amber-500/25 shadow-[var(--erp-shadow-card)]">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-bold text-white">
+            <h2 className="text-base font-bold text-[var(--erp-text-1)]">
               {editId !== null ? "تعديل الفرع" : "فرع جديد"}
             </h2>
-            <button onClick={resetForm} className="text-white/40 hover:text-white/70 transition-colors text-sm">إلغاء</button>
+            <button onClick={resetForm} className="text-[var(--erp-text-3)] hover:text-[var(--erp-text-2)] transition-colors text-sm">إلغاء</button>
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs text-white/50 mb-1.5">اسم الفرع *</label>
+                <label className="block text-xs text-[var(--erp-text-3)] mb-1.5">اسم الفرع *</label>
                 <input
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   placeholder="مثال: الفرع الرئيسي"
                   required
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:border-amber-500/50 transition-colors"
+                  className="glass-input w-full rounded-lg px-3 py-2.5 text-sm"
                 />
               </div>
               <div>
-                <label className="block text-xs text-white/50 mb-1.5">العنوان</label>
+                <label className="block text-xs text-[var(--erp-text-3)] mb-1.5">العنوان</label>
                 <input
                   value={form.address}
                   onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
                   placeholder="عنوان الفرع"
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:border-amber-500/50 transition-colors"
+                  className="glass-input w-full rounded-lg px-3 py-2.5 text-sm"
                 />
               </div>
               <div>
-                <label className="block text-xs text-white/50 mb-1.5">رقم الهاتف</label>
+                <label className="block text-xs text-[var(--erp-text-3)] mb-1.5">رقم الهاتف</label>
                 <input
                   value={form.phone}
                   onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
                   placeholder="رقم هاتف الفرع"
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:border-amber-500/50 transition-colors"
+                  className="glass-input w-full rounded-lg px-3 py-2.5 text-sm"
                 />
               </div>
             </div>
             {editId !== null && (
               <div className="flex items-center gap-3">
-                <label className="text-sm text-white/70">حالة الفرع:</label>
+                <label className="text-sm text-[var(--erp-text-2)]">حالة الفرع:</label>
                 <button
                   type="button"
                   onClick={() => setForm(f => ({ ...f, is_active: !f.is_active }))}
@@ -221,12 +217,12 @@ export default function Branches() {
                 >
                   <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${form.is_active ? "-translate-x-6" : "-translate-x-1"}`} />
                 </button>
-                <span className="text-sm text-white/50">{form.is_active ? "نشط" : "موقوف"}</span>
+                <span className="text-sm text-[var(--erp-text-3)]">{form.is_active ? "نشط" : "موقوف"}</span>
               </div>
             )}
             <div className="flex gap-3 justify-end">
               <button type="button" onClick={resetForm}
-                className="px-4 py-2 text-sm text-white/50 hover:text-white transition-colors">
+                className="px-4 py-2 text-sm text-[var(--erp-text-3)] hover:text-[var(--erp-text-1)] transition-colors">
                 إلغاء
               </button>
               <button type="submit"
@@ -240,15 +236,15 @@ export default function Branches() {
       )}
 
       {/* ── Table ──────────────────────────────────────────── */}
-      <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }} className="rounded-2xl overflow-hidden">
+      <div className="rounded-2xl overflow-hidden bg-[var(--erp-bg-card)] border border-[var(--erp-border)]">
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
             <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : branches.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <GitBranch className="w-12 h-12 text-white/10 mb-3" />
-            <p className="text-white/40 font-medium">لا توجد فروع بعد</p>
+            <GitBranch className="w-12 h-12 text-[var(--erp-text-4)] mb-3" />
+            <p className="text-[var(--erp-text-3)] font-medium">لا توجد فروع بعد</p>
             {isAdmin && (
               <button onClick={() => setShowForm(true)}
                 className="mt-4 text-sm text-amber-400 hover:text-amber-300 transition-colors">
@@ -259,43 +255,42 @@ export default function Branches() {
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+              <tr className="border-b border-[var(--erp-border)]">
                 {["الفرع", "العنوان", "الهاتف", "الحالة", "تاريخ الإنشاء", isAdmin ? "إجراءات" : ""].map(h => (
-                  <th key={h} className="py-3 px-4 text-right text-xs font-medium text-white/40">{h}</th>
+                  <th key={h} className="py-3 px-4 text-right text-xs font-medium text-[var(--erp-text-3)]">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {branches.map((b, i) => (
                 <tr key={b.id}
-                  style={{ borderBottom: i < branches.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}
-                  className="hover:bg-white/[0.02] transition-colors">
+                  className={`transition-colors hover:bg-[var(--erp-bg-hover)] ${i < branches.length - 1 ? "border-b border-[var(--erp-border)]" : ""}`}>
                   <td className="py-3.5 px-4">
                     <div className="flex items-center gap-2.5">
                       <div className="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center">
                         <Building2 className="w-4 h-4 text-amber-400" />
                       </div>
-                      <span className="font-medium text-white">{b.name}</span>
+                      <span className="font-medium text-[var(--erp-text-1)]">{b.name}</span>
                     </div>
                   </td>
                   <td className="py-3.5 px-4">
                     {b.address ? (
-                      <div className="flex items-center gap-1.5 text-white/60">
-                        <MapPin className="w-3.5 h-3.5 text-white/30" />
+                      <div className="flex items-center gap-1.5 text-[var(--erp-text-2)]">
+                        <MapPin className="w-3.5 h-3.5 text-[var(--erp-text-4)]" />
                         {b.address}
                       </div>
                     ) : (
-                      <span className="text-white/20">—</span>
+                      <span className="text-[var(--erp-text-4)]">—</span>
                     )}
                   </td>
                   <td className="py-3.5 px-4">
                     {b.phone ? (
-                      <div className="flex items-center gap-1.5 text-white/60">
-                        <Phone className="w-3.5 h-3.5 text-white/30" />
+                      <div className="flex items-center gap-1.5 text-[var(--erp-text-2)]">
+                        <Phone className="w-3.5 h-3.5 text-[var(--erp-text-4)]" />
                         {b.phone}
                       </div>
                     ) : (
-                      <span className="text-white/20">—</span>
+                      <span className="text-[var(--erp-text-4)]">—</span>
                     )}
                   </td>
                   <td className="py-3.5 px-4">
@@ -311,7 +306,7 @@ export default function Branches() {
                       {b.is_active ? "نشط" : "موقوف"}
                     </span>
                   </td>
-                  <td className="py-3.5 px-4 text-white/40 text-xs">
+                  <td className="py-3.5 px-4 text-[var(--erp-text-3)] text-xs">
                     {new Date(b.created_at).toLocaleDateString("ar-EG")}
                   </td>
                   {isAdmin && (
@@ -319,14 +314,14 @@ export default function Branches() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => startEdit(b)}
-                          className="p-1.5 rounded-lg hover:bg-white/8 text-white/40 hover:text-amber-400 transition-colors"
+                          className="p-1.5 rounded-lg hover:bg-white/8 text-[var(--erp-text-3)] hover:text-amber-400 transition-colors"
                           title="تعديل"
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => setDeleteId(b.id)}
-                          className="p-1.5 rounded-lg hover:bg-red-500/10 text-white/40 hover:text-red-400 transition-colors"
+                          className="p-1.5 rounded-lg hover:bg-red-500/10 text-[var(--erp-text-3)] hover:text-red-400 transition-colors"
                           title="حذف"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
