@@ -322,11 +322,42 @@ router.post("/inventory/transfers", wrap(async (req, res) => {
   if (!fromWH) { res.status(404).json({ error: `مخزن المصدر غير موجود: ${from_warehouse_id}` }); return; }
   if (!toWH)   { res.status(404).json({ error: `مخزن الهدف غير موجود: ${to_warehouse_id}` }); return; }
 
-  // جلب المنتجات وتحقق الكميات
+  // جلب المنتجات
   const productIds = items.map(i => i.product_id);
   const products   = await db.select().from(productsTable).where(inArray(productsTable.id, productIds));
   const productMap = new Map(products.map(p => [p.id, p]));
 
+  // ─── حساب كمية كل منتج في مخزن المصدر فقط (من حركات المخزون) ─────────────
+  // المنطق: SUM(quantity) لكل منتج في هذا المخزن = الرصيد الفعلي الحالي
+  // (حركات الدخول موجبة، حركات الخروج سالبة — مسجّلة هكذا في stock_movements)
+  const fromStockRows = await db.execute(sql`
+    SELECT product_id::int,
+           COALESCE(SUM(CAST(quantity AS FLOAT8)), 0) AS wh_qty
+    FROM   stock_movements
+    WHERE  warehouse_id = ${Number(from_warehouse_id)}
+      AND  product_id   = ANY(${productIds}::int[])
+    GROUP BY product_id
+  `);
+  const fromStockMap = new Map<number, number>(
+    (fromStockRows.rows as Array<{ product_id: number; wh_qty: number }>)
+      .map(r => [Number(r.product_id), Number(r.wh_qty ?? 0)])
+  );
+
+  // جلب رصيد مخزن الهدف أيضاً لتسجيل quantity_before صحيح
+  const toStockRows = await db.execute(sql`
+    SELECT product_id::int,
+           COALESCE(SUM(CAST(quantity AS FLOAT8)), 0) AS wh_qty
+    FROM   stock_movements
+    WHERE  warehouse_id = ${Number(to_warehouse_id)}
+      AND  product_id   = ANY(${productIds}::int[])
+    GROUP BY product_id
+  `);
+  const toStockMap = new Map<number, number>(
+    (toStockRows.rows as Array<{ product_id: number; wh_qty: number }>)
+      .map(r => [Number(r.product_id), Number(r.wh_qty ?? 0)])
+  );
+
+  // ─── التحقق من توفر الكمية في مخزن المصدر تحديداً ────────────────────────
   for (const item of items) {
     const product = productMap.get(item.product_id);
     if (!product) {
@@ -335,15 +366,18 @@ router.post("/inventory/transfers", wrap(async (req, res) => {
     if (item.quantity <= 0) {
       res.status(400).json({ error: `الكمية يجب أن تكون موجبة للمنتج: ${product.name}` }); return;
     }
-    if (Number(product.quantity) < item.quantity) {
+    // الكمية المتاحة في المخزن المصدر (0 إذا لم يسبق نقل أي كمية له)
+    const availableInWarehouse = fromStockMap.get(item.product_id) ?? 0;
+    if (availableInWarehouse < item.quantity) {
       res.status(400).json({
-        error: `الكمية غير كافية للمنتج "${product.name}": المتاح ${product.quantity}، المطلوب ${item.quantity}`,
+        error: `الكمية غير كافية في "${fromWH.name}" للمنتج "${product.name}": المتاح ${availableInWarehouse.toFixed(3)}، المطلوب ${item.quantity}`,
+        available_in_warehouse: availableInWarehouse,
+        warehouse_name: fromWH.name,
       }); return;
     }
   }
 
   const transferId = await db.transaction(async (tx) => {
-    // إنشاء سجل التحويل
     const [transfer] = await tx.insert(stockTransfersTable).values({
       from_warehouse_id: Number(from_warehouse_id),
       to_warehouse_id:   Number(to_warehouse_id),
@@ -358,13 +392,16 @@ router.post("/inventory/transfers", wrap(async (req, res) => {
 
     for (const item of items) {
       const product = productMap.get(item.product_id)!;
-      const qty     = Number(item.quantity);
-      const oldQty  = Number(product.quantity);
-      const newQty  = oldQty; // الإجمالي لا يتغير — يتحرك بين المخازن فقط
+      const qty = Number(item.quantity);
+
+      // الرصيد الفعلي لهذا المخزن قبل التحويل
+      const fromQtyBefore = fromStockMap.get(item.product_id) ?? 0;
+      const fromQtyAfter  = fromQtyBefore - qty;
+      const toQtyBefore   = toStockMap.get(item.product_id) ?? 0;
+      const toQtyAfter    = toQtyBefore + qty;
 
       const refNo = `TRF-${transfer.id}-${item.product_id}`;
 
-      // بند تحويل المخزون في الجدول
       transferItems.push({
         transfer_id:  transfer.id,
         product_id:   item.product_id,
@@ -373,14 +410,14 @@ router.post("/inventory/transfers", wrap(async (req, res) => {
         unit_cost:    product.cost_price,
       });
 
-      // حركة خروج من المخزن المصدر (سالبة)
+      // حركة خروج من المخزن المصدر — quantity سالبة
       await tx.insert(stockMovementsTable).values({
         product_id:      item.product_id,
         product_name:    product.name,
         movement_type:   "transfer_out",
         quantity:        String(-qty),
-        quantity_before: String(oldQty),
-        quantity_after:  String(newQty),
+        quantity_before: String(fromQtyBefore),
+        quantity_after:  String(fromQtyAfter),
         unit_cost:       product.cost_price,
         reference_type:  "stock_transfer",
         reference_id:    transfer.id,
@@ -391,14 +428,14 @@ router.post("/inventory/transfers", wrap(async (req, res) => {
         company_id:    req.user?.company_id ?? 1,
       });
 
-      // حركة دخول إلى المخزن الهدف (موجبة)
+      // حركة دخول إلى المخزن الهدف — quantity موجبة
       await tx.insert(stockMovementsTable).values({
         product_id:      item.product_id,
         product_name:    product.name,
         movement_type:   "transfer_in",
         quantity:        String(qty),
-        quantity_before: String(oldQty),
-        quantity_after:  String(newQty),
+        quantity_before: String(toQtyBefore),
+        quantity_after:  String(toQtyAfter),
         unit_cost:       product.cost_price,
         reference_type:  "stock_transfer",
         reference_id:    transfer.id,
