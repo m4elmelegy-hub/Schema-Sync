@@ -1,10 +1,5 @@
 uploads = []
-
-[[generated]]
-id = "94NgpvqaMr_ynFdpoUm95"
-uri = "file://artifacts/erp-mobile/assets/images/icon.png"
-type = "image"
-title = "generated_image"
+generated = []
 
 [[outputs]]
 id = "bnms8Dplwe2pjvHOhFSyI"
