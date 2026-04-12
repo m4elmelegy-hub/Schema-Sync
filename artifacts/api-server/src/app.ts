@@ -49,6 +49,13 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
   : [];
 
+if (process.env.NODE_ENV === "production" && allowedOrigins.length === 0) {
+  logger.warn(
+    "[SECURITY] ALLOWED_ORIGINS is not set in production — all origins are allowed. " +
+    "Set ALLOWED_ORIGINS to your domain(s) for tighter security.",
+  );
+}
+
 app.use(
   cors({
     origin: (origin, cb) => {
@@ -56,6 +63,7 @@ app.use(
       if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
         cb(null, true);
       } else {
+        logger.warn({ origin }, "[CORS] Blocked request from disallowed origin");
         cb(null, false);
       }
     },

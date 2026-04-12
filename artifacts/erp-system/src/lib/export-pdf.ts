@@ -1,3 +1,13 @@
+function escapeHtml(unsafe: string | null | undefined): string {
+  if (unsafe == null) return "";
+  return String(unsafe)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function getSettings(): { companyName: string; phone: string; address: string } {
   try {
     const raw = localStorage.getItem("halal_erp_settings");
@@ -81,12 +91,16 @@ const PRINT_STYLES = `
 function buildWindow(title: string, bodyHtml: string): void {
   const s = getSettings();
   const now = new Date().toLocaleDateString("ar-EG", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  const safeTitle       = escapeHtml(title);
+  const safeCompanyName = escapeHtml(s.companyName);
+  const safePhone       = escapeHtml(s.phone);
+  const safeAddress     = escapeHtml(s.address);
 
   const html = `<!DOCTYPE html><html dir="rtl" lang="ar">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>${title}</title>
+  <title>${safeTitle}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
   <style>${PRINT_STYLES}</style>
@@ -95,12 +109,12 @@ function buildWindow(title: string, bodyHtml: string): void {
 <div class="page">
   <div class="header">
     <div>
-      <div class="company-name">${s.companyName}</div>
-      ${s.phone ? `<div class="company-info">📞 ${s.phone}</div>` : ""}
-      ${s.address ? `<div class="company-info">📍 ${s.address}</div>` : ""}
+      <div class="company-name">${safeCompanyName}</div>
+      ${safePhone ? `<div class="company-info">📞 ${safePhone}</div>` : ""}
+      ${safeAddress ? `<div class="company-info">📍 ${safeAddress}</div>` : ""}
     </div>
     <div class="report-info">
-      <div class="report-title">${title}</div>
+      <div class="report-title">${safeTitle}</div>
       <div class="report-date">تاريخ الطباعة: ${now}</div>
     </div>
   </div>
@@ -138,8 +152,8 @@ export function printSalesReport(sales: SaleForPdf[]) {
 
   const rows = sales.map(s => `
     <tr>
-      <td><strong>${s.invoice_no}</strong></td>
-      <td>${s.customer_name ?? "عميل نقدي"}</td>
+      <td><strong>${escapeHtml(s.invoice_no)}</strong></td>
+      <td>${escapeHtml(s.customer_name) || "عميل نقدي"}</td>
       <td><strong>${fmtMoney(Number(s.total_amount))}</strong></td>
       <td style="color:#059669;font-weight:700">${fmtMoney(Number(s.paid_amount))}</td>
       <td style="color:${Number(s.remaining_amount) > 0 ? "#dc2626" : "#9ca3af"};font-weight:700">${Number(s.remaining_amount) > 0 ? fmtMoney(Number(s.remaining_amount)) : "—"}</td>
@@ -193,9 +207,9 @@ export function printPurchasesReport(purchases: PurchaseForPdf[]) {
 
   const rows = purchases.map(p => `
     <tr>
-      <td><strong>${p.invoice_no}</strong></td>
-      <td>${p.supplier_name ?? "—"}</td>
-      <td>${p.customer_name ?? "—"}</td>
+      <td><strong>${escapeHtml(p.invoice_no)}</strong></td>
+      <td>${escapeHtml(p.supplier_name) || "—"}</td>
+      <td>${escapeHtml(p.customer_name) || "—"}</td>
       <td><strong>${fmtMoney(Number(p.total_amount))}</strong></td>
       <td style="color:#059669;font-weight:700">${fmtMoney(Number(p.paid_amount))}</td>
       <td style="color:${Number(p.remaining_amount) > 0 ? "#dc2626" : "#9ca3af"};font-weight:700">${Number(p.remaining_amount) > 0 ? fmtMoney(Number(p.remaining_amount)) : "—"}</td>
@@ -280,7 +294,7 @@ export function printCustomerStatement(
 
   const salesRows = sales.map(s => `
     <tr>
-      <td><strong style="color:#d97706">${s.invoice_no}</strong></td>
+      <td><strong style="color:#d97706">${escapeHtml(s.invoice_no)}</strong></td>
       <td>${fmtMoney(Number(s.total_amount))}</td>
       <td style="color:#059669;font-weight:700">${fmtMoney(Number(s.paid_amount))}</td>
       <td style="color:${Number(s.remaining_amount) > 0 ? "#dc2626" : "#9ca3af"};font-weight:700">${Number(s.remaining_amount) > 0 ? fmtMoney(Number(s.remaining_amount)) : "—"}</td>
@@ -290,44 +304,44 @@ export function printCustomerStatement(
 
   const returnRows = salesReturns.map(r => `
     <tr>
-      <td><strong style="color:#dc2626">${r.return_no}</strong></td>
+      <td><strong style="color:#dc2626">${escapeHtml(r.return_no)}</strong></td>
       <td style="color:#dc2626;font-weight:700">${fmtMoney(Number(r.total_amount))}</td>
       <td>${r.refund_type === "cash" ? "نقدي" : "رصيد"}</td>
-      <td style="color:#6b7280">${r.reason ?? "—"}</td>
+      <td style="color:#6b7280">${escapeHtml(r.reason) || "—"}</td>
       <td style="color:#6b7280;font-size:11px">${fmtDate(r.created_at)}</td>
     </tr>`).join("");
 
   const receiptRows = receiptVouchers.map(v => `
     <tr>
-      <td><strong style="color:#059669">${v.voucher_no}</strong></td>
+      <td><strong style="color:#059669">${escapeHtml(v.voucher_no)}</strong></td>
       <td style="color:#059669;font-weight:700">${fmtMoney(Number(v.amount))}</td>
-      <td>${v.safe_name}</td>
-      <td style="color:#6b7280">${v.notes ?? "—"}</td>
+      <td>${escapeHtml(v.safe_name)}</td>
+      <td style="color:#6b7280">${escapeHtml(v.notes) || "—"}</td>
       <td style="color:#6b7280;font-size:11px">${fmtDate(v.date)}</td>
     </tr>`).join("");
 
   const depositRows = depositVouchers.map(v => `
     <tr>
-      <td><strong style="color:#2563eb">${v.voucher_no}</strong></td>
+      <td><strong style="color:#2563eb">${escapeHtml(v.voucher_no)}</strong></td>
       <td style="color:#2563eb;font-weight:700">${fmtMoney(Number(v.amount))}</td>
-      <td>${v.safe_name}</td>
-      <td style="color:#6b7280">${v.notes ?? "—"}</td>
+      <td>${escapeHtml(v.safe_name)}</td>
+      <td style="color:#6b7280">${escapeHtml(v.notes) || "—"}</td>
       <td style="color:#6b7280;font-size:11px">${fmtDate(v.date)}</td>
     </tr>`).join("");
 
   const paymentRows = paymentVouchers.map(v => `
     <tr>
-      <td><strong style="color:#7c3aed">${v.voucher_no}</strong></td>
+      <td><strong style="color:#7c3aed">${escapeHtml(v.voucher_no)}</strong></td>
       <td style="color:#7c3aed;font-weight:700">${fmtMoney(Number(v.amount))}</td>
-      <td>${v.safe_name}</td>
-      <td style="color:#6b7280">${v.notes ?? "—"}</td>
+      <td>${escapeHtml(v.safe_name)}</td>
+      <td style="color:#6b7280">${escapeHtml(v.notes) || "—"}</td>
       <td style="color:#6b7280;font-size:11px">${fmtDate(v.date)}</td>
     </tr>`).join("");
 
   const body = `
     <div class="customer-info">
-      <div class="info-item"><label>اسم العميل</label><span>${customer.name}</span></div>
-      <div class="info-item"><label>الهاتف</label><span>${customer.phone ?? "—"}</span></div>
+      <div class="info-item"><label>اسم العميل</label><span>${escapeHtml(customer.name)}</span></div>
+      <div class="info-item"><label>الهاتف</label><span>${escapeHtml(customer.phone) || "—"}</span></div>
       <div class="info-item"><label>الرصيد المستحق</label><span style="color:${Number(customer.balance) > 0 ? "#dc2626" : "#059669"}">${fmtMoney(Number(customer.balance))}</span></div>
     </div>
 
@@ -505,7 +519,7 @@ export function printSaleInvoice(sale: FullSaleData): void {
 
   const rows = sale.items.map((it, i) => `<tr>
     <td>${i + 1}</td>
-    <td style="font-weight:700">${it.product_name}</td>
+    <td style="font-weight:700">${escapeHtml(it.product_name)}</td>
     <td>${Number(it.quantity)}</td>
     <td>${Number(it.unit_price).toFixed(2)} ${sym}</td>
     <td style="font-weight:700;color:#d97706">${Number(it.total_price).toFixed(2)} ${sym}</td>
@@ -516,21 +530,21 @@ export function printSaleInvoice(sale: FullSaleData): void {
   const body = `<div class="inv">
   <div class="inv-head">
     <div>
-      <div class="co-name">${s.companyName}</div>
-      ${s.phone ? `<div class="co-sub">📞 ${s.phone}</div>` : ""}
-      ${s.address ? `<div class="co-sub">📍 ${s.address}</div>` : ""}
+      <div class="co-name">${escapeHtml(s.companyName)}</div>
+      ${s.phone ? `<div class="co-sub">📞 ${escapeHtml(s.phone)}</div>` : ""}
+      ${s.address ? `<div class="co-sub">📍 ${escapeHtml(s.address)}</div>` : ""}
     </div>
     <div class="inv-meta">
       <div class="inv-title">فاتورة مبيعات</div>
-      <div class="inv-no">رقم: ${sale.invoice_no}</div>
+      <div class="inv-no">رقم: ${escapeHtml(sale.invoice_no)}</div>
       <div class="inv-date">التاريخ: ${dateStr}</div>
     </div>
   </div>
   <hr class="gold">
   ${sale.customer_name ? `<div class="party-box">
     <div class="party-title">بيانات العميل</div>
-    <div class="party-name">${sale.customer_name}</div>
-    ${sale.phone ? `<div class="party-phone">📞 ${sale.phone}</div>` : ""}
+    <div class="party-name">${escapeHtml(sale.customer_name)}</div>
+    ${sale.phone ? `<div class="party-phone">📞 ${escapeHtml(sale.phone)}</div>` : ""}
   </div>` : ""}
   <table class="items">
     <thead><tr><th>#</th><th>المنتج</th><th>الكمية</th><th>سعر الوحدة</th><th>الإجمالي</th></tr></thead>
@@ -550,17 +564,17 @@ export function printSaleInvoice(sale: FullSaleData): void {
   <div class="foot-row">
     <div>
       <div><strong>طريقة الدفع:</strong> <span class="badge badge-${sale.payment_type}">${payLabel(sale.payment_type)}</span></div>
-      ${sale.safe_name ? `<div style="margin-top:4px"><strong>الخزينة:</strong> ${sale.safe_name}</div>` : ""}
-      ${sale.notes ? `<div style="margin-top:4px"><strong>ملاحظات:</strong> ${sale.notes}</div>` : ""}
+      ${sale.safe_name ? `<div style="margin-top:4px"><strong>الخزينة:</strong> ${escapeHtml(sale.safe_name)}</div>` : ""}
+      ${sale.notes ? `<div style="margin-top:4px"><strong>ملاحظات:</strong> ${escapeHtml(sale.notes)}</div>` : ""}
     </div>
     <div style="text-align:left;color:#9ca3af;font-size:11px">
-      ${s.companyName}<br>تم الإنشاء: ${fmtDate(sale.created_at)}
+      ${escapeHtml(s.companyName)}<br>تم الإنشاء: ${fmtDate(sale.created_at)}
     </div>
   </div>
-  <div class="thank">🙏 شكراً لتعاملكم معنا — ${s.companyName}</div>
+  <div class="thank">🙏 شكراً لتعاملكم معنا — ${escapeHtml(s.companyName)}</div>
 </div>`;
 
-  invoiceWindow(sale.invoice_no, body);
+  invoiceWindow(escapeHtml(sale.invoice_no), body);
 }
 
 /* ─── Purchase Invoice ──────────────────────────────────────────────────────── */
@@ -598,7 +612,7 @@ export function printPurchaseInvoice(purchase: FullPurchaseData): void {
 
   const rows = purchase.items.map((it, i) => `<tr>
     <td>${i + 1}</td>
-    <td style="font-weight:700">${it.product_name}</td>
+    <td style="font-weight:700">${escapeHtml(it.product_name)}</td>
     <td>${Number(it.quantity)}</td>
     <td>${Number(it.unit_price).toFixed(2)} ${sym}</td>
     <td style="font-weight:700;color:#2563eb">${Number(it.total_price).toFixed(2)} ${sym}</td>
@@ -609,20 +623,20 @@ export function printPurchaseInvoice(purchase: FullPurchaseData): void {
   const body = `<div class="inv">
   <div class="inv-head">
     <div>
-      <div class="co-name">${s.companyName}</div>
-      ${s.phone ? `<div class="co-sub">📞 ${s.phone}</div>` : ""}
-      ${s.address ? `<div class="co-sub">📍 ${s.address}</div>` : ""}
+      <div class="co-name">${escapeHtml(s.companyName)}</div>
+      ${s.phone ? `<div class="co-sub">📞 ${escapeHtml(s.phone)}</div>` : ""}
+      ${s.address ? `<div class="co-sub">📍 ${escapeHtml(s.address)}</div>` : ""}
     </div>
     <div class="inv-meta">
       <div class="inv-title" style="color:#2563eb">فاتورة مشتريات</div>
-      <div class="inv-no">رقم: ${purchase.invoice_no}</div>
+      <div class="inv-no">رقم: ${escapeHtml(purchase.invoice_no)}</div>
       <div class="inv-date">التاريخ: ${dateStr}</div>
     </div>
   </div>
   <hr style="border:none;border-top:2px solid #2563eb;margin:14px 0">
   ${party !== "—" ? `<div class="party-box">
     <div class="party-title">بيانات المورد</div>
-    <div class="party-name">${party}</div>
+    <div class="party-name">${escapeHtml(party)}</div>
   </div>` : ""}
   <table class="items">
     <thead><tr><th>#</th><th>المنتج</th><th>الكمية</th><th>سعر الشراء</th><th>الإجمالي</th></tr></thead>
@@ -642,17 +656,17 @@ export function printPurchaseInvoice(purchase: FullPurchaseData): void {
   <div class="foot-row">
     <div>
       <div><strong>طريقة الدفع:</strong> <span class="badge badge-${purchase.payment_type}">${payLabel(purchase.payment_type)}</span></div>
-      ${purchase.safe_name ? `<div style="margin-top:4px"><strong>الخزينة:</strong> ${purchase.safe_name}</div>` : ""}
-      ${purchase.notes ? `<div style="margin-top:4px"><strong>ملاحظات:</strong> ${purchase.notes}</div>` : ""}
+      ${purchase.safe_name ? `<div style="margin-top:4px"><strong>الخزينة:</strong> ${escapeHtml(purchase.safe_name)}</div>` : ""}
+      ${purchase.notes ? `<div style="margin-top:4px"><strong>ملاحظات:</strong> ${escapeHtml(purchase.notes)}</div>` : ""}
     </div>
     <div style="text-align:left;color:#9ca3af;font-size:11px">
-      ${s.companyName}<br>تم التسجيل: ${fmtDate(purchase.created_at)}
+      ${escapeHtml(s.companyName)}<br>تم التسجيل: ${fmtDate(purchase.created_at)}
     </div>
   </div>
-  <div class="thank">📦 تم استلام البضاعة بنجاح — ${s.companyName}</div>
+  <div class="thank">📦 تم استلام البضاعة بنجاح — ${escapeHtml(s.companyName)}</div>
 </div>`;
 
-  invoiceWindow(purchase.invoice_no, body);
+  invoiceWindow(escapeHtml(purchase.invoice_no), body);
 }
 
 /* ─── P&L Report PDF ────────────────────────────────────────────────────────── */
