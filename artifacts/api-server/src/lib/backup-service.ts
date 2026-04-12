@@ -5,7 +5,6 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   db,
   backupsTable,
@@ -27,8 +26,7 @@ import { asc, eq } from "drizzle-orm";
 import { logger } from "./logger";
 
 /* ── Backup folder ─────────────────────────────────────────────── */
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-export const BACKUP_DIR = path.resolve(__dirname, "../backups");
+export const BACKUP_DIR = process.env.BACKUP_DIR ?? "/home/runner/erp-backups";
 
 function ensureBackupDir() {
   if (!fs.existsSync(BACKUP_DIR)) {

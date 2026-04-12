@@ -4,7 +4,7 @@
  */
 import { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { authFetch } from "@/lib/auth-fetch";
 import { useToast } from "@/hooks/use-toast";
 import { useResetDatabase, useGetSettingsWarehouses } from "@workspace/api-client-react";
@@ -111,23 +111,71 @@ export default function DataTab() {
   const { count: resetCount, ready: canReset } = useCountdown(readyToReset, 10);
 
   /* ────────────────────────────────────────
+     مساعد ExcelJS: قراءة أول ورقة
+  ──────────────────────────────────────── */
+  const readSheetRows = async (buffer: ArrayBuffer): Promise<Record<string, unknown>[]> => {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer);
+    const ws = wb.worksheets[0];
+    if (!ws) return [];
+    const headers: Record<number, string> = {};
+    const rows: Record<string, unknown>[] = [];
+    ws.eachRow((row, rowNum) => {
+      if (rowNum === 1) {
+        row.eachCell((cell, col) => { headers[col] = String(cell.value ?? ""); });
+      } else {
+        const obj: Record<string, unknown> = {};
+        row.eachCell((cell, col) => { if (headers[col]) obj[headers[col]] = cell.value; });
+        if (Object.keys(obj).length > 0) rows.push(obj);
+      }
+    });
+    return rows;
+  };
+
+  const writeXlsxBlob = async (
+    columns: { header: string; key: string; width?: number }[],
+    data: Record<string, unknown>[],
+    sheetName: string,
+  ): Promise<Blob> => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet(sheetName);
+    ws.columns = columns.map(c => ({ header: c.header, key: c.key, width: c.width ?? 20 }));
+    ws.getRow(1).font = { bold: true };
+    for (const row of data) ws.addRow(row);
+    const buf = await wb.xlsx.writeBuffer();
+    return new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  };
+
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  /* ────────────────────────────────────────
      استيراد الأصناف
   ──────────────────────────────────────── */
   const handleProductsExport = async () => {
     setProdExporting(true);
     try {
       const prods = await authFetch(api("/api/products")).then(r => r.json()) as any[];
-      const rows  = prods.map((p: any) => ({
-        "اسم الصنف": p.name, "كود الصنف (SKU)": p.sku || "",
-        "التصنيف": p.category || "", "الكمية": Number(p.quantity),
-        "سعر التكلفة": Number(p.cost_price), "سعر البيع": Number(p.sale_price),
-        "حد التنبيه": p.low_stock_threshold || "",
+      const columns = [
+        { header: "اسم الصنف", key: "name", width: 25 },
+        { header: "كود الصنف (SKU)", key: "sku", width: 15 },
+        { header: "التصنيف", key: "category", width: 15 },
+        { header: "الكمية", key: "quantity", width: 10 },
+        { header: "سعر التكلفة", key: "cost_price", width: 14 },
+        { header: "سعر البيع", key: "sale_price", width: 14 },
+        { header: "حد التنبيه", key: "low_stock_threshold", width: 12 },
+      ];
+      const rows = prods.map((p: any) => ({
+        name: p.name, sku: p.sku || "", category: p.category || "",
+        quantity: Number(p.quantity), cost_price: Number(p.cost_price),
+        sale_price: Number(p.sale_price), low_stock_threshold: p.low_stock_threshold || "",
       }));
-      const ws = XLSX.utils.json_to_sheet(rows);
-      ws["!cols"] = [{ wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 12 }];
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "الأصناف");
-      XLSX.writeFile(wb, `products-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      const blob = await writeXlsxBlob(columns, rows, "الأصناف");
+      downloadBlob(blob, `products-${new Date().toISOString().slice(0, 10)}.xlsx`);
       toast({ title: `تم تصدير ${prods.length} صنف` });
     } catch { toast({ title: "فشل التصدير", variant: "destructive" }); }
     finally { setProdExporting(false); }
@@ -137,7 +185,7 @@ export default function DataTab() {
     const file = e.target.files?.[0]; if (!file) return;
     setProdImporting(true); setProdResult(null);
     try {
-      const rows = XLSX.utils.sheet_to_json(XLSX.read(await file.arrayBuffer()).Sheets[XLSX.read(await file.arrayBuffer()).SheetNames[0]]) as any[];
+      const rows = await readSheetRows(await file.arrayBuffer());
       let ok = 0, fail = 0;
       for (const row of rows) {
         const name = row["اسم الصنف"] || row["name"] || row["Name"];
@@ -158,14 +206,22 @@ export default function DataTab() {
     finally { setProdImporting(false); if (prodRef.current) prodRef.current.value = ""; }
   };
 
-  const downloadProductsTemplate = () => {
-    const ws = XLSX.utils.json_to_sheet([
-      { "اسم الصنف": "شاشة LCD", "كود الصنف (SKU)": "SCR001", "التصنيف": "قطع غيار", "الكمية": 10, "سعر التكلفة": 150, "سعر البيع": 200, "حد التنبيه": 5 },
-      { "اسم الصنف": "بطارية أيفون", "كود الصنف (SKU)": "BAT002", "التصنيف": "بطاريات", "الكمية": 20, "سعر التكلفة": 80, "سعر البيع": 120, "حد التنبيه": 3 },
-    ]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "الأصناف");
-    XLSX.writeFile(wb, "template-products.xlsx");
+  const downloadProductsTemplate = async () => {
+    const columns = [
+      { header: "اسم الصنف", key: "name", width: 25 },
+      { header: "كود الصنف (SKU)", key: "sku", width: 15 },
+      { header: "التصنيف", key: "category", width: 15 },
+      { header: "الكمية", key: "quantity", width: 10 },
+      { header: "سعر التكلفة", key: "cost_price", width: 14 },
+      { header: "سعر البيع", key: "sale_price", width: 14 },
+      { header: "حد التنبيه", key: "low_stock_threshold", width: 12 },
+    ];
+    const rows = [
+      { name: "شاشة LCD", sku: "SCR001", category: "قطع غيار", quantity: 10, cost_price: 150, sale_price: 200, low_stock_threshold: 5 },
+      { name: "بطارية أيفون", sku: "BAT002", category: "بطاريات", quantity: 20, cost_price: 80, sale_price: 120, low_stock_threshold: 3 },
+    ];
+    const blob = await writeXlsxBlob(columns, rows, "الأصناف");
+    downloadBlob(blob, "template-products.xlsx");
   };
 
   /* ────────────────────────────────────────
@@ -179,7 +235,7 @@ export default function DataTab() {
       const skuMap = new Map<string, { id: number; name: string }>();
       for (const p of products) if (p.sku) skuMap.set(String(p.sku).trim().toUpperCase(), { id: p.id, name: p.name });
 
-      const raw   = XLSX.utils.sheet_to_json(XLSX.read(await file.arrayBuffer()).Sheets[XLSX.read(await file.arrayBuffer()).SheetNames[0]]) as any[];
+      const raw = await readSheetRows(await file.arrayBuffer());
       const rows: PurchaseRow[] = raw.map((r, idx) => {
         const sku = String(r["كود الصنف (SKU)"] || r["sku"] || "").trim();
         const name = String(r["اسم الصنف"] || r["name"] || "");
@@ -234,11 +290,21 @@ export default function DataTab() {
     finally { setPurConfirming(false); }
   };
 
-  const downloadPurchaseTemplate = () => {
-    const ws = XLSX.utils.json_to_sheet([{ "كود الصنف (SKU)": "SCR001", "اسم الصنف": "شاشة LCD", "الكمية": 10, "سعر الشراء": 150, "المورد": "مورد الشاشات", "تاريخ الفاتورة": "2024-01-15", "رقم الفاتورة": "INV-001", "الضريبة%": 14, "الخصم%": 0 }]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "المشتريات");
-    XLSX.writeFile(wb, "template-purchases.xlsx");
+  const downloadPurchaseTemplate = async () => {
+    const columns = [
+      { header: "كود الصنف (SKU)", key: "sku", width: 16 },
+      { header: "اسم الصنف", key: "name", width: 22 },
+      { header: "الكمية", key: "quantity", width: 10 },
+      { header: "سعر الشراء", key: "unit_price", width: 13 },
+      { header: "المورد", key: "supplier", width: 18 },
+      { header: "تاريخ الفاتورة", key: "date", width: 15 },
+      { header: "رقم الفاتورة", key: "invoice_no", width: 14 },
+      { header: "الضريبة%", key: "tax", width: 10 },
+      { header: "الخصم%", key: "discount", width: 10 },
+    ];
+    const rows = [{ sku: "SCR001", name: "شاشة LCD", quantity: 10, unit_price: 150, supplier: "مورد الشاشات", date: "2024-01-15", invoice_no: "INV-001", tax: 14, discount: 0 }];
+    const blob = await writeXlsxBlob(columns, rows, "المشتريات");
+    downloadBlob(blob, "template-purchases.xlsx");
   };
 
   /* ────────────────────────────────────────
