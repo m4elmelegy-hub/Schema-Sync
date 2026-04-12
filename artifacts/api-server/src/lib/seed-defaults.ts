@@ -63,7 +63,8 @@ export async function seedDefaults(): Promise<void> {
       .limit(1);
 
     if (!companyUsers) {
-      const hashed = await hashPin("123456");
+      const defaultAdminPin = process.env.DEFAULT_ADMIN_PIN ?? "123456";
+      const hashed = await hashPin(defaultAdminPin);
       await db.insert(erpUsersTable).values({
         name:       "المدير الافتراضي",
         username:   "admin",
@@ -72,7 +73,22 @@ export async function seedDefaults(): Promise<void> {
         company_id: 1,
         active:     true,
       });
-      logger.info("Default company admin created — username: admin, PIN: 123456");
+      logger.info(`Default company admin created — username: admin, PIN: ${defaultAdminPin}`);
+    } else if (process.env.DEFAULT_ADMIN_PIN) {
+      /* If DEFAULT_ADMIN_PIN env var is explicitly set, update the PIN on startup */
+      const hashed = await hashPin(process.env.DEFAULT_ADMIN_PIN);
+      const [firstCompanyAdmin] = await db
+        .select({ id: erpUsersTable.id })
+        .from(erpUsersTable)
+        .where(eq(erpUsersTable.company_id, 1))
+        .limit(1);
+      if (firstCompanyAdmin) {
+        await db
+          .update(erpUsersTable)
+          .set({ pin: hashed })
+          .where(eq(erpUsersTable.id, firstCompanyAdmin.id));
+        logger.info("Default admin PIN updated from DEFAULT_ADMIN_PIN env var");
+      }
     }
 
     /* ── 4. Migrate plain-text PINs to bcrypt hashes ───────────── */

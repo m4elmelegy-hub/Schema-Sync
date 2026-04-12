@@ -40,14 +40,12 @@ export function signToken(userId: number, role: string, companyId: number | null
 
 /* ── Sign a long-lived refresh token (7 d) ──────────────── */
 if (!process.env.JWT_REFRESH_SECRET) {
-  console.warn(
-    "[SECURITY WARNING] JWT_REFRESH_SECRET is not set. " +
-    "Falling back to derived secret — set a strong independent JWT_REFRESH_SECRET in production.",
+  throw new Error(
+    "[FATAL] JWT_REFRESH_SECRET environment variable is not set. " +
+    "Server cannot start securely. Set a strong independent JWT_REFRESH_SECRET.",
   );
 }
-const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET
-  ? process.env.JWT_REFRESH_SECRET
-  : JWT_SECRET + "_refresh";
+const REFRESH_SECRET: string = process.env.JWT_REFRESH_SECRET;
 
 export function signRefreshToken(userId: number): string {
   return jwt.sign({ userId, type: "refresh" }, REFRESH_SECRET, { expiresIn: "7d" });
