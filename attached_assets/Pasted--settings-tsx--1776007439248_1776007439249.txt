@@ -1,0 +1,219 @@
+أنت مهندس برمجيات محترف. مهمتك الآن: تقسيم ملف settings.tsx الضخم إلى مكونات صغيرة.
+
+السياق:
+- المشروع: Schema-Sync ERP
+- الملف الحالي: artifacts/erp-system/src/pages/settings.tsx (3,539 سطر)
+- الهدف: تقسيمه إلى 8 ملفات صغيرة
+- النتيجة المتوقعة: جودة كود 9.5/10
+
+═══════════════════════════════════════════════════════════════════
+
+المرحلة الأولى: إنشاء البنية والملفات الجديدة
+═══════════════════════════════════════════════════════════════════
+
+1️⃣ إنشاء مجلدات جديدة:
+   mkdir -p artifacts/erp-system/src/components/settings/tabs
+   mkdir -p artifacts/erp-system/src/components/settings/ui
+
+2️⃣ نسخ احتياطي من الملف الأصلي:
+   cp artifacts/erp-system/src/pages/settings.tsx artifacts/erp-system/src/pages/settings.tsx.backup
+
+3️⃣ إنشاء branch جديد:
+   git checkout -b claude/refactor-settings-component
+
+═══════════════════════════════════════════════════════════════════
+
+المرحلة الثانية: استخراج UI المشتركة
+═══════════════════════════════════════════════════════════════════
+
+أنشئ ملف جديد: artifacts/erp-system/src/components/settings/ui/SettingsUI.tsx
+
+المحتوى يجب أن يتضمن:
+1. الاستيرادات المطلوبة:
+   - React hooks (useState, useEffect, useRef, useCallback)
+   - lucide-react icons (Users, AlertTriangle, Plus, Trash2, etc)
+   - CSS/styling
+
+2. الدوال والمكونات التالية (بالترتيب):
+   - FieldLabel (سطر 218-220)
+   - SInput (سطر 222-228)
+   - SSelect (سطر 231-239)
+   - PrimaryBtn (سطر 242-250)
+   - DangerBtn (سطر 253-260)
+   - GhostBtn (سطر 263-270)
+   - Modal (سطر 274-316)
+   - PageHeader (سطر 320-329)
+   - CardSkeleton (سطر 333-345)
+   - COLOR_MAP constant (سطر 351-358)
+   - PermToggle (سطر 360-380)
+   - PermissionGroupCard (سطر 383-467)
+
+3. الثوابت التالية:
+   - ROLES (سطر 62-72)
+   - PERMISSION_GROUPS (سطر 77-133)
+   - PERMISSION_TEMPLATES (سطر 135-208)
+   - TEMPLATE_LABELS (سطر 210-215)
+   - TAB_SECTIONS (سطر 33-60)
+
+أضف في نهاية الملف:
+export { FieldLabel, SInput, SSelect, PrimaryBtn, DangerBtn, GhostBtn, Modal, PageHeader, CardSkeleton, PermToggle, PermissionGroupCard, ROLES, PERMISSION_GROUPS, PERMISSION_TEMPLATES, TEMPLATE_LABELS, TAB_SECTIONS };
+
+═══════════════════════════════════════════════════════════════════
+
+المرحلة الثالثة: استخراج Tabs الفردية
+═══════════════════════════════════════════════════════════════════
+
+⏰ كل tab يجب أن يكون ملف منفصل مع الاستيرادات الصحيحة
+
+📄 ملف 1: artifacts/erp-system/src/components/settings/tabs/UsersTab.tsx
+   - احسب رقم السطر الأول والأخير من settings.tsx
+   - استخرج دالة getInitials (سطر 523-526)
+   - استخرج دالة UsersTab كاملة (سطر 529-940)
+   - أضف الاستيرادات المطلوبة في الأعلى
+   - احفظ الملف وتأكد من عدم وجود أخطاء
+
+📄 ملف 2: artifacts/erp-system/src/components/settings/tabs/CurrencyTab.tsx
+   - استخرج دالة CurrencyTab (سطر 941-1226)
+   - أضف الاستيرادات المطلوبة
+   - احفظ الملف
+
+📄 ملف 3: artifacts/erp-system/src/components/settings/tabs/BackupTab.tsx
+   - استخرج دالة loadActivityLog (سطر 1227-1240)
+   - استخرج دالة BackupImportTab كاملة (سطر 1242-2471)
+   - غيّر اسم الدالة من BackupImportTab إلى BackupTab
+   - أضف الاستيرادات المطلوبة
+   - احفظ الملف
+   - تحقق: هذا الملف سيكون أكبر ملف، تأكد من الاستيرادات كاملة
+
+📄 ملف 4: artifacts/erp-system/src/components/settings/tabs/DataTab.tsx
+   - استخرج دالة FullResetSection (سطر 2613-2777)
+   - استخرج دالة DataTab (سطر 2472-2611)
+   - أضف الاستيرادات المطلوبة
+   - احفظ الملف
+
+📄 ملف 5: artifacts/erp-system/src/components/settings/tabs/OpeningBalanceTab.tsx
+   - استخرج جميع الدوال المتعلقة:
+     - OBTreasuryTab (سطر 2779-2852)
+     - OBProductsTab (سطر 2854-2957)
+     - OBCustomersTab (سطر 2959-3041)
+     - OBSuppliersTab (سطر 3043-3126)
+     - OpeningBalanceTab (سطر 3128-3211)
+   - أضف الاستيرادات المطلوبة
+   - احفظ الملف
+
+📄 ملف 6: artifacts/erp-system/src/components/settings/tabs/FinancialLockTab.tsx
+   - استخرج دالة FinancialLockTab (سطر 3213-3539)
+   - أضف الاستيرادات المطلوبة
+   - احفظ الملف
+
+═══════════════════════════════════════════════════════════════════
+
+المرحلة الرابعة: تحديث settings.tsx الرئيسي
+═══════════════════════════════════════════════════════════════════
+
+تحديث artifacts/erp-system/src/pages/settings.tsx:
+
+1. احذف كل شيء ما عدا:
+   - الاستيرادات الخارجية (React, react-query, lucide-react)
+   - الثابت BASE و الدالة api
+   - دالة Settings الرئيسية (سطر 473-517)
+
+2. أضف الاستيرادات الجديدة من المجلدات المنشأة:
+   
+   import {
+     FieldLabel, SInput, SSelect, PrimaryBtn, DangerBtn, GhostBtn,
+     Modal, PageHeader, CardSkeleton, PermToggle, PermissionGroupCard,
+     ROLES, PERMISSION_GROUPS, PERMISSION_TEMPLATES, TEMPLATE_LABELS, TAB_SECTIONS
+   } from "@/components/settings/ui/SettingsUI";
+   
+   import { UsersTab } from "@/components/settings/tabs/UsersTab";
+   import { CurrencyTab } from "@/components/settings/tabs/CurrencyTab";
+   import { BackupTab } from "@/components/settings/tabs/BackupTab";
+   import { DataTab } from "@/components/settings/tabs/DataTab";
+   import { OpeningBalanceTab } from "@/components/settings/tabs/OpeningBalanceTab";
+   import { FinancialLockTab } from "@/components/settings/tabs/FinancialLockTab";
+
+3. حدّث اسم الدالة في الملف الرئيسي:
+   - غيّر BackupImportTab إلى BackupTab في السطر الذي يستخدمها
+
+4. الملف النهائي يجب أن يكون حوالي 200-300 سطر فقط
+
+═══════════════════════════════════════════════════════════════════
+
+المرحلة الخامسة: التحقق والاختبار
+═══════════════════════════════════════════════════════════════════
+
+تأكد من جميع النقاط التالية:
+
+✅ التحقق من الأخطاء:
+   npm run type-check
+   npm run lint
+   npm run build
+
+✅ التحقق من الاستيرادات:
+   - لا توجد دوال غير معرّفة
+   - جميع الاستيرادات صحيحة
+   - لا توجد import cycles
+
+✅ التحقق من الملفات:
+   - 8 ملفات جديدة موجودة
+   - settings.tsx الأصلي تم تحديثه
+   - لا توجد ملفات مكررة
+
+✅ اختبار سريع:
+   - تأكد من أن الملف يعمل (لا أخطاء runtime)
+
+═══════════════════════════════════════════════════════════════════
+
+المرحلة السادسة: Git Commit
+═══════════════════════════════════════════════════════════════════
+
+اعمل commit بالرسالة التالية:
+
+git add .
+git commit -m "refactor: split settings.tsx into 10 modular components
+
+Split monolithic 3539-line settings.tsx into focused, maintainable components:
+
+Components extracted:
+- UI components: SettingsUI.tsx (buttons, modals, inputs, permission cards)
+- Tab components:
+  - UsersTab.tsx: User management and role assignments
+  - CurrencyTab.tsx: Store settings and customization
+  - BackupTab.tsx: Backup import/export functionality
+  - DataTab.tsx: Database reset and data management
+  - OpeningBalanceTab.tsx: Initial balance setup (4 sub-sections)
+  - FinancialLockTab.tsx: Financial period locking
+
+Improvements:
+- settings.tsx reduced from 3539 to ~250 lines
+- Each tab now independently testable
+- Shared UI components centralized
+- Better code organization and maintainability
+- Improved readability and debugging
+
+No functional changes - all existing features preserved.
+Code quality: 7.2/10 → 9.5/10"
+
+═══════════════════════════════════════════════════════════════════
+
+ملاحظات مهمة:
+═══════════════════════════════════════════════════════════════════
+
+⚠️ تحقق دوماً من:
+1. أن جميع الاستيرادات صحيحة
+2. عدم وجود دوال مفقودة أو مكررة
+3. التحقق من TypeScript errors
+4. التحقق من ESLint warnings
+
+📌 إذا حدث أي خطأ:
+- اعتمد على backup (.backup file)
+- أعد المحاولة خطوة واحدة في كل مرة
+- تحقق من رسائل الأخطاء بعناية
+
+✨ النتيجة النهائية:
+- 8 ملفات صغيرة وسهلة الفهم
+- كود أكثر قابلية للصيانة والاختبار
+- جودة كود من 7.2 إلى 9.5 من 10
+
+═══════════════════════════════════════════════════════════════════
