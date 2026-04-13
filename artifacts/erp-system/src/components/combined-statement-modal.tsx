@@ -84,13 +84,23 @@ export function CombinedStatementModal({
     ? (filtered[filtered.length - 1]?.balance ?? 0)
     : (summary?.closing_balance ?? 0);
 
+  const escHtml = (str: string | null | undefined): string => {
+    if (!str) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#x27;");
+  };
+
   const handlePrint = () => {
     if (!data) return;
     const rows = filtered.map((r, i) => {
       const cfg = rowTypeConfig[r.type] ?? { label: r.type, icon: "•" };
       return `<tr style="background:${i % 2 === 0 ? '#f8f9fa' : '#fff'}">
-        <td style="padding:6px;border:1px solid #dee2e6">${r.date}</td>
-        <td style="padding:6px;border:1px solid #dee2e6">${cfg.icon} ${r.description}</td>
+        <td style="padding:6px;border:1px solid #dee2e6">${escHtml(r.date)}</td>
+        <td style="padding:6px;border:1px solid #dee2e6">${escHtml(cfg.icon)} ${escHtml(r.description)}</td>
         <td style="padding:6px;border:1px solid #dee2e6;text-align:center;color:#28a745">${r.debit > 0 ? r.debit.toLocaleString("ar-EG", { minimumFractionDigits: 2 }) : "—"}</td>
         <td style="padding:6px;border:1px solid #dee2e6;text-align:center;color:#dc3545">${r.credit > 0 ? r.credit.toLocaleString("ar-EG", { minimumFractionDigits: 2 }) : "—"}</td>
         <td style="padding:6px;border:1px solid #dee2e6;text-align:center;font-weight:bold;color:${r.balance >= 0 ? '#856404' : '#0c5460'}">
@@ -100,17 +110,19 @@ export function CombinedStatementModal({
     }).join("");
     const win = window.open("", "_blank");
     if (!win) return;
-    win.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8">
-      <title>كشف الحساب الموحد — ${contact?.name}</title>
+    const doc = win.document;
+    doc.open();
+    doc.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8">
+      <title>كشف الحساب الموحد — ${escHtml(contact?.name)}</title>
       <style>body{font-family:Arial,sans-serif;font-size:12px;padding:20px}h2{color:#333}table{width:100%;border-collapse:collapse}th{background:#343a40;color:#fff;padding:8px;border:1px solid #dee2e6}</style>
       </head><body>
       <h2>كشف الحساب الموحد</h2>
-      <p><strong>${contact?.name}</strong> | ${contact?.phone ?? "—"} | النوع: ${contact?.type === "both" ? "عميل ومورد" : contact?.type === "customer" ? "عميل" : "مورد"}</p>
+      <p><strong>${escHtml(contact?.name)}</strong> | ${escHtml(contact?.phone) || "—"} | النوع: ${contact?.type === "both" ? "عميل ومورد" : contact?.type === "customer" ? "عميل" : "مورد"}</p>
       <p>الرصيد النهائي: <strong>${Math.abs(closingBalance).toLocaleString("ar-EG", { minimumFractionDigits: 2 })} ${closingBalance >= 0 ? "عليه لنا" : "له علينا"}</strong></p>
       <table><thead><tr><th>التاريخ</th><th>البيان</th><th>مدين (له)</th><th>دائن (عليه)</th><th>الرصيد</th></tr></thead>
       <tbody>${rows}</tbody></table>
-      <script>window.print();</script></body></html>`);
-    win.document.close();
+      <script>window.print();<\/script></body></html>`);
+    doc.close();
   };
 
   return (

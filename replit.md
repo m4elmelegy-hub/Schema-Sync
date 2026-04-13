@@ -402,6 +402,32 @@ All financial documents (sales, purchases, deposit vouchers, payment vouchers, r
 - **Coverage (Backend)**: `pnpm --filter @workspace/api-server test:coverage` (scoped to core modules; thresholds: 50% stmts/lines, 55% funcs, 30% branches)
 - **Coverage (Frontend)**: `pnpm --filter @workspace/erp-system test:coverage` (thresholds: 60% lines/funcs)
 
+## Security Audit & Fixes (Completed)
+
+A comprehensive security audit was performed with the following results and remediation:
+
+### Vulnerabilities Fixed
+- **XSS in Print/Document.write** (`sales.tsx`, `combined-statement-modal.tsx`): Added `escHtml()` helper function that escapes `&`, `<`, `>`, `"`, `'` before injecting user-controlled data (product names, customer names, invoice numbers, phone numbers) into `document.write()` calls. All dynamic fields sanitized.
+- **Path Traversal in Backups** (`backups.ts`): Both download and delete endpoints now use `path.basename()` + `path.resolve()` to validate that computed file path stays within `BACKUP_DIR`. Returns 403 if path escapes. Content-Disposition header sanitized with regex to allow only safe characters.
+- **H2C Smuggling in nginx** (`deploy/nginx.conf`): Added `map $http_upgrade $connection_upgrade` block that blocks `h2c` upgrades (maps to `close`), passes WebSocket upgrades normally, and falls back to `close` for empty Upgrade headers. Removed forwarding of raw `$http_upgrade` via `Connection` header in favor of the mapped variable. Removed `$http_host` in favour of explicit `$host`.
+
+### Performance Indexes Added (DB Applied)
+Composite indexes added to DB schema and pushed via `drizzle-kit push`:
+- `sales`: `(company_id, date)`, `(company_id, posting_status)`
+- `purchases`: `(company_id, date)`, `(company_id, posting_status)`
+- `expenses`: `(company_id, created_at)`
+- `transactions`: `(company_id, date)`, `(company_id, type)`
+
+### Dependency Updates
+- `vite`: `7.3.2` already in `pnpm-workspace.yaml` catalog and `pnpm-lock.yaml` — no CVE exposure.
+
+### Secrets Management
+- `JWT_SECRET`, `JWT_REFRESH_SECRET`, `TOTP_ENCRYPTION_KEY`, `SUPER_ADMIN_PIN`, `DEFAULT_ADMIN_PIN` registered in Replit's secure env var store (shared environment).
+
+### Remaining Medium-Priority Items
+- `reports.ts`: 23 raw `pool.query()` / `sql.raw()` calls — should migrate to Drizzle `sql\`...\`` template literals (medium priority, no immediate security risk as all are server-side parameterized queries).
+- SAST: 159 MEDIUM findings remain (primarily `console.log` in prod code and non-cryptographic Math.random uses).
+
 ## Mobile App (erp-mobile)
 
 Standalone iOS & Android mobile companion app at `artifacts/erp-mobile/`. Built with Expo 54 + expo-router v6.

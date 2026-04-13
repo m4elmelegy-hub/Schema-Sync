@@ -701,21 +701,31 @@ function PaymentBadge({ type }: { type: string }) {
 function SaleDetailModal({ saleId, onClose }: { saleId: number; onClose: () => void }) {
   const { data: sale, isLoading } = useGetSaleById(saleId);
 
+  const escHtml = (v: unknown): string => {
+    if (v == null) return "";
+    return String(v)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#x27;");
+  };
+
   const handlePrint = () => {
     if (!sale) return;
     const payLabel: Record<string, string> = { cash: 'نقدي', credit: 'آجل', partial: 'جزئي' };
     const s = sale as any;
     const itemsHtml = (sale.items || []).map((item, i) =>
-      `<tr><td>${i+1}</td><td><strong>${item.product_name}</strong></td><td>${item.quantity}</td><td>${Number(item.unit_price).toFixed(2)} ج.م</td><td><strong>${Number(item.total_price).toFixed(2)} ج.م</strong></td></tr>`
+      `<tr><td>${i+1}</td><td><strong>${escHtml(item.product_name)}</strong></td><td>${Number(item.quantity)}</td><td>${Number(item.unit_price).toFixed(2)} ج.م</td><td><strong>${Number(item.total_price).toFixed(2)} ج.م</strong></td></tr>`
     ).join("");
     const discountHtml = Number(s.discount_amount) > 0 ? `
       <div class="total-row"><span>الإجمالي قبل الخصم</span><span>${(Number(sale.total_amount) + Number(s.discount_amount)).toFixed(2)} ج.م</span></div>
-      <div class="total-row"><span>الخصم (${s.discount_percent}%)</span><span>- ${Number(s.discount_amount).toFixed(2)} ج.م</span></div>` : "";
+      <div class="total-row"><span>الخصم (${Number(s.discount_percent)}%)</span><span>- ${Number(s.discount_amount).toFixed(2)} ج.م</span></div>` : "";
     const remainHtml = Number(sale.remaining_amount) > 0 ?
       `<div class="total-row" style="color:red"><span>المتبقي</span><span><strong>${Number(sale.remaining_amount).toFixed(2)} ج.م</strong></span></div>` : "";
     const extraMeta = [
-      s.warehouse_name ? `<div class="meta-item"><span class="meta-label">المخزن:</span><span class="meta-value">${s.warehouse_name}</span></div>` : "",
-      s.salesperson_name ? `<div class="meta-item"><span class="meta-label">المندوب:</span><span class="meta-value">${s.salesperson_name}</span></div>` : "",
+      s.warehouse_name ? `<div class="meta-item"><span class="meta-label">المخزن:</span><span class="meta-value">${escHtml(s.warehouse_name)}</span></div>` : "",
+      s.salesperson_name ? `<div class="meta-item"><span class="meta-label">المندوب:</span><span class="meta-value">${escHtml(s.salesperson_name)}</span></div>` : "",
     ].join("");
     const html = `<!DOCTYPE html><html dir="rtl" lang="ar">
 <head><meta charset="UTF-8"/><title>فاتورة ${sale.invoice_no}</title>
@@ -748,12 +758,12 @@ function SaleDetailModal({ saleId, onClose }: { saleId: number; onClose: () => v
   <div class="company-slogan">الحلال = البركة | متخصصون في صيانة الهواتف المحمولة</div>
   <div class="company-info">📍 مصر — القاهرة &nbsp;&nbsp; 📞 01000000000</div>
 </div>
-<div class="invoice-title">فاتورة مبيعات — ${sale.invoice_no}</div>
+<div class="invoice-title">فاتورة مبيعات — ${escHtml(sale.invoice_no)}</div>
 <div class="meta-grid">
-  <div class="meta-item"><span class="meta-label">رقم الفاتورة:</span><span class="meta-value">${sale.invoice_no}</span></div>
-  <div class="meta-item"><span class="meta-label">التاريخ:</span><span class="meta-value">${formatDate(sale.created_at)}</span></div>
-  <div class="meta-item"><span class="meta-label">العميل:</span><span class="meta-value">${sale.customer_name || 'عميل نقدي'}</span></div>
-  <div class="meta-item"><span class="meta-label">طريقة الدفع:</span><span class="meta-value">${payLabel[sale.payment_type] || sale.payment_type}</span></div>
+  <div class="meta-item"><span class="meta-label">رقم الفاتورة:</span><span class="meta-value">${escHtml(sale.invoice_no)}</span></div>
+  <div class="meta-item"><span class="meta-label">التاريخ:</span><span class="meta-value">${escHtml(formatDate(sale.created_at))}</span></div>
+  <div class="meta-item"><span class="meta-label">العميل:</span><span class="meta-value">${escHtml(sale.customer_name) || 'عميل نقدي'}</span></div>
+  <div class="meta-item"><span class="meta-label">طريقة الدفع:</span><span class="meta-value">${escHtml(payLabel[sale.payment_type] || sale.payment_type)}</span></div>
   ${extraMeta}
 </div>
 <table>
@@ -770,6 +780,7 @@ function SaleDetailModal({ saleId, onClose }: { saleId: number; onClose: () => v
 </body></html>`;
     const w = window.open("", "_blank", "width=820,height=950");
     if (!w) return;
+    w.document.open();
     w.document.write(html);
     w.document.close();
     w.focus();

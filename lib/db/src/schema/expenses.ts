@@ -18,6 +18,7 @@ export const expensesTable = pgTable("expenses", {
   index("expenses_safe_id_idx").on(t.safe_id),
   index("expenses_category_idx").on(t.category),
   index("expenses_created_at_idx").on(t.created_at),
+  index("expenses_company_created_at_idx").on(t.company_id, t.created_at),
 ]);
 
 export const insertExpenseSchema = createInsertSchema(expensesTable).omit({ id: true, created_at: true });

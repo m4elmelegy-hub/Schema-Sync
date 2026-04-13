@@ -38,6 +38,8 @@ export const salesTable = pgTable("sales", {
   index("sales_status_idx").on(t.status),
   index("sales_created_at_idx").on(t.created_at),
   index("sales_date_idx").on(t.date),
+  index("sales_company_date_idx").on(t.company_id, t.date),
+  index("sales_company_status_idx").on(t.company_id, t.posting_status),
 ]);
 
 export const saleItemsTable = pgTable("sale_items", {

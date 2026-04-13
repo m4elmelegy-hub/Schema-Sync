@@ -101,12 +101,19 @@ router.get("/backups/:id/download", authenticate, requireRole("admin"), wrap(asy
   const [record] = await db.select().from(backupsTable).where(eq(backupsTable.id, id));
   if (!record) throw httpError(404, "النسخة الاحتياطية غير موجودة");
 
-  const filepath = path.join(BACKUP_DIR, record.filename);
-  if (!fs.existsSync(filepath)) throw httpError(404, "الملف غير موجود على الخادم");
+  /* منع Path Traversal — التحقق أن المسار داخل مجلد النسخ الاحتياطية فقط */
+  const safeBase = path.resolve(BACKUP_DIR);
+  const safepath = path.resolve(BACKUP_DIR, path.basename(record.filename));
+  if (!safepath.startsWith(safeBase + path.sep) && safepath !== safeBase) {
+    throw httpError(403, "مسار الملف غير مسموح به");
+  }
 
+  if (!fs.existsSync(safepath)) throw httpError(404, "الملف غير موجود على الخادم");
+
+  const safeFilename = path.basename(record.filename).replace(/[^\w.\-]/g, "_");
   res.setHeader("Content-Type", "application/json");
-  res.setHeader("Content-Disposition", `attachment; filename="${record.filename}"`);
-  res.sendFile(filepath);
+  res.setHeader("Content-Disposition", `attachment; filename="${safeFilename}"`);
+  res.sendFile(safepath);
 }));
 
 /* ── DELETE /api/backups/:id ─────────────────────────────────── */
@@ -117,7 +124,12 @@ router.delete("/backups/:id", authenticate, requireRole("admin"), wrap(async (re
   const [record] = await db.select().from(backupsTable).where(eq(backupsTable.id, id));
   if (!record) throw httpError(404, "النسخة الاحتياطية غير موجودة");
 
-  const filepath = path.join(BACKUP_DIR, record.filename);
+  /* منع Path Traversal عند الحذف */
+  const safeBase = path.resolve(BACKUP_DIR);
+  const filepath = path.resolve(BACKUP_DIR, path.basename(record.filename));
+  if (!filepath.startsWith(safeBase + path.sep) && filepath !== safeBase) {
+    throw httpError(403, "مسار الملف غير مسموح به");
+  }
   if (fs.existsSync(filepath)) fs.unlinkSync(filepath);
 
   await db.delete(backupsTable).where(eq(backupsTable.id, id));

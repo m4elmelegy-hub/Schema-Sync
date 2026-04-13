@@ -28,6 +28,8 @@ export const purchasesTable = pgTable("purchases", {
   index("purchases_created_at_idx").on(t.created_at),
   index("purchases_date_idx").on(t.date),
   uniqueIndex("purchases_request_id_uidx").on(t.request_id),
+  index("purchases_company_date_idx").on(t.company_id, t.date),
+  index("purchases_company_status_idx").on(t.company_id, t.posting_status),
 ]);
 
 export const purchaseItemsTable = pgTable("purchase_items", {
