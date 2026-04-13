@@ -92,6 +92,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
+      - name: Build shared libraries
+        run: pnpm --filter @workspace/api-client-react build
+
       - name: Lint backend
         run: pnpm --filter @workspace/api-server lint
 
