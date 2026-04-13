@@ -29,6 +29,8 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
             git clean -fd
+                        export
+            DATABASE_URL="postgresql://erpuser:123456@localhost:5432/erp"
             pnpm install
             cd /root/Schema-Sync/lib/db
             pnpm run push
