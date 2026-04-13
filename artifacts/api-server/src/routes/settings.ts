@@ -459,7 +459,7 @@ router.put("/settings/period", authenticate, requireRole("admin"), wrap(async (r
       record_type: "financial_lock",
       record_id: 0,
       new_value: { closing_date, locked_by: username, lock_mode: lock_mode ?? "manual" },
-      user: { id: userId, username },
+      user: { id: userId ?? undefined, username },
     });
   } else {
     if (!unlock_reason || String(unlock_reason).trim().length < 3) {
@@ -477,7 +477,7 @@ router.put("/settings/period", authenticate, requireRole("admin"), wrap(async (r
       record_id: 0,
       old_value: { closing_date: prev["closing_date"], locked_by: prev["lock_locked_by"] },
       new_value: { unlock_reason, unlocked_by: username },
-      user: { id: userId, username },
+      user: { id: userId ?? undefined, username },
     });
   }
 
