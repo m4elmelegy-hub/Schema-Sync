@@ -1,6 +1,5 @@
 import { pgTable, serial, text, numeric, integer, boolean, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod/v4";
 import { companiesTable } from "./companies";
 
 export const accountsTable = pgTable("accounts", {
