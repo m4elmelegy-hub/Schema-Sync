@@ -1,72 +1,73 @@
 name: Deploy to Production
 
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
+  on:
+    push:
+      branches: [main]
+    workflow_dispatch:
 
-jobs:
-  deploy:
-    name: Deploy to Hetzner VPS
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+  jobs:
+    deploy:
+      name: Deploy to Hetzner VPS
+      runs-on: ubuntu-latest
+      timeout-minutes: 15
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      steps:
+        - name: Checkout
+          uses: actions/checkout@v4
 
-      - name: Deploy to VPS via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          password: ${{ secrets.VPS_PASSWORD }}
-          port: 22
-          command_timeout: 12m
-          script: |
-            set -e
-            cd /root/Schema-Sync
-            git fetch origin main
-            git reset --hard origin/main
-            git clean -fd
-                        export
-            DATABASE_URL="postgresql://erpuser:123456@localhost:5432/erp"
-            pnpm install
-            cd /root/Schema-Sync/lib/db
-            pnpm run push
-            cd /root/Schema-Sync/artifacts/erp-system
-            NODE_ENV=production BASE_PATH=/ VITE_API_URL="" pnpm run build
-            cd /root/Schema-Sync/artifacts/api-server
-            pnpm run build
-            pm2 restart halaltech-api --update-env
-            MAX_ATTEMPTS=24
-            ATTEMPT=0
-            until curl -sf http://localhost:8080/api/healthz > /dev/null 2>&1; do
-              ATTEMPT=$((ATTEMPT + 1))
-              if [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; then
-                pm2 logs halaltech-api --lines 30 --nostream || true
+        - name: Deploy to VPS via SSH
+          uses: appleboy/ssh-action@v1.0.3
+          with:
+            host: ${{ secrets.VPS_HOST }}
+            username: ${{ secrets.VPS_USER }}
+            password: ${{ secrets.VPS_PASSWORD }}
+            port: 22
+            command_timeout: 12m
+            script: |
+              set -e
+              cd /root/Schema-Sync
+              git fetch origin main
+              git reset --hard origin/main
+              git clean -fd
+              export DATABASE_URL="postgresql://erpuser:123456@localhost:5432/erp"
+              pnpm install
+              cd /root/Schema-Sync/lib/db
+              pnpm run push
+              cd /root/Schema-Sync/artifacts/erp-system
+              NODE_ENV=production BASE_PATH=/ VITE_API_URL="" pnpm run build
+              cd /root/Schema-Sync/artifacts/api-server
+              pnpm run build
+              pm2 restart halaltech-api --update-env
+              MAX_ATTEMPTS=24
+              ATTEMPT=0
+              until curl -sf http://localhost:8080/api/healthz > /dev/null 2>&1; do
+                ATTEMPT=$((ATTEMPT + 1))
+                if [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; then
+                  pm2 logs halaltech-api --lines 30 --nostream || true
+                  exit 1
+                fi
+                sleep 2.5
+              done
+              pm2 status
+
+        - name: Verify deployment
+          uses: appleboy/ssh-action@v1.0.3
+          with:
+            host: ${{ secrets.VPS_HOST }}
+            username: ${{ secrets.VPS_USER }}
+            password: ${{ secrets.VPS_PASSWORD }}
+            port: 22
+            command_timeout: 30s
+            script: |
+              set -e
+              RESPONSE=$(curl -sf http://localhost:8080/api/healthz 2>&1) || {
+                pm2 logs halaltech-api --lines 20 --nostream || true
+                exit 1
+              }
+              STATUS=$(echo "$RESPONSE" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+              if [ "$STATUS" = "unhealthy" ]; then
+                pm2 logs halaltech-api --lines 20 --nostream || true
                 exit 1
               fi
-              sleep 2.5
-            done
-            pm2 status
-
-      - name: Verify deployment
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          password: ${{ secrets.VPS_PASSWORD }}
-          port: 22
-          command_timeout: 30s
-          script: |
-            set -e
-            RESPONSE=$(curl -sf http://localhost:8080/api/healthz 2>&1) || {
-              pm2 logs halaltech-api --lines 20 --nostream || true
-              exit 1
-            }
-            STATUS=$(echo "$RESPONSE" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
-            if [ "$STATUS" = "unhealthy" ]; then
-              exit 1
-            fi
-            echo "OK — $STATUS — halaltec.com is live!"
+              echo "OK — $STATUS — halaltec.com is live!"
+  
