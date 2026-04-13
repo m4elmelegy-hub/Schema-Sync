@@ -26,9 +26,9 @@ jobs:
           script: |
             set -e
             cd /root/Schema-Sync
-            git stash 2>/dev/null || true
-            git pull origin main
-            git stash pop 2>/dev/null || true
+            git fetch origin main
+            git reset --hard origin/main
+            git clean -fd
             pnpm install
             cd /root/Schema-Sync/lib/db
             pnpm run push
