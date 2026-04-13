@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Loader2, Lock, LockOpen, AlertOctagon, Info, ClipboardList, ChevronDown,
 } from "lucide-react";
-import { PageHeader, FieldLabel, SInput } from "./_shared";
+import { PageHeader, FieldLabel } from "./_shared";
 import { ACTION_LABELS } from "./_constants";
 
 /* ── Arabic label maps for audit log ───────────────────────── */
