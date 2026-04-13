@@ -23,6 +23,7 @@ jobs:
           password: ${{ secrets.VPS_PASSWORD }}
           port: 22
           command_timeout: 12m
+          envs: VPS_JWT_SECRET,VPS_JWT_REFRESH_SECRET
           script: |
             set -e
             cd /root/Schema-Sync
@@ -30,6 +31,9 @@ jobs:
             git reset --hard origin/main
             git clean -fd
             export DATABASE_URL="postgresql://erpuser:123456@localhost:5432/erp"
+            export JWT_SECRET="$VPS_JWT_SECRET"
+            export JWT_REFRESH_SECRET="$VPS_JWT_REFRESH_SECRET"
+            export NODE_ENV=production
             pnpm install
             cd /root/Schema-Sync/lib/db
             pnpm run push
@@ -49,6 +53,10 @@ jobs:
               sleep 2.5
             done
             pm2 status
+
+        env:
+          VPS_JWT_SECRET: ${{ secrets.VPS_JWT_SECRET }}
+          VPS_JWT_REFRESH_SECRET: ${{ secrets.VPS_JWT_REFRESH_SECRET }}
 
       - name: Verify deployment
         uses: appleboy/ssh-action@v1.0.3
