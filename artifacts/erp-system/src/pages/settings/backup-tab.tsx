@@ -95,7 +95,7 @@ export default function BackupTab() {
   useEffect(() => { void loadSettings(); void loadList(); }, [loadSettings, loadList]);
 
   /* ── نسخة محلية انتقائية ── */
-  const toggleModule = (key: string) => setBkModules(prev => { const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s; });
+  const toggleModule = (key: string) => setBkModules(prev => { const s = new Set(prev); if (s.has(key)) { s.delete(key); } else { s.add(key); } return s; });
   const toggleAll    = () => setBkModules(bkModules.size === BACKUP_MODULES_LIST.length ? new Set() : new Set(BACKUP_MODULES_LIST.map(m => m.key)));
 
   const lastBackupLabel = () => {
