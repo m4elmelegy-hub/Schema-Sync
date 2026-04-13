@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState } from "react";
 import {
-  Users, BookOpen, Lock, Store, HardDrive, Database, Loader2, Settings, Building2,
+  Users, BookOpen, Lock, Store, HardDrive, Database, Settings, Building2,
 } from "lucide-react";
 
 /* ─── Lazy-load each tab ─── */
