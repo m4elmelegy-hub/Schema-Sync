@@ -195,7 +195,7 @@ export default function DataTab() {
             method: "POST",
             body: JSON.stringify({ name: String(name), sku: String(row["كود الصنف (SKU)"] || row["sku"] || ""), category: String(row["التصنيف"] || ""), quantity: Number(row["الكمية"] || 0), cost_price: Number(row["سعر التكلفة"] || 0), sale_price: Number(row["سعر البيع"] || 0), low_stock_threshold: row["حد التنبيه"] ? Number(row["حد التنبيه"]) : undefined }),
           });
-          r.ok ? ok++ : fail++;
+          if (r.ok) { ok++; } else { fail++; }
         } catch { fail++; }
       }
       setProdResult({ success: ok, failed: fail });
@@ -311,7 +311,7 @@ export default function DataTab() {
      الحذف الانتقائي
   ──────────────────────────────────────── */
   const toggle = (key: string) => {
-    setSelected(prev => { const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s; });
+    setSelected(prev => { const s = new Set(prev); if (s.has(key)) { s.delete(key); } else { s.add(key); } return s; });
     setConfirmText(""); };
   const allKeys   = DATA_GROUPS.map(g => g.key);
   const toggleAll = () => { setSelected(selected.size === allKeys.length ? new Set<string>() : new Set<string>(allKeys)); setConfirmText(""); };
