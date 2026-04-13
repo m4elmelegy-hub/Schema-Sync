@@ -659,7 +659,7 @@ router.post('/auth/login/email', async (req, res) => {
     }
 
     /* Lockout check using email-based key */
-    const lockout = getLoginLockout(user.id);
+    const lockout = await getLoginLockout(user.id);
     if (lockout.lockedUntil !== null && Date.now() < lockout.lockedUntil) {
       const remaining = Math.ceil((lockout.lockedUntil - Date.now()) / 60000);
       res.status(429).json({ error: `تم تجميد الحساب. انتظر ${remaining} دقيقة` });
@@ -668,7 +668,7 @@ router.post('/auth/login/email', async (req, res) => {
 
     const valid = await verifyPin(password, user.pin ?? '');
     if (!valid) {
-      const updated = recordLoginFailure(user.id);
+      const updated = await recordLoginFailure(user.id);
       const rem = MAX_ATTEMPTS - updated.attempts;
       res.status(401).json({
         error:
@@ -698,7 +698,7 @@ router.post('/auth/login/email', async (req, res) => {
       }
     }
 
-    clearLoginLockout(user.id);
+    await clearLoginLockout(user.id);
     const token = signToken(user.id, user.role, user.company_id ?? null);
     let parsedPerms: Record<string, boolean> = {};
     try {
