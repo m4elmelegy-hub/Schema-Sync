@@ -1,34 +1,52 @@
 #!/bin/bash
-set -e
-echo "🚀 بدء الـ Deploy..."
+  set -e
 
-cd /root/Schema-Sync
+  APP_DIR="/root/Schema-Sync"
+  cd "$APP_DIR"
 
-git stash 2>/dev/null || true
-git pull origin main
-git stash pop 2>/dev/null || true
+  # تحميل متغيرات البيئة
+  if [ -f "$APP_DIR/.env" ]; then
+    set -a
+    source "$APP_DIR/.env"
+    set +a
+  fi
 
-pnpm install
+  echo "--- Reset any conflicts and pull latest ---"
+  git fetch origin main
+  git reset --hard origin/main
+  git clean -fd
 
-cd /root/Schema-Sync/lib/db
-DATABASE_URL="postgresql://erpuser:123456@localhost:5432/erp" pnpm run push
+  echo "--- pnpm install ---"
+  pnpm install
 
-cd /root/Schema-Sync/artifacts/erp-system
-PORT=8080 BASE_PATH=/ VITE_API_URL="" pnpm run build
+  echo "--- DB push ---"
+  cd "$APP_DIR/lib/db"
+  pnpm run push
 
-cd /root/Schema-Sync/artifacts/api-server
-pnpm run build
+  echo "--- Frontend build ---"
+  cd "$APP_DIR/artifacts/erp-system"
+  NODE_ENV=production BASE_PATH=/ VITE_API_URL="" pnpm run build
 
-pm2 restart halaltech-api
+  echo "--- Backend build ---"
+  cd "$APP_DIR/artifacts/api-server"
+  pnpm run build
 
-# تأكد إن الـ monitor script موجود ومُفعَّل
-if [ ! -f /root/monitor.sh ]; then
-  echo "⚠️  Monitor script غير موجود — انسخه من deploy/monitor.sh يدوياً"
-fi
+  echo "--- pm2 restart ---"
+  pm2 restart halaltech-api --update-env
 
-# تأكد من وجود مجلد الـ backups
-mkdir -p /root/db-backups
-echo "📁 Backup directory: /root/db-backups"
+  echo "--- Waiting for API (max 60s) ---"
+  MAX=24
+  i=0
+  until curl -sf http://localhost:8080/api/healthz > /dev/null 2>&1; do
+    i=$((i+1))
+    if [ "$i" -ge "$MAX" ]; then
+      pm2 logs halaltech-api --lines 30 --nostream || true
+      exit 1
+    fi
+    sleep 2.5
+  done
 
-echo "✅ Deploy خلص! الموقع اتحدث."
-echo "🌐 halaltec.com جاهز"
+  mkdir -p /root/db-backups
+  echo "Deploy done! halaltec.com is live."
+  pm2 status
+  
