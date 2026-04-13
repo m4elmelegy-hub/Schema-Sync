@@ -13,13 +13,5 @@
     "exactOptionalPropertyTypes": false
   },
   "include": ["src"],
-  "exclude": ["src/__tests__", "src/tests", "dist", "coverage"],
-  "references": [
-    {
-      "path": "../../lib/db"
-    },
-    {
-      "path": "../../lib/api-zod"
-    }
-  ]
+  "exclude": ["src/__tests__", "src/tests", "dist", "coverage"]
 }
