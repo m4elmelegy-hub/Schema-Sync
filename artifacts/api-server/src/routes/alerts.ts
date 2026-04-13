@@ -92,14 +92,14 @@ router.post("/alerts/run-checks", wrap(async (_req, res) => {
 }));
 
 router.post("/alerts/resolve/:id", wrap(async (req, res) => {
-  const id     = parseInt(req.params.id, 10);
+  const id     = parseInt(String(req.params['id']), 10);
   const userId = req.user?.id ?? 0;
   await resolveAlert(id, userId);
   res.json({ ok: true });
 }));
 
 router.post("/alerts/mark-read/:id", wrap(async (req, res) => {
-  const id        = parseInt(req.params.id, 10);
+  const id        = parseInt(String(req.params['id']), 10);
   const companyId = req.user?.company_id ?? null;
   const where = companyId !== null
     ? and(eq(alertsTable.id, id), eq(alertsTable.company_id, companyId))
