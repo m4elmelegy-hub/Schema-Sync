@@ -424,9 +424,17 @@ Composite indexes added to DB schema and pushed via `drizzle-kit push`:
 ### Secrets Management
 - `JWT_SECRET`, `JWT_REFRESH_SECRET`, `TOTP_ENCRYPTION_KEY`, `SUPER_ADMIN_PIN`, `DEFAULT_ADMIN_PIN` registered in Replit's secure env var store (shared environment).
 
-### Remaining Medium-Priority Items
-- `reports.ts`: 23 raw `pool.query()` / `sql.raw()` calls — should migrate to Drizzle `sql\`...\`` template literals (medium priority, no immediate security risk as all are server-side parameterized queries).
-- SAST: 159 MEDIUM findings remain (primarily `console.log` in prod code and non-cryptographic Math.random uses).
+### SQL Parameterization — reports.ts (Completed)
+All 35 `sql.raw()` calls with string interpolation in `reports.ts` were replaced with Drizzle `sql\`...\`` template tag using proper parameterized values:
+- `cfSql(alias, companyId)` — emits `AND alias.company_id = $N` with companyId as a bound parameter
+- `cfSimpleSql(companyId)` — same without alias
+- `dfSql(alias, col, from, to)` — emits `AND alias.col >= $N AND alias.col <= $M` with dates as bound params
+- Table aliases and column names use `sql.raw()` only (developer-controlled string literals, never user input)
+- All 8 report endpoints tested and verified working with parameterized queries
+- SQL injection test confirmed: malicious date `2024-01-01' OR '1'='1` is silently rejected by `safeDate()` regex
+
+### Remaining Items
+- SAST: ~159 MEDIUM findings remain (primarily `console.log` in prod code, non-cryptographic Math.random, and dependency warnings — none are critical or High severity after the above fixes).
 
 ## Mobile App (erp-mobile)
 
